@@ -6,7 +6,8 @@ Created on Tue Nov 26 12:25:24 2024
 """
 
 import pandas as pd
-import beautifulsoup as bs
+from bs4 import BeautifulSoup
+import requests
 
 df = pd.DataFrame({
     "topic": ["Plant Care"],
