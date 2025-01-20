@@ -31,7 +31,7 @@ print(f"Total loaded document length across URLs: {total_length}")
 
 
 # Step 2: Split the document texts into chunks.
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 docs = text_splitter.split_documents(all_documents)
 print(f"Number of document chunks: {len(docs)}")
 
@@ -54,7 +54,10 @@ llm = HuggingFacePipeline(pipeline=pipe)
 # Step 7: Create a RetrievalQA chain.
 qa_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
 
-# Step 8: Ask a query.
-query = "What is aquaponics?"
-result = qa_chain.run(query)
-print("\nAnswer:\n", result)
+# Step 8: Implement a loop to handle multiple queries and add a simple command-line interface.
+while True:
+    query = input("Enter your query (or type 'exit' to quit): ")
+    if query.lower() == 'exit':
+        break
+    result = qa_chain.run(query)
+    print("\nAnswer:\n", result)
