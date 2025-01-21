@@ -8,7 +8,10 @@ Created on Tue Nov 26 12:25:24 2024
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
+<<<<<<< HEAD
 #import beautifulsoup as bs
+=======
+>>>>>>> 2adb459f174d42c8449985a064807b2f2e3c4451
 
 df = pd.DataFrame({
     "topic": ["Plant Care"],
