@@ -17,7 +17,21 @@ from langchain_community.vectorstores import FAISS
 from uuid import uuid4
 from langchain_core.documents import Document
 import pandas as pd
-from Dictionary_02 import df
+import Dictionary_02 as d2
+import sys
+
+
+# print(d2.df)
+df = d2.df
+#print(df)
+
+
+# print html_path FROM Dictionary_02.py
+html_path = df["source"].values[0]
+print('The path for the html is: ', html_path)
+# sys.exit()
+
+
 
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 embedding_dim = len(embeddings.embed_query("hello world"))
@@ -31,7 +45,7 @@ vector_store = FAISS(
 )
 
 documents = [
-    Document(page_content=row["content"], metadata={"source": row["source"]})
+    Document(page_content=row["content"], metadata={"source":"html_path"})
     for _, row in df.iterrows()
 ]
 
