@@ -1,14 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 26 12:25:24 2024
-
-@author: User
-"""
-
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
-import beautifulsoup as bs
 
 df = pd.DataFrame({
     "topic": ["Water Quality Control", "Water Quality Control", "Fish Farming", "Plant Nutrition", "Plant Nutrition"],
@@ -60,17 +52,3 @@ def extract_text_from_url(url):
     soup = BeautifulSoup(response.text, 'html.parser')
     text = soup.get_text()
     return text
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,0 +1,9 @@
+numpy
+pandas
+beautifulsoup4
+requests
+transformers
+sentence-transformers
+langchain
+langchain_community
+faiss-cpu
