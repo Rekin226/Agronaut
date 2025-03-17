@@ -1,9 +1,12 @@
 numpy
 pandas
-beautifulsoup4
+bs4
 requests
+requests_cache
 transformers
 sentence-transformers
 langchain
 langchain_community
 faiss-cpu
+pdfminer.six
+pdfminer.high_level

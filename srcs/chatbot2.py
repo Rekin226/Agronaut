@@ -129,7 +129,16 @@ while True:
     query = input("Enter your query (or type 'exit' to quit): ")
     if query.lower() == 'exit':
         break
-    result = qa_chain.run({"question": query, "chat_history": chat_history})
-    chat_history.append((query, result))
-    print("\nAnswer:\n", result)
+    retrieved_docs = retriever.get_relevant_documents(query)
 
+    summarized_docs = []
+    for doc in retrieved_docs:
+        summary_prompt = f"Please summarize the following content:\n{doc.page_content}"
+        summary = llm(summary_prompt)
+        summarized_docs.append(summary)
+
+    combined_context = "\n\n".join(summarized_docs)
+    final_prompt = f"Answer the questions based on the following information:\n{combined_context}\n\nQuestions:{query}"
+    final_answer = llm(final_prompt)
+    chat_history.append((query, final_answer))
+    print("\nAnswer:\n", final_answer)
