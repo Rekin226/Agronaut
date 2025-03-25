@@ -1,7 +1,6 @@
 # Import necessary packages
-from transformers import pipeline
-from langchain.llms import HuggingFacePipeline
-from langchain.chains import RetrievalQA
+import ollama
+from langchain.chains import ConversationalRetrievalChain
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -12,9 +11,6 @@ import requests
 from bs4 import BeautifulSoup
 import requests_cache
 import json
-from langchain.chains import ConversationalRetrievalChain
-from pdfminer.high_level import extract_text
-from transformers import AutoModelForQuestionAnswering, AutoTokenizer, pipeline
 
 # Enable caching
 requests_cache.install_cache('web_cache', expire_after=86400)  # Cache expires after 1 day
@@ -74,20 +70,9 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-b
 vectorstore = FAISS.from_documents(docs, embeddings)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
-# Set up LLM pipeline
-#model_name = "google/flan-t5-large" 
-#pipe = pipeline("text2text-generation", model=model_name, tokenizer=model_name, max_length=512, temperature=0.3)
-model_name = "deepset/roberta-base-squad2"
-pipe = pipeline('question-answering', model=model_name, tokenizer=model_name)
-llm = HuggingFacePipeline(pipeline=pipe)
-
-model = AutoModelForQuestionAnswering.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
+print("\n--- Welcome to the Aquaponics Chatbot! ---\n")
 # Create QA chain
-qa_chain = ConversationalRetrievalChain.from_llm(llm, retriever=retriever)
 chat_history = []
-
 while True:
     query = input("Enter your query (or type 'exit' to quit): ")
     if query.lower() == 'exit':
@@ -95,15 +80,51 @@ while True:
 
     retrieved_docs = retriever.get_relevant_documents(query)
 
-    summarized_docs = []
-    for doc in retrieved_docs:
-        summary_prompt = f"answer the question:\n{doc.page_content}"
-        summary = llm(summary_prompt) 
-        summarized_docs.append(summary)
+    # Combine retrieved documents
+    combined_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
-    combined_context = "\n\n".join(summarized_docs)
-    final_prompt = f"Answer the questions based on the following information:\n{combined_context}\n\nquestion:{query}"
-    final_answer = llm(final_prompt) 
+    system_prompt = """ 
+        You are an expert in aquaponics, a sustainable food production system combining aquaculture (fish farming) and hydroponics (soilless plant cultivation). 
 
-    chat_history.append((query, final_answer))
+        Your task is to provide accurate, concise, and well-structured responses based only on the retrieved information. 
+        If you lack sufficient information, politely state that you do not have enough data instead of making assumptions.
+
+        Guidelines for Responses:
+        1. Stay within the scope of aquaponics. 
+        - Topics include system design, water quality, fish and plant selection, nutrient cycling, and troubleshooting.  
+        - If the question is unrelated, respond with: 'I specialize in aquaponics and cannot provide information on this topic.'
+
+        2. Provide structured responses:  
+        - Definition-based questions: Give a brief, formal definition.  
+        - How-to questions: Provide step-by-step explanations.  
+        - Comparison questions: List advantages/disadvantages in bullet points.  
+        - Troubleshooting: Identify possible causes and solutions.  
+
+        3. Cite retrieved knowledge when possible.  
+        - Example: "Based on the retrieved knowledge, aquaponic systems require a pH range of 6.5-7.0 for optimal plant and fish health." 
+
+        4. Use simple, professional language suitable for researchers, engineers, and hobbyists. 
+        5. respond in bullet points, lists, or short paragraphs for clarity.
+        """
+
+
+    # Use Ollama's Mistral model to generate response
+    response = ollama.chat("mistral", messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Here is some information:\n{combined_context}\n\nNow, answer this question: {query}"}
+    ])
+
+    final_answer = response["message"]["content"]
+
+    # Print the chatbot's answer
     print("\nAnswer:\n", final_answer)
+
+    # Print the sources of the answer
+    print("\nSources:\n")
+    for idx, doc in enumerate(retrieved_docs, start=1):
+        print(f"Source {idx}:")
+        print(f"URL: {doc.metadata.get('source', 'N/A')}")  # Assuming 'source' contains the URL        
+        
+    # Append to chat history
+    chat_history.append((query, final_answer))
+
