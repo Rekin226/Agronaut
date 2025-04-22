@@ -1,18 +1,23 @@
 # Import necessary packages
-import os
-import ollama
+import pandas as pd
+from langchain_ollama.llms import OllamaLLM
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-import sys
 import concurrent.futures
 import requests
 from bs4 import BeautifulSoup
 import requests_cache
-import json
 from sentence_transformers import SentenceTransformer
-import numpy as np
+
+from langchain.memory import ConversationBufferMemory
+
+def is_exact_copy(response: str, documents: list) -> bool:
+    for doc in documents:
+        if response.strip() in doc.page_content:
+            return True
+    return False
 
 # Enable caching
 requests_cache.install_cache('web_cache', expire_after=86400)  # Cache expires after 1 day
@@ -70,78 +75,62 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-b
 
 # Create FAISS vector store
 vectorstore = FAISS.from_documents(docs, embeddings)
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5, "fetch_k": 20, "max_marginal_relevance": 0.7})
+# similarity_search
+query = "How does a biofilter work in aquaponics?"
+docs = vectorstore.similarity_search(query, k=3)
+print("\n--- Top 3 Matching Documents ---\n")
+for i, doc in enumerate(docs, 1):
+    print(f"[{i}] {doc.page_content[:300]}...\n")
 
-chat_history = []
+# Initialize the LLM and memory
+llm = OllamaLLM(model="llama3")
+memory = ConversationBufferMemory(return_messages=True)
 
+# Chatbot loop
 print("\n--- Welcome to the Aquaponics Chatbot! ---\n")
 
 while True:
-    query = input("Enter your query (or type 'exit' to quit): ")
+    query = input("Enter your query (you can choice to type 'exit' to quit or type 'clear' to clear the history): ")
     if query.lower() == 'exit':
+        print("Bye!")
         break 
+    if query.lower() == 'clear':
+        memory.clear()
+        print("Memory cleared.")
+        continue
 
-    retrieved_docs = retriever.get_relevant_documents(query)
-    combined_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+    retrieved_docs = vectorstore.similarity_search(query, k=3)
+    context = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
-    system_prompt = """ 
-You are a subject matter expert and professional consultant in aquaponics—a sustainable food production system that integrates aquaculture (fish farming) and hydroponics (soilless plant cultivation). You have extensive experience advising individuals, researchers, and businesses on system design, water quality management, fish and plant selection, nutrient cycling, efficiency optimization, and troubleshooting.
+    history = memory.chat_memory.messages
+    history_text = ""
+    for msg in history:
+        role = "You" if msg.type == "human" else "Bot"
+        history_text += f"{role}: {msg.content}\n"
 
-Your role is to provide expert-level, accurate, and well-structured responses based strictly on the retrieved knowledge and conversation context. Maintain a professional, consultative, and friendly tone throughout.
+    prompt = f"""
+You are a subject matter expert and aquaponics consultant with extensive experience advising both individuals and businesses on designing, implementing, and managing aquaponics systems. 
+Output brefly and concisely, and provide a clear and informative answer to the user's question.
+When a user asks a question, check if the user is satisfied with the answer. If yes, provide the keyword "Y". If no,  provide the keyword "N":
+- Check if the user is satisfied with the answer, if not, ask for more details.
+- If the user is satisfied, provide a clear and informative answer to the user's question.
+Maintain a friendly, professional, and consultative tone throughout.
 
- Response Flow:
-1. First, check whether the retrieved knowledge and chat history provide sufficient context to answer the user's question.
-2. If the context is insufficient, ask **one round of clarifying questions** to better understand the user's needs.
-3. Once the user responds or confirms no further details are needed, provide your final answer based solely on the updated context.
-4. Do **not** ask more than one clarification per query.
+Context:
+{context}
 
- Content Scope:
-- Only respond to topics related to aquaponics.
-- If a question is unrelated, respond with:  
-  **"I specialize in aquaponics and cannot provide information on this topic."**
+Chat History:
+{history_text}
 
- Knowledge Use & Citations:
-- Integrate insights from **at least 2-3 different retrieved sources**, when available.
-- Explicitly cite sources in your response. Examples:
-  - “According to [source URL], …”
-  - “Based on [source 1] and [source 2], …”
-- If information is lacking, clearly state:  
-  **"The retrieved knowledge does not provide enough information on this topic."**
+Question: {query}
+Answer:
+""".strip()
 
- Response Format Guidelines:
-- **Definition questions** → Provide clear and concise definitions.
-- **How-to questions** → Offer structured, step-by-step guidance.
-- **Comparison questions** → Present pros and cons in bullet points.
-- **Troubleshooting** → Identify possible causes and recommend solutions.
-- Use bullet points, lists, or short paragraphs for readability.
-- Maintain a factual, concise, and professional tone suitable for engineers, practitioners, and hobbyists.
+    response = llm.invoke(prompt)
+    print("\nAnswer:\n" + "-"*50 + f"\n{response}\n" + "-"*50 + "\n")
 
- Do not speculate. Be explicit about uncertainty and data gaps.
+    memory.chat_memory.add_user_message(query)
+    memory.chat_memory.add_ai_message(response)
 
-By following these principles, your responses will remain useful, trustworthy, and relevant to aquaponics practitioners and researchers.
-    """
-    
-    full_messages = [{"role": "system", "content": system_prompt}] + chat_history
-    full_messages.append({
-        "role": "user",
-        "content": f"Here is some retrieved knowledge:\n{combined_context}\n\nNow, answer this question: {query}"
-    })
-
-    # Use Ollama's Mistral model to generate response
-    response = ollama.chat("llama3", messages=full_messages)
-    final_answer = response["message"]["content"]
-
-    print("\nAnswer:\n", final_answer)
-
-    # 計算 Ollama 回答與檢索到的文章之間的相似度
-    model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-    retrieved_texts = [doc.page_content for doc in retrieved_docs]
-    embeddings = model.encode(retrieved_texts + [final_answer])
-
-    similarities = np.dot(embeddings[-1], np.array(embeddings[:-1]).T)
-    best_match_idx = np.argmax(similarities)
-
-    best_article = retrieved_docs[best_match_idx]
-    print(f"Most relevant article: {best_article.metadata.get('source', 'N/A')}")
-    print(f"Similarity Score: {similarities[best_match_idx]:.4f}")
-
+    copied = is_exact_copy(response, retrieved_docs)
+    print("result:", "from the paper" if copied else "good answer")
