@@ -80,7 +80,12 @@ vectorstore = FAISS.from_documents(chunks, embeddings)
 llm = OllamaLLM(model="llama3")
 memory = ConversationBufferMemory(return_messages=True)
 
+
 # === Prompt templates and builder ===
+"""
+create a function that can identify the mode of the prompt
+and return the appropriate prompt template
+"""
 
 def build_simple_prompt(context: str, history_text: str, query: str) -> str:
     """Return the original (simple) prompt string."""
