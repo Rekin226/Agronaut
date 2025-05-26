@@ -9,4 +9,4 @@ langchain
 langchain_community
 faiss-cpu
 pdfminer.six
-pdfminer.high_level
+#pdfminer.high_level
