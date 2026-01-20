@@ -23,7 +23,7 @@ import logging
 import pathlib
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
 import requests_cache
@@ -131,6 +131,10 @@ class ThreadState:
         self.problem_id = str(uuid4())
         self.known_facts = {}
         self.asked_questions = []
+        # Questions asked in the most recent round. Used to deterministically
+        # map numbered follow-up answers (e.g. "1) 25C, 2) pH 7, 3) Tilapia")
+        # into known_facts so we don't rely on the LLM to do extraction.
+        self.pending_questions: List[str] = []
         self.confidence = 0.0
         self.last_answer = ""
 
@@ -147,7 +151,12 @@ def extract_json(text: str):
     m = re.search(r"({.*})", text, re.DOTALL)
     if not m:
         raise ValueError("NO JSON:\n" + text)
-    return json.loads(m.group(1))
+    blob = m.group(1)
+    # Lightweight repair for common model JSON mistakes:
+    # - trailing commas before ] or }
+    # This prevents crashes on outputs like:  "answer_outline":"",],
+    blob = re.sub(r",\s*([\]}])", r"\1", blob)
+    return json.loads(blob)
 
 
 # =============================================================================
@@ -207,7 +216,7 @@ If you already have:
 
 AND no red flags appear,
 you MUST set:
-"need_more_info": false 
+"need_more_info": false
 and produce final answer.
 
 OUTPUT STRICT JSON:
@@ -229,6 +238,9 @@ OUTPUT STRICT JSON:
             """
 <context>
 {context}
+
+ASKED_QUESTIONS:
+{asked}
 
 KNOWN_FACTS:
 {facts}
@@ -274,11 +286,60 @@ USER:
 VECTORSTORE: Optional[FAISS] = None
 
 
+
+
+def _extract_followup_facts(user: str) -> None:
+    """Best-effort parsing of common follow-up answers into known_facts.
+
+    Why this exists:
+    - The LLM often returns known_facts_update = {} for short follow-up answers.
+    - The decision prompt currently does not give the LLM the *questions it asked*,
+      so it may not know that "25, 7, tilapia" correspond to temp/pH/species.
+
+    This parser is intentionally simple and conservative.
+    """
+
+    u = user.strip()
+    ul = u.lower()
+
+    # If we asked specific questions, map numbers in the same order.
+    # Example user reply: "1. 25 degree, 2. pH 7, 3. Tilapia"
+    nums = [float(x) for x in re.findall(r"\b\d+(?:\.\d+)?\b", ul)]
+
+    asked = " ".join(q.lower() for q in state.asked_questions[-6:])  # last few are enough
+
+    # Fish species (keyword)
+    if "tilapia" in ul and "fish_species" not in state.known_facts:
+        state.known_facts["fish_species"] = "tilapia"
+
+    # Temperature
+    temp_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:°\s*c|\bc\b|degrees?|deg)\b", ul)
+    if temp_match:
+        state.known_facts["temperature_c"] = float(temp_match.group(1))
+    elif ("temperature" in asked or "temp" in asked) and nums:
+        # Fall back to first numeric answer if it looks like a temp range
+        if 0 <= nums[0] <= 60:
+            state.known_facts.setdefault("temperature_c", nums[0])
+
+    # pH
+    ph_match = re.search(r"\bph\b\D*(\d+(?:\.\d+)?)", ul)
+    if ph_match:
+        state.known_facts["pH"] = float(ph_match.group(1))
+    else:
+        # If both temp and pH were asked and we have >=2 numbers, guess order: temp then pH
+        if ("ph" in asked) and len(nums) >= 2:
+            # If we already set temp from the first number, use the second as pH
+            candidate = nums[1]
+            if 0 <= candidate <= 14:
+                state.known_facts.setdefault("pH", candidate)
+
 def decision_model(user: str):
     context = retrieve_context(VECTORSTORE, user)
 
     msgs = decision_prompt.format_messages(
         context=context,
+        # Give the model the *current* asked questions for better follow-up reasoning.
+        asked=json.dumps(state.pending_questions or state.asked_questions, indent=2),
         facts=json.dumps(state.known_facts, indent=2),
         user=user,
     )
@@ -291,7 +352,7 @@ def decision_model(user: str):
     state.known_facts.update(data.get("known_facts_update", {}))
 
     # auto stop enforcement
-    required = {"water_temp", "pH_level", "fish_behavior", "water_clarity"}
+    required = {"temperature_c", "pH", "fish_species", "general_behavior"}
     if required.issubset(state.known_facts.keys()):
         data["need_more_info"] = False
         data["stop_reason"] = "Enough diagnostic info collected"
@@ -342,11 +403,150 @@ def dedupe(new_qs):
     return clean
 
 
+# =============================================================================
+# Deterministic follow-up parsing (fixes known_facts_update being empty)
+# =============================================================================
+
+
+_TEMP_RE = re.compile(r"(?P<val>\d+(?:\.\d+)?)\s*(?:°\s*)?c\b|(?P<val2>\d+(?:\.\d+)?)\s*(?:deg(?:ree)?s?)\b", re.IGNORECASE)
+_PH_RE = re.compile(r"\bp\s*H\s*[:=]?\s*(?P<val>\d+(?:\.\d+)?)\b", re.IGNORECASE)
+
+
+def _extract_numbered_answers(text: str) -> List[str]:
+    """Extract answers from formats like:
+    '1) 25C, 2) 7, 3) Tilapia' or '1. ... 2. ... 3. ...'
+    """
+    t = (text or "").strip()
+    if not t:
+        return []
+
+    # Split on leading numbering markers.
+    parts = re.split(r"\s*(?:^|[,;\n])\s*(?:\d+)\s*[\).:-]\s*", t)
+    parts = [p.strip(" ,;\n\t") for p in parts if p.strip(" ,;\n\t")]
+    if len(parts) >= 2:
+        return parts
+
+    # Fallback: split by commas if user replied "25, 7, Tilapia"
+    comma_parts = [p.strip() for p in re.split(r"\s*,\s*", t) if p.strip()]
+    if 2 <= len(comma_parts) <= 6:
+        return comma_parts
+
+    return [t]
+
+
+def _parse_temperature_c(text: str) -> Optional[float]:
+    m = _TEMP_RE.search(text)
+    if not m:
+        # If they answered "25" with no unit, treat 10-40 as plausible temp.
+        m2 = re.search(r"\b(\d+(?:\.\d+)?)\b", text)
+        if m2:
+            val = float(m2.group(1))
+            if 10 <= val <= 40:
+                return val
+        return None
+    val = m.group("val") or m.group("val2")
+    try:
+        return float(val)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _parse_ph(text: str) -> Optional[float]:
+    m = _PH_RE.search(text)
+    if m:
+        try:
+            return float(m.group("val"))
+        except Exception:  # noqa: BLE001
+            return None
+    # If they answered "7" with no label, treat 4-10 as plausible pH.
+    m2 = re.search(r"\b(\d+(?:\.\d+)?)\b", text)
+    if m2:
+        val = float(m2.group(1))
+        if 4 <= val <= 10:
+            return val
+    return None
+
+
+def _parse_fish_species(text: str) -> Optional[str]:
+    t = (text or "").strip()
+    if not t:
+        return None
+    # Very small normalization set (extend later).
+    low = t.lower()
+    if "tilapia" in low:
+        return "Tilapia"
+    if "catfish" in low:
+        return "Catfish"
+    if "trout" in low:
+        return "Trout"
+    if "goldfish" in low:
+        return "Goldfish"
+    # If user wrote a short species name, keep as-is.
+    if len(t) <= 40:
+        return t
+    return None
+
+
+def update_known_facts_from_followup(user: str) -> None:
+    """Update state.known_facts using the user's follow-up message.
+
+    We prefer mapping by the last asked questions (pending_questions) because
+    user replies often omit labels (e.g., "1) 25, 2) 7, 3) Tilapia").
+    """
+    answers = _extract_numbered_answers(user)
+    pending = list(state.pending_questions)
+
+    # If we have a one-to-one mapping, use it.
+    if pending and len(answers) >= 2:
+        for i, ans in enumerate(answers[: len(pending)]):
+            q = pending[i].lower()
+            if "temperature" in q:
+                temp = _parse_temperature_c(ans)
+                if temp is not None:
+                    state.known_facts["temperature_c"] = temp
+            elif "ph" in q:
+                ph = _parse_ph(ans)
+                if ph is not None:
+                    state.known_facts["pH"] = ph
+            elif "type of fish" in q or "fish" in q and "type" in q:
+                species = _parse_fish_species(ans)
+                if species:
+                    state.known_facts["fish_species"] = species
+            elif "behavior" in q or "gasp" in q or "stress" in q:
+                # Keep behavior as free text.
+                if ans.strip():
+                    state.known_facts["general_behavior"] = ans.strip()
+
+        # After a follow-up, clear pending questions.
+        state.pending_questions = []
+
+    # Heuristic extraction even without pending mapping.
+    if "temperature_c" not in state.known_facts:
+        temp = _parse_temperature_c(user)
+        if temp is not None:
+            state.known_facts["temperature_c"] = temp
+
+    if "pH" not in state.known_facts:
+        ph = _parse_ph(user)
+        if ph is not None:
+            state.known_facts["pH"] = ph
+
+    if "fish_species" not in state.known_facts:
+        species = _parse_fish_species(user)
+        if species:
+            state.known_facts["fish_species"] = species
+
+
 last_bot = ""
 
 
 def handle_turn(user: str):
     global last_bot
+
+    # Best-effort: turn short follow-up replies into structured facts.
+    # This fixes the issue where the model returns known_facts_update = {}.
+    if state.mode == "DIAGNOSIS" and (state.pending_questions or state.asked_questions):
+        update_known_facts_from_followup(user)
 
     intent = classify_intent(last_bot, user)
 
@@ -383,7 +583,9 @@ def handle_turn(user: str):
             if q not in state.asked_questions:
                 qs.append(q)
 
-        for q in qs[:budget]:
+        # Track what we just asked so the next user reply can be parsed deterministically.
+        state.pending_questions = qs[:budget]
+        for q in state.pending_questions:
             state.asked_questions.append(q)
             print("Q:", q)
         return
