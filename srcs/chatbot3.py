@@ -10,8 +10,11 @@ import requests
 from bs4 import BeautifulSoup
 import requests_cache
 from sentence_transformers import SentenceTransformer
+import streamlit as st
+import os
 
 from langchain.memory import ConversationBufferMemory
+from markdown import markdown as md_to_html
 
 def is_exact_copy(response: str, documents: list) -> bool:
     for doc in documents:
@@ -51,34 +54,39 @@ def load_urls_from_file(file_path):
         urls = file.read().splitlines()
     return urls
 
-urls = load_urls_from_file('urls.txt')
-
-# Load all web pages
-documents = []
-with concurrent.futures.ThreadPoolExecutor() as executor:
-    future_to_url = {executor.submit(load_web_page, url): url for url in urls}
-    for future in concurrent.futures.as_completed(future_to_url):
-        url = future_to_url[future]
-        try:
-            result = future.result()
-            if result:
-                documents.extend(result)
-        except Exception as e:
-            print(f"Error loading {url}: {e}")
-
-# Split documents
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
-chunks = text_splitter.split_documents(documents)
-
-# Create embeddings
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-
-# Create FAISS vector store
-vectorstore = FAISS.from_documents(chunks, embeddings)
-
-# Initialize the LLM and memory
-llm = OllamaLLM(model="llama3")
-memory = ConversationBufferMemory(return_messages=True)
+# Initialize resources with caching
+@st.cache_resource
+def initialize_chatbot():
+    """Initialize and cache the chatbot resources."""
+    urls = load_urls_from_file('urls.txt')
+    
+    # Load all web pages
+    documents = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_url = {executor.submit(load_web_page, url): url for url in urls}
+        for future in concurrent.futures.as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                result = future.result()
+                if result:
+                    documents.extend(result)
+            except Exception as e:
+                print(f"Error loading {url}: {e}")
+    
+    # Split documents
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+    chunks = text_splitter.split_documents(documents)
+    
+    # Create embeddings
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+    
+    # Create FAISS vector store
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+    
+    # Initialize the LLM
+    llm = OllamaLLM(model="llama3")
+    
+    return vectorstore, llm
 
 
 # === Prompt templates and builder ===
@@ -186,60 +194,217 @@ def build_prompt(mode: str, context: str, history_text: str, query: str) -> str:
     return build_simple_prompt(context, history_text, query)
 
 # === Chatbot loop with dual-mode ===
-mode = 'simple'
-print("\n--- Welcome to the Aquaponics Chatbot! Type /help for commands. ---\n")
+def main():
+    # Page configuration
+    st.set_page_config(
+        page_title="Aquaponics Chatbot",
+        page_icon="🐟",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    
+    # Custom CSS for better styling
+    st.markdown("""
+        <style>
+        .main {
+            background-color: #0f172a;
+            color: #f4f4f4;
+        }
+        .chat-bubble {
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin: 10px 0;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+            max-width: 900px;
+            width: 100%;
+        }
+        .chat-bubble p {
+            margin-bottom: 0.6rem;
+            color: #0f172a !important;
+        }
+        .chat-bubble ul {
+            margin-left: 1.2rem;
+            color: #0f172a;
+        }
+        .chat-bubble.user {
+            background: linear-gradient(135deg, #ffe7d9, #ffd0c2);
+            border: 1px solid #ffb89c;
+        }
+        .chat-bubble.bot {
+            background: linear-gradient(135deg, #e2ffe5, #c9f6d0);
+            border: 1px solid #9fd5ab;
+        }
+        .chat-row {
+            display: flex;
+            justify-content: flex-start;
+        }
+        .chat-row.user {
+            justify-content: flex-end;
+        }
+        .stMarkdown {
+            color: #f4f4f4;
+        }
+        .css-1d391kg {
+            padding: 2rem 1rem;
+        }
+        .subtitle {
+            font-size: 1.15rem;
+            color: #ffffff;
+            margin-bottom: 2rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-while True:
-    query = input("Query: ").strip()
-    if not query:
-        continue
+    # Header
+    st.title("🐟 Aquaponics Expert Chatbot")
+    st.markdown('<p class="subtitle">Your AI-powered aquaponics consultant</p>', unsafe_allow_html=True)
+    
+    # Initialize session state
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "memory" not in st.session_state:
+        st.session_state.memory = ConversationBufferMemory(return_messages=True)
+    if "mode" not in st.session_state:
+        st.session_state.mode = "simple"
+    if "show_sources" not in st.session_state:
+        st.session_state.show_sources = False
+    
+    # Initialize chatbot resources
+    with st.spinner("Loading chatbot resources..."):
+        vectorstore, llm = initialize_chatbot()
+    
+    # Sidebar
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        
+        # Mode selection
+        st.subheader("Response Mode")
+        new_mode = st.radio(
+            "Select mode:",
+            ["simple", "advanced"],
+            index=0 if st.session_state.mode == "simple" else 1,
+            help="Simple mode: Quick, concise answers\nAdvanced mode: In-depth analysis with clarifying questions"
+        )
+        
+        if new_mode != st.session_state.mode:
+            st.session_state.mode = new_mode
+            st.success(f"✅ Switched to {new_mode.upper()} mode")
+        
+        st.divider()
+        
+        # Show sources toggle
+        st.subheader("Display Options")
+        st.session_state.show_sources = st.checkbox(
+            "Show source documents",
+            value=st.session_state.show_sources,
+            help="Display the documents used to generate responses"
+        )
+        
+        st.divider()
+        
+        # Clear conversation button
+        if st.button("🗑️ Clear Conversation", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.memory.clear()
+            st.success("Conversation cleared!")
+            st.rerun()
+        
+        st.divider()
+        
+        # Help section
+        with st.expander("ℹ️ Help & Commands"):
+            st.markdown("""
+            **How to use:**
+            - Type your question about aquaponics
+            - Choose between simple or advanced mode
+            - View source documents for transparency
+            
+            **Modes:**
+            - **Simple**: Quick, concise answers
+            - **Advanced**: Detailed analysis with clarifying questions
+            """)
+        
+        # Status
+        st.divider()
+        st.caption(f"🟢 Mode: **{st.session_state.mode.upper()}**")
+        st.caption(f"💬 Messages: **{len(st.session_state.messages)}**")
+    
+    # Main chat interface
+    chat_container = st.container()
 
-    # --- Command handling ---
-    lowered = query.lower()
-    if lowered in ('/exit', 'exit', 'quit'):
-        print('Bye!')
-        break
-    if lowered in ('/clear', 'clear'):
-        memory.clear()
-        print('Memory cleared.')
-        continue
-    if lowered in ('/simple', '/s'):
-        mode = 'simple'
-        print('--> Switched to SIMPLE mode.')
-        continue
-    if lowered in ('/advanced', '/a'):
-        mode = 'advanced'
-        print('--> Switched to ADVANCED mode.')
-        continue
-    if lowered in ('/help', 'help'):
-        print('/simple (/s)   Change to simple-mode \n/advanced (/a) Change to advanced-mode \n/clear         Clear context\n/exit          Leave')
-        continue
+    def render_saved_message(message: dict) -> None:
+        """Render a chat bubble with role-specific styling."""
+        role = message["role"]
+        bubble_class = "user" if role == "user" else "bot"
+        avatar = "🧑" if role == "user" else "🌱"
+        content_html = md_to_html(message["content"])
+        with st.chat_message(role, avatar=avatar):
+            st.markdown(
+                f'<div class="chat-bubble {bubble_class}">{content_html}</div>',
+                unsafe_allow_html=True
+            )
+            if (
+                st.session_state.show_sources
+                and role == "assistant"
+                and "sources" in message
+            ):
+                with st.expander("📚 View Sources"):
+                    for i, doc in enumerate(message["sources"], 1):
+                        st.markdown(f"**[{i}]** {doc['source']}")
+                        st.text(doc['preview'])
+                        st.divider()
 
-    # --- Retrieval ---
-    k = 3 if mode == 'simple' else 6
-    retrieved_docs = vectorstore.similarity_search(query, k=k)
-    print(f"\n--- Top {k} Matching Documents (mode: {mode}) ---\n")
-    for i, doc in enumerate(retrieved_docs, 1):
-        source = doc.metadata.get('source', 'Unknown source')
-        print(f"[{i}] Source: {source}\nContent Preview: {doc.page_content[:300]}...\n")
+    # Display chat messages
+    with chat_container:
+        for message in st.session_state.messages:
+            render_saved_message(message)
+    
+    # Chat input
+    if query := st.chat_input("Ask me anything about aquaponics..."):
+        # Add user message to chat history and display it
+        st.session_state.messages.append({"role": "user", "content": query})
+        render_saved_message(st.session_state.messages[-1])
 
-    context = "\n\n".join(doc.page_content for doc in retrieved_docs)
+        # Generate response
+        with st.spinner("Thinking..."):
+            # Retrieval
+            k = 3 if st.session_state.mode == 'simple' else 6
+            retrieved_docs = vectorstore.similarity_search(query, k=k)
 
-    history = memory.chat_memory.messages
-    history_text = ""
-    for msg in history:
-        role = 'You' if msg.type == 'human' else 'Bot'
-        history_text += f"{role}: {msg.content}\n"
+            context = "\n\n".join(doc.page_content for doc in retrieved_docs)
 
-    prompt = build_prompt(mode, context, history_text, query)
+            # Build history text
+            history = st.session_state.memory.chat_memory.messages
+            history_text = ""
+            for msg in history:
+                role = 'You' if msg.type == 'human' else 'Bot'
+                history_text += f"{role}: {msg.content}\n"
 
-    response = llm.invoke(prompt)
+            # Build prompt
+            prompt = build_prompt(st.session_state.mode, context, history_text, query)
 
-    print('\nAnswer:\n' + response + '\n')
+            # Get response from LLM
+            response = llm.invoke(prompt)
 
-    # store in memory
-    memory.chat_memory.add_user_message(query)
-    memory.chat_memory.add_ai_message(response)
+        # Store in memory
+        st.session_state.memory.chat_memory.add_user_message(query)
+        st.session_state.memory.chat_memory.add_ai_message(response)
 
-    copied = is_exact_copy(response, retrieved_docs)
-    print('result:', 'from the paper' if copied else 'good answer')
+        # Prepare sources for display
+        sources = []
+        for i, doc in enumerate(retrieved_docs, 1):
+            source = doc.metadata.get('source', 'Unknown source')
+            preview = doc.page_content[:300] + "..."
+            sources.append({"source": source, "preview": preview})
+
+        # Add assistant message to chat history and render it
+        assistant_message = {
+            "role": "assistant",
+            "content": response,
+            "sources": sources
+        }
+        st.session_state.messages.append(assistant_message)
+        render_saved_message(assistant_message)
+
+if __name__ == "__main__":
+    main()

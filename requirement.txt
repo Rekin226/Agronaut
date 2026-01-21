@@ -9,3 +9,5 @@ langchain
 langchain_community
 faiss-cpu
 openpyxl
+streamlit
+markdown
