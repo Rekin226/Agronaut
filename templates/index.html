@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aquaponics Chatbot</title>
+    <style>
+        .chat-container { max-width: 800px; margin: 20px auto; padding: 20px; }
+        .messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+        .message { margin: 10px 0; }
+        .user-message { background: #e3f2fd; padding: 10px; border-radius: 5px; }
+        .bot-message { background: #f5f5f5; padding: 10px; border-radius: 5px; color: black; }
+        .input-container { display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; }
+        button { padding: 10px 20px; }
+        .mode-buttons { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <h1>Aquaponics Chatbot</h1>
+        
+        <div class="mode-buttons">
+            <button onclick="changeMode('simple')">Simple Mode</button>
+            <button onclick="changeMode('advanced')">Advanced Mode</button>
+            <button onclick="clearChat()">Clear Chat</button>
+        </div>
+        
+        <div class="messages" id="messages"></div>
+        
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Ask about aquaponics..." 
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        function addMessage(content, isUser = false) {
+            const messages = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.innerHTML = content;
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            input.value = '';
+
+            fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: message})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    addMessage(`<span style="color: red;">Error: ${data.error}</span>`);
+                } else if (data.system_message) {
+                    addMessage(`<em>${data.system_message}</em>`);
+                } else if (data.response) {
+                    addMessage(data.response);
+                }
+            })
+            .catch(error => {
+                addMessage(`<span style="color: red;">Connection error: ${error.message}</span>`);
+            });
+        }
+
+        function changeMode(mode) {
+            fetch('/mode', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode: mode})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    addMessage(`<span style="color: red;">Error: ${data.error}</span>`);
+                } else {
+                    addMessage(`<em>${data.message}</em>`);
+                }
+            })
+            .catch(error => {
+                addMessage(`<span style="color: red;">Connection error: ${error.message}</span>`);
+            });
+        }
+
+        function clearChat() {
+            fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: '/clear'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    addMessage(`<span style="color: red;">Error: ${data.error}</span>`);
+                } else {
+                    document.getElementById('messages').innerHTML = '';
+                    addMessage(`<em>${data.system_message}</em>`);
+                }
+            })
+            .catch(error => {
+                addMessage(`<span style="color: red;">Connection error: ${error.message}</span>`);
+            });
+        }
+    </script>
+</body>
+</html>
