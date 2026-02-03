@@ -4,17 +4,24 @@
 The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistant built with Python to help users learn about and troubleshoot aquaponics systems. By combining web scraping, natural language processing (NLP), and vector-based semantic search, this chatbot provides accurate, context-aware responses to aquaponics-related questions. Whether you're a beginner exploring aquaponics or an experienced practitioner seeking specific guidance, this chatbot adapts to your needs with two interaction modes.
 
 ## Features
+- **Modern Web Interface**: 
+  - Built with Streamlit for an intuitive, browser-based experience
+  - Real-time chat interface with message history
+  - Responsive design with custom styling and chat bubbles
+  - Sidebar controls for easy mode switching and settings
+
 - **Intelligent Web Content Processing**: 
   - Automatically loads and parses web pages using `WebBaseLoader`
   - Extracts relevant aquaponics information from multiple sources
-  - Caches responses for improved performance
+  - Caches responses for improved performance with `requests_cache`
+  - Parallel processing for faster data loading
 
 - **Advanced Document Processing**:
   - Intelligently splits large documents into optimized chunks for better context retrieval
-  - Maintains semantic coherence across document sections
+  - Maintains semantic coherence across document sections using `RecursiveCharacterTextSplitter`
 
 - **Semantic Search with Embeddings**:
-  - Leverages Sentence Transformers to create high-quality text embeddings
+  - Leverages Sentence Transformers (`all-mpnet-base-v2`) to create high-quality text embeddings
   - Uses FAISS (Facebook AI Similarity Search) for fast, accurate vector-based retrieval
   - Finds the most relevant information based on query meaning, not just keywords
 
@@ -27,15 +34,22 @@ The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistan
   - Remembers previous questions and answers for more natural, flowing conversations
   - Allows you to clear context when starting a new topic
 
+- **Source Transparency**:
+  - Optional display of source documents used to generate each response
+  - View document previews and sources for verification
+
 - **Extensible Architecture**: 
   - Modular design makes it easy to add new data sources
   - Configurable to work with different LLM backends via Ollama
+  - Alternative agent-based CLI version available for advanced users
 
 ## Installation
 
 ### Prerequisites
 - Python 3.8 or higher
 - Ollama installed and running locally (for LLM inference)
+  - Required models: `llama3` (primary chatbot)
+  - Optional: `phi3:mini` (for agent-based version)
 
 ### Setup Steps
 1. **Clone the repository**:
@@ -50,48 +64,64 @@ The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistan
 
 3. **Install the required dependencies**:
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirement.txt
    ```
 
-4. **Ensure Ollama is running** with a compatible model (e.g., llama2, mistral)
+4. **Ensure Ollama is running** with the required models:
+   ```bash
+   ollama pull llama3
+   # Optional for command-line agent version:
+   ollama pull phi3:mini
+   ```
 
 ## Usage
 
 ### Getting Started
 1. **Prepare your data sources**:
-   - Create or edit the `urls.txt` file in the project root
-   - Add URLs (one per line) containing aquaponics information you want the chatbot to learn from
+   - The `urls.txt` file in the project root contains aquaponics research URLs
+   - You can edit this file to add more URLs (one per line) for the chatbot to learn from
 
-2. **Launch the chatbot**:
+2. **Launch the Streamlit frontend server**:
    ```bash
-   python srcs/chatbot3.py
+   streamlit run srcs/chatbot3.py
    ```
+   
+   The web interface will automatically open in your browser (typically at `http://localhost:8501`)
 
-3. **Start asking questions!** The chatbot will process your URLs on first run and then be ready to answer questions.
+3. **Start asking questions!** The chatbot will:
+   - Process your URLs on first run (this may take a minute)
+   - Cache the processed data for faster subsequent launches
+   - Be ready to answer aquaponics questions through the web interface
 
-### Interactive Commands
-Once the chatbot is running, you can use these commands at any time:
+### Web Interface Features
+The Streamlit-based chatbot provides an intuitive web interface with:
 
-| Command | Description |
-|---------|-------------|
-| `/simple` | Switch to Simple Mode for quick, direct answers |
-| `/advanced` | Switch to Advanced Mode for guided, in-depth responses |
-| `/clear` | Clear the conversation history and start fresh |
-| `/exit` | Exit the chatbot application |
+- **Chat Interface**: Type questions in the chat input box at the bottom
+- **Response Modes**: Switch between Simple and Advanced modes using the sidebar:
+  - **Simple Mode**: Quick, concise answers for straightforward questions
+  - **Advanced Mode**: In-depth analysis with clarifying questions
+- **Source Documents**: Toggle "Show source documents" to see which sources were used
+- **Conversation Management**: Clear conversation history with the sidebar button
+- **Real-time Status**: View current mode and message count in the sidebar
 
-### Example Interaction
+### Alternative: Command-Line Agent Version
+For users who prefer a terminal-based interface with advanced agent routing:
+
+```bash
+python srcs/chatbot3_ollama_react.py
 ```
-You: What is aquaponics?
-Bot: Aquaponics is a sustainable farming method that combines aquaculture (raising fish) 
-     with hydroponics (growing plants in water)...
 
-You: /advanced
-Bot: Switched to Advanced Mode.
+This version uses a funnel-based agent system with:
+- Automatic routing between simple and complex questions
+- Multi-step clarification for complex scenarios
+- Commands: `clear` (reset memory), `exit` (quit)
 
-You: How do I maintain pH levels?
-Bot: Before I provide specific guidance, could you tell me more about your setup? 
-     What type of fish are you raising, and what plants are you growing?
-```
+### Example Web Interface Interaction
+1. Open the web interface in your browser
+2. Select your preferred mode (Simple/Advanced) from the sidebar
+3. Type your question in the chat input: "What is aquaponics?"
+4. View the AI-generated response with optional source documents
+5. Continue the conversation - the chatbot remembers context
 
 ## Dependencies
 The chatbot relies on the following Python libraries:
@@ -99,18 +129,23 @@ The chatbot relies on the following Python libraries:
 | Library | Purpose |
 |---------|---------|
 | `pandas` | Data manipulation and analysis |
+| `numpy` | Numerical computing support |
+| `langchain` | LLM application framework |
 | `langchain_ollama` | Integration with Ollama LLM models |
 | `langchain_community` | Community-contributed LangChain components |
-| `concurrent.futures` | Parallel processing for faster data loading |
+| `streamlit` | Web-based user interface framework |
+| `markdown` | Markdown to HTML conversion for rich text display |
 | `requests` | HTTP requests for web scraping |
-| `BeautifulSoup` | HTML parsing and web content extraction |
-| `requests_cache` | HTTP response caching |
-| `sentence_transformers` | Text embedding generation |
-| `faiss` | Vector similarity search |
+| `bs4` (BeautifulSoup) | HTML parsing and web content extraction |
+| `requests_cache` | HTTP response caching for improved performance |
+| `transformers` | Transformer models support |
+| `sentence-transformers` | Text embedding generation |
+| `faiss-cpu` | Vector similarity search |
+| `openpyxl` | Excel file handling |
 
 Install all dependencies with:
 ```bash
-pip install -r requirements.txt
+pip install -r requirement.txt
 ```
 
 ## Contribution
