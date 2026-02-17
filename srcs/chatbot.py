@@ -101,20 +101,100 @@ def build_vector_store(documents) -> FAISS:
     )
     docs = splitter.split_documents(documents)
 
+    # Filter obvious publisher/DOI landing-page boilerplate to reduce RAG contamination.
+    boilerplate_kw = (
+        "privacy policy",
+        "cookie",
+        "terms",
+        "accessibility",
+        "legal notice",
+        "help and support",
+        "contact us",
+        "subscribe",
+        "sign in",
+        "log in",
+        "all rights reserved",
+    )
+
+    def looks_like_boilerplate(text: str) -> bool:
+        t = (text or "").lower()
+        if not t or len(t) < 200:
+            return True
+        if any(k in t for k in boilerplate_kw):
+            return True
+        return False
+
+    filtered = [d for d in docs if not looks_like_boilerplate(getattr(d, "page_content", ""))]
+    if filtered:
+        docs = filtered
+
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     logging.info("Creating FAISS index with %d chunks …", len(docs))
     return FAISS.from_documents(docs, embeddings)
 
 
+# Heuristic filters to reduce "website boilerplate" (privacy policy, cookie banners, etc.)
+# that commonly appears when scraping DOI / publisher landing pages.
+_BOILERPLATE_KEYWORDS = {
+    "privacy policy",
+    "cookie",
+    "cookies",
+    "terms of use",
+    "terms and conditions",
+    "accessibility",
+    "legal notice",
+    "all rights reserved",
+    "help and support",
+    "contact us",
+    "subscribe",
+    "sign in",
+    "log in",
+}
+
+
+def _is_boilerplate_text(text: str) -> bool:
+    t = (text or "").lower()
+    if not t:
+        return True
+    if len(t) < 200:  # too short to be useful as evidence
+        return True
+    if any(k in t for k in _BOILERPLATE_KEYWORDS):
+        return True
+    # Navigation-heavy pages often have many short menu-like lines.
+    lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
+    if lines:
+        short = sum(1 for ln in lines if len(ln) <= 40)
+        if short / max(len(lines), 1) > 0.75 and len(t) < 2500:
+            return True
+    return False
+
+
 def retrieve_context(vs: Optional[FAISS], question: str, k: int = TOP_K) -> str:
+    """Retrieve relevant chunks for RAG.
+
+    Guardrails:
+    - Prefer similarity_search_with_score when available
+    - Drop obvious boilerplate chunks
+    - If nothing passes filters, return empty context (model should ignore RAG)
+    """
     if vs is None:
         return ""
+
     try:
-        retrieved = vs.similarity_search(question, k=k)
-        return "\n\n".join(doc.page_content for doc in retrieved)
-    except Exception as err:  # noqa: BLE001
-        logging.warning("Retrieval failed – %s", err)
-        return ""
+        pairs = vs.similarity_search_with_score(question, k=max(k * 2, k))
+        docs = [doc for (doc, _score) in pairs if not _is_boilerplate_text(doc.page_content)]
+        docs = docs[:k]
+        return "\n\n".join(doc.page_content for doc in docs) if docs else ""
+    except Exception:
+        try:
+            retrieved = vs.similarity_search(question, k=max(k * 2, k))
+            retrieved = [d for d in retrieved if not _is_boilerplate_text(d.page_content)]
+            retrieved = retrieved[:k]
+            return "\n\n".join(doc.page_content for doc in retrieved) if retrieved else ""
+        except Exception as err:  # noqa: BLE001
+            logging.warning("Retrieval failed – %s", err)
+            return ""
+
 
 
 # =============================================================================
@@ -186,52 +266,36 @@ decision_prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-You are an aquaponics diagnostic controller.
+You are an aquaponics assistant that can do TWO things:
+(A) DESIGN: guide the user to design a new aquaponics system from scratch.
+(B) TROUBLESHOOT: diagnose problems in an existing system.
 
-Use <context> as supporting evidence when relevant.
-If <context> is empty, rely on general aquaponics knowledge.
+Decide which one the user wants from their latest message and KNOWN_FACTS.
+- If the user says "design", "from scratch", "components", "size", "NFT/DWC/media bed", treat as DESIGN.
+- Only ask fish disease / stress / symptoms questions if the user explicitly says fish are sick, dying, not eating, gasping, etc.
 
-STRICT RULES:
-1) If need_more_info = true, you MUST output at least ONE question in next_questions.
-2) Never list something in missing_info if user already provided it.
-3) Always validate numeric values:
-   - If temperature < 15°C or > 35°C → flag as abnormal.
-   - If pH < 6 or > 9 → flag as risky.
-4) If you already have enough info, set:
-   need_more_info = false
-   and provide an answer_outline.
-5) NEVER return need_more_info=true with empty next_questions.
+Use <context> only as supporting evidence when relevant.
+If <context> looks like website navigation/legal text (privacy policy, cookies, terms, accessibility, login), IGNORE it.
 
-6) Ask 2-4 HIGH-VALUE questions per round (not just one).
-7) NEVER repeat a question that appears in asked_questions.
-8) If missing_info is empty -> need_more_info MUST be false.
+Output MUST be ONLY a valid JSON object with these keys:
+- action: "DIAGNOSE" or "REFINE"
+- need_more_info: true/false
+- confidence: number 0.0-1.0
+- known_facts_update: object (can be empty)
+- missing_info: list of strings
+- next_questions: list of strings
+- answer_outline: string (empty allowed)
+- stop_reason: string (empty allowed)
 
+Rules:
+1) If need_more_info is true, next_questions must contain 1 to 4 questions.
+2) Never repeat any question that appears in ASKED_QUESTIONS.
+3) Never include an item in missing_info if it is already present in KNOWN_FACTS.
+4) For DESIGN: ask high-value design questions (space/footprint, budget, plants, sunlight, system type, total water volume, target fish density, filtration/aeration, automation).
+5) For TROUBLESHOOT: ask high-value water-quality/observations questions (temp, pH, ammonia/nitrite/nitrate, DO/aeration, flow rate, recent changes).
+6) If missing_info is empty, set need_more_info to false and provide a concise answer_outline.
 
-STOP RULE:
-If you already have:
-- temperature
-- pH
-- fish species
-- general behavior
-
-AND no red flags appear,
-you MUST set:
-"need_more_info": false
-and produce final answer.
-
-OUTPUT STRICT JSON:
-
-{{
- "action":"DIAGNOSE" or "REFINE",
- "need_more_info":true or false,
- "confidence":0.0-1.0,
- "known_facts_update":{{}},
- "missing_info":[],
- "next_questions":[],
- "answer_outline":"",
- "stop_reason":""
-}}
-""",
+""".strip(),
         ),
         (
             "human",
@@ -260,7 +324,7 @@ USER:
 
 complex_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "Use known facts and <context> to diagnose."),
+        ("system", "Use known facts and <context> to diagnose. If <context> looks like website navigation/legal text, ignore it."),
         (
             "human",
             """
@@ -346,14 +410,25 @@ def decision_model(user: str):
 
     raw = llm.invoke(msgs)
     print("\n[RAW MODEL OUTPUT]\n", raw)
-    data = extract_json(raw)
+    try:
+        data = extract_json(raw)
+    except Exception as e:  # noqa: BLE001
+        logging.warning("Model returned invalid JSON (%s). Retrying once with stricter format…", e)
+        retry_prompt = ChatPromptTemplate.from_messages([
+            ("system", "Return ONLY valid JSON matching the specified schema. No trailing commas. No extra text."),
+            ("human", "{raw}")
+        ])
+        repair = llm.invoke(retry_prompt.format_messages(raw=raw))
+        print("\n[RAW MODEL OUTPUT - RETRY]\n", repair)
+        data = extract_json(repair)
 
     # merge facts
     state.known_facts.update(data.get("known_facts_update", {}))
 
     # auto stop enforcement
-    required = {"temperature_c", "pH", "fish_species", "general_behavior"}
-    if required.issubset(state.known_facts.keys()):
+    temp_ok = ("temperature_c" in state.known_facts) or ("temperature_range_c" in state.known_facts)
+    required = {"pH", "fish_species", "general_behavior"}
+    if temp_ok and required.issubset(state.known_facts.keys()):
         data["need_more_info"] = False
         data["stop_reason"] = "Enough diagnostic info collected"
 
@@ -434,6 +509,25 @@ def _extract_numbered_answers(text: str) -> List[str]:
     return [t]
 
 
+def _parse_temperature_range_c(text: str) -> Optional[Tuple[float, float]]:
+    t = (text or "").lower()
+    # e.g., "20~30", "20-30", "20 to 30", "20 – 30"
+    m = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:~|-|–|to)\s*(\d+(?:\.\d+)?)\b", t)
+    if not m:
+        return None
+    try:
+        lo = float(m.group(1))
+        hi = float(m.group(2))
+    except Exception:  # noqa: BLE001
+        return None
+    if lo > hi:
+        lo, hi = hi, lo
+    # plausible aquaponics water temp range
+    if 0 <= lo <= 60 and 0 <= hi <= 60:
+        return (lo, hi)
+    return None
+
+
 def _parse_temperature_c(text: str) -> Optional[float]:
     m = _TEMP_RE.search(text)
     if not m:
@@ -501,9 +595,13 @@ def update_known_facts_from_followup(user: str) -> None:
         for i, ans in enumerate(answers[: len(pending)]):
             q = pending[i].lower()
             if "temperature" in q:
-                temp = _parse_temperature_c(ans)
-                if temp is not None:
-                    state.known_facts["temperature_c"] = temp
+                tr = _parse_temperature_range_c(ans)
+                if tr is not None:
+                    state.known_facts["temperature_range_c"] = [tr[0], tr[1]]
+                else:
+                    temp = _parse_temperature_c(ans)
+                    if temp is not None:
+                        state.known_facts["temperature_c"] = temp
             elif "ph" in q:
                 ph = _parse_ph(ans)
                 if ph is not None:
@@ -521,10 +619,14 @@ def update_known_facts_from_followup(user: str) -> None:
         state.pending_questions = []
 
     # Heuristic extraction even without pending mapping.
-    if "temperature_c" not in state.known_facts:
-        temp = _parse_temperature_c(user)
-        if temp is not None:
-            state.known_facts["temperature_c"] = temp
+    if "temperature_c" not in state.known_facts and "temperature_range_c" not in state.known_facts:
+        tr = _parse_temperature_range_c(user)
+        if tr is not None:
+            state.known_facts["temperature_range_c"] = [tr[0], tr[1]]
+        else:
+            temp = _parse_temperature_c(user)
+            if temp is not None:
+                state.known_facts["temperature_c"] = temp
 
     if "pH" not in state.known_facts:
         ph = _parse_ph(user)
