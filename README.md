@@ -83,7 +83,7 @@ The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistan
 
 2. **Launch the Streamlit frontend server**:
    ```bash
-   streamlit run srcs/chatbot3.py
+  streamlit run app.py
    ```
    
    The web interface will automatically open in your browser (typically at `http://localhost:8501`)
@@ -97,30 +97,26 @@ The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistan
 The Streamlit-based chatbot provides an intuitive web interface with:
 
 - **Chat Interface**: Type questions in the chat input box at the bottom
-- **Response Modes**: Switch between Simple and Advanced modes using the sidebar:
-  - **Simple Mode**: Quick, concise answers for straightforward questions
-  - **Advanced Mode**: In-depth analysis with clarifying questions
-- **Source Documents**: Toggle "Show source documents" to see which sources were used
-- **Conversation Management**: Clear conversation history with the sidebar button
-- **Real-time Status**: View current mode and message count in the sidebar
+- **Minimal Controls**: Sidebar includes only RAG toggle and reset conversation
+- **Cleaner Layout**: Centered page layout focused on chat readability
+- **Quick Start Prompt**: Helpful starter guidance shown before the first message
+- **Simple Message Flow**: User and assistant messages are clearly separated with avatars
 
 ### Alternative: Command-Line Agent Version
 For users who prefer a terminal-based interface with advanced agent routing:
 
 ```bash
-python srcs/chatbot3_ollama_react.py
+python srcs/chatbot.py
 ```
 
-This version uses a funnel-based agent system with:
-- Automatic routing between simple and complex questions
-- Multi-step clarification for complex scenarios
-- Commands: `clear` (reset memory), `exit` (quit)
+This version runs an interactive terminal chat loop.
+Use `exit` to quit.
 
 ### Example Web Interface Interaction
 1. Open the web interface in your browser
-2. Select your preferred mode (Simple/Advanced) from the sidebar
+2. Optionally toggle RAG in the sidebar
 3. Type your question in the chat input: "What is aquaponics?"
-4. View the AI-generated response with optional source documents
+4. View the AI-generated response in the chat stream
 5. Continue the conversation - the chatbot remembers context
 
 ## Dependencies
