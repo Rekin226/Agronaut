@@ -1,6 +1,28 @@
-web_cache.sqlite
-bge-large-en/model.safetensors
+# Virtual environments
 .venv/
+venv/
+test_venv/
+env/
+
+# Python build / cache
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+build/
+dist/
+
+# Generated databases / caches
+chroma_db/
+srcs/chroma_db/
+faiss_document_store.db
+web_cache.sqlite
+
+# Local models
+bge-large-en/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
