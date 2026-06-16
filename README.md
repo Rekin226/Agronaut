@@ -1,161 +1,153 @@
-# Aquaponics Chatbot
+# 🌱 Agronaut
 
-## Overview
-The **Aquaponics Chatbot** is an intelligent, AI-powered conversational assistant built with Python to help users learn about and troubleshoot aquaponics systems. By combining web scraping, natural language processing (NLP), and vector-based semantic search, this chatbot provides accurate, context-aware responses to aquaponics-related questions. Whether you're a beginner exploring aquaponics or an experienced practitioner seeking specific guidance, this chatbot adapts to your needs with two interaction modes.
+**A personal agronomy agent — chat with it to design, optimize, and maintain aquaponics systems.**
+
+Agronaut is a conversational agent (in the spirit of Hermes / OpenClaw) specialized for
+agriculture. Its first deep domain is **aquaponics**: it turns the trial-and-error of
+designing a fish-and-plant system into a calculated, cited, honest answer — and finds the
+fish/crop ratio that squeezes the most food from the least water.
+
+> Built by a hands-on aquaponics operator to cut the pain he lived: years of reading papers
+> and losing fish to figure out what the math could have told him up front.
+
+---
+
+## Why it's different from a chatbot
+
+A chatbot retrieves what a paper *said*. Agronaut **computes the answer for your specific
+system**. The trustworthy part is a deterministic engineering model — the LLM only collects
+facts, routes to the right tool, and explains results in plain language.
+
+```
+  YOU ──▶  agent layer (LLM: collect facts, route, explain)
+                 │  proposes values
+                 ▼
+           validation gate  ── rejects bad/uncertain input ──┐
+                 │ typed, validated                           │
+                 ▼                                            │
+        aqua_model  (TRUST ZONE — pure, tested, cited)        │
+        coefficients ▸ mass balance ▸ sizing ▸ optimizer  ◀───┘
+                 │
+                 ▼
+        a sized system + bill of materials + operating envelope
+        + cited coefficients + an explicit "what's NOT modeled" list
+```
+
+The math is verifiable on its own — you can audit every coefficient (with its source)
+without trusting the model. Calibration ≠ validation: the engine ships with seed defaults
+from published sources, meant to be calibrated against a real running system.
+
+---
 
 ## Features
-- **Modern Web Interface**: 
-  - Built with Streamlit for an intuitive, browser-based experience
-  - Real-time chat interface with message history
-  - Responsive design with custom styling and chat bubbles
-  - Sidebar controls for easy mode switching and settings
 
-- **Intelligent Web Content Processing**: 
-  - Automatically loads and parses web pages using `WebBaseLoader`
-  - Extracts relevant aquaponics information from multiple sources
-  - Caches responses for improved performance with `requests_cache`
-  - Parallel processing for faster data loading
+Three modes in the app (sidebar **Mode** switch):
 
-- **Advanced Document Processing**:
-  - Intelligently splits large documents into optimized chunks for better context retrieval
-  - Maintains semantic coherence across document sections using `RecursiveCharacterTextSplitter`
+- **Assistant (chat)** — troubleshoot a running system (low DO, yellow leaves, pump sizing…).
+- **Design Calculator** — fixed inputs → a fully sized system: tank/system volume, fish
+  count, feed/day, pump turnover, biofilter, makeup water, **bill of materials**, **operating
+  envelope**, maintenance checklist, and a downloadable funder-ready report.
+- **Optimize Ratio** — search fish × crop-mix combinations for the best ratio under your
+  binding constraint (e.g. a fixed water budget), maximizing food, protein, or water-use
+  efficiency, and showing the gain over a naive even split.
 
-- **Semantic Search with Embeddings**:
-  - Leverages Sentence Transformers (`all-mpnet-base-v2`) to create high-quality text embeddings
-  - Uses FAISS (Facebook AI Similarity Search) for fast, accurate vector-based retrieval
-  - Finds the most relevant information based on query meaning, not just keywords
+The design and optimizer modes are **fully deterministic and need no LLM at all.**
 
-- **Dual-Mode Interaction**:
-  - **Simple Mode**: Provides quick, direct answers to straightforward questions—ideal for fast lookups and general inquiries
-  - **Advanced Mode**: Engages in a guided conversation to understand your specific goals, then delivers comprehensive, tailored responses
+### Honesty by design
+Every result lists the coefficients it used (value + range + **source**: FAO 589,
+UVI/Rakocy, literature) and an explicit list of what it does **not** model
+(pH/alkalinity, micronutrients, salinity, solids, pests, cohort logic, per-crop ET).
+A confidently-wrong design can't masquerade as complete.
 
-- **Contextual Memory Management**: 
-  - Maintains conversation history using `ConversationBufferMemory`
-  - Remembers previous questions and answers for more natural, flowing conversations
-  - Allows you to clear context when starting a new topic
+---
 
-- **Source Transparency**:
-  - Optional display of source documents used to generate each response
-  - View document previews and sources for verification
+## The engineering model (aquaponics core)
 
-- **Extensible Architecture**: 
-  - Modular design makes it easy to add new data sources
-  - Configurable to work with different LLM backends via Ollama
-  - Alternative agent-based CLI version available for advanced users
+Parametric, not machine-learned — buildable today from published equations:
 
-## Installation
+- **Feeding-rate ratio (FRR)** sizes the system: grams of feed per m² of plant area/day.
+- **Nitrogen balance** is an independent *consistency check* (feed → fish-retained → excreted
+  → plants + solids + water-exchange + denitrification), flagging disagreement with FRR
+  rather than silently reconciling — this guards against over-sizing the grow beds.
+- **Water balance** (evapotranspiration + evaporation + sludge − rainfall) drives the
+  water-budget feasibility check.
+- **Optimizer** is bounded enumeration over a small species×crop palette (no heavyweight
+  solver), with the even-split baseline inside the search space so it can never do worse.
 
-### Prerequisites
-- Python 3.8 or higher
-- Ollama installed and running locally (for LLM inference)
-  - Required models: `llama3` (primary chatbot)
-  - Optional: `phi3:mini` (for agent-based version)
+---
 
-### Setup Steps
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Rekin226/group1--project.git
-   ```
+## Pluggable LLM backend (open models)
 
-2. **Navigate to the project directory**:
-   ```bash
-   cd group1--project
-   ```
+The chat layer is model-agnostic — pick a backend with one env var, no code change:
 
-3. **Install the required dependencies**:
-   ```bash
-   pip install -r requirement.txt
-   ```
+| Provider | `LLM_PROVIDER` | Notes |
+|---|---|---|
+| Ollama (local) | `ollama` | Offline, default (`llama3`). Best for low-connectivity / field use. |
+| NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
+| Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
 
-4. **Ensure Ollama is running** with the required models:
-   ```bash
-   ollama pull llama3
-   # Optional for command-line agent version:
-   ollama pull phi3:mini
-   ```
+Override the model with `LLM_MODEL`. Provider libraries are imported lazily — install only
+the one you use. The design/optimizer modes run with **no LLM dependency at all.**
 
-## Usage
+---
 
-### Getting Started
-1. **Prepare your data sources**:
-   - The `urls.txt` file in the project root contains aquaponics research URLs
-   - You can edit this file to add more URLs (one per line) for the chatbot to learn from
-
-2. **Launch the Streamlit frontend server**:
-   ```bash
-  streamlit run app.py
-   ```
-   
-   The web interface will automatically open in your browser (typically at `http://localhost:8501`)
-
-3. **Start asking questions!** The chatbot will:
-   - Process your URLs on first run (this may take a minute)
-   - Cache the processed data for faster subsequent launches
-   - Be ready to answer aquaponics questions through the web interface
-
-### Web Interface Features
-The Streamlit-based chatbot provides an intuitive web interface with:
-
-- **Chat Interface**: Type questions in the chat input box at the bottom
-- **Minimal Controls**: Sidebar includes only RAG toggle and reset conversation
-- **Cleaner Layout**: Centered page layout focused on chat readability
-- **Quick Start Prompt**: Helpful starter guidance shown before the first message
-- **Simple Message Flow**: User and assistant messages are clearly separated with avatars
-
-### Alternative: Command-Line Agent Version
-For users who prefer a terminal-based interface with advanced agent routing:
+## Quick start
 
 ```bash
-python srcs/chatbot.py
-```
-
-This version runs an interactive terminal chat loop.
-Use `exit` to quit.
-
-### Example Web Interface Interaction
-1. Open the web interface in your browser
-2. Optionally toggle RAG in the sidebar
-3. Type your question in the chat input: "What is aquaponics?"
-4. View the AI-generated response in the chat stream
-5. Continue the conversation - the chatbot remembers context
-
-## Dependencies
-The chatbot relies on the following Python libraries:
-
-| Library | Purpose |
-|---------|---------|
-| `pandas` | Data manipulation and analysis |
-| `numpy` | Numerical computing support |
-| `langchain` | LLM application framework |
-| `langchain_ollama` | Integration with Ollama LLM models |
-| `langchain_community` | Community-contributed LangChain components |
-| `streamlit` | Web-based user interface framework |
-| `markdown` | Markdown to HTML conversion for rich text display |
-| `requests` | HTTP requests for web scraping |
-| `bs4` (BeautifulSoup) | HTML parsing and web content extraction |
-| `requests_cache` | HTTP response caching for improved performance |
-| `transformers` | Transformer models support |
-| `sentence-transformers` | Text embedding generation |
-| `faiss-cpu` | Vector similarity search |
-| `openpyxl` | Excel file handling |
-
-Install all dependencies with:
-```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirement.txt
+streamlit run app.py
 ```
 
-## Contribution
-Contributions are welcome! Here's how you can help:
+Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio** modes
+work immediately (no model server). For **chat**, run Ollama locally or set a hosted
+provider (see above).
 
-1. **Report bugs** by opening an issue with detailed reproduction steps
-2. **Suggest features** through issue discussions
-3. **Submit pull requests** for bug fixes or new features
-4. **Improve documentation** to help other users
+### Run the tests
+```bash
+python3 -m pytest        # the aqua_model core suite is pure (no model server needed)
+```
 
-For major changes, please open an issue first to discuss your proposed changes with the maintainers.
+---
+
+## Project layout
+
+```
+aqua_model/          # TRUST ZONE — pure Python, no LLM, no network, fully tested
+  coefficients.py    #   cited data layer (value + range + unit + source + safety factor)
+  species.py crops.py#   seed databases (calibration-flagged)
+  massbalance.py     #   nitrogen consistency check, water balance, biofilter
+  sizing.py          #   size_system() — FRR anchors; build-artifact output
+  optimizer.py       #   optimize() — best fish/crop ratio under a constraint
+  validate.py        #   the trust gate (typed input only)
+  report.py          #   funder-facing design report
+  logging_schema.py  #   versioned install-logging standard (the dataset moat)
+agent/               # LLM-facing layer (imports aqua_model, never the reverse)
+  llm.py             #   pluggable backend (ollama | nvidia | hf)
+  facts.py           #   UI↔model seam
+  calculator_ui.py optimizer_ui.py   # Streamlit views
+app.py               # Streamlit app (chat | calculator | optimizer)
+srcs/chatbot.py      # the conversational/RAG troubleshooting flow
+knowledge/  urls.txt # reference content for RAG
+```
+
+---
+
+## Roadmap
+
+- **M1 — design calculator** ✅ deterministic sizing, cited coefficients, report, logging standard
+- **M2 — ratio optimizer** ✅ fish/crop mix for max efficiency
+- **M3 — agent orchestrator** — refactor chat into a tool-calling agent; RAG → citation tool
+- **M4 — digital twin** — time-series simulator calibrated on real installed systems
+- **M5 — field maintenance assistant** — phone-friendly, low-connectivity
+
+**Status:** the design + optimizer core is built and tested. The model is *validated* once
+it reproduces a real running system within tolerance — that calibration step is the next
+milestone (`aqua_model/tests/test_calibration.py`).
+
+---
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
 
-## Acknowledgments
-Built with LangChain, Sentence Transformers, FAISS, and Ollama.
+MIT — see [LICENSE](LICENSE). The code is open by design (it's built on published science);
+the value is in calibrated, real-world data, not the equations. Contributions welcome.
