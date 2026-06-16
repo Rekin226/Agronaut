@@ -20,10 +20,16 @@ from __future__ import annotations
 import os
 
 # Sensible default open model per provider.
+# HF default: Qwen2.5-7B-Instruct — Apache-2.0 (clean license for a commercial/B2G venture),
+# strong at structured/JSON output (the decision step), multilingual incl. French.
+# Alternatives (set via LLM_MODEL):
+#   - meta-llama/Llama-3.1-8B-Instruct   (slightly stronger French prose; Llama community license)
+#   - Qwen/Qwen2.5-1.5B-Instruct         (Apache-2.0, tiny — for low-resource/edge field use)
+#   - microsoft/Phi-4-mini-instruct      (small, multilingual)
 DEFAULT_MODELS = {
     "ollama": "llama3",
     "nvidia": "meta/llama-3.1-8b-instruct",
-    "hf": "meta-llama/Llama-3.1-8B-Instruct",
+    "hf": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 SUPPORTED = tuple(DEFAULT_MODELS)
