@@ -10,7 +10,7 @@ from agent.calculator_ui import render_calculator
 from agent.optimizer_ui import render_optimizer
 
 
-APP_TITLE = "Aquaponics Assistant"
+APP_TITLE = "🌱 Agronaut"
 
 
 def _core():
@@ -66,7 +66,7 @@ def _rerun() -> None:
 
 def _render_header() -> None:
     st.title(APP_TITLE)
-    st.write("Describe your system issue and get step-by-step help.")
+    st.write("Your agronomy agent: design, optimize, and troubleshoot aquaponics systems.")
 
 
 def _render_sidebar() -> None:
