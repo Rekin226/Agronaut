@@ -4,29 +4,38 @@ from __future__ import annotations
 
 from typing import List
 
-import requests_cache
 import streamlit as st
 
-import srcs.chatbot as core
+from agent.calculator_ui import render_calculator
 
 
 APP_TITLE = "Aquaponics Assistant"
 
 
+def _core():
+    """Lazy-import the chat/RAG core so the Design Calculator mode runs without the
+    chat stack (langchain, faiss, Ollama, requests_cache) installed."""
+    import srcs.chatbot as core
+    return core
+
+
 def _init_cache() -> None:
     # Cache HTTP fetches for RAG content.
+    import requests_cache
+    core = _core()
     requests_cache.install_cache(core.CACHE_NAME, expire_after=core.CACHE_EXPIRE)
 
 
 @st.cache_resource(show_spinner=False)
 def _build_vectorstore() -> object | None:
     _init_cache()
-    return core.build_rag_index_from_urls()
+    return _core().build_rag_index_from_urls()
 
 
 def _reset_session_state() -> None:
     st.session_state.messages = []
     st.session_state.last_bot = ""
+    core = _core()
     core.state.reset()
     core.last_bot = ""
 
@@ -39,6 +48,7 @@ def _ensure_session_state() -> None:
 
 
 def _set_rag(use_rag: bool) -> None:
+    core = _core()
     if use_rag:
         with st.spinner("Building knowledge index..."):
             core.VECTORSTORE = _build_vectorstore()
@@ -73,7 +83,7 @@ def _render_sidebar() -> None:
 
     _set_rag(use_rag)
     if use_rag:
-        if core.VECTORSTORE is None:
+        if _core().VECTORSTORE is None:
             st.sidebar.caption("RAG unavailable; using general knowledge.")
         else:
             st.sidebar.caption("RAG ready.")
@@ -99,6 +109,7 @@ def _render_messages() -> None:
 
 
 def _handle_user_input(user_text: str) -> None:
+    core = _core()
     _add_message("user", user_text)
 
     prev_pending = list(core.state.pending_questions)
@@ -125,6 +136,17 @@ def main() -> None:
     )
     _ensure_session_state()
     _render_header()
+
+    mode = st.sidebar.radio(
+        "Mode",
+        ("Assistant (chat)", "Design Calculator"),
+        help="Chat troubleshoots a running system. Calculator sizes a new one deterministically.",
+    )
+
+    if mode == "Design Calculator":
+        render_calculator()
+        return
+
     _render_sidebar()
 
     _render_messages()

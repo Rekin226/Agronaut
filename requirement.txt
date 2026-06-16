@@ -7,6 +7,10 @@ transformers
 sentence-transformers
 langchain
 langchain_community
+# LLM backends (pluggable via LLM_PROVIDER). Install only the one(s) you use.
+langchain_ollama                  # local/offline (default)
+# langchain-nvidia-ai-endpoints   # hosted NVIDIA open models (needs NVIDIA_API_KEY)
+# langchain-huggingface           # hosted HF Inference (needs HUGGINGFACEHUB_API_TOKEN)
 faiss-cpu
 openpyxl
 streamlit
