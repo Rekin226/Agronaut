@@ -22,7 +22,6 @@ from uuid import uuid4
 
 import requests_cache
 from langchain.prompts import ChatPromptTemplate
-from langchain_ollama.llms import OllamaLLM
 
 # --- RAG deps (FAISS) ---
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -63,7 +62,22 @@ logging.basicConfig(level=LOG_LEVEL, format="[%(levelname)s] %(message)s")
 # LLM
 # =============================================================================
 
-llm = OllamaLLM(model="llama3", temperature=0)
+class _LazyLLM:
+    """Defer LLM construction until first use, and route through the pluggable backend
+    (agent.llm). Importing this module therefore needs NO provider library or running
+    model server — the calculator/design path stays free of the chat stack. Set the
+    backend with LLM_PROVIDER=ollama|nvidia|hf (see agent/llm.py)."""
+
+    _client = None
+
+    def invoke(self, prompt):
+        if _LazyLLM._client is None:
+            from agent.llm import get_llm
+            _LazyLLM._client = get_llm(temperature=0.0)
+        return _LazyLLM._client.invoke(prompt)
+
+
+llm = _LazyLLM()
 
 
 # =============================================================================
