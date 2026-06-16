@@ -7,6 +7,7 @@ from typing import List
 import streamlit as st
 
 from agent.calculator_ui import render_calculator
+from agent.optimizer_ui import render_optimizer
 
 
 APP_TITLE = "Aquaponics Assistant"
@@ -139,12 +140,16 @@ def main() -> None:
 
     mode = st.sidebar.radio(
         "Mode",
-        ("Assistant (chat)", "Design Calculator"),
-        help="Chat troubleshoots a running system. Calculator sizes a new one deterministically.",
+        ("Assistant (chat)", "Design Calculator", "Optimize Ratio"),
+        help="Chat troubleshoots a running system. Calculator sizes one. Optimizer finds the "
+             "best fish/crop ratio for your constraint.",
     )
 
     if mode == "Design Calculator":
         render_calculator()
+        return
+    if mode == "Optimize Ratio":
+        render_optimizer()
         return
 
     _render_sidebar()
