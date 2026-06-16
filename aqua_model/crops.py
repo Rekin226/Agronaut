@@ -18,6 +18,8 @@ class Crop:
     frr_low: float
     frr_high: float
     n_uptake_g_per_m2_day: float # N removed by plants per m2/day — CONSISTENCY CHECK only
+    yield_kg_per_m2_year: float  # edible fresh yield per m2 per year — OPTIMIZER objective (seed/LIT)
+    edible_protein_pct: float    # % protein of edible fresh mass — for the protein objective
     ph_min: float
     ph_max: float
     temp_min_c: float
@@ -30,12 +32,14 @@ LETTUCE = Crop(
     name="lettuce", category="leafy",
     frr_g_per_m2_day=60.0, frr_low=40.0, frr_high=80.0,
     n_uptake_g_per_m2_day=0.8,
+    yield_kg_per_m2_year=25.0, edible_protein_pct=1.4,
     ph_min=5.5, ph_max=7.0, temp_min_c=10.0, temp_max_c=26.0, source="FAO589/UVI",
 )
 BASIL = Crop(
     name="basil", category="leafy",
     frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=90.0,
     n_uptake_g_per_m2_day=1.0,
+    yield_kg_per_m2_year=15.0, edible_protein_pct=3.0,
     ph_min=5.5, ph_max=7.0, temp_min_c=18.0, temp_max_c=30.0, source="LIT",
 )
 
@@ -44,6 +48,7 @@ TOMATO = Crop(
     name="tomato", category="fruiting",
     frr_g_per_m2_day=110.0, frr_low=80.0, frr_high=140.0,
     n_uptake_g_per_m2_day=1.6,
+    yield_kg_per_m2_year=30.0, edible_protein_pct=0.9,
     ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589",
 )
 

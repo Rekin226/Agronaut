@@ -17,11 +17,17 @@ Design rules (from the approved design doc + eng/CEO reviews):
 """
 
 from .sizing import size_system
+from .optimizer import optimize, OptimizeInput, OptimizeResult, Candidate, OBJECTIVES
 from .validate import validate_design_input, ValidationError
 from .types import DesignInput, DesignOutput, CoefficientUse
 
 __all__ = [
     "size_system",
+    "optimize",
+    "OptimizeInput",
+    "OptimizeResult",
+    "Candidate",
+    "OBJECTIVES",
     "validate_design_input",
     "ValidationError",
     "DesignInput",
