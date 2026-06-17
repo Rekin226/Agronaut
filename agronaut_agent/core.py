@@ -64,6 +64,7 @@ class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
+        self._base = base                       # unbound: used to force a final text answer
         self._bound = base.bind_tools(AGRONAUT_TOOLS)
         self._tools_by_name = {t.name: t for t in AGRONAUT_TOOLS}
         db = _Db(db_path)
@@ -121,8 +122,18 @@ class AgronautAgent:
                         result = f"TOOL_ERROR: {exc}"
                 self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
                 messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
-        return ("I couldn't complete that reliably after several steps — "
-                "let's narrow it down. Could you restate the key details?")
+        # Hit the tool-call cap (e.g. the model kept calling tools without answering). Force a
+        # final natural-language reply with tools disabled, so the user always gets a real answer.
+        try:
+            messages.append(SystemMessage(content="Now reply to the user in plain text using what "
+                                                   "you have. Do not call any more tools."))
+            final = self._base.invoke(messages)
+            text = (getattr(final, "content", "") or "").strip()
+            if text:
+                return text
+        except Exception:
+            log.debug("forced final answer failed", exc_info=True)
+        return "Here's what I have so far — could you tell me a bit more so I can pin it down?"
 
     # --- the single public seam ------------------------------------------
     def handle_message(self, channel: str, channel_user: str, text: str, display_name: str | None = None) -> str:

@@ -89,6 +89,29 @@ def test_agent_curates_and_recalls_memory(tmp_path):
     assert "3000 L IBC" in agent._recall_block("telegram:9")
 
 
+class _LoopForeverFake:
+    """Always calls a tool — until told (via a system message) to reply in plain text.
+    Exercises the iteration-cap -> forced-final-answer path."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import SystemMessage
+        if any(isinstance(m, SystemMessage) and "Do not call any more tools" in m.content
+               for m in messages):
+            return AIMessage(content="Here's the summary you asked for.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "list_supported_species_and_crops", "id": "x", "args": {}}])
+
+
+def test_iteration_cap_forces_a_final_text_answer(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_LoopForeverFake())
+    reply = agent.handle_message("cli", "loop", "tell me everything")
+    # never returns the give-up fallback; forces a real reply with tools disabled
+    assert "Here's the summary you asked for." in reply
+
+
 def test_reset_keeps_memory_forget_wipes_it(tmp_path):
     agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_RememberFake())
     agent.handle_message("telegram", "9", "I run a 3000L IBC setup")
