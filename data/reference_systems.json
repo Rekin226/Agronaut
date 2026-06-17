@@ -1,0 +1,60 @@
+{
+  "schema": "agronaut-reference-systems/1.0",
+  "description": "Fully documented published aquaponics systems used as the model's acceptance gate. The model must reproduce each system's daily feed input (= plant area x feeding-rate ratio) within +/-15%. measured_feed_g_per_day is plant area x reported feeding-rate ratio (the paper's own balance variable).",
+  "systems": [
+    {
+      "id": "uvi_basil_batch",
+      "source": "Rakocy, Shultz, Bailey & Thoman (2004), 'Aquaponic production of tilapia and basil', Acta Hort. 648:63-69",
+      "independent": false,
+      "note": "UVI commercial system, batch basil. Coefficient-defining (basil FRR derives from this study), so it validates the model's machinery end-to-end rather than being a blind test.",
+      "fish_species": "tilapia",
+      "crop": "basil",
+      "grow_area_m2": 214.0,
+      "temperature_c": 24.0,
+      "water_budget_lpd": 6000.0,
+      "measured_feed_g_per_day": 17420.0,
+      "measured_frr_g_m2_day": 81.4,
+      "measured_fcr": 1.78,
+      "measured_yield_kg_m2_yr": 25.0,
+      "measured_ph": 7.4,
+      "measured_nitrate_n_mg_l": 42.2,
+      "measured_makeup_water_lpd": 2610.0
+    },
+    {
+      "id": "uvi_basil_staggered",
+      "source": "Rakocy, Shultz, Bailey & Thoman (2004), Acta Hort. 648:63-69",
+      "independent": false,
+      "note": "UVI commercial system, staggered basil at higher summer temperature. Sustainable feeding ratio (99.6) is the high end of the basil band.",
+      "fish_species": "tilapia",
+      "crop": "basil",
+      "grow_area_m2": 214.0,
+      "temperature_c": 29.0,
+      "water_budget_lpd": 6000.0,
+      "measured_feed_g_per_day": 21314.0,
+      "measured_frr_g_m2_day": 99.6,
+      "measured_fcr": 1.81,
+      "measured_yield_kg_m2_yr": 23.4,
+      "measured_ph": 7.1,
+      "measured_nitrate_n_mg_l": 42.9,
+      "measured_makeup_water_lpd": 2610.0
+    },
+    {
+      "id": "uvi_bibb_lettuce",
+      "source": "Rakocy (1988), 'Hydroponic lettuce production in a recirculating fish culture system', Island Perspectives 3:4-10 (as reported in Rakocy et al. 2004)",
+      "independent": false,
+      "note": "UVI Bibb-lettuce optimal feeding ratio (57 g/m2/day). The validated quantity is the feeding-rate ratio; grow_area is the UVI system plant area and cancels in the feed-error check.",
+      "fish_species": "tilapia",
+      "crop": "lettuce",
+      "grow_area_m2": 214.0,
+      "temperature_c": 24.0,
+      "water_budget_lpd": 6000.0,
+      "measured_feed_g_per_day": 12198.0,
+      "measured_frr_g_m2_day": 57.0,
+      "measured_fcr": null,
+      "measured_yield_kg_m2_yr": null,
+      "measured_ph": null,
+      "measured_nitrate_n_mg_l": null,
+      "measured_makeup_water_lpd": null
+    }
+  ]
+}
