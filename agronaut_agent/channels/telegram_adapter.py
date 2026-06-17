@@ -52,11 +52,42 @@ class TelegramAdapter(ChannelAdapter):
             "fish/crop ratio, or help troubleshoot. /reset clears our conversation."
         )
 
+    async def _on_help(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        await update.message.reply_text(
+            "🌱 *Agronaut* — your aquaponics assistant.\n\n"
+            "Just tell me about your system or ask a question. I can:\n"
+            "• *Size* a system (species, grow area, water temp, water budget)\n"
+            "• *Optimize* the fish/crop ratio for a goal\n"
+            "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
+            "• *Remember* your setup across chats\n\n"
+            "Commands:\n"
+            "/whoami — what I remember about you\n"
+            "/reset — clear this conversation (keeps long-term memory)\n"
+            "/forget — wipe everything I know about you",
+            parse_mode="Markdown",
+        )
+
+    async def _on_whoami(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        text = await asyncio.to_thread(
+            self.agent.profile_text, self.channel_name, str(update.effective_chat.id)
+        )
+        await update.message.reply_text("Here's what I remember:\n\n" + text)
+
+    async def _on_forget(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        await asyncio.to_thread(self.agent.forget_everything, self.channel_name, str(update.effective_chat.id))
+        await update.message.reply_text("Done — I've wiped everything I knew about your system. Clean slate.")
+
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
         await asyncio.to_thread(self.agent.reset, self.channel_name, str(update.effective_chat.id))
-        await update.message.reply_text("Cleared. Fresh start — what are we working on?")
+        await update.message.reply_text("Cleared this conversation (I still remember your setup). What's next?")
 
     async def _on_text(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -84,7 +115,10 @@ class TelegramAdapter(ChannelAdapter):
     def run(self) -> None:
         app = Application.builder().token(self.token).build()
         app.add_handler(CommandHandler("start", self._on_start))
+        app.add_handler(CommandHandler("help", self._on_help))
+        app.add_handler(CommandHandler("whoami", self._on_whoami))
         app.add_handler(CommandHandler("reset", self._on_reset))
+        app.add_handler(CommandHandler("forget", self._on_forget))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._on_text))
         scope = f"{len(self.allowed_ids)} allowed id(s)" if self.allowed_ids else "OPEN (no allowlist)"
         log.info("Agronaut Telegram bot starting — %s", scope)

@@ -64,3 +64,35 @@ def test_reset_clears_history(tmp_path):
     agent.handle_message("cli", "u3", "hi")
     agent.reset("cli", "u3")
     assert agent._conv.recent_messages("cli:u3") == []
+
+
+class _RememberFake:
+    """Turn 1 -> call remember_about_user; then -> final text."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Noted your setup.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "remember_about_user", "id": "c1",
+            "args": {"note": "Runs a 3000 L IBC system in Burkina Faso", "category": "profile"}}])
+
+
+def test_agent_curates_and_recalls_memory(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_RememberFake())
+    agent.handle_message("telegram", "9", "I run a 3000L IBC setup in Burkina")
+    # the memory tool persisted the note
+    assert agent._mem.memory_count("telegram:9") == 1
+    # and it surfaces in the recall block injected on the next turn (cross-session)
+    assert "3000 L IBC" in agent._recall_block("telegram:9")
+
+
+def test_reset_keeps_memory_forget_wipes_it(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_RememberFake())
+    agent.handle_message("telegram", "9", "I run a 3000L IBC setup")
+    agent.reset("telegram", "9")
+    assert agent._mem.memory_count("telegram:9") == 1   # memory survives a conversation reset
+    agent.forget_everything("telegram", "9")
+    assert agent._mem.memory_count("telegram:9") == 0   # forget wipes it

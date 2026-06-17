@@ -13,7 +13,8 @@ def test_tool_registry():
     assert "size_aquaponics_system" in names
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
-    assert len(AGRONAUT_TOOLS) == 6
+    assert "remember_about_user" in names
+    assert len(AGRONAUT_TOOLS) == 7
 
 
 def test_size_valid_carries_numbers_and_sources():
