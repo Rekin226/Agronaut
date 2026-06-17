@@ -8,7 +8,8 @@ ships with literature/FAO defaults; this is where they meet measured data.
 | Path | Committed? | What it is |
 |---|---|---|
 | `raw/IoTPond{1..4}.csv` | **No** (gitignored, ~20 MB) | Raw per-minute pond readings — fetch on demand |
-| `empirical_envelope.json` | **Yes** | Small derived summary: per-channel distribution + trust flags |
+| `empirical_envelope.json` | **Yes** | Operating-envelope reality layer: per-channel distribution + trust flags |
+| `coefficient_sources.json` | **Yes** | Sizing-coefficient reality layer: seed vs published range + verdict |
 
 Fetch the raw data (no Kaggle/Mendeley login needed):
 
@@ -69,3 +70,24 @@ real tensions between the seed coefficients and reality:
   more alkaline than the lettuce ideal.
 
 These are signals for calibration, not failures — exactly what a reality layer is for.
+
+## Sizing coefficients — sourced ranges (`coefficient_sources.json`)
+
+The IoT dataset grounds the *operating envelope*; it does not calibrate the *sizing*
+coefficients (FCR, FRR, yield). Those are pinned to the published literature instead, in
+`aqua_model/calibration.py`, which reads each seed live from `species.py`/`crops.py` and
+checks it against a cited empirical range. Regenerate with:
+
+```python
+from aqua_model import calibration; calibration.write_artifact()
+```
+
+Key sources: Rakocy et al. (2004), *Acta Hort.* 648 (basil FRR 81–100 g/m²/day); Somerville
+et al. (2014) FAO 589 (leafy/fruiting FRR, harvest weight); Shaw et al. (2022), *Sustainability*
+[10.3390/su14074064](https://doi.org/10.3390/su14074064) (tilapia FCR 0.86–1.79).
+
+**Surfaced discrepancy:** `basil.frr` seed is **70 g/m²/day**, below the UVI-measured basil band
+(**81–100**) — a basil system sized on it would likely under-feed. The layer flags this rather
+than changing the seed; recalibration is the operator's call. The generic **catfish FCR** is
+in-range numerically but biologically ambiguous (Clarias ~0.8–1.0 vs channel catfish ~1.5–2.0)
+— the note says so.

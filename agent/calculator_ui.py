@@ -64,6 +64,31 @@ def _render_reality_check(operating_envelope: dict) -> None:
             _render_channel_verdict(labels.get(channel, channel), c, reality["mode"])
 
 
+def _render_coefficient_sources(species: str, crop: str) -> None:
+    """Show the chosen species/crop sizing coefficients against published empirical ranges."""
+    from aqua_model import calibration as cal
+
+    relevant = [c for c in cal.all_calibrations() if c.key.split(".")[0] in (species, crop)]
+    if not relevant:
+        return
+    n_out = sum(not c.within for c in relevant)
+    title = "Sizing coefficients vs. published ranges"
+    if n_out:
+        title += f"  ⚠️ {n_out} outside range"
+    with st.expander(title):
+        st.caption(
+            "Seed values pinned to peer-reviewed empirical ranges. ✅ in range · ⚠️ outside — "
+            "calibrate against your own system before building."
+        )
+        for c in relevant:
+            icon = "✅" if c.within else "⚠️"
+            st.markdown(
+                f"**{icon} {c.label}** — seed **{c.seed} {c.unit}**  ·  "
+                f"published **{c.emp_low}–{c.emp_high}**  ·  _{c.verdict}_"
+            )
+            st.caption(c.note + "  \nSources: " + "; ".join(c.sources))
+
+
 def render_calculator() -> None:
     st.subheader("Design Calculator")
     st.caption(
@@ -130,6 +155,7 @@ def render_calculator() -> None:
             {"name": c.name, "value": c.value, "range": f"{c.low}–{c.high}", "unit": c.unit, "source": c.source}
             for c in out.coefficients_used
         ])
+    _render_coefficient_sources(species, crop)
 
     report_md = to_markdown(design, out, site=site or None)
     st.download_button(
