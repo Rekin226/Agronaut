@@ -1,9 +1,7 @@
 {
   "n_coefficients": 8,
-  "n_within_range": 7,
-  "discrepancies": [
-    "basil.frr"
-  ],
+  "n_within_range": 8,
+  "discrepancies": [],
   "coefficients": [
     {
       "key": "tilapia.fcr",
@@ -71,17 +69,17 @@
     {
       "key": "basil.frr",
       "label": "Basil feeding-rate ratio",
-      "seed": 70.0,
+      "seed": 85.0,
       "empirical_range": [
         81.0,
         100.0
       ],
       "unit": "g feed / m\u00b2 / day",
-      "verdict": "below empirical range",
+      "verdict": "within empirical range",
       "sources": [
         "Rakocy, Shultz, Bailey & Thoman (2004), 'Aquaponic production of tilapia and basil', Acta Hort. 648:63\u201369 (measured 81.4 g/m\u00b2/day batch, 99.6 staggered)"
       ],
-      "note": "Seed 70 is BELOW the UVI-measured basil band (81\u2013100). Within general leafy guidance, but basil-specific data says this likely undersizes feed/fish for a basil system."
+      "note": "Recalibrated from the earlier 70 g/m\u00b2/day stub to 85 \u2014 mid the UVI-measured basil band (81\u2013100, Rakocy et al. 2004) \u2014 so a basil system is no longer under-fed."
     },
     {
       "key": "tomato.frr",

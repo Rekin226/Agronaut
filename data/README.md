@@ -86,8 +86,8 @@ Key sources: Rakocy et al. (2004), *Acta Hort.* 648 (basil FRR 81–100 g/m²/da
 et al. (2014) FAO 589 (leafy/fruiting FRR, harvest weight); Shaw et al. (2022), *Sustainability*
 [10.3390/su14074064](https://doi.org/10.3390/su14074064) (tilapia FCR 0.86–1.79).
 
-**Surfaced discrepancy:** `basil.frr` seed is **70 g/m²/day**, below the UVI-measured basil band
-(**81–100**) — a basil system sized on it would likely under-feed. The layer flags this rather
-than changing the seed; recalibration is the operator's call. The generic **catfish FCR** is
-in-range numerically but biologically ambiguous (Clarias ~0.8–1.0 vs channel catfish ~1.5–2.0)
-— the note says so.
+**Resolved discrepancy:** `basil.frr` was the earlier **70 g/m²/day** stub, below the
+UVI-measured basil band (**81–100**). It has been **recalibrated to 85 g/m²/day** (mid-band,
+Rakocy et al. 2004), so all 8 coefficients now sit within their sourced ranges. The generic
+**catfish FCR** remains in-range numerically but biologically ambiguous (Clarias ~0.8–1.0 vs
+channel catfish ~1.5–2.0) — the note says so, pending a species split.

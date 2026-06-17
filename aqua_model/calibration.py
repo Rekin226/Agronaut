@@ -124,8 +124,8 @@ def _calibrations() -> list[SizingCalibration]:
                 "Rakocy, Shultz, Bailey & Thoman (2004), 'Aquaponic production of tilapia and "
                 "basil', Acta Hort. 648:63–69 (measured 81.4 g/m²/day batch, 99.6 staggered)",
             ),
-            "Seed 70 is BELOW the UVI-measured basil band (81–100). Within general leafy "
-            "guidance, but basil-specific data says this likely undersizes feed/fish for a basil system.",
+            "Recalibrated from the earlier 70 g/m²/day stub to 85 — mid the UVI-measured basil "
+            "band (81–100, Rakocy et al. 2004) — so a basil system is no longer under-fed.",
         ),
         SizingCalibration(
             "tomato.frr", "Tomato (fruiting) feeding-rate ratio",

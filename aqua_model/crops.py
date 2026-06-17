@@ -35,12 +35,14 @@ LETTUCE = Crop(
     yield_kg_per_m2_year=25.0, edible_protein_pct=1.4,
     ph_min=5.5, ph_max=7.0, temp_min_c=10.0, temp_max_c=26.0, source="FAO589/UVI",
 )
+# Basil FRR calibrated to UVI-measured values (Rakocy et al. 2004: 81.4 batch, 99.6 staggered
+# g/m2/day). Set to 85 — mid the measured band — replacing the earlier 70 g/m2/day stub.
 BASIL = Crop(
     name="basil", category="leafy",
-    frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=90.0,
+    frr_g_per_m2_day=85.0, frr_low=81.0, frr_high=100.0,
     n_uptake_g_per_m2_day=1.0,
     yield_kg_per_m2_year=15.0, edible_protein_pct=3.0,
-    ph_min=5.5, ph_max=7.0, temp_min_c=18.0, temp_max_c=30.0, source="LIT",
+    ph_min=5.5, ph_max=7.0, temp_min_c=18.0, temp_max_c=30.0, source="Rakocy2004",
 )
 
 # Fruiting: higher feed ratio (FAO 589 cites ~100+ g/m2/day for fruiting raft).

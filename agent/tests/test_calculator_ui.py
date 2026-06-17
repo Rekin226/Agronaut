@@ -54,7 +54,7 @@ def test_calculator_shows_reality_check_vs_real_ponds():
     assert "below target" in text
 
 
-def test_calculator_surfaces_basil_frr_discrepancy():
+def test_calculator_shows_basil_frr_calibration():
     at = AppTest.from_string(_APP).run(timeout=30)
     at.selectbox[0].set_value("tilapia")
     at.selectbox[1].set_value("basil")
@@ -66,9 +66,9 @@ def test_calculator_surfaces_basil_frr_discrepancy():
 
     assert not at.exception
     text = " ".join(m.value for m in at.markdown)
-    # Basil's feeding-rate ratio seed is below the UVI-measured band — the app must say so.
+    # Basil FRR is now calibrated to 85 (mid the UVI band), so it reads in-range.
     assert "Basil feeding-rate ratio" in text
-    assert "below empirical range" in text
+    assert "within empirical range" in text
 
 
 def test_calculator_flags_infeasible_water_budget():
