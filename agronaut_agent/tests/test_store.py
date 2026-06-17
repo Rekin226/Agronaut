@@ -49,3 +49,10 @@ def test_extract_facts_from_free_text():
     assert facts["temperature_c"] == "26.0"
     assert facts["ph"] == "7.2"
     assert facts["fish_species"].lower() == "tilapia"
+
+
+def test_extract_facts_does_not_fabricate_ph_from_bare_numbers():
+    # "10 m2" must NOT be read as pH 10 — only an explicit pH cue counts (honesty ethos).
+    facts = memory_extract.extract_facts("Size a 10 m2 tilapia and lettuce system at 26C with 250 L/day")
+    assert "ph" not in facts
+    assert facts["temperature_c"] == "26.0"

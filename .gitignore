@@ -22,8 +22,10 @@ chroma_db/
 srcs/chroma_db/
 faiss_document_store.db
 web_cache.sqlite
+# Bot SQLite store + WAL/SHM sidecar files
 data/*.sqlite3
-data/*.sqlite3-*   # WAL/SHM sidecar files
+data/*.sqlite3-shm
+data/*.sqlite3-wal
 
 # Local models
 bge-large-en/
