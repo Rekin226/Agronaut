@@ -11,6 +11,11 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.pytest_cache/
+
+# Tooling / local agent state (machine-specific, do not commit)
+.gstack/
+.claude/settings.local.json
 
 # Generated databases / caches
 chroma_db/
@@ -24,6 +29,11 @@ bge-large-en/
 # Raw datasets (large; fetch with scripts/fetch_aquaponics_data.py).
 # The derived data/empirical_envelope.json IS committed.
 data/raw/
+
+# Secrets / local environment (NEVER commit API tokens)
+.env
+.env.*
+!.env.example
 
 # OS / editor
 .DS_Store

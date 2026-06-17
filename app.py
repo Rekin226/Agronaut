@@ -20,6 +20,19 @@ def _core():
     return core
 
 
+def _chat_available() -> bool:
+    """True when the optional chat/RAG stack is importable.
+
+    Lets the deterministic Calculator/Optimizer modes run — and the chat mode
+    degrade with a friendly message instead of a traceback — when langchain,
+    faiss, requests_cache, or an LLM backend isn't installed."""
+    try:
+        import srcs.chatbot  # noqa: F401
+    except ModuleNotFoundError:
+        return False
+    return True
+
+
 def _init_cache() -> None:
     # Cache HTTP fetches for RAG content.
     import requests_cache
@@ -133,16 +146,18 @@ def main() -> None:
         page_title=APP_TITLE,
         page_icon="💧",
         layout="centered",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     _ensure_session_state()
     _render_header()
 
+    # Design Calculator is the default: deterministic, no heavy deps, never crashes
+    # on a fresh install. Chat is the legacy mode and needs the optional chat stack.
     mode = st.sidebar.radio(
         "Mode",
-        ("Assistant (chat)", "Design Calculator", "Optimize Ratio"),
-        help="Chat troubleshoots a running system. Calculator sizes one. Optimizer finds the "
-             "best fish/crop ratio for your constraint.",
+        ("Design Calculator", "Optimize Ratio", "Assistant (chat)"),
+        help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
+             "your constraint. Chat troubleshoots a running system (needs the chat stack).",
     )
 
     if mode == "Design Calculator":
@@ -150,6 +165,17 @@ def main() -> None:
         return
     if mode == "Optimize Ratio":
         render_optimizer()
+        return
+
+    # Assistant (chat) — legacy. Degrade gracefully if the optional chat stack is
+    # absent, so a missing dependency never takes down the whole app.
+    if not _chat_available():
+        st.warning(
+            "Chat mode needs the optional chat stack (langchain, faiss, requests_cache, "
+            "and an LLM backend), which isn't installed. The **Design Calculator** and "
+            "**Optimize Ratio** modes work without it."
+        )
+        st.caption("To enable chat: `pip install -r requirement.txt`")
         return
 
     _render_sidebar()

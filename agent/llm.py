@@ -5,9 +5,12 @@ routing, and explanation in the chat/troubleshooting flow. So the backend is fre
 via config; correctness of any design is unaffected.
 
 Select with the LLM_PROVIDER env var (or pass `provider=`):
-    ollama  -> local open model via Ollama (offline; default)
-    nvidia  -> NVIDIA hosted open models (OpenAI-compatible; needs NVIDIA_API_KEY)
-    hf      -> Hugging Face Inference (needs HUGGINGFACEHUB_API_TOKEN)
+    ollama    -> local open model via Ollama (offline; default)
+    nvidia    -> NVIDIA hosted open models (OpenAI-compatible; needs NVIDIA_API_KEY)
+    hf        -> Hugging Face Inference (hosted; needs HUGGINGFACEHUB_API_TOKEN)
+    hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
+                 after the first download). The simplest way to test the assistant with no
+                 hosted backend or Ollama install — just `pip install -r requirement.txt`.
 
 Override the model with LLM_MODEL (or pass `model=`).
 
@@ -30,6 +33,9 @@ DEFAULT_MODELS = {
     "ollama": "llama3",
     "nvidia": "meta/llama-3.1-8b-instruct",
     "hf": "Qwen/Qwen2.5-7B-Instruct",
+    # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
+    # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
+    "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
 }
 
 SUPPORTED = tuple(DEFAULT_MODELS)
@@ -84,6 +90,22 @@ def _build_backend(provider: str, model: str, temperature: float):
             task="text-generation",
         )
         return ChatHuggingFace(llm=endpoint)
+    if provider == "hf_local":
+        # Local transformers pipeline. No API token; downloads the model on first use
+        # (cached in ~/.cache/huggingface) then runs offline. ChatHuggingFace applies the
+        # model's chat template so instruct models behave like chat models.
+        from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
+        pipeline_kwargs = {"max_new_tokens": 512, "return_full_text": False}
+        if temperature > 0:
+            pipeline_kwargs.update(do_sample=True, temperature=temperature)
+        else:
+            pipeline_kwargs["do_sample"] = False  # greedy; don't pass temperature (transformers warns)
+        pipe = HuggingFacePipeline.from_model_id(
+            model_id=model,
+            task="text-generation",
+            pipeline_kwargs=pipeline_kwargs,
+        )
+        return ChatHuggingFace(llm=pipe)
     raise ValueError(f"Unhandled provider {provider!r}")  # pragma: no cover
 
 
