@@ -23,7 +23,7 @@ from aqua_model.species import SPECIES, get_species
 from aqua_model.crops import CROPS
 from aqua_model import datasets, report
 
-from . import rag, serialize
+from . import rag, runtime, serialize
 
 
 def _clean_optional(text: str | None) -> str | None:
@@ -143,6 +143,22 @@ def search_knowledge_base(query: str) -> str:
     return rag.search(query)
 
 
+@tool
+def remember_about_user(note: str, category: str = "profile") -> str:
+    """Save a durable note about THIS user's system or history so you recall it in future
+    conversations. Use when you learn something lasting: their tank size/location/setup
+    (category 'profile'), something that happened ('event', e.g. 'had an ammonia spike in
+    June, fixed with a 30% water change'), how they like answers ('preference'), or a fix
+    that worked for them ('learning'). Keep each note one short sentence. Do NOT save
+    transient chit-chat or anything the user asked you to forget."""
+    cur = runtime.get_current()
+    if cur is None:
+        return "Memory unavailable right now."
+    mem, user_id = cur
+    saved = mem.add_memory(user_id, note, category)
+    return "Noted — I'll remember that." if saved else "Already in my memory."
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     optimize_fish_crop_ratio,
@@ -150,4 +166,5 @@ AGRONAUT_TOOLS = [
     design_envelope_reality_check,
     render_design_report,
     search_knowledge_base,
+    remember_about_user,
 ]
