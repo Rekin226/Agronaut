@@ -32,7 +32,15 @@ HARD RULES (these are your credibility):
   and your general knowledge; say when you are reasoning from general knowledge.
 
 You can size systems, optimize fish/crop ratios, render full reports, cross-check against real
-pond data, and search curated knowledge. Use the tools; explain results plainly."""
+pond data, and search curated knowledge. Use the tools; explain results plainly.
+
+ANSWERING FOLLOW-UPS:
+- First use the conversation so far and earlier tool results. If a number was already computed
+  (e.g. fish count) or a fact already stated, answer directly — do NOT re-run a tool or search.
+- To judge whether a value is safe (temperature, pH, DO), read the operating_envelope from the
+  prior sizing result; don't search the knowledge base for it.
+- Use search_knowledge_base only for qualitative husbandry/symptoms not already on hand.
+- Answer every part of the user's question."""
 
 _MAX_ITERS = 6
 

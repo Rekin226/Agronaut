@@ -26,6 +26,15 @@ from aqua_model import datasets, report
 from . import rag, serialize
 
 
+def _clean_optional(text: str | None) -> str | None:
+    """LLMs often pass the literal string 'null'/'none'/'' for an absent optional arg.
+    Coerce those back to None so they don't become a bogus note."""
+    if text is None:
+        return None
+    t = str(text).strip()
+    return None if t.lower() in {"", "null", "none", "n/a"} else t
+
+
 @tool
 def size_aquaponics_system(
     fish_species: str,
@@ -49,7 +58,8 @@ def size_aquaponics_system(
     """
     try:
         design = validate_design_input(
-            fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd, source_water_note
+            fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd,
+            _clean_optional(source_water_note),
         )
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
