@@ -8,8 +8,8 @@ exactly like the model's other honesty layers.
 
 Ranges are the *observed spread across studies*, not a single trial: aquaponics coefficients
 vary with diet, cultivar, climate, and system, so a one-number "truth" would be a lie. Where
-a value is well-pinned (FRR, tilapia FCR) the range is tight; where the species is ambiguous
-(generic "catfish") or annualization is assumed (crop yield) the note says so out loud.
+a value is well-pinned (FRR, tilapia FCR) the range is tight; where annualization is assumed
+(crop yield) the note says so out loud.
 
 Seed values are read live from the species/crop modules, so this layer can never silently
 drift out of sync with what the model actually uses.
@@ -73,7 +73,8 @@ class SizingCalibration:
 
 
 def _calibrations() -> list[SizingCalibration]:
-    tilapia, catfish, trout = get_species("tilapia"), get_species("catfish"), get_species("trout")
+    tilapia, trout = get_species("tilapia"), get_species("trout")
+    clarias, channel = get_species("clarias"), get_species("channel_catfish")
     lettuce, basil, tomato = get_crop("lettuce"), get_crop("basil"), get_crop("tomato")
 
     return [
@@ -90,15 +91,17 @@ def _calibrations() -> list[SizingCalibration]:
             "Strongly diet-dependent; well-run commercial RAS ~1.4–1.8. Seed 1.7 is high-but-valid.",
         ),
         SizingCalibration(
-            "catfish.fcr", "Catfish feed conversion ratio",
-            catfish.fcr, 0.8, 2.0, "g feed / g gain",
-            (
-                "African catfish (Clarias gariepinus) commercial RAS FCR ~0.8–1.0",
-                "Channel catfish (Ictalurus punctatus) pond/RAS FCR ~1.5–2.0",
-            ),
-            "SPECIES AMBIGUITY: 'catfish' spans efficient Clarias (~0.8–1.0) and channel "
-            "catfish (~1.5–2.0). Seed 1.6 implies channel catfish — confirm which you stock, "
-            "as it nearly doubles the implied biomass for the same feed.",
+            "clarias.fcr", "African catfish (Clarias) feed conversion ratio",
+            clarias.fcr, 0.8, 1.2, "g feed / g gain",
+            ("African catfish (Clarias gariepinus) commercial/RAS/biofloc FCR ~0.8–1.0",),
+            "Air-breather, very feed-efficient. Seed 0.9 is mid-range. Split out from the old "
+            "generic 'catfish' stub, which conflated this with channel catfish.",
+        ),
+        SizingCalibration(
+            "channel_catfish.fcr", "Channel catfish feed conversion ratio",
+            channel.fcr, 1.4, 2.2, "g feed / g gain",
+            ("Channel catfish (Ictalurus punctatus) pond/RAS FCR ~1.5–2.0",),
+            "US pond-aquaculture standard; less efficient than Clarias. Seed 1.7 is mid-range.",
         ),
         SizingCalibration(
             "trout.fcr", "Rainbow trout feed conversion ratio",

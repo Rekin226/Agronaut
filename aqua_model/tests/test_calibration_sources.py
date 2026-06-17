@@ -47,12 +47,14 @@ def test_verdict_logic_flags_out_of_range():
     assert above.verdict == "above empirical range" and not above.within
 
 
-def test_ambiguous_catfish_is_flagged_in_its_note():
-    # The generic 'catfish' FCR is numerically in-range but biologically ambiguous; the
-    # ambiguity must be stated loudly even though it isn't a numeric discrepancy.
-    catfish = cal.get("catfish.fcr")
-    assert catfish.within
-    assert "AMBIGUITY" in catfish.note.upper()
+def test_catfish_split_into_clarias_and_channel():
+    # The old ambiguous 'catfish' is split into two species with genuinely different,
+    # non-overlapping efficiency bands — each in-range on its own seed.
+    clarias = cal.get("clarias.fcr")
+    channel = cal.get("channel_catfish.fcr")
+    assert clarias.within and channel.within
+    assert clarias.emp_high < channel.emp_low   # Clarias is the more efficient feeder
+    assert "catfish.fcr" not in [c.key for c in cal.all_calibrations()]
 
 
 def test_summary_accounting_is_consistent():

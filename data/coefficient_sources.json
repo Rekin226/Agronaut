@@ -1,6 +1,6 @@
 {
-  "n_coefficients": 8,
-  "n_within_range": 8,
+  "n_coefficients": 9,
+  "n_within_range": 9,
   "discrepancies": [],
   "coefficients": [
     {
@@ -20,20 +20,34 @@
       "note": "Strongly diet-dependent; well-run commercial RAS ~1.4\u20131.8. Seed 1.7 is high-but-valid."
     },
     {
-      "key": "catfish.fcr",
-      "label": "Catfish feed conversion ratio",
-      "seed": 1.6,
+      "key": "clarias.fcr",
+      "label": "African catfish (Clarias) feed conversion ratio",
+      "seed": 0.9,
       "empirical_range": [
         0.8,
-        2.0
+        1.2
       ],
       "unit": "g feed / g gain",
       "verdict": "within empirical range",
       "sources": [
-        "African catfish (Clarias gariepinus) commercial RAS FCR ~0.8\u20131.0",
+        "African catfish (Clarias gariepinus) commercial/RAS/biofloc FCR ~0.8\u20131.0"
+      ],
+      "note": "Air-breather, very feed-efficient. Seed 0.9 is mid-range. Split out from the old generic 'catfish' stub, which conflated this with channel catfish."
+    },
+    {
+      "key": "channel_catfish.fcr",
+      "label": "Channel catfish feed conversion ratio",
+      "seed": 1.7,
+      "empirical_range": [
+        1.4,
+        2.2
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
         "Channel catfish (Ictalurus punctatus) pond/RAS FCR ~1.5\u20132.0"
       ],
-      "note": "SPECIES AMBIGUITY: 'catfish' spans efficient Clarias (~0.8\u20131.0) and channel catfish (~1.5\u20132.0). Seed 1.6 implies channel catfish \u2014 confirm which you stock, as it nearly doubles the implied biomass for the same feed."
+      "note": "US pond-aquaculture standard; less efficient than Clarias. Seed 1.7 is mid-range."
     },
     {
       "key": "trout.fcr",

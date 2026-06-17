@@ -88,6 +88,6 @@ et al. (2014) FAO 589 (leafy/fruiting FRR, harvest weight); Shaw et al. (2022), 
 
 **Resolved discrepancy:** `basil.frr` was the earlier **70 g/m²/day** stub, below the
 UVI-measured basil band (**81–100**). It has been **recalibrated to 85 g/m²/day** (mid-band,
-Rakocy et al. 2004), so all 8 coefficients now sit within their sourced ranges. The generic
-**catfish FCR** remains in-range numerically but biologically ambiguous (Clarias ~0.8–1.0 vs
-channel catfish ~1.5–2.0) — the note says so, pending a species split.
+Rakocy et al. 2004), so every coefficient now sits within its sourced range. The old ambiguous
+**"catfish"** has been **split** into `clarias` (African catfish, FCR ~0.8–1.0) and
+`channel_catfish` (Ictalurus, FCR ~1.5–2.0), each pinned to its own tight, non-overlapping range.
