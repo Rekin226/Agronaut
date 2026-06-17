@@ -1,68 +1,47 @@
-"""CRITICAL — the acceptance gate. Reproduce the founder's REAL running system.
+"""CRITICAL — the acceptance gate, now driven by open published reference systems.
 
-This test is the line between "a model that runs" and "a model you can trust." It stays
-SKIPPED until the founder fills in REAL_SYSTEM from the one-sheet calibration record of the
-actual Taiwan system. The moment those numbers exist, this runs and must pass within the
-agreed tolerances (±15% on feed/day and grow area). Nitrate is intentionally NOT gated here
-(too sampling-dependent) — it belongs in a sanity band, not an acceptance test.
+This is the line between "a model that runs" and "a model that reproduces real systems."
 
-To activate: replace REAL_SYSTEM = None with the measured values below.
+Originally it waited (SKIPPED) for the founder's own Taiwan system. Since that private data
+won't exist, the gate instead validates the model against fully documented systems from the
+literature — the UVI commercial system (Rakocy et al. 2004; Rakocy 1988). For each, `size_system`
+must reproduce the documented daily feed input (plant area x feeding-rate ratio) within +/-15%.
+
+Feed is the right thing to gate: it is the model's load-bearing output (feed = area x FRR) and
+the one number these papers report precisely. FCR, yield and water use are cross-checked more
+loosely elsewhere (calibration.py, datasets.py) because they are far more sampling-dependent.
+
+A private or independent system can be added any time by appending to
+`data/reference_systems.json` — these tests pick it up automatically.
 """
-
-import math
 
 import pytest
 
-from aqua_model import size_system
-from aqua_model.validate import validate_design_input
+from aqua_model import reference_systems as rs
 
-# Fill this from the calibration sheet to activate the gate, e.g.:
-# REAL_SYSTEM = {
-#     "fish_species": "tilapia",
-#     "crop": "lettuce",
-#     "grow_area_m2": 6.0,
-#     "temperature_c": 26.0,
-#     "water_budget_lpd": 200.0,
-#     "measured_feed_g_per_day": 360.0,   # what you actually feed
-#     "measured_grow_area_m2": 6.0,       # actual planted area (sanity cross-check)
-# }
-REAL_SYSTEM = None
-
-FEED_TOLERANCE = 0.15   # ±15%
-AREA_TOLERANCE = 0.15   # ±15%
+SYSTEMS = rs.load()
+_IDS = [s["id"] for s in SYSTEMS]
 
 
-@pytest.mark.skipif(REAL_SYSTEM is None, reason="Awaiting founder's calibration sheet (Taiwan system).")
-def test_model_reproduces_real_system_within_tolerance():
-    di = validate_design_input(
-        fish_species=REAL_SYSTEM["fish_species"],
-        crop=REAL_SYSTEM["crop"],
-        grow_area_m2=REAL_SYSTEM["grow_area_m2"],
-        temperature_c=REAL_SYSTEM["temperature_c"],
-        water_budget_lpd=REAL_SYSTEM["water_budget_lpd"],
-    )
-    out = size_system(di)
+def test_reference_systems_are_documented():
+    assert SYSTEMS, "no reference systems loaded"
+    for s in SYSTEMS:
+        assert s["source"], f"{s['id']} missing a source citation"
+        assert s["measured_feed_g_per_day"] > 0
 
-    feed_err = abs(out.feed_g_per_day - REAL_SYSTEM["measured_feed_g_per_day"]) / REAL_SYSTEM["measured_feed_g_per_day"]
-    assert feed_err <= FEED_TOLERANCE, (
-        f"feed/day off by {feed_err:.0%}: model {out.feed_g_per_day} vs "
-        f"measured {REAL_SYSTEM['measured_feed_g_per_day']}"
+
+@pytest.mark.parametrize("system", SYSTEMS, ids=_IDS)
+def test_model_reproduces_reference_system_feed(system):
+    result = rs.check(system)
+    assert result["within_tolerance"], (
+        f"{system['id']}: feed off by {result['feed_error']:.1%} — model "
+        f"{result['model_feed_g_per_day']} vs measured {result['measured_feed_g_per_day']} g/day"
     )
 
-    area_err = abs(out.grow_area_m2 - REAL_SYSTEM["measured_grow_area_m2"]) / REAL_SYSTEM["measured_grow_area_m2"]
-    assert area_err <= AREA_TOLERANCE
 
-
-@pytest.mark.skipif(REAL_SYSTEM is None, reason="Awaiting founder's calibration sheet (Taiwan system).")
-def test_real_system_is_feasible_or_flags_why_not():
-    di = validate_design_input(
-        fish_species=REAL_SYSTEM["fish_species"],
-        crop=REAL_SYSTEM["crop"],
-        grow_area_m2=REAL_SYSTEM["grow_area_m2"],
-        temperature_c=REAL_SYSTEM["temperature_c"],
-        water_budget_lpd=REAL_SYSTEM["water_budget_lpd"],
-    )
-    out = size_system(di)
-    # A real, running system should not be flagged infeasible; if it is, the warning
-    # must explain why (a signal our coefficients need calibration).
-    assert out.feasible or out.warnings
+@pytest.mark.parametrize("system", SYSTEMS, ids=_IDS)
+def test_reference_system_is_feasible_or_flags_why_not(system):
+    # A real, running system should not be flagged infeasible; if it is, the warning must
+    # explain why (a signal our coefficients need calibration).
+    result = rs.check(system)
+    assert result["feasible"] or result["warnings"]

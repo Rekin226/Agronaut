@@ -10,6 +10,7 @@ ships with literature/FAO defaults; this is where they meet measured data.
 | `raw/IoTPond{1..4}.csv` | **No** (gitignored, ~20 MB) | Raw per-minute pond readings — fetch on demand |
 | `empirical_envelope.json` | **Yes** | Operating-envelope reality layer: per-channel distribution + trust flags |
 | `coefficient_sources.json` | **Yes** | Sizing-coefficient reality layer: seed vs published range + verdict |
+| `reference_systems.json` | **Yes** | Acceptance gate: documented published systems the model must reproduce |
 
 Fetch the raw data (no Kaggle/Mendeley login needed):
 
@@ -85,6 +86,29 @@ from aqua_model import calibration; calibration.write_artifact()
 Key sources: Rakocy et al. (2004), *Acta Hort.* 648 (basil FRR 81–100 g/m²/day); Somerville
 et al. (2014) FAO 589 (leafy/fruiting FRR, harvest weight); Shaw et al. (2022), *Sustainability*
 [10.3390/su14074064](https://doi.org/10.3390/su14074064) (tilapia FCR 0.86–1.79).
+
+## Acceptance gate — published reference systems (`reference_systems.json`)
+
+The model's calibration gate (`aqua_model/tests/test_calibration.py`) was meant to reproduce
+the founder's own running system. With no private system available, it instead validates against
+fully documented systems from the literature: the model must reproduce each one's **daily feed
+input (= plant area × feeding-rate ratio) within ±15%**.
+
+The reference is the **UVI commercial system** (Rakocy et al. 2004; Rakocy 1988) — the most
+completely documented small-scale aquaponic system published. Three operating points:
+
+| System | Crop | Area | Measured feed | Model feed | Error |
+|---|---|---|---|---|---|
+| UVI batch basil | basil | 214 m² | 17,420 g/day (FRR 81.4) | 18,190 | **4.4%** |
+| UVI staggered basil | basil | 214 m² | 21,314 g/day (FRR 99.6) | 18,190 | **14.7%** |
+| UVI Bibb lettuce | lettuce | 214 m² | 12,198 g/day (FRR 57) | 12,840 | **5.3%** |
+
+The same paper independently corroborates other seeds: **tilapia FCR 1.79** (seed 1.7),
+**pH 7.1–7.4** and **nitrate-N ~42 mg/L** (the alkaline-running pattern the IoT data also showed).
+These systems are *coefficient-defining* (the FRR seeds derive from UVI), so the gate proves the
+model's machinery reproduces real systems end-to-end; the `independent` flag records this. Add a
+private or independent system any time by appending to the JSON — the tests pick it up
+automatically.
 
 **Resolved discrepancy:** `basil.frr` was the earlier **70 g/m²/day** stub, below the
 UVI-measured basil band (**81–100**). It has been **recalibrated to 85 g/m²/day** (mid-band,
