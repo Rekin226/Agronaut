@@ -14,6 +14,81 @@ from aqua_model.report import to_markdown
 from agent import facts
 
 
+def _render_channel_verdict(label: str, c: dict, mode: str) -> None:
+    target, dne, median = c["target_band"], c["do_not_exceed_band"], c["median"]
+    position = c["median_position"]
+
+    if position == "within target band":
+        icon, verdict = "✅", "real ponds sit inside your target band"
+    elif dne[0] <= median <= dne[1]:
+        icon = "⚠️"
+        verdict = f"real ponds run {position.replace(' target band', '')} target (still within safe limits)"
+    else:
+        icon = "🚩"
+        verdict = f"real ponds run {position.replace(' target band', '')} target — outside safe limits"
+
+    st.markdown(f"**{icon} {label}** — {verdict}")
+    line = f"real median **{median}**"
+    if mode == "summary":
+        line += f" (p5–p95: {c['p5']}–{c['p95']})"
+    line += f"  ·  your target {target[0]}–{target[1]}  ·  safe {dne[0]}–{dne[1]}"
+    if mode == "full":
+        line += (
+            f"  ·  **{c['frac_in_target'] * 100:.0f}%** of readings in target, "
+            f"**{c['frac_in_do_not_exceed'] * 100:.0f}%** within safe limits"
+        )
+    st.caption(line)
+
+
+def _render_reality_check(operating_envelope: dict) -> None:
+    """Compare this design's envelope against real-pond readings (open dataset)."""
+    from aqua_model import datasets
+
+    reality = datasets.envelope_reality_check(operating_envelope)
+    with st.expander("Reality check — your envelope vs. real ponds"):
+        if reality is None:
+            st.caption(
+                "Open dataset not loaded. Run `python scripts/fetch_aquaponics_data.py` to "
+                "compare against ~233k readings from four real aquaponics ponds."
+            )
+            return
+        n = reality.get("n_readings")
+        scope = f"~{n:,} readings, " if n else ""
+        st.caption(
+            f"Compared against {scope}{reality['source']}. Only temperature and pH are "
+            "cross-checked — turbidity and ammonia sensors in this dataset are saturated and "
+            "not trustworthy."
+        )
+        labels = {"water_temp_c": "Water temperature (°C)", "ph": "pH"}
+        for channel, c in reality["channels"].items():
+            _render_channel_verdict(labels.get(channel, channel), c, reality["mode"])
+
+
+def _render_coefficient_sources(species: str, crop: str) -> None:
+    """Show the chosen species/crop sizing coefficients against published empirical ranges."""
+    from aqua_model import calibration as cal
+
+    relevant = [c for c in cal.all_calibrations() if c.key.split(".")[0] in (species, crop)]
+    if not relevant:
+        return
+    n_out = sum(not c.within for c in relevant)
+    title = "Sizing coefficients vs. published ranges"
+    if n_out:
+        title += f"  ⚠️ {n_out} outside range"
+    with st.expander(title):
+        st.caption(
+            "Seed values pinned to peer-reviewed empirical ranges. ✅ in range · ⚠️ outside — "
+            "calibrate against your own system before building."
+        )
+        for c in relevant:
+            icon = "✅" if c.within else "⚠️"
+            st.markdown(
+                f"**{icon} {c.label}** — seed **{c.seed} {c.unit}**  ·  "
+                f"published **{c.emp_low}–{c.emp_high}**  ·  _{c.verdict}_"
+            )
+            st.caption(c.note + "  \nSources: " + "; ".join(c.sources))
+
+
 def render_calculator() -> None:
     st.subheader("Design Calculator")
     st.caption(
@@ -69,6 +144,7 @@ def render_calculator() -> None:
         st.table(out.bill_of_materials)
     with st.expander("Operating envelope"):
         st.json(out.operating_envelope)
+    _render_reality_check(out.operating_envelope)
     with st.expander("Nitrogen consistency check"):
         st.json(out.nitrogen_check)
     with st.expander("What is NOT modeled (read before building)"):
@@ -79,6 +155,7 @@ def render_calculator() -> None:
             {"name": c.name, "value": c.value, "range": f"{c.low}–{c.high}", "unit": c.unit, "source": c.source}
             for c in out.coefficients_used
         ])
+    _render_coefficient_sources(species, crop)
 
     report_md = to_markdown(design, out, site=site or None)
     st.download_button(

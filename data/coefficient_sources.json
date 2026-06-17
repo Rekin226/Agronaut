@@ -1,0 +1,145 @@
+{
+  "n_coefficients": 9,
+  "n_within_range": 9,
+  "discrepancies": [],
+  "coefficients": [
+    {
+      "key": "tilapia.fcr",
+      "label": "Nile tilapia feed conversion ratio",
+      "seed": 1.7,
+      "empirical_range": [
+        0.9,
+        1.8
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Shaw, Knopf & Kloas (2022), Sustainability 14(7):4064, DOI 10.3390/su14074064 (FCR 0.86\u20131.79 across protein sources)",
+        "Rodde et al. (2020), Aquaculture Reports 18:100349, DOI 10.1016/j.aqrep.2020.100349 (GIFT strain, individual rearing)"
+      ],
+      "note": "Strongly diet-dependent; well-run commercial RAS ~1.4\u20131.8. Seed 1.7 is high-but-valid."
+    },
+    {
+      "key": "clarias.fcr",
+      "label": "African catfish (Clarias) feed conversion ratio",
+      "seed": 0.9,
+      "empirical_range": [
+        0.8,
+        1.2
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "African catfish (Clarias gariepinus) commercial/RAS/biofloc FCR ~0.8\u20131.0"
+      ],
+      "note": "Air-breather, very feed-efficient. Seed 0.9 is mid-range. Split out from the old generic 'catfish' stub, which conflated this with channel catfish."
+    },
+    {
+      "key": "channel_catfish.fcr",
+      "label": "Channel catfish feed conversion ratio",
+      "seed": 1.7,
+      "empirical_range": [
+        1.4,
+        2.2
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Channel catfish (Ictalurus punctatus) pond/RAS FCR ~1.5\u20132.0"
+      ],
+      "note": "US pond-aquaculture standard; less efficient than Clarias. Seed 1.7 is mid-range."
+    },
+    {
+      "key": "trout.fcr",
+      "label": "Rainbow trout feed conversion ratio",
+      "seed": 1.2,
+      "empirical_range": [
+        0.8,
+        1.5
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Rainbow trout (Oncorhynchus mykiss) literature FCR ~0.8\u20131.5 (trials report 0.99\u20131.49)"
+      ],
+      "note": "Cold-water, efficient. Seed 1.2 is mid-range."
+    },
+    {
+      "key": "lettuce.frr",
+      "label": "Lettuce feeding-rate ratio",
+      "seed": 60.0,
+      "empirical_range": [
+        60.0,
+        100.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Rakocy/UVI raft guideline: 60\u2013100 g/m\u00b2/day for leafy greens (lettuce originally 60 g, Bibb lettuce, 1988)",
+        "Somerville et al. (2014), FAO 589"
+      ],
+      "note": "Load-bearing sizing rule. Seed 60 sits at the conservative (low) end of the UVI band."
+    },
+    {
+      "key": "basil.frr",
+      "label": "Basil feeding-rate ratio",
+      "seed": 85.0,
+      "empirical_range": [
+        81.0,
+        100.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Rakocy, Shultz, Bailey & Thoman (2004), 'Aquaponic production of tilapia and basil', Acta Hort. 648:63\u201369 (measured 81.4 g/m\u00b2/day batch, 99.6 staggered)"
+      ],
+      "note": "Recalibrated from the earlier 70 g/m\u00b2/day stub to 85 \u2014 mid the UVI-measured basil band (81\u2013100, Rakocy et al. 2004) \u2014 so a basil system is no longer under-fed."
+    },
+    {
+      "key": "tomato.frr",
+      "label": "Tomato (fruiting) feeding-rate ratio",
+      "seed": 110.0,
+      "empirical_range": [
+        80.0,
+        140.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589: fruiting raft ~100+ g/m\u00b2/day"
+      ],
+      "note": "Fruiting crops carry a higher feed load than leafy. Seed 110 is mid-band."
+    },
+    {
+      "key": "lettuce.yield",
+      "label": "Lettuce edible yield (annualized)",
+      "seed": 25.0,
+      "empirical_range": [
+        10.0,
+        30.0
+      ],
+      "unit": "kg / m\u00b2 / year",
+      "verdict": "within empirical range",
+      "sources": [
+        "DWC aquaponic lettuce ~1.0\u20131.42 kg/m\u00b2/cycle (AUC thesis, fount.aucegypt.edu/etds/795); ~8\u201311 cycles/yr"
+      ],
+      "note": "Per-cycle yields annualized \u2014 depends heavily on cycles/year (climate, cultivar). Seed 25 is optimistic-but-plausible for year-round warm-climate production."
+    },
+    {
+      "key": "tilapia.harvest_weight",
+      "label": "Nile tilapia harvest weight",
+      "seed": 0.5,
+      "empirical_range": [
+        0.4,
+        0.8
+      ],
+      "unit": "kg / fish",
+      "verdict": "within empirical range",
+      "sources": [
+        "Common small-scale/aquaponic tilapia harvest target 0.4\u20130.6 kg (Somerville et al. 2014, FAO 589); commercial up to ~0.8 kg",
+        "IoTPond open dataset (data/empirical_envelope.json): observed max ~0.39 kg over a Jun\u2013Oct grow-out at ~24.5 \u00b0C (below the 27\u201330 \u00b0C optimum)"
+      ],
+      "note": "Seed 0.5 kg is a reasonable target, but the real ponds we ingested only reached ~0.39 kg \u2014 a sub-optimal-temperature grow-out finishes lighter than the target."
+    }
+  ]
+}

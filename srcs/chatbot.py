@@ -1149,6 +1149,9 @@ def _parse_fish_species(text: str) -> Optional[str]:
     low = t.lower()
     known = {
         "tilapia": "Tilapia",
+        "clarias": "African catfish (Clarias)",
+        "african catfish": "African catfish (Clarias)",
+        "channel catfish": "Channel catfish",
         "catfish": "Catfish",
         "trout": "Trout",
         "goldfish": "Goldfish",

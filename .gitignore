@@ -21,6 +21,10 @@ web_cache.sqlite
 # Local models
 bge-large-en/
 
+# Raw datasets (large; fetch with scripts/fetch_aquaponics_data.py).
+# The derived data/empirical_envelope.json IS committed.
+data/raw/
+
 # OS / editor
 .DS_Store
 .idea/

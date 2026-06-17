@@ -35,12 +35,23 @@ TILAPIA = FishSpecies(
     source="FAO589/UVI",
 )
 
-# Catfish: warm-water, hardy. Coarse stub — calibrate.
-CATFISH = FishSpecies(
-    name="catfish",
-    feeding_rate_pct_bw=1.5, fcr=1.6, feed_protein_pct=32.0,
+# African catfish (Clarias gariepinus): air-breather, very feed-efficient, tolerates high
+# density. Split out from the old generic "catfish" stub (FCR ~0.8-1.0, not 1.6).
+CLARIAS = FishSpecies(
+    name="clarias",
+    feeding_rate_pct_bw=1.5, fcr=0.9, feed_protein_pct=35.0,
+    body_protein_pct=16.0, harvest_weight_kg=0.6, stocking_density_kg_m3=60.0,
+    temp_min_c=15.0, temp_opt_low_c=26.0, temp_opt_high_c=30.0, temp_max_c=35.0,
+    source="LIT",
+)
+
+# Channel catfish (Ictalurus punctatus): the US pond-aquaculture standard. Less efficient than
+# Clarias (FCR ~1.5-2.0) and stocked at lower density.
+CHANNEL_CATFISH = FishSpecies(
+    name="channel_catfish",
+    feeding_rate_pct_bw=1.5, fcr=1.7, feed_protein_pct=32.0,
     body_protein_pct=16.0, harvest_weight_kg=0.7, stocking_density_kg_m3=25.0,
-    temp_min_c=15.0, temp_opt_low_c=26.0, temp_opt_high_c=30.0, temp_max_c=34.0,
+    temp_min_c=10.0, temp_opt_low_c=26.0, temp_opt_high_c=30.0, temp_max_c=34.0,
     source="LIT",
 )
 
@@ -53,7 +64,9 @@ TROUT = FishSpecies(
     source="LIT",
 )
 
-SPECIES: dict[str, FishSpecies] = {s.name: s for s in (TILAPIA, CATFISH, TROUT)}
+SPECIES: dict[str, FishSpecies] = {
+    s.name: s for s in (TILAPIA, CLARIAS, CHANNEL_CATFISH, TROUT)
+}
 
 
 def get_species(name: str) -> FishSpecies:
