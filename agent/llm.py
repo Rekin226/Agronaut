@@ -118,3 +118,26 @@ def get_llm(provider: str | None = None, model: str | None = None, temperature: 
     provider, model = resolve(provider, model)
     backend = _build_backend(provider, model, temperature)
     return StringLLM(backend, provider, model)
+
+
+class ToolCallingUnsupported(RuntimeError):
+    """Raised when the resolved backend cannot bind tools (no .bind_tools())."""
+
+
+def get_chat_model(provider: str | None = None, model: str | None = None, temperature: float = 0.0):
+    """Return the RAW LangChain chat model so callers can `.bind_tools(...)` and read
+    `AIMessage.tool_calls`. Unlike get_llm()->StringLLM, this does NOT normalize to str —
+    the tool-calling agent loop needs the message object.
+
+    Use a tool-calling-capable provider: `nvidia` (ChatNVIDIA) is the supported default;
+    `hf`/`hf_local` chat models technically expose bind_tools but tool-calling reliability
+    varies. `ollama`'s text LLM backend does not support tools.
+    """
+    provider, model = resolve(provider, model)
+    backend = _build_backend(provider, model, temperature)
+    if not hasattr(backend, "bind_tools"):
+        raise ToolCallingUnsupported(
+            f"Provider {provider!r} (model {model!r}) has no .bind_tools(); it can't drive the "
+            f"tool-calling agent. Use LLM_PROVIDER=nvidia (needs NVIDIA_API_KEY)."
+        )
+    return backend

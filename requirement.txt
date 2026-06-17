@@ -10,7 +10,10 @@ langchain_community
 # LLM backends (pluggable via LLM_PROVIDER). Install only the one(s) you use.
 langchain_ollama                  # local/offline via Ollama (default)
 langchain-huggingface             # hf (hosted, needs HUGGINGFACEHUB_API_TOKEN) OR hf_local (local transformers, no token)
-# langchain-nvidia-ai-endpoints   # hosted NVIDIA open models (needs NVIDIA_API_KEY)
+langchain-nvidia-ai-endpoints     # nvidia (hosted NIM, needs NVIDIA_API_KEY) — tool-calling brain for the bot
+
+# Messaging channels (the personal-assistant gateway)
+python-telegram-bot>=21           # Telegram bot (agronaut_agent/channels/telegram_adapter.py)
 faiss-cpu
 openpyxl
 streamlit
