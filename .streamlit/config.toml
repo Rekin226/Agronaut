@@ -1,0 +1,14 @@
+# Agronaut — on-brand theme for the app and the hosted demo.
+
+[theme]
+primaryColor = "#2e7d32"          # leaf green — buttons, sliders, accents
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f8e9"  # pale green for the sidebar / cards
+textColor = "#1b1b1b"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
