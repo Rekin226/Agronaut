@@ -10,6 +10,17 @@ fish/crop ratio that squeezes the most food from the least water.
 > Built by a hands-on aquaponics operator to cut the pain he lived: years of reading papers
 > and losing fish to figure out what the math could have told him up front.
 
+### [▶ Try the live demo](https://agronaut.streamlit.app)
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://agronaut.streamlit.app)
+
+No install, no API key — the **Design Calculator** and **Optimize Ratio** modes run right in
+your browser. Enter a system and watch it size a full build (bill of materials, operating
+envelope, cited coefficients, and an explicit *"what's NOT modeled"* list), then flip to
+Optimize and watch it search fish/crop ratios for the best food-per-litre.
+
+<!-- TODO: replace with a 15–20s screen-capture GIF of Design → Optimize. See docs/demo.md -->
+
 ---
 
 ## Why it's different from a chatbot
@@ -95,13 +106,24 @@ the one you use. The design/optimizer modes run with **no LLM dependency at all.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirement.txt
+pip install -r requirement.txt    # full stack (incl. chat). For deterministic-only: requirements.txt
 streamlit run app.py
 ```
 
 Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio** modes
 work immediately (no model server). For **chat**, run Ollama locally or set a hosted
 provider (see above).
+
+### Deploy your own demo (free, ~2 min)
+The deterministic modes deploy to [Streamlit Community Cloud](https://share.streamlit.io)
+with zero config — the light `requirements.txt` keeps the build fast and key-free:
+1. Fork this repo (or use your own).
+2. On Streamlit Community Cloud → **New app** → pick the repo, branch `main`, main file `app.py`.
+3. Deploy. Chat mode shows a friendly "needs the chat stack" note; the calculator and
+   optimizer are fully live.
+
+See [`docs/demo.md`](docs/demo.md) for claiming the `agronaut.streamlit.app` URL and
+recording the README GIF.
 
 ### Run the tests
 ```bash

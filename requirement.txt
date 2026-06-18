@@ -1,3 +1,6 @@
+# FULL stack: chat / RAG / pluggable LLM backends / Telegram + everything the test suite
+# imports. Used by CI and full local dev. For just the deterministic app + hosted demo,
+# the lighter `requirements.txt` is enough.
 numpy
 pandas
 bs4
