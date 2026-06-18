@@ -103,6 +103,22 @@ Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio
 work immediately (no model server). For **chat**, run Ollama locally or set a hosted
 provider (see above).
 
+### Command line (no Streamlit, no LLM)
+The deterministic modes also run headless — handy for scripting, CI, or a quick answer:
+
+```bash
+python3 -m agronaut design   --species tilapia --crop lettuce \
+                             --grow-area 20 --temp 26 --water-budget 200
+python3 -m agronaut optimize --grow-area 20 --temp 28 --water-budget 200 \
+                             --objective water_efficiency
+python3 -m agronaut species          # list supported fish
+python3 -m agronaut crops            # list supported crops
+```
+
+Add `--json` to any command for machine-readable output, or `design --report` for the full
+cited Markdown design report. The CLI uses the same validation gate as the app, so it can't
+feed the model a number the UI wouldn't.
+
 ### Run the tests
 ```bash
 python3 -m pytest        # the aqua_model core suite is pure (no model server needed)
@@ -126,6 +142,7 @@ agent/               # LLM-facing layer (imports aqua_model, never the reverse)
   llm.py             #   pluggable backend (ollama | nvidia | hf)
   facts.py           #   UI↔model seam
   calculator_ui.py optimizer_ui.py   # Streamlit views
+agronaut/            # headless CLI over the trust zone (stdlib only) — `python -m agronaut`
 app.py               # Streamlit app (chat | calculator | optimizer)
 srcs/chatbot.py      # the conversational/RAG troubleshooting flow
 knowledge/  urls.txt # reference content for RAG
