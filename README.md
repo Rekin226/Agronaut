@@ -1,5 +1,9 @@
 # 🌱 Agronaut
 
+[![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+
 **A personal agronomy agent — chat with it to design, optimize, and maintain aquaponics systems.**
 
 Agronaut is a conversational agent (in the spirit of Hermes / OpenClaw) specialized for
@@ -146,6 +150,15 @@ it reproduces a real running system within tolerance — that calibration step i
 milestone (`aqua_model/tests/test_calibration.py`).
 
 ---
+
+## Contributing
+
+Contributions welcome — whether you write Python or run a real system. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup, the trust-zone rule, and how to add a cited
+coefficient, and the pinned [👋 Start here](https://github.com/Rekin226/Agronaut/issues/27)
+issue for good first issues and where help is most valuable. If you operate an aquaponics
+system, [your data](https://github.com/Rekin226/Agronaut/issues/22) is the most valuable
+thing you can give the project.
 
 ## License
 
