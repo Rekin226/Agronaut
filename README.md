@@ -60,6 +60,10 @@ system, optimize a ratio, or troubleshoot a problem), asks for the few essential
 goal needs, then gives a first-cut recommendation tied to *your* system — and remembers
 it (a typed System Profile + episodic notes) across sessions.
 
+You can also set the mode explicitly with `/design`, `/optimize`, or `/troubleshoot` —
+the bot then jumps straight to gathering what that goal needs. All commands appear in
+Telegram's `/` menu.
+
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
 UVI/Rakocy, literature) and an explicit list of what it does **not** model
