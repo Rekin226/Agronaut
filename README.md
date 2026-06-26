@@ -53,6 +53,13 @@ Three modes in the app (sidebar **Mode** switch):
 
 The design and optimizer modes are **fully deterministic and need no LLM at all.**
 
+### Consultative agent
+
+Agronaut runs a consultation, not a one-shot Q&A. It identifies your goal (design a
+system, optimize a ratio, or troubleshoot a problem), asks for the few essentials that
+goal needs, then gives a first-cut recommendation tied to *your* system — and remembers
+it (a typed System Profile + episodic notes) across sessions.
+
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
 UVI/Rakocy, literature) and an explicit list of what it does **not** model

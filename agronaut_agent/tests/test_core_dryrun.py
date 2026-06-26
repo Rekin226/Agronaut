@@ -49,7 +49,8 @@ def test_tool_loop_calls_tool_and_returns_numbers(tmp_path):
 
     roles = [m["role"] for m in agent._conv.recent_messages("cli:tester", limit=10)]
     assert roles == ["user", "tool", "assistant"]  # audit trail persisted
-    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27.0"
+    # temperature_c now comes from validated tool args (27) instead of parsed text (27.0)
+    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27"
 
 
 def test_no_tool_path_returns_plain_reply(tmp_path):
@@ -119,3 +120,62 @@ def test_reset_keeps_memory_forget_wipes_it(tmp_path):
     assert agent._mem.memory_count("telegram:9") == 1   # memory survives a conversation reset
     agent.forget_everything("telegram", "9")
     assert agent._mem.memory_count("telegram:9") == 0   # forget wipes it
+
+
+def test_recall_renders_profile_and_missing_essentials(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    uid = agent._conv.get_or_create_user("cli", "recall")
+    agent._mem.set_facts(uid, {"goal": "design", "fish_species": "tilapia"})
+
+    block = agent._recall_block(uid)
+    assert "YOUR SYSTEM" in block
+    assert "tilapia" in block
+    # the deterministic nudge lists exactly the still-blank design essentials
+    assert "Still need for design:" in block
+    for key in ("crop", "grow_area_m2", "temperature_c", "water_budget_lpd"):
+        assert key in block
+
+
+class _ConsultFake:
+    """Turn 1 -> call update_profile with what the user revealed; then -> a question."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Got it. What's your daily water budget?")
+        return AIMessage(content="", tool_calls=[{
+            "name": "update_profile", "id": "u1",
+            "args": {"updates": {"goal": "design", "fish_species": "tilapia",
+                                 "crop": "lettuce"}}}])
+
+
+def test_consultation_persists_profile_via_tool(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ConsultFake())
+    reply = agent.handle_message("telegram", "c1", "I want to set up tilapia and lettuce")
+    assert "water budget" in reply
+    facts = agent._mem.get_facts("telegram:c1")
+    assert facts["goal"] == "design"
+    assert facts["fish_species"] == "tilapia"
+    assert facts["crop"] == "lettuce"
+
+
+def test_system_prompt_is_consultative():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    lowered = SYSTEM_PROMPT.lower()
+    assert "goal" in lowered
+    assert "update_profile" in lowered
+    assert "essential" in lowered
+    # the old answer-dump instruction is gone
+    assert "answer directly" not in lowered
+
+
+def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
+    # _FakeChat sizes a system but never calls update_profile; the profile must still fill.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_FakeChat())
+    agent.handle_message("cli", "cap", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    facts = agent._mem.get_facts("cli:cap")
+    assert facts["crop"] == "lettuce"
+    assert facts["grow_area_m2"] == "12"
+    assert facts["water_budget_lpd"] == "300"

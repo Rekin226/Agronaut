@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 7
+    assert len(AGRONAUT_TOOLS) == 8
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -57,3 +57,34 @@ def test_optimize_rejects_bad_objective():
 def test_list_supported():
     out = list_supported_species_and_crops.invoke({})
     assert "tilapia" in out and "lettuce" in out and "water_efficiency" in out
+
+
+def test_registry_includes_update_profile():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "update_profile" in names
+    assert len(AGRONAUT_TOOLS) == 8
+
+
+def test_update_profile_writes_canonical_drops_unknown():
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import update_profile
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:p")
+    try:
+        out = update_profile.invoke({"updates": {
+            "goal": "optimize", "objective": "protein", "grow_area_m2": 10,
+            "bogus_key": "x", "ph": "",
+        }})
+    finally:
+        runtime.clear_current()
+
+    facts = mem.get_facts("cli:p")
+    assert facts["goal"] == "optimize"
+    assert facts["objective"] == "protein"
+    assert facts["grow_area_m2"] == "10"
+    assert "bogus_key" not in facts   # unknown key ignored
+    assert "ph" not in facts          # empty value skipped
+    assert "optimize" in out

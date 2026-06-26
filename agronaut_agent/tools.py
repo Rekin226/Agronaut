@@ -9,6 +9,8 @@ rejected loudly instead of producing a confidently-wrong design.
 
 from __future__ import annotations
 
+import logging
+
 from langchain_core.tools import tool
 
 from aqua_model import (
@@ -23,7 +25,9 @@ from aqua_model.species import SPECIES, get_species
 from aqua_model.crops import CROPS
 from aqua_model import datasets, report
 
-from . import rag, runtime, serialize
+from . import profile as profile_mod, rag, runtime, serialize
+
+log = logging.getLogger(__name__)
 
 
 def _clean_optional(text: str | None) -> str | None:
@@ -159,6 +163,32 @@ def remember_about_user(note: str, category: str = "profile") -> str:
     return "Noted — I'll remember that." if saved else "Already in my memory."
 
 
+@tool
+def update_profile(updates: dict) -> str:
+    """Save typed facts about THIS user's system to their profile so you recall and reuse
+    them across the conversation and future sessions. Pass a dict of canonical fields you
+    have learned, e.g. {"goal": "optimize", "objective": "protein", "grow_area_m2": 10,
+    "tank_volume_l": 1000, "dissolved_oxygen_mgl": 5.5}. Canonical keys: system_stage,
+    fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd, ph, tank_volume_l,
+    dissolved_oxygen_mgl, ammonia_mgl, water_source, location, goal, goal_detail,
+    objective, experience_level. Unknown keys are ignored. Call this whenever the user
+    reveals a durable fact — do not wait for the end of the conversation."""
+    cur = runtime.get_current()
+    if cur is None:
+        return "Profile unavailable right now."
+    mem, user_id = cur
+    updates = updates or {}
+    accepted = {k: v for k, v in updates.items()
+                if k in profile_mod.PROFILE_KEYS and str(v).strip() not in ("", "None")}
+    rejected = [k for k in updates if k not in profile_mod.PROFILE_KEYS]
+    if rejected:
+        log.debug("update_profile dropped unknown keys: %s", rejected)
+    if not accepted:
+        return "No recognized profile fields to save."
+    mem.set_facts(user_id, accepted, source="user_stated")
+    return "Saved to your profile: " + ", ".join(f"{k}={v}" for k, v in accepted.items())
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     optimize_fish_crop_ratio,
@@ -167,4 +197,5 @@ AGRONAUT_TOOLS = [
     render_design_report,
     search_knowledge_base,
     remember_about_user,
+    update_profile,
 ]
