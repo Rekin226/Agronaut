@@ -133,3 +133,38 @@ def test_recall_renders_profile_and_missing_essentials(tmp_path):
     assert "Still need for design:" in block
     for key in ("crop", "grow_area_m2", "temperature_c", "water_budget_lpd"):
         assert key in block
+
+
+class _ConsultFake:
+    """Turn 1 -> call update_profile with what the user revealed; then -> a question."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Got it. What's your daily water budget?")
+        return AIMessage(content="", tool_calls=[{
+            "name": "update_profile", "id": "u1",
+            "args": {"updates": {"goal": "design", "fish_species": "tilapia",
+                                 "crop": "lettuce"}}}])
+
+
+def test_consultation_persists_profile_via_tool(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ConsultFake())
+    reply = agent.handle_message("telegram", "c1", "I want to set up tilapia and lettuce")
+    assert "water budget" in reply
+    facts = agent._mem.get_facts("telegram:c1")
+    assert facts["goal"] == "design"
+    assert facts["fish_species"] == "tilapia"
+    assert facts["crop"] == "lettuce"
+
+
+def test_system_prompt_is_consultative():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    lowered = SYSTEM_PROMPT.lower()
+    assert "goal" in lowered
+    assert "update_profile" in lowered
+    assert "essential" in lowered
+    # the old answer-dump instruction is gone
+    assert "answer directly" not in lowered
