@@ -85,3 +85,34 @@ def test_profile_updates_for_optimize_includes_objective():
 def test_profile_updates_ignores_non_fact_tools():
     assert profile.profile_updates_from_tool("search_knowledge_base",
                                              {"query": "x"}, "some passage") == {}
+
+
+def test_goal_headers_and_prompts_cover_all_goals():
+    for g in profile.GOALS:
+        assert g in profile.GOAL_HEADERS
+        assert g in profile.GOAL_PROMPTS
+
+
+def test_essentials_hint_troubleshoot_is_symptom_prompt():
+    hint = profile.essentials_hint("troubleshoot", {})
+    assert "symptom" in hint.lower()
+
+
+def test_essentials_hint_design_empty_profile_is_full_prompt():
+    hint = profile.essentials_hint("design", {})
+    assert hint == profile.GOAL_PROMPTS["design"]
+
+
+def test_essentials_hint_design_partial_lists_only_missing():
+    # temperature known -> not re-asked; the rest are still missing
+    hint = profile.essentials_hint("design", {"temperature_c": "26"})
+    assert hint.startswith("Also tell me:")
+    assert "water temp" not in hint          # known field omitted
+    assert "fish species" in hint and "crop" in hint
+
+
+def test_essentials_hint_full_profile_says_ready():
+    facts = {"grow_area_m2": "10", "temperature_c": "26",
+             "water_budget_lpd": "200", "objective": "protein"}
+    hint = profile.essentials_hint("optimize", facts)
+    assert "go" in hint.lower()

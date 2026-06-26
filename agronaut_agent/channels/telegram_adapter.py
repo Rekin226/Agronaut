@@ -11,7 +11,7 @@ import asyncio
 import logging
 import os
 
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.constants import ChatAction
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
@@ -63,6 +63,9 @@ class TelegramAdapter(ChannelAdapter):
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
             "• *Remember* your setup across chats\n\n"
             "Commands:\n"
+            "/design — size a new system\n"
+            "/optimize — best fish/crop ratio\n"
+            "/troubleshoot — diagnose a problem\n"
             "/whoami — what I remember about you\n"
             "/reset — clear this conversation (keeps long-term memory)\n"
             "/forget — wipe everything I know about you",
@@ -89,6 +92,23 @@ class TelegramAdapter(ChannelAdapter):
         await asyncio.to_thread(self.agent.reset, self.channel_name, str(update.effective_chat.id))
         await update.message.reply_text("Cleared this conversation (I still remember your setup). What's next?")
 
+    async def _set_mode(self, update: Update, goal: str) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        msg = await asyncio.to_thread(
+            self.agent.set_goal, self.channel_name, str(update.effective_chat.id), goal
+        )
+        await update.message.reply_text(msg)
+
+    async def _on_design(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._set_mode(update, "design")
+
+    async def _on_optimize(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._set_mode(update, "optimize")
+
+    async def _on_troubleshoot(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._set_mode(update, "troubleshoot")
+
     async def _on_text(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
@@ -112,13 +132,32 @@ class TelegramAdapter(ChannelAdapter):
             f"(yours is {update.effective_user.id})." if update.effective_user else "Access restricted."
         )
 
+    def _command_specs(self):
+        """Single source of (command, handler, menu description) — drives both handler
+        registration and the Telegram / command menu, so the two never drift."""
+        return [
+            ("start", self._on_start, "What Agronaut is"),
+            ("help", self._on_help, "Show help"),
+            ("design", self._on_design, "Mode: size a new system"),
+            ("optimize", self._on_optimize, "Mode: best fish/crop ratio"),
+            ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
+            ("whoami", self._on_whoami, "What I remember about you"),
+            ("reset", self._on_reset, "Clear this conversation"),
+            ("forget", self._on_forget, "Wipe everything I know"),
+        ]
+
+    async def _post_init(self, app: Application) -> None:
+        """Register the / command menu once the app is up. Non-fatal on failure."""
+        commands = [BotCommand(c, desc) for c, _h, desc in self._command_specs()]
+        try:
+            await app.bot.set_my_commands(commands)
+        except Exception:  # transient network etc. — commands still work by typing
+            log.warning("set_my_commands failed; commands still work by typing", exc_info=True)
+
     def run(self) -> None:
-        app = Application.builder().token(self.token).build()
-        app.add_handler(CommandHandler("start", self._on_start))
-        app.add_handler(CommandHandler("help", self._on_help))
-        app.add_handler(CommandHandler("whoami", self._on_whoami))
-        app.add_handler(CommandHandler("reset", self._on_reset))
-        app.add_handler(CommandHandler("forget", self._on_forget))
+        app = Application.builder().token(self.token).post_init(self._post_init).build()
+        for name, handler, _desc in self._command_specs():
+            app.add_handler(CommandHandler(name, handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._on_text))
         scope = f"{len(self.allowed_ids)} allowed id(s)" if self.allowed_ids else "OPEN (no allowlist)"
         log.info("Agronaut Telegram bot starting — %s", scope)

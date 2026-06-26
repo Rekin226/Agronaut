@@ -114,3 +114,49 @@ def profile_updates_from_tool(name: str, args: dict, result: str) -> dict:
     args = args or {}
     return {k: args[k] for k in keys
             if k in args and str(args[k]).strip() not in ("", "None")}
+
+
+# --- session-mode (/design, /optimize, /troubleshoot) prompt vocabulary -------------
+GOAL_HEADERS: dict[str, str] = {
+    "design": "🌱 Design mode",
+    "optimize": "⚖️ Optimize mode",
+    "troubleshoot": "🔧 Troubleshoot mode",
+}
+
+# The full "what to share" sentence for a goal, used when nothing is known yet (and, for
+# troubleshoot, always — it has no hard slots).
+GOAL_PROMPTS: dict[str, str] = {
+    "design": "Tell me: fish species, crop, grow area (m²), water temp, and daily water budget.",
+    "optimize": "Tell me: grow area (m²), water temp, daily water budget, and objective "
+                "(food / protein / water_efficiency).",
+    "troubleshoot": "What's going wrong? Share the symptom plus any water readings — "
+                    "temp, pH, DO, ammonia.",
+}
+
+# Short friendly labels for the still-missing essentials list (no units — this is a prompt,
+# not the recall display, so it stays distinct from _LABELS above).
+_ESSENTIAL_LABELS: dict[str, str] = {
+    "fish_species": "fish species",
+    "crop": "crop",
+    "grow_area_m2": "grow area (m²)",
+    "temperature_c": "water temp",
+    "water_budget_lpd": "daily water budget",
+    "objective": "objective (food / protein / water_efficiency)",
+}
+
+
+def essentials_hint(goal: str, facts: dict) -> str:
+    """What to ask the user for next, given the goal and what's already known.
+
+    troubleshoot -> the symptom prompt (no hard slots). design/optimize -> the full prompt
+    when nothing is known, a terse list of only the missing slots when partially known, or a
+    'ready' line when every essential is present."""
+    g = (goal or "").strip().lower()
+    if g == "troubleshoot":
+        return GOAL_PROMPTS["troubleshoot"]
+    missing = missing_essentials(g, facts)
+    if not missing:
+        return "I've got your system — want me to run it? Just say go."
+    if len(missing) == len(GOAL_ESSENTIALS.get(g, ())):
+        return GOAL_PROMPTS[g]
+    return "Also tell me: " + ", ".join(_ESSENTIAL_LABELS.get(k, k) for k in missing) + "."
