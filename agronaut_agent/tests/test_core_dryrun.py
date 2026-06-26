@@ -179,3 +179,25 @@ def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
     assert facts["crop"] == "lettuce"
     assert facts["grow_area_m2"] == "12"
     assert facts["water_budget_lpd"] == "300"
+
+
+def test_set_goal_persists_and_confirms(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    msg = agent.set_goal("cli", "mode", "design")
+    assert "Design mode" in msg
+    assert agent._mem.get_facts("cli:mode")["goal"] == "design"
+
+
+def test_set_goal_does_not_reset_conversation(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent.handle_message("cli", "mode2", "hi")          # one turn of history
+    agent.set_goal("cli", "mode2", "troubleshoot")
+    # history survives a mode switch (mode only refocuses the goal)
+    assert len(agent._conv.recent_messages("cli:mode2")) >= 1
+
+
+def test_set_goal_rejects_unknown_goal(tmp_path):
+    import pytest
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    with pytest.raises(ValueError):
+        agent.set_goal("cli", "mode3", "frobnicate")

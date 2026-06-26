@@ -198,6 +198,18 @@ class AgronautAgent:
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
 
+    def set_goal(self, channel: str, channel_user: str, goal: str) -> str:
+        """Explicitly set the consultation goal (backs the /design, /optimize, /troubleshoot
+        commands). Persists profile['goal'] and returns the user-facing confirmation. Does
+        NOT touch conversation history or other facts. Raises ValueError on an unknown goal."""
+        g = (goal or "").strip().lower()
+        if g not in profile.GOALS:
+            raise ValueError(f"unknown goal {goal!r}")
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._mem.set_fact(user_id, "goal", g, source="user_stated")
+        facts = self._mem.get_facts(user_id)
+        return f"{profile.GOAL_HEADERS[g]}. {profile.essentials_hint(g, facts)}"
+
     # --- background cross-session summary (no user-facing latency) --------
     def _schedule_summary(self, user_id: str, every: int = 12) -> None:
         """Refresh the rolling summary in a daemon thread once history is long enough."""
