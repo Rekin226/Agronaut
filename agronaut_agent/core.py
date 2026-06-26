@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from agent.llm import get_chat_model, get_llm
 from .tools import AGRONAUT_TOOLS
 from .store import _Db, ConversationStore, MemoryStore
-from . import memory_extract, runtime
+from . import memory_extract, runtime, profile
 
 log = logging.getLogger(__name__)
 
@@ -88,19 +88,34 @@ class AgronautAgent:
         return messages
 
     def _recall_block(self, user_id: str) -> str:
-        """Assemble the cross-session recall: structured facts + summary + curated memories."""
+        """Assemble cross-session recall: goal-aware profile + missing essentials,
+        episodic memories, and the rolling summary."""
         parts: list[str] = []
         facts = self._mem.get_facts(user_id)
-        if facts:
-            parts.append("Known system facts: " + "; ".join(f"{k}={v}" for k, v in facts.items()))
-        summary = self._mem.get_summary(user_id)
-        if summary:
-            parts.append("Summary of past conversations: " + summary)
+        goal = facts.get("goal")
+
+        rendered = profile.render_profile(facts, goal=goal)
+        if rendered:
+            parts.append(rendered)
+        missing = profile.missing_essentials(goal, facts)
+        if missing:
+            parts.append(f"Still need for {goal}: " + ", ".join(missing))
+
         memories = self._mem.get_memories(user_id)
         if memories:
-            parts.append("What you remember about this user:\n" + "\n".join(
+            if (goal or "").strip().lower() == "troubleshoot":
+                # surface what happened / what worked first when diagnosing
+                memories = sorted(
+                    memories,
+                    key=lambda m: 0 if m["category"] in ("event", "learning") else 1,
+                )
+            parts.append("RECENT HISTORY\n" + "\n".join(
                 f"- ({m['category']}) {m['content']}" for m in memories
             ))
+
+        summary = self._mem.get_summary(user_id)
+        if summary:
+            parts.append("PAST SUMMARY: " + summary)
         return "\n\n".join(parts)
 
     # --- the tool-calling loop -------------------------------------------

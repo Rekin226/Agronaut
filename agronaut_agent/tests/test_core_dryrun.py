@@ -119,3 +119,17 @@ def test_reset_keeps_memory_forget_wipes_it(tmp_path):
     assert agent._mem.memory_count("telegram:9") == 1   # memory survives a conversation reset
     agent.forget_everything("telegram", "9")
     assert agent._mem.memory_count("telegram:9") == 0   # forget wipes it
+
+
+def test_recall_renders_profile_and_missing_essentials(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    uid = agent._conv.get_or_create_user("cli", "recall")
+    agent._mem.set_facts(uid, {"goal": "design", "fish_species": "tilapia"})
+
+    block = agent._recall_block(uid)
+    assert "YOUR SYSTEM" in block
+    assert "tilapia" in block
+    # the deterministic nudge lists exactly the still-blank design essentials
+    assert "Still need for design:" in block
+    for key in ("crop", "grow_area_m2", "temperature_c", "water_budget_lpd"):
+        assert key in block
