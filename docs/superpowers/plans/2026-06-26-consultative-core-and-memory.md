@@ -731,6 +731,162 @@ git commit -m "docs: describe the consultative agent behavior"
 
 ---
 
+### Task 8: Deterministic profile capture from validated tool calls
+
+**Why (added after live verification):** the live model runs the consultation well but
+does not reliably call `update_profile` — it jumps straight to the sizing tool and answers,
+so structured memory never persists. The robust fix is deterministic: when a sizing/optimize
+tool *succeeds*, its arguments ARE the user's trust-gated system facts — capture them into
+the profile automatically, regardless of whether the model called `update_profile`. The
+`update_profile` tool remains the complement for facts that surface in plain chat (location,
+tank volume, DO/ammonia readings).
+
+**Files:**
+- Modify: `agronaut_agent/profile.py` (add `profile_updates_from_tool`)
+- Modify: `agronaut_agent/core.py` — `_run_tool_loop`, persist captured facts after each tool result
+- Test: `agronaut_agent/tests/test_profile.py`, `agronaut_agent/tests/test_core_dryrun.py`
+
+**Interfaces:**
+- Consumes: `PROFILE_KEYS` (Task 1); `MemoryStore.set_facts(user_id, dict, source=...)`.
+- Produces: `profile.profile_updates_from_tool(name: str, args: dict, result: str) -> dict`
+  — returns the profile-fact subset of a tool's args, but only for fact-carrying tools and
+  only when `result` shows no failure marker; `{}` otherwise. `_run_tool_loop` writes these
+  with `source="tool_call"`.
+
+- [ ] **Step 1: Write the failing unit test**
+
+Append to `agronaut_agent/tests/test_profile.py`:
+
+```python
+def test_profile_updates_from_size_success():
+    args = {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 12,
+            "temperature_c": 27, "water_budget_lpd": 300}
+    updates = profile.profile_updates_from_tool("size_aquaponics_system", args, "FEASIBLE ...")
+    assert updates == {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 12,
+                       "temperature_c": 27, "water_budget_lpd": 300}
+
+
+def test_profile_updates_skipped_on_validation_failure():
+    args = {"fish_species": "shark", "crop": "lettuce", "grow_area_m2": 12,
+            "temperature_c": 27, "water_budget_lpd": 300}
+    out = profile.profile_updates_from_tool("size_aquaponics_system", args,
+                                            "VALIDATION_FAILED: unknown species 'shark'")
+    assert out == {}
+
+
+def test_profile_updates_for_optimize_includes_objective():
+    args = {"grow_area_m2": 10, "temperature_c": 28, "water_budget_lpd": 5000,
+            "objective": "food"}
+    out = profile.profile_updates_from_tool("optimize_fish_crop_ratio", args, "Best ratio: ...")
+    assert out == {"grow_area_m2": 10, "temperature_c": 28, "water_budget_lpd": 5000,
+                   "objective": "food"}
+
+
+def test_profile_updates_ignores_non_fact_tools():
+    assert profile.profile_updates_from_tool("search_knowledge_base",
+                                             {"query": "x"}, "some passage") == {}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `.venv/bin/python -m pytest agronaut_agent/tests/test_profile.py -k profile_updates -v`
+Expected: FAIL — `AttributeError: module 'agronaut_agent.profile' has no attribute 'profile_updates_from_tool'`
+
+- [ ] **Step 3: Implement `profile_updates_from_tool`**
+
+Append to `agronaut_agent/profile.py`:
+
+```python
+# Tools whose validated arguments ARE the user's system facts. The args map 1:1 to
+# canonical profile keys, so a successful call deterministically fills the profile.
+_TOOL_PROFILE_ARGS: dict[str, tuple[str, ...]] = {
+    "size_aquaponics_system": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                               "water_budget_lpd"),
+    "render_design_report": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                             "water_budget_lpd"),
+    "optimize_fish_crop_ratio": ("grow_area_m2", "temperature_c", "water_budget_lpd",
+                                 "objective"),
+}
+# Substrings that mark a tool result as a non-success — never persist args from these.
+_TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool")
+
+
+def profile_updates_from_tool(name: str, args: dict, result: str) -> dict:
+    """Profile facts to persist from a successful fact-carrying tool call. Empty dict for
+    non-fact tools or when the result shows a failure marker (so bad/ rejected inputs are
+    never remembered)."""
+    keys = _TOOL_PROFILE_ARGS.get(name)
+    if not keys:
+        return {}
+    if any(marker in (result or "") for marker in _TOOL_FAILURE_MARKERS):
+        return {}
+    args = args or {}
+    return {k: args[k] for k in keys
+            if k in args and str(args[k]).strip() not in ("", "None")}
+```
+
+- [ ] **Step 4: Run unit test to verify it passes**
+
+Run: `.venv/bin/python -m pytest agronaut_agent/tests/test_profile.py -k profile_updates -v`
+Expected: PASS (4 passed)
+
+- [ ] **Step 5: Write the failing core dry-run test**
+
+Append to `agronaut_agent/tests/test_core_dryrun.py` (note: `_FakeChat` already calls
+`size_aquaponics_system` with full args and never calls `update_profile` — the ideal
+fixture to prove deterministic capture):
+
+```python
+def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
+    # _FakeChat sizes a system but never calls update_profile; the profile must still fill.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_FakeChat())
+    agent.handle_message("cli", "cap", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    facts = agent._mem.get_facts("cli:cap")
+    assert facts["crop"] == "lettuce"
+    assert facts["grow_area_m2"] == "12"
+    assert facts["water_budget_lpd"] == "300"
+```
+
+- [ ] **Step 6: Run it to verify it fails**
+
+Run: `.venv/bin/python -m pytest agronaut_agent/tests/test_core_dryrun.py::test_tool_args_persist_to_profile_without_update_profile -v`
+Expected: FAIL — `KeyError: 'crop'` (profile only has regex-extracted temperature_c/fish_species)
+
+- [ ] **Step 7: Wire capture into the tool loop**
+
+In `agronaut_agent/core.py`, in `_run_tool_loop`, the per-call block currently ends:
+
+```python
+                self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
+                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+```
+
+Insert the capture between those two lines so it runs for every tool result:
+
+```python
+                self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
+                captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
+                if captured:
+                    self._mem.set_facts(user_id, captured, source="tool_call")
+                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+```
+
+(`profile` is already imported in `core.py` from Task 5; `self._mem` is the `MemoryStore`.)
+
+- [ ] **Step 8: Run the full suite to verify pass + no regressions**
+
+Run: `.venv/bin/python -m pytest agronaut_agent/tests/ -v`
+Expected: PASS (all, including the new capture tests and the unchanged tool-loop/memory tests).
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add agronaut_agent/profile.py agronaut_agent/core.py agronaut_agent/tests/test_profile.py agronaut_agent/tests/test_core_dryrun.py
+git commit -m "feat(core): deterministically capture validated tool args into the profile"
+```
+
+---
+
 ## Notes for the implementer
 
 - **Run tests with the venv:** always `.venv/bin/python -m pytest ...` (deps live in `.venv`).
