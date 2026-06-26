@@ -17,5 +17,10 @@ def test_extracts_ammonia():
     assert extract_facts("ammonia spiked to 2 ppm")["ammonia_mgl"] == "2"
 
 
+def test_does_not_fabricate_ammonia_from_duration_prose():
+    assert "ammonia_mgl" not in extract_facts("I had ammonia issues for 3 days")
+    assert "ammonia_mgl" not in extract_facts("ammonia count of 5")
+
+
 def test_still_extracts_temperature():
     assert extract_facts("water is 27C")["temperature_c"] == "27.0"

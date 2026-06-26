@@ -19,8 +19,12 @@ _DO_RE = re.compile(
     r"(?:dissolved\s+oxygen|\bDO\b)\D{0,8}(\d+(?:\.\d+)?)\s*(?:mg/?\s*l|ppm)",
     re.IGNORECASE,
 )
-# "ammonia" is unambiguous — no unit required.
-_AMMONIA_RE = re.compile(r"ammonia\D{0,15}(\d+(?:\.\d+)?)", re.IGNORECASE)
+# Require the number to be very close to "ammonia" (≤4 non-digit chars) OR carry a unit.
+# A wide unit-less window fabricated readings from prose like "ammonia issues for 3 days".
+_AMMONIA_RE = re.compile(
+    r"ammonia(?:\D{0,4}(\d+(?:\.\d+)?)\b|\D{0,15}(\d+(?:\.\d+)?)\s*(?:mg/?\s*l|ppm))",
+    re.IGNORECASE,
+)
 
 
 def extract_facts(text: str) -> dict[str, str]:
@@ -43,5 +47,5 @@ def extract_facts(text: str) -> dict[str, str]:
         facts["dissolved_oxygen_mgl"] = do.group(1)
     amm = _AMMONIA_RE.search(text)
     if amm:
-        facts["ammonia_mgl"] = amm.group(1)
+        facts["ammonia_mgl"] = amm.group(1) or amm.group(2)
     return facts
