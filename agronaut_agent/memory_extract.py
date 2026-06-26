@@ -14,6 +14,14 @@ import re
 # safe in the old form-driven chatbot, but a honesty hazard for free-form agent messages.
 _PH_CUE = re.compile(r"\bp\s*H\b", re.IGNORECASE)
 
+# DO needs a unit (mg/L or ppm) so the English word "do" can't fabricate a reading.
+_DO_RE = re.compile(
+    r"(?:dissolved\s+oxygen|\bDO\b)\D{0,8}(\d+(?:\.\d+)?)\s*(?:mg/?\s*l|ppm)",
+    re.IGNORECASE,
+)
+# "ammonia" is unambiguous — no unit required.
+_AMMONIA_RE = re.compile(r"ammonia\D{0,15}(\d+(?:\.\d+)?)", re.IGNORECASE)
+
 
 def extract_facts(text: str) -> dict[str, str]:
     """Pull system facts from free text. Returns only keys that were confidently found."""
@@ -30,4 +38,10 @@ def extract_facts(text: str) -> dict[str, str]:
     species = _parse_fish_species(text)
     if species:
         facts["fish_species"] = species
+    do = _DO_RE.search(text)
+    if do:
+        facts["dissolved_oxygen_mgl"] = do.group(1)
+    amm = _AMMONIA_RE.search(text)
+    if amm:
+        facts["ammonia_mgl"] = amm.group(1)
     return facts
