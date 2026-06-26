@@ -42,3 +42,47 @@ def missing_essentials(goal: str | None, profile: dict) -> list[str]:
     goal is unknown or has no hard essentials (e.g. troubleshoot)."""
     essentials = GOAL_ESSENTIALS.get((goal or "").strip().lower(), ())
     return [k for k in essentials if not str(profile.get(k, "")).strip()]
+
+
+# Friendly labels (with units) for recall rendering.
+_LABELS: dict[str, str] = {
+    "system_stage": "stage",
+    "location": "location",
+    "fish_species": "fish",
+    "crop": "crop",
+    "grow_area_m2": "grow area",
+    "tank_volume_l": "tank (L)",
+    "temperature_c": "temp (°C)",
+    "ph": "pH",
+    "dissolved_oxygen_mgl": "DO (mg/L)",
+    "ammonia_mgl": "ammonia (mg/L)",
+    "water_budget_lpd": "water budget (L/day)",
+    "water_source": "water source",
+    "goal": "goal",
+    "goal_detail": "goal detail",
+    "objective": "objective",
+    "experience_level": "experience",
+}
+
+# Default display order: system spec first, then water params, then goal.
+_SYSTEM_ORDER = ("system_stage", "location", "fish_species", "crop", "grow_area_m2",
+                 "tank_volume_l", "water_budget_lpd", "water_source")
+_WATER_ORDER = ("temperature_c", "ph", "dissolved_oxygen_mgl", "ammonia_mgl")
+_GOAL_ORDER = ("goal", "goal_detail", "objective", "experience_level")
+
+
+def render_profile(profile: dict, goal: str | None = None) -> str:
+    """Compact, goal-aware recall block. Empty string when nothing is known."""
+    if (goal or "").strip().lower() == "troubleshoot":
+        order = _WATER_ORDER + _SYSTEM_ORDER + _GOAL_ORDER
+    else:
+        order = _SYSTEM_ORDER + _WATER_ORDER + _GOAL_ORDER
+
+    lines = []
+    for key in order:
+        val = str(profile.get(key, "")).strip()
+        if val:
+            lines.append(f"• {_LABELS[key]}: {val}")
+    if not lines:
+        return ""
+    return "YOUR SYSTEM (what I remember)\n" + "\n".join(lines)
