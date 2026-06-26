@@ -49,7 +49,8 @@ def test_tool_loop_calls_tool_and_returns_numbers(tmp_path):
 
     roles = [m["role"] for m in agent._conv.recent_messages("cli:tester", limit=10)]
     assert roles == ["user", "tool", "assistant"]  # audit trail persisted
-    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27.0"
+    # temperature_c now comes from validated tool args (27) instead of parsed text (27.0)
+    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27"
 
 
 def test_no_tool_path_returns_plain_reply(tmp_path):
@@ -168,3 +169,13 @@ def test_system_prompt_is_consultative():
     assert "essential" in lowered
     # the old answer-dump instruction is gone
     assert "answer directly" not in lowered
+
+
+def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
+    # _FakeChat sizes a system but never calls update_profile; the profile must still fill.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_FakeChat())
+    agent.handle_message("cli", "cap", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    facts = agent._mem.get_facts("cli:cap")
+    assert facts["crop"] == "lettuce"
+    assert facts["grow_area_m2"] == "12"
+    assert facts["water_budget_lpd"] == "300"

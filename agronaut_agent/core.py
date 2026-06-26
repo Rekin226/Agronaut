@@ -149,6 +149,9 @@ class AgronautAgent:
                     except Exception as exc:  # fed back so the model can correct; never hidden
                         result = f"TOOL_ERROR: {exc}"
                 self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
+                captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
+                if captured:
+                    self._mem.set_facts(user_id, captured, source="tool_call")
                 messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
         # Hit the tool-call cap (e.g. the model kept calling tools without answering). Force a
         # final natural-language reply with tools disabled, so the user always gets a real answer.
