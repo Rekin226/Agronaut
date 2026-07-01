@@ -181,6 +181,31 @@ def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
     assert facts["water_budget_lpd"] == "300"
 
 
+class _BoomChat:
+    """A primary model that always fails — exercises the resilience fallback."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        raise RuntimeError("primary model is down (timeout/starved)")
+
+
+def test_falls_back_when_primary_errors(tmp_path):
+    # primary raises on every call; the injected fallback (_ChattyFake) answers instead.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3",
+                          chat_model=_BoomChat(), fallback_model=_ChattyFake())
+    reply = agent.handle_message("cli", "fb", "hi there")
+    assert "Hello" in reply  # the fallback produced the answer; the turn was not lost
+
+
+def test_primary_error_propagates_without_a_fallback(tmp_path):
+    import pytest
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_BoomChat())
+    with pytest.raises(RuntimeError):
+        agent.handle_message("cli", "nofb", "hi")
+
+
 def test_set_goal_persists_and_confirms(tmp_path):
     agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
     msg = agent.set_goal("cli", "mode", "design")

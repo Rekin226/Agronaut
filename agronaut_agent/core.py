@@ -13,7 +13,7 @@ import threading
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
-from agent.llm import get_chat_model, get_llm
+from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
 from .store import _Db, ConversationStore, MemoryStore
 from . import memory_extract, runtime, profile
@@ -74,9 +74,17 @@ _MAX_ITERS = 6
 
 
 class AgronautAgent:
-    def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None):
+    def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
+                 fallback_model=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
+        # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
+        # never lost. Only auto-built for the real config path; injectable for tests.
+        fb = fallback_model
+        if fb is None and chat_model is None:
+            fb = build_fallback_chat(llm_provider, llm_model)
+        if fb is not None:
+            base = ResilientChat(base, fb)
         self._base = base                       # unbound: used to force a final text answer
         self._bound = base.bind_tools(AGRONAUT_TOOLS)
         self._tools_by_name = {t.name: t for t in AGRONAUT_TOOLS}

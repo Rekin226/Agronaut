@@ -26,21 +26,34 @@ _AMMONIA_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Temperature only when the text actually signals temperature. The shared parser has a
+# bare-number fallback (any value 10-40) that otherwise turns "30 fish" or "20 m2" into a
+# water temperature — the same honesty hazard the pH cue guards against.
+_TEMP_CUE = re.compile(r"\d\s*°|\d\s*c\b|°|celsius|degree|\btemp", re.IGNORECASE)
+
+# Only accept a parsed fish species when the text names a real aquaculture fish. The shared
+# parser title-cases arbitrary input ("hey there" -> "Hey There"), so gate on a vocabulary.
+_FISH_WORDS = frozenset({
+    "tilapia", "clarias", "catfish", "trout", "carp", "koi", "goldfish", "perch",
+    "bass", "barramundi", "cod", "salmon", "shrimp", "prawn", "pacu", "arapaima",
+})
+
 
 def extract_facts(text: str) -> dict[str, str]:
     """Pull system facts from free text. Returns only keys that were confidently found."""
     from srcs.chatbot import _parse_temperature_c, _parse_ph, _parse_fish_species
 
     facts: dict[str, str] = {}
-    temp = _parse_temperature_c(text)
-    if temp is not None:
-        facts["temperature_c"] = str(temp)
+    if _TEMP_CUE.search(text):
+        temp = _parse_temperature_c(text)
+        if temp is not None:
+            facts["temperature_c"] = str(temp)
     if _PH_CUE.search(text):
         ph = _parse_ph(text)
         if ph is not None:
             facts["ph"] = str(ph)
     species = _parse_fish_species(text)
-    if species:
+    if species and any(w in _FISH_WORDS for w in species.lower().split()):
         facts["fish_species"] = species
     do = _DO_RE.search(text)
     if do:
