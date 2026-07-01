@@ -20,7 +20,10 @@ this module (or the chat layer) never requires any of them to be installed.
 
 from __future__ import annotations
 
+import logging
 import os
+
+log = logging.getLogger(__name__)
 
 # Sensible default open model per provider.
 # HF default: Qwen2.5-7B-Instruct — Apache-2.0 (clean license for a commercial/B2G venture),
@@ -122,6 +125,50 @@ def get_llm(provider: str | None = None, model: str | None = None, temperature: 
 
 class ToolCallingUnsupported(RuntimeError):
     """Raised when the resolved backend cannot bind tools (no .bind_tools())."""
+
+
+# A fast, widely-available model per provider to fall back to when the primary errors or
+# times out — so a starved/slow primary (as llama-3.3-70b was) never leaves the user with
+# nothing. The fallback is weaker but responsive; a real answer beats a dead turn.
+FALLBACK_MODELS: dict[str, str] = {
+    "nvidia": "meta/llama-3.1-8b-instruct",
+}
+
+
+class ResilientChat:
+    """Wrap a primary chat model with a fallback: invoke the primary, and on ANY error
+    invoke the fallback instead. Works with anything exposing .invoke()/.bind_tools() —
+    real LangChain chat models and test fakes alike — so it stays provider-agnostic and
+    unit-testable without the network."""
+
+    def __init__(self, primary, fallback):
+        self.primary = primary
+        self.fallback = fallback
+
+    def bind_tools(self, tools):
+        return ResilientChat(self.primary.bind_tools(tools), self.fallback.bind_tools(tools))
+
+    def invoke(self, messages):
+        try:
+            return self.primary.invoke(messages)
+        except Exception:  # timeout, 5xx, starved model — anything: don't kill the turn
+            log.warning("primary LLM failed; using fallback model", exc_info=True)
+            return self.fallback.invoke(messages)
+
+
+def build_fallback_chat(provider: str | None = None, model: str | None = None):
+    """Build the fallback chat model for a provider, or None when there's no distinct
+    fallback (unknown provider, or the primary already IS the fallback). Never raises —
+    resilience must not break agent construction."""
+    try:
+        provider, primary_model = resolve(provider, model)
+        fb_model = FALLBACK_MODELS.get(provider)
+        if not fb_model or fb_model == primary_model:
+            return None
+        return get_chat_model(provider=provider, model=fb_model)
+    except Exception:
+        log.debug("fallback model unavailable", exc_info=True)
+        return None
 
 
 def get_chat_model(provider: str | None = None, model: str | None = None, temperature: float = 0.0):
