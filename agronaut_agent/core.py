@@ -15,7 +15,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore
+from .store import _Db, ConversationStore, MemoryStore, FollowupStore, _now
 from . import memory_extract, runtime, profile
 
 log = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ class AgronautAgent:
         db = _Db(db_path)
         self._conv = ConversationStore(db)
         self._mem = MemoryStore(db)
+        self._followups = FollowupStore(db)
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str) -> list:
@@ -179,7 +180,7 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
         self._conv.append_message(user_id, "user", text)
-        runtime.set_current(self._mem, user_id)  # lets memory tools reach this user
+        runtime.set_current(self._mem, user_id, self._followups)  # tools reach this user
         try:
             messages = self._build_context(user_id)
             reply = self._run_tool_loop(messages, user_id)
@@ -205,6 +206,19 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
+
+    # --- follow-up delivery API (called by a channel poller) ----------------
+    def due_followups(self, channel: str) -> list:
+        """Follow-ups due for delivery on `channel` right now."""
+        return self._followups.due(channel, _now())
+
+    def mark_followup_sent(self, followup_id: int) -> None:
+        self._followups.mark_sent(followup_id)
+
+    def followup_send_failed(self, followup_id: int) -> None:
+        """A delivery attempt failed; retry next tick, but give up after 3."""
+        if self._followups.bump_attempt(followup_id) >= 3:
+            self._followups.mark_failed(followup_id)
 
     def set_goal(self, channel: str, channel_user: str, goal: str) -> str:
         """Explicitly set the consultation goal (backs the /design, /optimize, /troubleshoot

@@ -226,3 +226,25 @@ def test_set_goal_rejects_unknown_goal(tmp_path):
     agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
     with pytest.raises(ValueError):
         agent.set_goal("cli", "mode3", "frobnicate")
+
+
+def test_agent_exposes_followup_delivery_api(tmp_path):
+    from agronaut_agent.store import _now
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    # schedule a past-due follow-up directly via the agent's store
+    agent._followups.schedule("telegram:5", "telegram", "5", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    due = agent.due_followups("telegram")
+    assert len(due) == 1 and due[0]["question"] == "did it work?"
+    fid = due[0]["id"]
+    agent.mark_followup_sent(fid)
+    assert agent.due_followups("telegram") == []          # sent -> not due again
+
+    # send-failure path: 3 strikes -> failed
+    agent._followups.schedule("telegram:6", "telegram", "6", "q", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid2 = agent.due_followups("telegram")[0]["id"]
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    assert agent._followups.open_for("telegram:6") is None  # failed after 3 attempts
