@@ -50,7 +50,8 @@ def validate_overrides(overrides: dict) -> None:
 def apply_overrides(species=None, crop=None, overrides: dict | None = None):
     """Return (species, crop) with matching overrides applied via dataclasses.replace. Only an
     override whose key prefix equals the provided species/crop `.name` takes effect. Seeds are
-    untouched (replace returns a new object)."""
+    untouched (replace returns a new object). Assumes `overrides` has already passed
+    `validate_overrides` (values are numeric and in range)."""
     if not overrides:
         return species, crop
     sp_repl: dict[str, float] = {}

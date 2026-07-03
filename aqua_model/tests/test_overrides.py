@@ -44,3 +44,10 @@ def test_validate_overrides_rejects_unknown_and_unranged():
         validate_overrides({"tilapia.bogus": 1.0})       # unknown suffix
     with pytest.raises(ValidationError):
         validate_overrides({"clarias.harvest_weight": 0.6})  # no range for clarias harvest_weight
+
+
+def test_apply_overrides_handles_none_species():
+    cr = get_crop("lettuce")
+    sp, cr2 = apply_overrides(species=None, crop=cr, overrides={"tilapia.fcr": 1.5})
+    assert sp is None
+    assert cr2.yield_kg_per_m2_year == cr.yield_kg_per_m2_year  # crop untouched (no yield override)
