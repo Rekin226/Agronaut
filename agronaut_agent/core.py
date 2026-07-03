@@ -54,6 +54,11 @@ REMEMBER AS YOU GO:
   update_profile to save it. Do not wait until the end.
 - For episodic things that happened or fixes that worked, call remember_about_user
   (category event / learning / preference). Honour "forget that".
+- After you give an ACTIONABLE fix (a water change, a pH/temperature adjustment, a dosing
+  change), call schedule_followup to check back later whether it worked — pick the delay to
+  match how long the fix takes to show. Don't schedule for plans, sizing, or trivia.
+- When the user reports whether something worked (now or in answer to a check-in), save it
+  with remember_about_user(category='learning') so it improves your future advice.
 
 HARD RULES (these are your credibility):
 - NEVER state a sizing number, bill-of-materials quantity, or coefficient that did not come
@@ -180,9 +185,27 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
         self._conv.append_message(user_id, "user", text)
+
+        # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
+        # superseded by the user messaging first.
+        capture_note = None
+        open_fu = self._followups.open_for(user_id)
+        if open_fu and open_fu["status"] == "sent":
+            self._followups.record_outcome(open_fu["id"], text)  # audit: what they answered
+            self._followups.mark_answered(open_fu["id"])
+            capture_note = (
+                f'You earlier asked this user: "{open_fu["question"]}". They are replying now. '
+                f"If they report whether it worked, save the result with "
+                f"remember_about_user(category='learning')."
+            )
+        elif open_fu and open_fu["status"] == "pending":
+            self._followups.cancel(open_fu["id"])
+
         runtime.set_current(self._mem, user_id, self._followups)  # tools reach this user
         try:
             messages = self._build_context(user_id)
+            if capture_note:
+                messages.append(SystemMessage(content=capture_note))
             reply = self._run_tool_loop(messages, user_id)
         finally:
             runtime.clear_current()
