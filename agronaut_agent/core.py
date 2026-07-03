@@ -15,7 +15,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore
+from .store import _Db, ConversationStore, MemoryStore, FollowupStore, _now
 from . import memory_extract, runtime, profile
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,11 @@ REMEMBER AS YOU GO:
   update_profile to save it. Do not wait until the end.
 - For episodic things that happened or fixes that worked, call remember_about_user
   (category event / learning / preference). Honour "forget that".
+- After you give an ACTIONABLE fix (a water change, a pH/temperature adjustment, a dosing
+  change), call schedule_followup to check back later whether it worked — pick the delay to
+  match how long the fix takes to show. Don't schedule for plans, sizing, or trivia.
+- When the user reports whether something worked (now or in answer to a check-in), save it
+  with remember_about_user(category='learning') so it improves your future advice.
 
 HARD RULES (these are your credibility):
 - NEVER state a sizing number, bill-of-materials quantity, or coefficient that did not come
@@ -91,6 +96,7 @@ class AgronautAgent:
         db = _Db(db_path)
         self._conv = ConversationStore(db)
         self._mem = MemoryStore(db)
+        self._followups = FollowupStore(db)
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str) -> list:
@@ -179,9 +185,27 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
         self._conv.append_message(user_id, "user", text)
-        runtime.set_current(self._mem, user_id)  # lets memory tools reach this user
+
+        # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
+        # superseded by the user messaging first.
+        capture_note = None
+        open_fu = self._followups.open_for(user_id)
+        if open_fu and open_fu["status"] == "sent":
+            self._followups.record_outcome(open_fu["id"], text)  # audit: what they answered
+            self._followups.mark_answered(open_fu["id"])
+            capture_note = (
+                f'You earlier asked this user: "{open_fu["question"]}". They are replying now. '
+                f"If they report whether it worked, save the result with "
+                f"remember_about_user(category='learning')."
+            )
+        elif open_fu and open_fu["status"] == "pending":
+            self._followups.cancel(open_fu["id"])
+
+        runtime.set_current(self._mem, user_id, self._followups)  # tools reach this user
         try:
             messages = self._build_context(user_id)
+            if capture_note:
+                messages.append(SystemMessage(content=capture_note))
             reply = self._run_tool_loop(messages, user_id)
         finally:
             runtime.clear_current()
@@ -205,6 +229,19 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
+
+    # --- follow-up delivery API (called by a channel poller) ----------------
+    def due_followups(self, channel: str) -> list:
+        """Follow-ups due for delivery on `channel` right now."""
+        return self._followups.due(channel, _now())
+
+    def mark_followup_sent(self, followup_id: int) -> None:
+        self._followups.mark_sent(followup_id)
+
+    def followup_send_failed(self, followup_id: int) -> None:
+        """A delivery attempt failed; retry next tick, but give up after 3."""
+        if self._followups.bump_attempt(followup_id) >= 3:
+            self._followups.mark_failed(followup_id)
 
     def set_goal(self, channel: str, channel_user: str, goal: str) -> str:
         """Explicitly set the consultation goal (backs the /design, /optimize, /troubleshoot

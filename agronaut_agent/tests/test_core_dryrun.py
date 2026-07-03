@@ -226,3 +226,66 @@ def test_set_goal_rejects_unknown_goal(tmp_path):
     agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
     with pytest.raises(ValueError):
         agent.set_goal("cli", "mode3", "frobnicate")
+
+
+def test_agent_exposes_followup_delivery_api(tmp_path):
+    from agronaut_agent.store import _now
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    # schedule a past-due follow-up directly via the agent's store
+    agent._followups.schedule("telegram:5", "telegram", "5", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    due = agent.due_followups("telegram")
+    assert len(due) == 1 and due[0]["question"] == "did it work?"
+    fid = due[0]["id"]
+    agent.mark_followup_sent(fid)
+    assert agent.due_followups("telegram") == []          # sent -> not due again
+
+    # send-failure path: 3 strikes -> failed
+    agent._followups.schedule("telegram:6", "telegram", "6", "q", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid2 = agent.due_followups("telegram")[0]["id"]
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    assert agent._followups.open_for("telegram:6") is None  # failed after 3 attempts
+
+
+class _LearningFake:
+    """Turn 1 -> save a learning memory; then -> final text. Mimics the model capturing
+    an outcome when it sees the capture note."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Glad it worked!")
+        return AIMessage(content="", tool_calls=[{
+            "name": "remember_about_user", "id": "c1",
+            "args": {"note": "30% water change fixed the ammonia spike", "category": "learning"}}])
+
+
+def test_sent_followup_is_answered_on_next_reply(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_LearningFake())
+    # a follow-up was delivered and is awaiting the user's answer
+    agent._followups.schedule("telegram:9", "telegram", "9", "did it work?", "ammonia",
+                              "2000-01-01T00:00:00+00:00")
+    agent._followups.mark_sent(agent._followups.open_for("telegram:9")["id"])
+    agent.handle_message("telegram", "9", "yes it worked great")
+    assert agent._followups.open_for("telegram:9") is None        # answered -> slot freed
+    assert agent._mem.memory_count("telegram:9") == 1             # outcome saved as learning
+
+
+def test_pending_followup_cancelled_when_user_messages_first(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("telegram:10", "telegram", "10", "did it work?", "x",
+                              "2999-01-01T00:00:00+00:00")  # not yet due/sent
+    agent.handle_message("telegram", "10", "hey, new question")
+    assert agent._followups.open_for("telegram:10") is None       # cancelled, not asked
+
+
+def test_system_prompt_mentions_followups_and_outcomes():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "schedule_followup" in low
+    assert "worked" in low  # capture outcomes as learnings

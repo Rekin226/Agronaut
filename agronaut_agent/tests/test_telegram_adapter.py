@@ -30,3 +30,10 @@ def test_mode_handlers_exist():
     a = _adapter()
     for attr in ("_on_design", "_on_optimize", "_on_troubleshoot", "_set_mode", "_post_init"):
         assert hasattr(a, attr)
+
+
+def test_adapter_has_followup_poller():
+    a = _adapter()
+    assert hasattr(a, "_followup_loop")
+    import inspect
+    assert inspect.iscoroutinefunction(a._followup_loop)

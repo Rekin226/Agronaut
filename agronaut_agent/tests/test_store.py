@@ -94,3 +94,53 @@ def test_forget_wipes_memory_and_summary(stores):
     assert mem.memory_count(uid) == 0
     assert mem.get_summary(uid) is None
     assert mem.get_facts(uid) == {}
+
+
+from agronaut_agent.store import _Db, FollowupStore, _now
+
+
+def _fs():
+    return FollowupStore(_Db(":memory:"))
+
+
+def test_schedule_one_open_per_user():
+    fs = _fs()
+    assert fs.schedule("telegram:1", "telegram", "1", "did it work?", "ammonia", "2000-01-01T00:00:00+00:00")
+    # a second while one is still open is refused
+    assert fs.schedule("telegram:1", "telegram", "1", "again?", "ph", "2000-01-01T00:00:00+00:00") is False
+
+
+def test_due_returns_only_past_due_pending_for_channel():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q1", "a", "2000-01-01T00:00:00+00:00")  # past
+    fs.schedule("telegram:2", "telegram", "2", "q2", "a", "2999-01-01T00:00:00+00:00")  # future
+    due = fs.due("telegram", _now())
+    assert [d["question"] for d in due] == ["q1"]
+
+
+def test_sent_is_not_returned_by_due_no_nagging():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q1", "a", "2000-01-01T00:00:00+00:00")
+    row = fs.due("telegram", _now())[0]
+    fs.mark_sent(row["id"])
+    assert fs.due("telegram", _now()) == []          # never resent
+    assert fs.open_for("telegram:1")["status"] == "sent"
+
+
+def test_bump_attempt_and_fail():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.bump_attempt(fid) == 1 and fs.bump_attempt(fid) == 2 and fs.bump_attempt(fid) == 3
+    fs.mark_failed(fid)
+    assert fs.open_for("telegram:1") is None          # failed is not "open"
+
+
+def test_answer_and_cancel_free_the_slot():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fs.mark_answered(fs.open_for("telegram:1")["id"])
+    # answered frees the slot -> a new one can be scheduled
+    assert fs.schedule("telegram:1", "telegram", "1", "q2", "a", "2999-01-01T00:00:00+00:00")
+    fs.cancel(fs.open_for("telegram:1")["id"])
+    assert fs.open_for("telegram:1") is None

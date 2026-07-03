@@ -189,6 +189,33 @@ def update_profile(updates: dict) -> str:
     return "Saved to your profile: " + ", ".join(f"{k}={v}" for k, v in accepted.items())
 
 
+@tool
+def schedule_followup(question: str, hours: float, about: str = "") -> str:
+    """Schedule a proactive check-in with the user to learn whether your advice worked.
+    Use ONLY after giving an actionable fix (e.g. a water change, a pH adjustment) — not for
+    plans or trivia. `question` is what you'll ask them later (e.g. "did the 30% water change
+    bring the ammonia down?"). `hours` is when to check back — pick it to match the fix (a
+    water change ~24h, cycling ~a week); must be between 1 and 336 (14 days). `about` is a
+    short label of the issue. Only one check-in can be pending per user."""
+    cur = runtime.get_current()
+    fs = runtime.get_followups()
+    if cur is None or fs is None:
+        return "Can't schedule a follow-up right now."
+    _mem, user_id = cur
+    try:
+        h = float(hours)
+    except (TypeError, ValueError):
+        return "Follow-up delay must be a number of hours between 1 and 336."
+    if not (1.0 <= h <= 336.0):
+        return "Follow-up delay must be between 1 hour and 14 days (336 hours)."
+    from datetime import datetime, timedelta, timezone
+    channel, _, channel_user = user_id.partition(":")
+    due_at = (datetime.now(timezone.utc) + timedelta(hours=h)).isoformat()
+    ok = fs.schedule(user_id, channel, channel_user, question, about or "", due_at)
+    return ("Got it — I'll check back on that." if ok
+            else "I already have a check-in pending with you; I'll follow up on that first.")
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     optimize_fish_crop_ratio,
@@ -198,4 +225,5 @@ AGRONAUT_TOOLS = [
     search_knowledge_base,
     remember_about_user,
     update_profile,
+    schedule_followup,
 ]

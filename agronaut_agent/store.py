@@ -62,6 +62,24 @@ CREATE TABLE IF NOT EXISTS session_summary (
     summary    TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+-- Proactive/passive outcome follow-ups (self-learning): a scheduled check-in the bot
+-- sends later to learn whether its advice worked. Delivered by the channel poller.
+CREATE TABLE IF NOT EXISTS followups (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL,
+    channel      TEXT NOT NULL,
+    channel_user TEXT NOT NULL,
+    question     TEXT NOT NULL,
+    about        TEXT,
+    due_at       TEXT NOT NULL,
+    status       TEXT NOT NULL,   -- pending | sent | answered | cancelled | failed
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    outcome      TEXT,
+    created_at   TEXT NOT NULL,
+    sent_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_followups_channel ON followups(channel, status, due_at);
+CREATE INDEX IF NOT EXISTS idx_followups_user ON followups(user_id, status);
 """
 
 
@@ -200,3 +218,64 @@ class MemoryStore:
             "ON CONFLICT(user_id) DO UPDATE SET summary=excluded.summary, updated_at=excluded.updated_at",
             (user_id, summary.strip(), _now()),
         )
+
+
+class FollowupStore:
+    """Scheduled outcome check-ins. One open (pending/sent) follow-up per user; delivered
+    by the channel poller; terminal states are answered/cancelled/failed."""
+
+    _OPEN = ("pending", "sent")
+
+    def __init__(self, db: _Db | None = None, path=None):
+        self.db = db or _Db(path)
+
+    def schedule(self, user_id: str, channel: str, channel_user: str, question: str,
+                 about: str, due_at: str) -> bool:
+        open_rows = self.db.query(
+            "SELECT 1 FROM followups WHERE user_id=? AND status IN ('pending','sent') LIMIT 1",
+            (user_id,),
+        )
+        if open_rows:
+            return False
+        self.db.execute(
+            "INSERT INTO followups(user_id, channel, channel_user, question, about, due_at, "
+            "status, attempts, created_at) VALUES (?,?,?,?,?,?,'pending',0,?)",
+            (user_id, channel, str(channel_user), question, about, due_at, _now()),
+        )
+        return True
+
+    def due(self, channel: str, now: str) -> list[dict]:
+        rows = self.db.query(
+            "SELECT * FROM followups WHERE channel=? AND status='pending' AND due_at<=? "
+            "ORDER BY due_at ASC",
+            (channel, now),
+        )
+        return [dict(r) for r in rows]
+
+    def open_for(self, user_id: str) -> dict | None:
+        rows = self.db.query(
+            "SELECT * FROM followups WHERE user_id=? AND status IN ('pending','sent') "
+            "ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        )
+        return dict(rows[0]) if rows else None
+
+    def mark_sent(self, fid: int) -> None:
+        self.db.execute("UPDATE followups SET status='sent', sent_at=? WHERE id=?", (_now(), fid))
+
+    def bump_attempt(self, fid: int) -> int:
+        self.db.execute("UPDATE followups SET attempts=attempts+1 WHERE id=?", (fid,))
+        rows = self.db.query("SELECT attempts FROM followups WHERE id=?", (fid,))
+        return rows[0]["attempts"] if rows else 0
+
+    def mark_failed(self, fid: int) -> None:
+        self.db.execute("UPDATE followups SET status='failed' WHERE id=?", (fid,))
+
+    def mark_answered(self, fid: int) -> None:
+        self.db.execute("UPDATE followups SET status='answered' WHERE id=?", (fid,))
+
+    def cancel(self, fid: int) -> None:
+        self.db.execute("UPDATE followups SET status='cancelled' WHERE id=?", (fid,))
+
+    def record_outcome(self, fid: int, outcome: str) -> None:
+        self.db.execute("UPDATE followups SET outcome=? WHERE id=?", (outcome, fid))
