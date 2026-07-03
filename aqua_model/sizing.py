@@ -22,6 +22,7 @@ import math
 from . import coefficients as C
 from . import massbalance as mb
 from .crops import get_crop
+from .overrides import validate_overrides, apply_overrides
 from .species import get_species, temperature_feed_factor
 from .types import CoefficientUse, DesignInput, DesignOutput
 
@@ -42,9 +43,12 @@ def _coeff_uses(*coeffs) -> list[CoefficientUse]:
     return [CoefficientUse(c.name, c.value, c.low, c.high, c.unit, c.source) for c in coeffs]
 
 
-def size_system(design: DesignInput) -> DesignOutput:
+def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOutput:
+    if overrides:
+        validate_overrides(overrides)
     species = get_species(design.fish_species)
     crop = get_crop(design.crop)
+    species, crop = apply_overrides(species=species, crop=crop, overrides=overrides)
 
     # 1. FRR sizes feed from grow area (the anchor).
     feed_g_per_day = design.grow_area_m2 * crop.frr_g_per_m2_day
