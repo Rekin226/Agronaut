@@ -64,8 +64,18 @@ TROUT = FishSpecies(
     source="LIT",
 )
 
+# Common carp (Cyprinus carpio): among the most-farmed fish worldwide. Hardy, omnivorous,
+# very cold-tolerant warm-water fish; moderate feed efficiency.
+CARP = FishSpecies(
+    name="carp",
+    feeding_rate_pct_bw=1.5, fcr=2.0, feed_protein_pct=32.0,
+    body_protein_pct=16.0, harvest_weight_kg=1.0, stocking_density_kg_m3=25.0,
+    temp_min_c=8.0, temp_opt_low_c=23.0, temp_opt_high_c=30.0, temp_max_c=34.0,
+    source="LIT (carp aquaculture)",
+)
+
 SPECIES: dict[str, FishSpecies] = {
-    s.name: s for s in (TILAPIA, CLARIAS, CHANNEL_CATFISH, TROUT)
+    s.name: s for s in (TILAPIA, CLARIAS, CHANNEL_CATFISH, TROUT, CARP)
 }
 
 

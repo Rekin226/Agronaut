@@ -93,3 +93,31 @@ def test_size_system_rejects_out_of_range_override():
     import pytest
     with pytest.raises(ValidationError):
         size_system(design, overrides={"tilapia.harvest_weight": 5.0})  # far above range
+
+
+import pytest
+from aqua_model.species import SPECIES
+from aqua_model.crops import CROPS
+
+
+@pytest.mark.parametrize("fish", ["tilapia", "clarias", "channel_catfish", "trout", "carp"])
+def test_every_species_sizes(fish):
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input
+    out = size_system(validate_design_input(fish, "lettuce", 20, 24, 5000))
+    assert out.fish_count >= 1 and out.feed_g_per_day > 0
+
+
+@pytest.mark.parametrize("crop", ["lettuce", "basil", "tomato", "kale", "swiss_chard",
+                                  "spinach", "cucumber", "pepper"])
+def test_every_crop_sizes(crop):
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input
+    out = size_system(validate_design_input("tilapia", crop, 20, 24, 5000))
+    assert out.fish_count >= 1 and out.feed_g_per_day > 0
+
+
+def test_new_keys_registered():
+    assert "carp" in SPECIES
+    for c in ("kale", "swiss_chard", "spinach", "cucumber", "pepper"):
+        assert c in CROPS
