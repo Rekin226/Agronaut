@@ -30,13 +30,17 @@ from . import profile as profile_mod, rag, runtime, serialize
 log = logging.getLogger(__name__)
 
 
-def _calibration_note(user_id) -> str:
+def _calibration_note(user_id, species=None, crop=None) -> str:
     """A one-line-per-coefficient note of which coefficients were calibrated from the operator's
-    own measurements. Empty string if none applied."""
+    own measurements. Empty string if none applied. When species/crop are given, only coefficients
+    whose key prefix matches the design's species or crop are included."""
     cal = runtime.get_calibration()
     if cal is None:
         return ""
     applied = [r for r in cal.calibration_report(user_id) if r.get("applied")]
+    if species is not None or crop is not None:
+        scope = {str(species).strip().lower(), str(crop).strip().lower()}
+        applied = [r for r in applied if r["coefficient"].rpartition(".")[0] in scope]
     if not applied:
         return ""
     lines = "\n".join(
@@ -91,7 +95,7 @@ def size_aquaponics_system(
         cal = runtime.get_calibration()
         if cal is not None:
             overrides = cal.overrides_for(user_id) or None
-            note = _calibration_note(user_id)
+            note = _calibration_note(user_id, fish_species, crop)
     try:
         sized = serialize.serialize_design_output(size_system(design, overrides=overrides))
     except ValidationError as err:
@@ -132,7 +136,11 @@ def optimize_fish_crop_ratio(
         )
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
-    return serialize.serialize_optimize_result(res)
+    note = ""
+    if cur is not None:                      # `cur` is the runtime.get_current() already fetched for overrides
+        _mem, user_id = cur
+        note = _calibration_note(user_id)
+    return serialize.serialize_optimize_result(res) + note
 
 
 @tool

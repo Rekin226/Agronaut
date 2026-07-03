@@ -405,7 +405,8 @@ class CalibrationStore:
         from aqua_model import calibration
         report = []
         for key, vals in self._by_coefficient(user_id).items():
-            mean = round(sum(vals) / len(vals), 4)
+            mean_exact = sum(vals) / len(vals)
+            mean = round(mean_exact, 4)
             try:
                 cal = calibration.get(key)
             except KeyError:
@@ -413,7 +414,7 @@ class CalibrationStore:
                                "applied": False, "seed": None, "emp_low": None,
                                "emp_high": None, "in_range": None})
                 continue
-            in_range = cal.emp_low <= mean <= cal.emp_high
+            in_range = cal.emp_low <= mean_exact <= cal.emp_high   # full-precision, not rounded
             report.append({
                 "coefficient": key, "n": len(vals), "mean": mean,
                 "applied": len(vals) >= self._MIN_OBS and in_range,

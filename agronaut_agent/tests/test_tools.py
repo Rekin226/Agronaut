@@ -280,3 +280,38 @@ def test_size_tool_surfaces_override_validation_error():
         assert "VALIDATION_FAILED" in out          # surfaced, not crashed
     finally:
         runtime.clear_current()
+
+
+def test_size_note_not_claimed_for_mismatched_species():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)   # applied for TILAPIA only
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "trout", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 15, "water_budget_lpd": 500})   # trout, not tilapia
+        assert "calibrated from your" not in out.lower()      # no false claim on trout
+    finally:
+        runtime.clear_current()
+
+
+def test_optimize_tool_labels_calibration():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import optimize_fish_crop_ratio
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.fcr", 1.4)
+    cal.record("telegram:1", "tilapia.fcr", 1.6)              # applied
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = optimize_fish_crop_ratio.invoke(
+            {"grow_area_m2": 10, "temperature_c": 27, "water_budget_lpd": 5000, "objective": "food"})
+        assert "calibrated from your" in out.lower()          # optimize now labels it
+    finally:
+        runtime.clear_current()
