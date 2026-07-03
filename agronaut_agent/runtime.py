@@ -10,16 +10,24 @@ from __future__ import annotations
 import contextvars
 
 _current = contextvars.ContextVar("agronaut_current", default=None)
+_followups = contextvars.ContextVar("agronaut_followups", default=None)
 
 
-def set_current(memory_store, user_id: str) -> None:
+def set_current(memory_store, user_id: str, followups=None) -> None:
     _current.set((memory_store, user_id))
+    _followups.set(followups)
 
 
 def clear_current() -> None:
     _current.set(None)
+    _followups.set(None)
 
 
 def get_current():
     """Return (memory_store, user_id) for the in-flight message, or None outside a turn."""
     return _current.get()
+
+
+def get_followups():
+    """Return the FollowupStore for the in-flight message, or None if unset."""
+    return _followups.get()

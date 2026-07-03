@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 8
+    assert len(AGRONAUT_TOOLS) == 9
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -63,7 +63,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 8
+    assert len(AGRONAUT_TOOLS) == 9
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -88,3 +88,46 @@ def test_update_profile_writes_canonical_drops_unknown():
     assert "bogus_key" not in facts   # unknown key ignored
     assert "ph" not in facts          # empty value skipped
     assert "optimize" in out
+
+
+def test_registry_includes_schedule_followup():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "schedule_followup" in names
+    assert len(AGRONAUT_TOOLS) == 9
+
+
+def test_schedule_followup_writes_a_row_and_guards_duplicates():
+    from agronaut_agent.store import _Db, MemoryStore, FollowupStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import schedule_followup
+
+    db = _Db(":memory:")
+    mem, fs = MemoryStore(db), FollowupStore(db)
+    runtime.set_current(mem, "telegram:7", fs)
+    try:
+        out = schedule_followup.invoke({"question": "did the water change help?",
+                                        "hours": 24, "about": "ammonia spike"})
+        assert "check back" in out.lower()
+        assert fs.open_for("telegram:7")["question"] == "did the water change help?"
+        # second while one is open is refused
+        again = schedule_followup.invoke({"question": "still ok?", "hours": 24, "about": "x"})
+        assert "pending" in again.lower()
+    finally:
+        runtime.clear_current()
+
+
+def test_schedule_followup_rejects_out_of_range_hours():
+    from agronaut_agent.store import _Db, MemoryStore, FollowupStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import schedule_followup
+
+    db = _Db(":memory:")
+    runtime.set_current(MemoryStore(db), "telegram:8", FollowupStore(db))
+    try:
+        assert "between" in schedule_followup.invoke(
+            {"question": "q", "hours": 0.5, "about": "x"}).lower()
+        assert "between" in schedule_followup.invoke(
+            {"question": "q", "hours": 999, "about": "x"}).lower()
+    finally:
+        runtime.clear_current()
