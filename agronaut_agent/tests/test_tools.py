@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 11
+    assert len(AGRONAUT_TOOLS) == 12
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -63,7 +63,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 11
+    assert len(AGRONAUT_TOOLS) == 12
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -94,7 +94,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 11
+    assert len(AGRONAUT_TOOLS) == 12
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -138,7 +138,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 11
+    assert len(AGRONAUT_TOOLS) == 12
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -181,5 +181,137 @@ def test_search_community_knowledge_labels_and_filters():
         assert "aerate at dawn" in out
         # no match -> clean fallback
         assert "no community" in search_community_knowledge.invoke({"query": "zzzzz"}).lower()
+    finally:
+        runtime.clear_current()
+
+
+def test_registry_includes_record_measurement():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "record_measurement" in names
+    assert len(AGRONAUT_TOOLS) == 12
+
+
+def test_record_measurement_maps_metric_to_qualified_key():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import record_measurement
+
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    mem.set_facts("telegram:1", {"fish_species": "tilapia", "crop": "lettuce"})
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = record_measurement.invoke({"metric": "harvest_weight", "value": 0.45})
+        assert "recorded" in out.lower()
+        assert cal._by_coefficient("telegram:1") == {"tilapia.harvest_weight": [0.45]}
+        # yield maps to the crop
+        record_measurement.invoke({"metric": "yield", "value": 12.0})
+        assert "lettuce.yield" in cal._by_coefficient("telegram:1")
+    finally:
+        runtime.clear_current()
+
+
+def test_record_measurement_rejects_unknown_metric_and_bad_value():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import record_measurement
+
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    mem.set_facts("telegram:1", {"fish_species": "tilapia", "crop": "lettuce"})
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        assert "metric" in record_measurement.invoke({"metric": "weight", "value": 1}).lower()
+        assert "number" in record_measurement.invoke({"metric": "fcr", "value": -1}).lower()
+    finally:
+        runtime.clear_current()
+
+
+def test_size_tool_applies_calibration_and_labels_it():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)   # mean 0.4, in range -> applied
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 27, "water_budget_lpd": 500})
+        assert "FEASIBLE" in out
+        assert "calibrat" in out.lower()             # honest calibration note present
+        assert "tilapia.harvest_weight" in out
+    finally:
+        runtime.clear_current()
+
+
+def test_size_tool_without_calibration_is_unchanged():
+    from agronaut_agent.tools import size_aquaponics_system
+    # no runtime context -> no overrides, plain design
+    out = size_aquaponics_system.invoke(
+        {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+         "temperature_c": 27, "water_budget_lpd": 500})
+    assert "FEASIBLE" in out
+    assert "calibrated from your" not in out.lower()
+
+
+def test_size_tool_surfaces_override_validation_error():
+    """Prove that a ValidationError raised by an override is caught and surfaced,
+    not crashed."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+
+    class _BadCal:
+        def overrides_for(self, user_id):
+            return {"tilapia.fcr": 5.0}          # far above the empirical range
+        def calibration_report(self, user_id):
+            return []
+    db = _Db(":memory:")
+    runtime.set_current(MemoryStore(db), "telegram:1", None, None, _BadCal())
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 27, "water_budget_lpd": 500})
+        assert "VALIDATION_FAILED" in out          # surfaced, not crashed
+    finally:
+        runtime.clear_current()
+
+
+def test_size_note_not_claimed_for_mismatched_species():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)   # applied for TILAPIA only
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "trout", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 15, "water_budget_lpd": 500})   # trout, not tilapia
+        assert "calibrated from your" not in out.lower()      # no false claim on trout
+    finally:
+        runtime.clear_current()
+
+
+def test_optimize_tool_labels_calibration():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import optimize_fish_crop_ratio
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.fcr", 1.4)
+    cal.record("telegram:1", "tilapia.fcr", 1.6)              # applied
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = optimize_fish_crop_ratio.invoke(
+            {"grow_area_m2": 10, "temperature_c": 27, "water_budget_lpd": 5000, "objective": "food"})
+        assert "calibrated from your" in out.lower()          # optimize now labels it
     finally:
         runtime.clear_current()

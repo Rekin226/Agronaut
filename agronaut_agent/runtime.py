@@ -12,18 +12,21 @@ import contextvars
 _current = contextvars.ContextVar("agronaut_current", default=None)
 _followups = contextvars.ContextVar("agronaut_followups", default=None)
 _community = contextvars.ContextVar("agronaut_community", default=None)
+_calibration = contextvars.ContextVar("agronaut_calibration", default=None)
 
 
-def set_current(memory_store, user_id: str, followups=None, community=None) -> None:
+def set_current(memory_store, user_id: str, followups=None, community=None, calibration=None) -> None:
     _current.set((memory_store, user_id))
     _followups.set(followups)
     _community.set(community)
+    _calibration.set(calibration)
 
 
 def clear_current() -> None:
     _current.set(None)
     _followups.set(None)
     _community.set(None)
+    _calibration.set(None)
 
 
 def get_current():
@@ -39,3 +42,8 @@ def get_followups():
 def get_community():
     """Return the CommunityStore for the in-flight message, or None if unset."""
     return _community.get()
+
+
+def get_calibration():
+    """Return the CalibrationStore for the in-flight message, or None if unset."""
+    return _calibration.get()

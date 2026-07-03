@@ -73,6 +73,11 @@ fix is nominated, the owner approves it in a local review CLI (`python -m agrona
 and approved insights then help other operators — labeled as community experience, never as
 verified science.
 
+And it calibrates to reality: when you report real measured outcomes (harvest weight, FCR,
+crop yield), Agronaut tunes *your* future sizings toward your system — bounded to the
+published empirical ranges, so a measurement can only move a coefficient within what the
+literature allows, and every calibrated number is labeled.
+
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
 UVI/Rakocy, literature) and an explicit list of what it does **not** model

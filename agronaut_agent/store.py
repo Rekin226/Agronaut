@@ -94,6 +94,17 @@ CREATE TABLE IF NOT EXISTS community_insights (
     reviewed_at    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_community_status ON community_insights(status);
+-- Per-operator coefficient calibration: real measured outcomes (keyed by the aqua_model
+-- calibration key, e.g. 'tilapia.fcr'). Aggregated into bounded overrides at sizing time;
+-- seeds are never mutated.
+CREATE TABLE IF NOT EXISTS measurements (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     TEXT NOT NULL,
+    coefficient TEXT NOT NULL,
+    value       REAL NOT NULL,
+    recorded_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_measurements_user ON measurements(user_id, coefficient);
 """
 
 
@@ -348,3 +359,66 @@ class CommunityStore:
             (like, like),
         )
         return [dict(r) for r in rows]
+
+
+class CalibrationStore:
+    """Per-operator coefficient measurements -> bounded overrides. A coefficient is applied only
+    with >=2 measurements whose mean is within the published empirical range (aqua_model
+    calibration); seeds are never touched."""
+
+    _MIN_OBS = 2
+
+    def __init__(self, db: _Db | None = None, path=None):
+        self.db = db or _Db(path)
+
+    def record(self, user_id: str, coefficient: str, value: float) -> None:
+        self.db.execute(
+            "INSERT INTO measurements(user_id, coefficient, value, recorded_at) VALUES (?,?,?,?)",
+            (user_id, coefficient, float(value), _now()),
+        )
+
+    def _by_coefficient(self, user_id: str) -> dict[str, list[float]]:
+        rows = self.db.query(
+            "SELECT coefficient, value FROM measurements WHERE user_id=?", (user_id,)
+        )
+        out: dict[str, list[float]] = {}
+        for r in rows:
+            out.setdefault(r["coefficient"], []).append(r["value"])
+        return out
+
+    def overrides_for(self, user_id: str) -> dict:
+        from aqua_model import calibration
+        out: dict[str, float] = {}
+        for key, vals in self._by_coefficient(user_id).items():
+            if len(vals) < self._MIN_OBS:
+                continue
+            try:
+                cal = calibration.get(key)
+            except KeyError:
+                continue
+            mean = sum(vals) / len(vals)
+            if cal.emp_low <= mean <= cal.emp_high:
+                out[key] = round(mean, 4)
+        return out
+
+    def calibration_report(self, user_id: str) -> list[dict]:
+        from aqua_model import calibration
+        report = []
+        for key, vals in self._by_coefficient(user_id).items():
+            mean_exact = sum(vals) / len(vals)
+            mean = round(mean_exact, 4)
+            try:
+                cal = calibration.get(key)
+            except KeyError:
+                report.append({"coefficient": key, "n": len(vals), "mean": mean,
+                               "applied": False, "seed": None, "emp_low": None,
+                               "emp_high": None, "in_range": None})
+                continue
+            in_range = cal.emp_low <= mean_exact <= cal.emp_high   # full-precision, not rounded
+            report.append({
+                "coefficient": key, "n": len(vals), "mean": mean,
+                "applied": len(vals) >= self._MIN_OBS and in_range,
+                "seed": cal.seed, "emp_low": cal.emp_low, "emp_high": cal.emp_high,
+                "in_range": in_range,
+            })
+        return report
