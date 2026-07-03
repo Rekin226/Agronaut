@@ -30,6 +30,23 @@ from . import profile as profile_mod, rag, runtime, serialize
 log = logging.getLogger(__name__)
 
 
+def _calibration_note(user_id) -> str:
+    """A one-line-per-coefficient note of which coefficients were calibrated from the operator's
+    own measurements. Empty string if none applied."""
+    cal = runtime.get_calibration()
+    if cal is None:
+        return ""
+    applied = [r for r in cal.calibration_report(user_id) if r.get("applied")]
+    if not applied:
+        return ""
+    lines = "\n".join(
+        f"- {r['coefficient']}: {r['mean']} — calibrated from your {r['n']} measurements "
+        f"(literature seed {r['seed']})"
+        for r in applied
+    )
+    return "\n\nCalibrated from YOUR data (bounded to the published range):\n" + lines
+
+
 def _clean_optional(text: str | None) -> str | None:
     """LLMs often pass the literal string 'null'/'none'/'' for an absent optional arg.
     Coerce those back to None so they don't become a bogus note."""
@@ -67,7 +84,15 @@ def size_aquaponics_system(
         )
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
-    return serialize.serialize_design_output(size_system(design))
+    cur = runtime.get_current()
+    overrides, note = None, ""
+    if cur is not None:
+        _mem, user_id = cur
+        cal = runtime.get_calibration()
+        if cal is not None:
+            overrides = cal.overrides_for(user_id) or None
+            note = _calibration_note(user_id)
+    return serialize.serialize_design_output(size_system(design, overrides=overrides)) + note
 
 
 @tool
@@ -84,13 +109,21 @@ def optimize_fish_crop_ratio(
     obj = (objective or "water_efficiency").strip().lower()
     if obj not in OBJECTIVES:
         return f"Unknown objective {objective!r}. Use one of: {', '.join(OBJECTIVES)}."
+    cur = runtime.get_current()
+    overrides = None
+    if cur is not None:
+        _mem, user_id = cur
+        cal = runtime.get_calibration()
+        if cal is not None:
+            overrides = cal.overrides_for(user_id) or None
     res = optimize(
         OptimizeInput(
             grow_area_m2=grow_area_m2,
             temperature_c=temperature_c,
             water_budget_lpd=water_budget_lpd,
             objective=obj,
-        )
+        ),
+        overrides=overrides,
     )
     return serialize.serialize_optimize_result(res)
 

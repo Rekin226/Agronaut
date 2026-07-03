@@ -226,3 +226,34 @@ def test_record_measurement_rejects_unknown_metric_and_bad_value():
         assert "number" in record_measurement.invoke({"metric": "fcr", "value": -1}).lower()
     finally:
         runtime.clear_current()
+
+
+def test_size_tool_applies_calibration_and_labels_it():
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)
+    cal.record("telegram:1", "tilapia.harvest_weight", 0.4)   # mean 0.4, in range -> applied
+    runtime.set_current(mem, "telegram:1", None, None, cal)
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 27, "water_budget_lpd": 500})
+        assert "FEASIBLE" in out
+        assert "calibrat" in out.lower()             # honest calibration note present
+        assert "tilapia.harvest_weight" in out
+    finally:
+        runtime.clear_current()
+
+
+def test_size_tool_without_calibration_is_unchanged():
+    from agronaut_agent.tools import size_aquaponics_system
+    # no runtime context -> no overrides, plain design
+    out = size_aquaponics_system.invoke(
+        {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+         "temperature_c": 27, "water_budget_lpd": 500})
+    assert "FEASIBLE" in out
+    assert "calibrated from your" not in out.lower()
