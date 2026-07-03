@@ -32,7 +32,7 @@ def apply_command(store: CommunityStore, cmd: str) -> str:
         if cid not in {c["id"] for c in store.pending()}:
             return f"No pending candidate with id {cid}."
         (store.approve if verb == "approve" else store.reject)(cid)
-        return f"{verb.capitalize()}d #{cid}."
+        return f"{'Approved' if verb == 'approve' else 'Rejected'} #{cid}."
     return "Commands: approve <id> | reject <id> | quit"
 
 

@@ -21,7 +21,8 @@ def test_apply_command_approves_pending():
 def test_apply_command_rejects_pending():
     cs = _store_with_one()
     cid = cs.pending()[0]["id"]
-    apply_command(cs, f"reject {cid}")
+    msg = apply_command(cs, f"reject {cid}")
+    assert msg == f"Rejected #{cid}."          # grammatical, not "Rejectd"
     assert cs.pending() == [] and cs.search_approved("aerate") == []
 
 
