@@ -260,6 +260,46 @@ def search_community_knowledge(query: str) -> str:
     return "Reported by other operators (community experience, not verified science):\n" + lines
 
 
+# metric -> (calibration-key suffix, which profile field names the species/crop)
+_MEASUREMENT_METRICS = {
+    "fcr": ("fcr", "fish_species"),
+    "harvest_weight": ("harvest_weight", "fish_species"),
+    "yield": ("yield", "crop"),
+}
+
+
+@tool
+def record_measurement(metric: str, value: float) -> str:
+    """Record a REAL measured outcome from the operator's OWN running system so their future
+    sizings calibrate to reality. Call ONLY with a number the user actually measured — never an
+    estimate or a model output. metric is one of: 'fcr' (feed used / weight gained),
+    'harvest_weight' (kg per fish), 'yield' (kg per m² per year of the crop). The value is
+    combined with their species/crop; once you have >=2 in-range measurements it calibrates
+    their sizing."""
+    cur = runtime.get_current()
+    cal = runtime.get_calibration()
+    if cur is None or cal is None:
+        return "Can't record a measurement right now."
+    mem, user_id = cur
+    m = (metric or "").strip().lower()
+    if m not in _MEASUREMENT_METRICS:
+        return f"Unknown metric {metric!r}. Use one of: fcr, harvest_weight, yield."
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "The measurement must be a number."
+    if not (0 < v < 100000):
+        return "That measurement doesn't look like a real number — please double-check it."
+    suffix, profile_field = _MEASUREMENT_METRICS[m]
+    subject = mem.get_facts(user_id).get(profile_field)
+    if not subject:
+        need = "fish species" if profile_field == "fish_species" else "crop"
+        return f"Tell me your {need} first so I can record that measurement."
+    coefficient = f"{str(subject).strip().lower()}.{suffix}"
+    cal.record(user_id, coefficient, v)
+    return f"Recorded — I'll use your measurements to calibrate future sizings ({coefficient})."
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     optimize_fish_crop_ratio,
@@ -272,4 +312,5 @@ AGRONAUT_TOOLS = [
     schedule_followup,
     nominate_shared_insight,
     search_community_knowledge,
+    record_measurement,
 ]
