@@ -289,3 +289,33 @@ def test_system_prompt_mentions_followups_and_outcomes():
     low = SYSTEM_PROMPT.lower()
     assert "schedule_followup" in low
     assert "worked" in low  # capture outcomes as learnings
+
+
+class _NominateFake:
+    """Turn 1 -> nominate a shared insight; then -> final text."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Shared for review.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "nominate_shared_insight", "id": "n1",
+            "args": {"insight": "a partial water change commonly clears an acute ammonia spike",
+                     "topic": "ammonia"}}])
+
+
+def test_nomination_reaches_the_community_store(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_NominateFake())
+    agent.handle_message("telegram", "1", "the 30% water change fixed my ammonia")
+    pend = agent._community.pending()
+    assert len(pend) == 1
+    assert pend[0]["insight"].startswith("a partial water change")
+
+
+def test_system_prompt_mentions_community_sharing():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "nominate_shared_insight" in low
+    assert "search_community_knowledge" in low

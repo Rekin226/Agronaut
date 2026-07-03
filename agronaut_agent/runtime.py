@@ -11,16 +11,19 @@ import contextvars
 
 _current = contextvars.ContextVar("agronaut_current", default=None)
 _followups = contextvars.ContextVar("agronaut_followups", default=None)
+_community = contextvars.ContextVar("agronaut_community", default=None)
 
 
-def set_current(memory_store, user_id: str, followups=None) -> None:
+def set_current(memory_store, user_id: str, followups=None, community=None) -> None:
     _current.set((memory_store, user_id))
     _followups.set(followups)
+    _community.set(community)
 
 
 def clear_current() -> None:
     _current.set(None)
     _followups.set(None)
+    _community.set(None)
 
 
 def get_current():
@@ -31,3 +34,8 @@ def get_current():
 def get_followups():
     """Return the FollowupStore for the in-flight message, or None if unset."""
     return _followups.get()
+
+
+def get_community():
+    """Return the CommunityStore for the in-flight message, or None if unset."""
+    return _community.get()

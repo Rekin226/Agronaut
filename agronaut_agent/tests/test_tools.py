@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 9
+    assert len(AGRONAUT_TOOLS) == 11
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -63,7 +63,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 9
+    assert len(AGRONAUT_TOOLS) == 11
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -94,7 +94,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 9
+    assert len(AGRONAUT_TOOLS) == 11
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -129,5 +129,57 @@ def test_schedule_followup_rejects_out_of_range_hours():
             {"question": "q", "hours": 0.5, "about": "x"}).lower()
         assert "between" in schedule_followup.invoke(
             {"question": "q", "hours": 999, "about": "x"}).lower()
+    finally:
+        runtime.clear_current()
+
+
+def test_registry_includes_community_tools():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "nominate_shared_insight" in names
+    assert "search_community_knowledge" in names
+    assert len(AGRONAUT_TOOLS) == 11
+
+
+def test_nominate_writes_pending_and_rejects_blank():
+    from agronaut_agent.store import _Db, MemoryStore, CommunityStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import nominate_shared_insight
+
+    db = _Db(":memory:")
+    mem, cs = MemoryStore(db), CommunityStore(db)
+    mem.add_memory("telegram:1", "30% water change fixed my ammonia", "learning")
+    runtime.set_current(mem, "telegram:1", None, cs)
+    try:
+        out = nominate_shared_insight.invoke(
+            {"insight": "a partial water change commonly clears an acute ammonia spike",
+             "topic": "ammonia"})
+        assert "nominated" in out.lower()
+        pend = cs.pending()
+        assert len(pend) == 1
+        assert pend[0]["insight"].startswith("a partial water change")
+        assert pend[0]["original"] == "30% water change fixed my ammonia"   # review context
+        # blank is rejected
+        assert "nothing" in nominate_shared_insight.invoke({"insight": "  ", "topic": "x"}).lower()
+    finally:
+        runtime.clear_current()
+
+
+def test_search_community_knowledge_labels_and_filters():
+    from agronaut_agent.store import _Db, MemoryStore, CommunityStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import search_community_knowledge
+
+    db = _Db(":memory:")
+    cs = CommunityStore(db)
+    cs.nominate("telegram:9", "raw", "aerate at dawn to avoid DO crashes", "dissolved oxygen")
+    cs.approve(cs.pending()[0]["id"])
+    runtime.set_current(MemoryStore(db), "telegram:2", None, cs)
+    try:
+        out = search_community_knowledge.invoke({"query": "dissolved oxygen"})
+        assert "other operators" in out.lower()          # peer-reported label
+        assert "aerate at dawn" in out
+        # no match -> clean fallback
+        assert "no community" in search_community_knowledge.invoke({"query": "zzzzz"}).lower()
     finally:
         runtime.clear_current()

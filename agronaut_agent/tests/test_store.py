@@ -144,3 +144,59 @@ def test_answer_and_cancel_free_the_slot():
     assert fs.schedule("telegram:1", "telegram", "1", "q2", "a", "2999-01-01T00:00:00+00:00")
     fs.cancel(fs.open_for("telegram:1")["id"])
     assert fs.open_for("telegram:1") is None
+
+
+from agronaut_agent.store import CommunityStore
+
+
+def _cs():
+    return CommunityStore(_Db(":memory:"))
+
+
+def test_nominate_dedups_and_rejects_blank():
+    cs = _cs()
+    assert cs.nominate("telegram:1", "raw ctx", "a partial water change clears an ammonia spike", "ammonia")
+    # normalized-equal (case-insensitive) duplicate is refused
+    assert cs.nominate("telegram:2", "x", "A PARTIAL water change clears an ammonia spike", "ammonia") is False
+    # blank insight refused
+    assert cs.nominate("telegram:3", "x", "   ", "ammonia") is False
+
+
+def test_pending_lists_only_pending_oldest_first():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "insight one", "a")
+    cs.nominate("telegram:1", "x", "insight two", "b")
+    pend = cs.pending()
+    assert [p["insight"] for p in pend] == ["insight one", "insight two"]
+
+
+def test_approve_makes_it_searchable_reject_does_not():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "raise KH to stabilize pH swings", "ph")
+    cid = cs.pending()[0]["id"]
+    cs.approve(cid)
+    assert cs.pending() == []
+    hits = cs.search_approved("pH")
+    assert len(hits) == 1 and hits[0]["insight"] == "raise KH to stabilize pH swings"
+
+    cs.nominate("telegram:2", "x", "add shade cloth in summer heat", "temperature")
+    cs.reject(cs.pending()[0]["id"])
+    assert cs.search_approved("shade") == []          # rejected never surfaces
+
+
+def test_search_approved_never_leaks_identity_or_original():
+    cs = _cs()
+    cs.nominate("telegram:secret", "private: 3000L IBC in Burkina", "aerate at dawn to prevent DO crashes", "do")
+    cs.approve(cs.pending()[0]["id"])
+    hit = cs.search_approved("DO")[0]
+    assert set(hit.keys()) == {"insight", "topic"}     # no source_user_id, no original
+    assert "Burkina" not in str(hit)
+
+
+def test_approve_only_acts_on_pending():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "some insight", "t")
+    cid = cs.pending()[0]["id"]
+    cs.approve(cid)
+    cs.reject(cid)                                      # already approved -> no-op
+    assert len(cs.search_approved("some")) == 1         # still approved, not rejected

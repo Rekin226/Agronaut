@@ -68,6 +68,11 @@ Agronaut also learns from outcomes: after suggesting a fix it can check back lat
 ("did the water change fix the ammonia?"), and whatever worked is remembered and shapes
 its future advice.
 
+Lessons can also become shared knowledge: a generalized, PII-stripped version of a verified
+fix is nominated, the owner approves it in a local review CLI (`python -m agronaut_agent.review`),
+and approved insights then help other operators — labeled as community experience, never as
+verified science.
+
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
 UVI/Rakocy, literature) and an explicit list of what it does **not** model
