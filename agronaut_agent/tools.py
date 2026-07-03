@@ -216,6 +216,50 @@ def schedule_followup(question: str, hours: float, about: str = "") -> str:
             else "I already have a check-in pending with you; I'll follow up on that first.")
 
 
+@tool
+def nominate_shared_insight(insight: str, topic: str = "") -> str:
+    """Nominate a GENERALIZED, PII-STRIPPED lesson for the shared community knowledge pool so it
+    can help OTHER operators — after the owner approves it. Call this when a learning you just
+    recorded would help operators in general, not one person's specific system. Write `insight`
+    as a single general sentence with NO personal or identifying details (no location, names, or
+    specific tank IDs): e.g. "a partial (~30%) water change commonly clears an acute ammonia
+    spike". `topic` is a short tag like "ammonia" or "dissolved oxygen". The owner reviews and
+    approves before anything is ever shared."""
+    cur = runtime.get_current()
+    cs = runtime.get_community()
+    if cur is None or cs is None:
+        return "Can't nominate a shared insight right now."
+    mem, user_id = cur
+    text = (insight or "").strip()
+    if not text:
+        return "Nothing to nominate."
+    if len(text) > 500:
+        return "That insight is too long to share — summarize it in one sentence."
+    learnings = [m["content"] for m in mem.get_memories(user_id) if m["category"] == "learning"]
+    original = learnings[-1] if learnings else ""
+    ok = cs.nominate(user_id, original, text, topic or "")
+    return ("Thanks — I've nominated that for the shared knowledge base (pending the owner's "
+            "review)." if ok else "That insight is already in the shared queue.")
+
+
+@tool
+def search_community_knowledge(query: str) -> str:
+    """Search practical insights other operators contributed and the owner approved. Use during
+    troubleshooting for real-world tips. These are COMMUNITY EXPERIENCE, not verified science —
+    always present them as "reported by other operators", never as fact or coefficients, and
+    never for sizing numbers."""
+    cs = runtime.get_community()
+    if cs is None:
+        return "Community knowledge unavailable right now."
+    hits = cs.search_approved(query)
+    if not hits:
+        return "No community insights yet for that — answer from your own knowledge."
+    lines = "\n".join(
+        f"- {h['insight']}" + (f" ({h['topic']})" if h.get("topic") else "") for h in hits
+    )
+    return "Reported by other operators (community experience, not verified science):\n" + lines
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     optimize_fish_crop_ratio,
@@ -226,4 +270,6 @@ AGRONAUT_TOOLS = [
     remember_about_user,
     update_profile,
     schedule_followup,
+    nominate_shared_insight,
+    search_community_knowledge,
 ]
