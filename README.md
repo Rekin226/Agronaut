@@ -64,6 +64,10 @@ You can also set the mode explicitly with `/design`, `/optimize`, or `/troublesh
 the bot then jumps straight to gathering what that goal needs. All commands appear in
 Telegram's `/` menu.
 
+Agronaut also learns from outcomes: after suggesting a fix it can check back later
+("did the water change fix the ammonia?"), and whatever worked is remembered and shapes
+its future advice.
+
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
 UVI/Rakocy, literature) and an explicit list of what it does **not** model
