@@ -80,6 +80,20 @@ CREATE TABLE IF NOT EXISTS followups (
 );
 CREATE INDEX IF NOT EXISTS idx_followups_channel ON followups(channel, status, due_at);
 CREATE INDEX IF NOT EXISTS idx_followups_user ON followups(user_id, status);
+-- Cross-user learning: generalized, PII-stripped insights nominated from per-user learnings,
+-- human-approved before they can surface to other operators. Only `insight`/`topic` are ever
+-- shared; `source_user_id`/`original` are for the owner's local review only.
+CREATE TABLE IF NOT EXISTS community_insights (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_user_id TEXT NOT NULL,
+    original       TEXT,
+    insight        TEXT NOT NULL,
+    topic          TEXT,
+    status         TEXT NOT NULL,   -- pending | approved | rejected
+    created_at     TEXT NOT NULL,
+    reviewed_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_community_status ON community_insights(status);
 """
 
 
@@ -279,3 +293,58 @@ class FollowupStore:
 
     def record_outcome(self, fid: int, outcome: str) -> None:
         self.db.execute("UPDATE followups SET outcome=? WHERE id=?", (outcome, fid))
+
+
+class CommunityStore:
+    """Shared community insights: per-user learnings, generalized + owner-approved, that can
+    surface to other operators. Only `insight`/`topic` ever leave via search_approved."""
+
+    def __init__(self, db: _Db | None = None, path=None):
+        self.db = db or _Db(path)
+
+    def nominate(self, source_user_id: str, original: str, insight: str, topic: str) -> bool:
+        insight = (insight or "").strip()
+        if not insight:
+            return False
+        dup = self.db.query(
+            "SELECT 1 FROM community_insights WHERE lower(insight)=? "
+            "AND status IN ('pending','approved') LIMIT 1",
+            (insight.lower(),),
+        )
+        if dup:
+            return False
+        self.db.execute(
+            "INSERT INTO community_insights(source_user_id, original, insight, topic, status, "
+            "created_at) VALUES (?,?,?,?,'pending',?)",
+            (source_user_id, original or "", insight, (topic or "").strip(), _now()),
+        )
+        return True
+
+    def pending(self) -> list[dict]:
+        rows = self.db.query(
+            "SELECT * FROM community_insights WHERE status='pending' ORDER BY id ASC"
+        )
+        return [dict(r) for r in rows]
+
+    def approve(self, cid: int) -> None:
+        self.db.execute(
+            "UPDATE community_insights SET status='approved', reviewed_at=? "
+            "WHERE id=? AND status='pending'",
+            (_now(), cid),
+        )
+
+    def reject(self, cid: int) -> None:
+        self.db.execute(
+            "UPDATE community_insights SET status='rejected', reviewed_at=? "
+            "WHERE id=? AND status='pending'",
+            (_now(), cid),
+        )
+
+    def search_approved(self, query: str) -> list[dict]:
+        like = f"%{(query or '').strip().lower()}%"
+        rows = self.db.query(
+            "SELECT insight, topic FROM community_insights WHERE status='approved' "
+            "AND (lower(insight) LIKE ? OR lower(topic) LIKE ?) ORDER BY id DESC LIMIT 5",
+            (like, like),
+        )
+        return [dict(r) for r in rows]
