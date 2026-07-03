@@ -92,7 +92,11 @@ def size_aquaponics_system(
         if cal is not None:
             overrides = cal.overrides_for(user_id) or None
             note = _calibration_note(user_id)
-    return serialize.serialize_design_output(size_system(design, overrides=overrides)) + note
+    try:
+        sized = serialize.serialize_design_output(size_system(design, overrides=overrides))
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    return sized + note
 
 
 @tool
@@ -116,15 +120,18 @@ def optimize_fish_crop_ratio(
         cal = runtime.get_calibration()
         if cal is not None:
             overrides = cal.overrides_for(user_id) or None
-    res = optimize(
-        OptimizeInput(
-            grow_area_m2=grow_area_m2,
-            temperature_c=temperature_c,
-            water_budget_lpd=water_budget_lpd,
-            objective=obj,
-        ),
-        overrides=overrides,
-    )
+    try:
+        res = optimize(
+            OptimizeInput(
+                grow_area_m2=grow_area_m2,
+                temperature_c=temperature_c,
+                water_budget_lpd=water_budget_lpd,
+                objective=obj,
+            ),
+            overrides=overrides,
+        )
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
     return serialize.serialize_optimize_result(res)
 
 

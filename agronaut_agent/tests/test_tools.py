@@ -257,3 +257,26 @@ def test_size_tool_without_calibration_is_unchanged():
          "temperature_c": 27, "water_budget_lpd": 500})
     assert "FEASIBLE" in out
     assert "calibrated from your" not in out.lower()
+
+
+def test_size_tool_surfaces_override_validation_error():
+    """Prove that a ValidationError raised by an override is caught and surfaced,
+    not crashed."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import size_aquaponics_system
+
+    class _BadCal:
+        def overrides_for(self, user_id):
+            return {"tilapia.fcr": 5.0}          # far above the empirical range
+        def calibration_report(self, user_id):
+            return []
+    db = _Db(":memory:")
+    runtime.set_current(MemoryStore(db), "telegram:1", None, None, _BadCal())
+    try:
+        out = size_aquaponics_system.invoke(
+            {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+             "temperature_c": 27, "water_budget_lpd": 500})
+        assert "VALIDATION_FAILED" in out          # surfaced, not crashed
+    finally:
+        runtime.clear_current()
