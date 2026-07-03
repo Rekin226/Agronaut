@@ -200,3 +200,42 @@ def test_approve_only_acts_on_pending():
     cs.approve(cid)
     cs.reject(cid)                                      # already approved -> no-op
     assert len(cs.search_approved("some")) == 1         # still approved, not rejected
+
+
+from agronaut_agent.store import CalibrationStore
+
+
+def _cal():
+    return CalibrationStore(_Db(":memory:"))
+
+
+def test_overrides_need_two_in_range_measurements():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 1.4)
+    assert cs.overrides_for("telegram:1") == {}          # only one measurement
+    cs.record("telegram:1", "tilapia.fcr", 1.6)
+    assert cs.overrides_for("telegram:1") == {"tilapia.fcr": 1.5}  # mean 1.5, in range 0.9-1.8
+
+
+def test_out_of_range_mean_is_not_applied():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 3.0)
+    cs.record("telegram:1", "tilapia.fcr", 3.0)          # mean 3.0 > 1.8
+    assert "tilapia.fcr" not in cs.overrides_for("telegram:1")
+
+
+def test_unranged_coefficient_is_skipped():
+    cs = _cal()
+    cs.record("telegram:1", "clarias.harvest_weight", 0.6)
+    cs.record("telegram:1", "clarias.harvest_weight", 0.6)  # no calibration range exists
+    assert cs.overrides_for("telegram:1") == {}
+
+
+def test_calibration_report_reflects_status():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 1.4)
+    cs.record("telegram:1", "tilapia.fcr", 1.6)
+    rep = {r["coefficient"]: r for r in cs.calibration_report("telegram:1")}
+    assert rep["tilapia.fcr"]["n"] == 2
+    assert rep["tilapia.fcr"]["applied"] is True
+    assert rep["tilapia.fcr"]["mean"] == 1.5
