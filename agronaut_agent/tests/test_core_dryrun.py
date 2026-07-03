@@ -319,3 +319,29 @@ def test_system_prompt_mentions_community_sharing():
     low = SYSTEM_PROMPT.lower()
     assert "nominate_shared_insight" in low
     assert "search_community_knowledge" in low
+
+
+class _MeasureFake:
+    """Turn 1 -> record a measurement; then -> final text."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Logged your harvest weight.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "record_measurement", "id": "m1",
+            "args": {"metric": "harvest_weight", "value": 0.45}}])
+
+
+def test_measurement_reaches_calibration_store(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_MeasureFake())
+    agent._mem.set_facts("telegram:1", {"fish_species": "tilapia", "crop": "lettuce"})
+    agent.handle_message("telegram", "1", "my tilapia harvested at 0.45 kg")
+    assert agent._calibration._by_coefficient("telegram:1") == {"tilapia.harvest_weight": [0.45]}
+
+
+def test_system_prompt_mentions_record_measurement():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    assert "record_measurement" in SYSTEM_PROMPT.lower()

@@ -15,7 +15,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, _now
+from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
 from . import memory_extract, runtime, profile
 
 log = logging.getLogger(__name__)
@@ -62,6 +62,10 @@ REMEMBER AS YOU GO:
 - If a learning you saved would help other operators in general (not tied to one person's
   system), also call nominate_shared_insight with a generalized, PII-stripped one-sentence
   version — no locations, names, or personal details. The owner approves before anything is shared.
+- When the operator reports a REAL measured result from their own system — the weight their
+  fish reached, their measured FCR (feed used vs weight gained), or their crop yield — call
+  record_measurement (metric fcr / harvest_weight / yield). Never for an estimate or a number
+  you produced; only their real measurement. It calibrates their future sizings to reality.
 
 HARD RULES (these are your credibility):
 - NEVER state a sizing number, bill-of-materials quantity, or coefficient that did not come
@@ -103,6 +107,7 @@ class AgronautAgent:
         self._mem = MemoryStore(db)
         self._followups = FollowupStore(db)
         self._community = CommunityStore(db)
+        self._calibration = CalibrationStore(db)
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str) -> list:
@@ -207,7 +212,7 @@ class AgronautAgent:
         elif open_fu and open_fu["status"] == "pending":
             self._followups.cancel(open_fu["id"])
 
-        runtime.set_current(self._mem, user_id, self._followups, self._community)  # tools reach this user
+        runtime.set_current(self._mem, user_id, self._followups, self._community, self._calibration)  # tools reach this user
         try:
             messages = self._build_context(user_id)
             if capture_note:
