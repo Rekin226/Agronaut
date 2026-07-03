@@ -149,31 +149,31 @@ def _calibrations() -> list[SizingCalibration]:
             "kale.frr", "Kale feeding-rate ratio",
             kale.frr_g_per_m2_day, 45.0, 90.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
-            "Leafy band; seed 65 is mid.",
+            "Leafy band; seed 65 sits just below mid (range 45–90).",
         ),
         SizingCalibration(
             "swiss_chard.frr", "Swiss chard feeding-rate ratio",
             swiss_chard.frr_g_per_m2_day, 40.0, 85.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
-            "Leafy band; seed 60 is mid.",
+            "Leafy band; seed 60 is near mid (range 40–85).",
         ),
         SizingCalibration(
             "spinach.frr", "Spinach feeding-rate ratio",
             spinach.frr_g_per_m2_day, 40.0, 80.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
-            "Cool-season leafy; seed 55 is mid.",
+            "Cool-season leafy; seed 55 is toward the low end (range 40–80).",
         ),
         SizingCalibration(
             "cucumber.frr", "Cucumber feeding-rate ratio",
             cucumber.frr_g_per_m2_day, 80.0, 130.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589: fruiting raft ~80–140 g/m²/day",),
-            "Fruiting band; seed 100 is mid.",
+            "Fruiting band; seed 100 is near mid (range 80–130).",
         ),
         SizingCalibration(
             "pepper.frr", "Pepper feeding-rate ratio",
             pepper.frr_g_per_m2_day, 80.0, 130.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589: fruiting raft ~80–140 g/m²/day",),
-            "Fruiting band; seed 100 is mid.",
+            "Fruiting band; seed 100 is near mid (range 80–130).",
         ),
         # ---- Yield and harvest weight ----
         SizingCalibration(
