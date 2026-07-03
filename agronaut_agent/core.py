@@ -15,7 +15,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore, FollowupStore, _now
+from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, _now
 from . import memory_extract, runtime, profile
 
 log = logging.getLogger(__name__)
@@ -59,6 +59,9 @@ REMEMBER AS YOU GO:
   match how long the fix takes to show. Don't schedule for plans, sizing, or trivia.
 - When the user reports whether something worked (now or in answer to a check-in), save it
   with remember_about_user(category='learning') so it improves your future advice.
+- If a learning you saved would help other operators in general (not tied to one person's
+  system), also call nominate_shared_insight with a generalized, PII-stripped one-sentence
+  version — no locations, names, or personal details. The owner approves before anything is shared.
 
 HARD RULES (these are your credibility):
 - NEVER state a sizing number, bill-of-materials quantity, or coefficient that did not come
@@ -69,6 +72,8 @@ HARD RULES (these are your credibility):
   Never guess or work around it.
 - For qualitative troubleshooting, use the knowledge tool and your general knowledge; say when
   you are reasoning from general knowledge.
+  Also check search_community_knowledge for real-world operator tips, and present anything it
+  returns as "reported by other operators", never as verified fact or a number.
 
 ANSWERING FOLLOW-UPS: use the conversation, YOUR SYSTEM, and earlier tool results first. If a
 number was already computed or a fact already known, answer from it directly — don't re-run a
@@ -97,6 +102,7 @@ class AgronautAgent:
         self._conv = ConversationStore(db)
         self._mem = MemoryStore(db)
         self._followups = FollowupStore(db)
+        self._community = CommunityStore(db)
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str) -> list:
@@ -201,7 +207,7 @@ class AgronautAgent:
         elif open_fu and open_fu["status"] == "pending":
             self._followups.cancel(open_fu["id"])
 
-        runtime.set_current(self._mem, user_id, self._followups)  # tools reach this user
+        runtime.set_current(self._mem, user_id, self._followups, self._community)  # tools reach this user
         try:
             messages = self._build_context(user_id)
             if capture_note:
