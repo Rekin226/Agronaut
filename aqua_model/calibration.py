@@ -76,6 +76,9 @@ def _calibrations() -> list[SizingCalibration]:
     tilapia, trout = get_species("tilapia"), get_species("trout")
     clarias, channel = get_species("clarias"), get_species("channel_catfish")
     lettuce, basil, tomato = get_crop("lettuce"), get_crop("basil"), get_crop("tomato")
+    carp = get_species("carp")
+    kale, swiss_chard, spinach = get_crop("kale"), get_crop("swiss_chard"), get_crop("spinach")
+    cucumber, pepper = get_crop("cucumber"), get_crop("pepper")
 
     return [
         # ---- Feed conversion ratios (g feed / g live-weight gain) ----
@@ -109,6 +112,12 @@ def _calibrations() -> list[SizingCalibration]:
             ("Rainbow trout (Oncorhynchus mykiss) literature FCR ~0.8–1.5 (trials report 0.99–1.49)",),
             "Cold-water, efficient. Seed 1.2 is mid-range.",
         ),
+        SizingCalibration(
+            "carp.fcr", "Common carp feed conversion ratio",
+            carp.fcr, 1.5, 2.5, "g feed / g gain",
+            ("Common carp (Cyprinus carpio) pond/RAS grow-out FCR ~1.5–2.5",),
+            "One of the most-farmed fish worldwide; seed 2.0 is mid-range.",
+        ),
         # ---- Feeding-rate ratio (g feed / m² plant / day) — the load-bearing sizing rule ----
         SizingCalibration(
             "lettuce.frr", "Lettuce feeding-rate ratio",
@@ -135,6 +144,36 @@ def _calibrations() -> list[SizingCalibration]:
             tomato.frr_g_per_m2_day, 80.0, 140.0, "g feed / m² / day",
             ("Somerville et al. (2014), FAO 589: fruiting raft ~100+ g/m²/day",),
             "Fruiting crops carry a higher feed load than leafy. Seed 110 is mid-band.",
+        ),
+        SizingCalibration(
+            "kale.frr", "Kale feeding-rate ratio",
+            kale.frr_g_per_m2_day, 45.0, 90.0, "g feed / m² / day",
+            ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
+            "Leafy band; seed 65 is mid.",
+        ),
+        SizingCalibration(
+            "swiss_chard.frr", "Swiss chard feeding-rate ratio",
+            swiss_chard.frr_g_per_m2_day, 40.0, 85.0, "g feed / m² / day",
+            ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
+            "Leafy band; seed 60 is mid.",
+        ),
+        SizingCalibration(
+            "spinach.frr", "Spinach feeding-rate ratio",
+            spinach.frr_g_per_m2_day, 40.0, 80.0, "g feed / m² / day",
+            ("Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40–100 g/m²/day",),
+            "Cool-season leafy; seed 55 is mid.",
+        ),
+        SizingCalibration(
+            "cucumber.frr", "Cucumber feeding-rate ratio",
+            cucumber.frr_g_per_m2_day, 80.0, 130.0, "g feed / m² / day",
+            ("Somerville et al. (2014), FAO 589: fruiting raft ~80–140 g/m²/day",),
+            "Fruiting band; seed 100 is mid.",
+        ),
+        SizingCalibration(
+            "pepper.frr", "Pepper feeding-rate ratio",
+            pepper.frr_g_per_m2_day, 80.0, 130.0, "g feed / m² / day",
+            ("Somerville et al. (2014), FAO 589: fruiting raft ~80–140 g/m²/day",),
+            "Fruiting band; seed 100 is mid.",
         ),
         # ---- Yield and harvest weight ----
         SizingCalibration(
