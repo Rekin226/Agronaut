@@ -59,6 +59,14 @@ def test_list_supported():
     assert "tilapia" in out and "lettuce" in out and "water_efficiency" in out
 
 
+def test_list_supported_includes_new_species_and_crops():
+    from agronaut_agent.tools import list_supported_species_and_crops
+    out = list_supported_species_and_crops.invoke({})
+    assert "carp" in out
+    for c in ("kale", "swiss_chard", "spinach", "cucumber", "pepper"):
+        assert c in out
+
+
 def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}

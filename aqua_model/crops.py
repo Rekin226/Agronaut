@@ -54,7 +54,48 @@ TOMATO = Crop(
     ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589",
 )
 
-CROPS: dict[str, Crop] = {c.name: c for c in (LETTUCE, BASIL, TOMATO)}
+# More leafy greens (UVI/FAO leafy feeding-rate band ~40-100 g/m2/day).
+KALE = Crop(
+    name="kale", category="leafy",
+    frr_g_per_m2_day=65.0, frr_low=45.0, frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    yield_kg_per_m2_year=20.0, edible_protein_pct=3.3,
+    ph_min=5.5, ph_max=7.0, temp_min_c=7.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+SWISS_CHARD = Crop(
+    name="swiss_chard", category="leafy",
+    frr_g_per_m2_day=60.0, frr_low=40.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=22.0, edible_protein_pct=1.8,
+    ph_min=5.5, ph_max=7.0, temp_min_c=10.0, temp_max_c=27.0, source="FAO589/UVI (leafy band)",
+)
+SPINACH = Crop(
+    name="spinach", category="leafy",
+    frr_g_per_m2_day=55.0, frr_low=40.0, frr_high=80.0,
+    n_uptake_g_per_m2_day=0.8,
+    yield_kg_per_m2_year=15.0, edible_protein_pct=2.9,
+    ph_min=6.0, ph_max=7.0, temp_min_c=7.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+
+# More fruiting crops (FAO fruiting feeding-rate band ~80-140 g/m2/day).
+CUCUMBER = Crop(
+    name="cucumber", category="fruiting",
+    frr_g_per_m2_day=100.0, frr_low=80.0, frr_high=130.0,
+    n_uptake_g_per_m2_day=1.5,
+    yield_kg_per_m2_year=35.0, edible_protein_pct=0.7,
+    ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
+)
+PEPPER = Crop(
+    name="pepper", category="fruiting",
+    frr_g_per_m2_day=100.0, frr_low=80.0, frr_high=130.0,
+    n_uptake_g_per_m2_day=1.4,
+    yield_kg_per_m2_year=20.0, edible_protein_pct=1.0,
+    ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
+)
+
+CROPS: dict[str, Crop] = {
+    c.name: c for c in (LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER)
+}
 
 
 def get_crop(name: str) -> Crop:
