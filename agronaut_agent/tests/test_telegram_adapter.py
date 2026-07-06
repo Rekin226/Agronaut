@@ -34,6 +34,6 @@ def test_mode_handlers_exist():
 
 def test_adapter_has_followup_poller():
     a = _adapter()
-    assert hasattr(a, "_followup_loop")
+    assert hasattr(a, "_followup_tick")
     import inspect
-    assert inspect.iscoroutinefunction(a._followup_loop)
+    assert inspect.iscoroutinefunction(a._followup_tick)

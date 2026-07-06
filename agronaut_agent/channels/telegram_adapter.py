@@ -134,23 +134,21 @@ class TelegramAdapter(ChannelAdapter):
             f"(yours is {update.effective_user.id})." if update.effective_user else "Access restricted."
         )
 
-    async def _followup_loop(self, app: Application) -> None:
-        """Deliver due outcome follow-ups. Runs for the app's lifetime; best-effort — a
+    async def _followup_tick(self, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Deliver due outcome follow-ups. Runs once per JobQueue tick; best-effort — a
         failed poll or send never affects live message handling."""
-        while True:
-            try:
-                due = await asyncio.to_thread(self.agent.due_followups, self.channel_name)
-                for fu in due:
-                    try:
-                        await app.bot.send_message(chat_id=int(fu["channel_user"]),
-                                                   text=fu["question"])
-                        await asyncio.to_thread(self.agent.mark_followup_sent, fu["id"])
-                    except Exception:
-                        log.warning("follow-up send failed for %s", fu["id"], exc_info=True)
-                        await asyncio.to_thread(self.agent.followup_send_failed, fu["id"])
-            except Exception:  # never let the poller die
-                log.debug("follow-up poll failed", exc_info=True)
-            await asyncio.sleep(POLL_SECONDS)
+        try:
+            due = await asyncio.to_thread(self.agent.due_followups, self.channel_name)
+            for fu in due:
+                try:
+                    await ctx.bot.send_message(chat_id=int(fu["channel_user"]),
+                                               text=fu["question"])
+                    await asyncio.to_thread(self.agent.mark_followup_sent, fu["id"])
+                except Exception:
+                    log.warning("follow-up send failed for %s", fu["id"], exc_info=True)
+                    await asyncio.to_thread(self.agent.followup_send_failed, fu["id"])
+        except Exception:  # never let the poller die
+            log.debug("follow-up poll failed", exc_info=True)
 
     def _command_specs(self):
         """Single source of (command, handler, menu description) — drives both handler
@@ -173,7 +171,9 @@ class TelegramAdapter(ChannelAdapter):
             await app.bot.set_my_commands(commands)
         except Exception:  # transient network etc. — commands still work by typing
             log.warning("set_my_commands failed; commands still work by typing", exc_info=True)
-        app.create_task(self._followup_loop(app))
+        # JobQueue owns the poller's lifecycle: it starts after the app is running and is
+        # cancelled cleanly on shutdown (unlike app.create_task in post_init, which warns).
+        app.job_queue.run_repeating(self._followup_tick, interval=POLL_SECONDS, first=5)
 
     def run(self) -> None:
         app = Application.builder().token(self.token).post_init(self._post_init).build()

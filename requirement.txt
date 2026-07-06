@@ -13,7 +13,7 @@ langchain-huggingface             # hf (hosted, needs HUGGINGFACEHUB_API_TOKEN) 
 langchain-nvidia-ai-endpoints     # nvidia (hosted NIM, needs NVIDIA_API_KEY) — tool-calling brain for the bot
 
 # Messaging channels (the personal-assistant gateway)
-python-telegram-bot>=21           # Telegram bot (agronaut_agent/channels/telegram_adapter.py)
+python-telegram-bot[job-queue]>=21  # Telegram bot (agronaut_agent/channels/telegram_adapter.py); job-queue extra powers the follow-up poller
 faiss-cpu
 openpyxl
 streamlit
