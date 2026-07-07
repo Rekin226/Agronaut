@@ -201,29 +201,7 @@ def build_vector_store(documents) -> FAISS:
     )
     docs = splitter.split_documents(documents)
 
-    boilerplate_kw = (
-        "privacy policy",
-        "cookie",
-        "terms",
-        "accessibility",
-        "legal notice",
-        "help and support",
-        "contact us",
-        "subscribe",
-        "sign in",
-        "log in",
-        "all rights reserved",
-    )
-
-    def looks_like_boilerplate(text: str) -> bool:
-        t = (text or "").lower()
-        if not t or len(t) < 200:
-            return True
-        if any(k in t for k in boilerplate_kw):
-            return True
-        return False
-
-    filtered = [d for d in docs if not looks_like_boilerplate(getattr(d, "page_content", ""))]
+    filtered = [d for d in docs if not _is_boilerplate_text(getattr(d, "page_content", ""))]
     if filtered:
         docs = filtered
 
