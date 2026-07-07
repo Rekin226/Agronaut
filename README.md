@@ -137,6 +137,64 @@ provider (see above).
 python3 -m pytest        # the aqua_model core suite is pure (no model server needed)
 ```
 
+### Run the Telegram bot
+
+The consultative agent is reachable over Telegram. Set these (in `.env` or the environment):
+
+| Var | Purpose |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
+| `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
+| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
+| `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
+
+```bash
+source .venv/bin/activate
+python bot.py            # long-polls Telegram; Ctrl-C to stop
+```
+
+#### Keep it running (systemd)
+
+For an always-on bot that survives crashes and reboots, run it as a **`systemd --user`
+service**. Create `~/.config/systemd/user/agronaut-bot.service`:
+
+```ini
+[Unit]
+Description=Agronaut Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/Agronaut
+ExecStart=/path/to/Agronaut/.venv/bin/python bot.py
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+loginctl enable-linger "$USER"          # run even when you're not logged in
+systemctl --user daemon-reload
+systemctl --user enable --now agronaut-bot     # start now + on boot
+```
+
+Manage it:
+
+```bash
+systemctl --user status agronaut-bot     # is it up?
+systemctl --user restart agronaut-bot    # after pulling/changing code
+journalctl --user -u agronaut-bot -f     # live logs
+```
+
+> Only **one** poller may run at a time — a manual `python bot.py` and the service will
+> conflict on Telegram's `getUpdates`. When the service owns the bot, restart it after code
+> changes (`systemctl --user restart agronaut-bot`) instead of running the script directly.
+
 ---
 
 ## Project layout
