@@ -93,8 +93,178 @@ PEPPER = Crop(
     ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
 )
 
+# ── Culinary herbs (leafy band; UVI/FAO leafy feeding-rate band ~40-100 g/m2/day) ──────────
+# FRR is placed within the published leafy band by nutrient demand relative to peers; yield &
+# protein are horticultural seed values (fresh edible mass), calibratable per system.
+MINT = Crop(
+    name="mint", category="leafy",
+    frr_g_per_m2_day=70.0, frr_low=55.0, frr_high=90.0,
+    n_uptake_g_per_m2_day=1.0,
+    yield_kg_per_m2_year=12.0, edible_protein_pct=3.8,
+    ph_min=5.5, ph_max=7.0, temp_min_c=15.0, temp_max_c=30.0, source="FAO589/UVI (leafy band)",
+)
+CILANTRO = Crop(
+    name="cilantro", category="leafy",
+    frr_g_per_m2_day=50.0, frr_low=40.0, frr_high=75.0,
+    n_uptake_g_per_m2_day=0.8,
+    yield_kg_per_m2_year=10.0, edible_protein_pct=2.1,
+    ph_min=6.0, ph_max=6.8, temp_min_c=10.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+PARSLEY = Crop(
+    name="parsley", category="leafy",
+    frr_g_per_m2_day=55.0, frr_low=40.0, frr_high=80.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=15.0, edible_protein_pct=3.0,
+    ph_min=5.5, ph_max=7.0, temp_min_c=7.0, temp_max_c=26.0, source="FAO589/UVI (leafy band)",
+)
+CHIVES = Crop(
+    name="chives", category="leafy",
+    frr_g_per_m2_day=55.0, frr_low=40.0, frr_high=80.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=12.0, edible_protein_pct=3.3,
+    ph_min=6.0, ph_max=7.0, temp_min_c=7.0, temp_max_c=26.0, source="FAO589/UVI (leafy band)",
+)
+DILL = Crop(
+    name="dill", category="leafy",
+    frr_g_per_m2_day=55.0, frr_low=40.0, frr_high=80.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=10.0, edible_protein_pct=3.5,
+    ph_min=5.5, ph_max=6.5, temp_min_c=10.0, temp_max_c=25.0, source="FAO589/UVI (leafy band)",
+)
+OREGANO = Crop(
+    name="oregano", category="leafy",
+    frr_g_per_m2_day=60.0, frr_low=45.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.9,
+    yield_kg_per_m2_year=8.0, edible_protein_pct=3.4,
+    ph_min=6.0, ph_max=7.0, temp_min_c=15.0, temp_max_c=28.0, source="FAO589/UVI (leafy band)",
+)
+SAGE = Crop(
+    name="sage", category="leafy",
+    frr_g_per_m2_day=55.0, frr_low=40.0, frr_high=80.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=6.0, edible_protein_pct=3.5,
+    ph_min=6.0, ph_max=6.5, temp_min_c=15.0, temp_max_c=28.0, source="FAO589/UVI (leafy band)",
+)
+
+# ── More leafy greens (leafy band ~40-100 g/m2/day) ─────────────────────────────────────────
+ARUGULA = Crop(
+    name="arugula", category="leafy",
+    frr_g_per_m2_day=50.0, frr_low=40.0, frr_high=75.0,
+    n_uptake_g_per_m2_day=0.8,
+    yield_kg_per_m2_year=18.0, edible_protein_pct=2.6,
+    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+WATERCRESS = Crop(
+    name="watercress", category="leafy",
+    frr_g_per_m2_day=50.0, frr_low=40.0, frr_high=75.0,
+    n_uptake_g_per_m2_day=0.8,
+    yield_kg_per_m2_year=20.0, edible_protein_pct=2.3,
+    ph_min=6.5, ph_max=7.5, temp_min_c=10.0, temp_max_c=22.0, source="FAO589/UVI (leafy band)",
+)
+PAK_CHOI = Crop(
+    name="pak_choi", category="leafy",
+    frr_g_per_m2_day=60.0, frr_low=45.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=22.0, edible_protein_pct=1.5,
+    ph_min=6.0, ph_max=7.0, temp_min_c=13.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+MUSTARD_GREENS = Crop(
+    name="mustard_greens", category="leafy",
+    frr_g_per_m2_day=60.0, frr_low=45.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.85,
+    yield_kg_per_m2_year=18.0, edible_protein_pct=2.7,
+    ph_min=5.5, ph_max=6.8, temp_min_c=10.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+COLLARD_GREENS = Crop(
+    name="collard_greens", category="leafy",
+    frr_g_per_m2_day=65.0, frr_low=45.0, frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    yield_kg_per_m2_year=20.0, edible_protein_pct=3.0,
+    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=27.0, source="FAO589/UVI (leafy band)",
+)
+CELERY = Crop(
+    name="celery", category="leafy",
+    frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=95.0,
+    n_uptake_g_per_m2_day=0.9,
+    yield_kg_per_m2_year=25.0, edible_protein_pct=0.7,
+    ph_min=6.0, ph_max=6.8, temp_min_c=15.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+CABBAGE = Crop(
+    name="cabbage", category="leafy",
+    frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=95.0,
+    n_uptake_g_per_m2_day=1.0,
+    yield_kg_per_m2_year=30.0, edible_protein_pct=1.3,
+    ph_min=6.0, ph_max=7.2, temp_min_c=7.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+)
+
+# ── Fruiting & heavy-feeding brassicas (fruiting band ~80-140 g/m2/day) ──────────────────────
+BROCCOLI = Crop(
+    name="broccoli", category="fruiting",
+    frr_g_per_m2_day=90.0, frr_low=80.0, frr_high=120.0,
+    n_uptake_g_per_m2_day=1.3,
+    yield_kg_per_m2_year=12.0, edible_protein_pct=2.8,
+    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=24.0, source="FAO589 (fruiting band)",
+)
+CAULIFLOWER = Crop(
+    name="cauliflower", category="fruiting",
+    frr_g_per_m2_day=90.0, frr_low=80.0, frr_high=120.0,
+    n_uptake_g_per_m2_day=1.3,
+    yield_kg_per_m2_year=15.0, edible_protein_pct=1.9,
+    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=24.0, source="FAO589 (fruiting band)",
+)
+STRAWBERRY = Crop(
+    name="strawberry", category="fruiting",
+    frr_g_per_m2_day=85.0, frr_low=80.0, frr_high=110.0,
+    n_uptake_g_per_m2_day=1.1,
+    yield_kg_per_m2_year=6.0, edible_protein_pct=0.7,
+    ph_min=5.5, ph_max=6.5, temp_min_c=10.0, temp_max_c=27.0, source="FAO589 (fruiting band)",
+)
+EGGPLANT = Crop(
+    name="eggplant", category="fruiting",
+    frr_g_per_m2_day=110.0, frr_low=80.0, frr_high=140.0,
+    n_uptake_g_per_m2_day=1.5,
+    yield_kg_per_m2_year=25.0, edible_protein_pct=1.0,
+    ph_min=5.5, ph_max=6.5, temp_min_c=20.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
+)
+GREEN_BEAN = Crop(
+    name="green_bean", category="fruiting",
+    frr_g_per_m2_day=90.0, frr_low=80.0, frr_high=120.0,
+    n_uptake_g_per_m2_day=1.2,
+    yield_kg_per_m2_year=15.0, edible_protein_pct=1.8,
+    ph_min=6.0, ph_max=7.0, temp_min_c=18.0, temp_max_c=28.0, source="FAO589 (fruiting band)",
+)
+OKRA = Crop(
+    name="okra", category="fruiting",
+    frr_g_per_m2_day=95.0, frr_low=80.0, frr_high=125.0,
+    n_uptake_g_per_m2_day=1.3,
+    yield_kg_per_m2_year=12.0, edible_protein_pct=1.9,
+    ph_min=6.0, ph_max=6.8, temp_min_c=22.0, temp_max_c=32.0, source="FAO589 (fruiting band)",
+)
+ZUCCHINI = Crop(
+    name="zucchini", category="fruiting",
+    frr_g_per_m2_day=100.0, frr_low=80.0, frr_high=130.0,
+    n_uptake_g_per_m2_day=1.4,
+    yield_kg_per_m2_year=35.0, edible_protein_pct=1.2,
+    ph_min=5.5, ph_max=6.8, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
+)
+PEA = Crop(
+    name="pea", category="fruiting",
+    frr_g_per_m2_day=85.0, frr_low=80.0, frr_high=115.0,
+    n_uptake_g_per_m2_day=1.1,
+    yield_kg_per_m2_year=10.0, edible_protein_pct=5.4,
+    ph_min=6.0, ph_max=7.0, temp_min_c=7.0, temp_max_c=24.0, source="FAO589 (fruiting band)",
+)
+
 CROPS: dict[str, Crop] = {
-    c.name: c for c in (LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER)
+    c.name: c for c in (
+        LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
+        # herbs
+        MINT, CILANTRO, PARSLEY, CHIVES, DILL, OREGANO, SAGE,
+        # leafy greens
+        ARUGULA, WATERCRESS, PAK_CHOI, MUSTARD_GREENS, COLLARD_GREENS, CELERY, CABBAGE,
+        # fruiting & heavy brassicas
+        BROCCOLI, CAULIFLOWER, STRAWBERRY, EGGPLANT, GREEN_BEAN, OKRA, ZUCCHINI, PEA,
+    )
 }
 
 
