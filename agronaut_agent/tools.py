@@ -74,8 +74,9 @@ def size_aquaponics_system(
     envelope, the nitrogen consistency check, the CITED coefficients used, and what is
     NOT modeled. Use this for any sizing question — never state sizing numbers yourself.
 
-    fish_species: one of tilapia, clarias, channel_catfish, trout.
-    crop: one of lettuce, basil, tomato.
+    fish_species: one of tilapia, clarias, channel_catfish, trout, carp.
+    crop: one of the supported crops (30+, from leafy greens and herbs to fruiting crops
+        like tomato, cucumber, strawberry). Call list_supported_species_and_crops if unsure.
     grow_area_m2: planted raft/DWC area (the anchor).
     temperature_c: mean water temperature.
     water_budget_lpd: makeup water available per day, litres.

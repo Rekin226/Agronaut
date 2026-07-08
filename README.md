@@ -79,8 +79,10 @@ published empirical ranges, so a measurement can only move a coefficient within 
 literature allows, and every calibrated number is labeled.
 
 The deterministic sizing model now covers five fish (tilapia, clarias, channel catfish, trout,
-common carp) and eight crops (lettuce, basil, tomato, kale, swiss chard, spinach, cucumber,
-pepper) — each with cited, calibratable seed coefficients.
+common carp) and 30+ crops — leafy greens (lettuce, kale, chard, spinach, pak choi, arugula,
+watercress…), culinary herbs (basil, mint, cilantro, parsley, dill…), and fruiting crops
+(tomato, cucumber, pepper, strawberry, eggplant, zucchini…) — each with cited, calibratable
+seed coefficients placed within FAO 589's published feeding-rate band for its category.
 
 ### Honesty by design
 Every result lists the coefficients it used (value + range + **source**: FAO 589,
