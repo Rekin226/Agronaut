@@ -177,10 +177,11 @@ MUSTARD_GREENS = Crop(
 )
 COLLARD_GREENS = Crop(
     name="collard_greens", category="leafy",
-    frr_g_per_m2_day=65.0, frr_low=45.0, frr_high=90.0,
-    n_uptake_g_per_m2_day=0.9,
+    frr_g_per_m2_day=72.0, frr_low=50.0, frr_high=95.0,
+    n_uptake_g_per_m2_day=0.95,
     yield_kg_per_m2_year=20.0, edible_protein_pct=3.0,
-    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=27.0, source="FAO589/UVI (leafy band)",
+    ph_min=6.0, ph_max=7.0, temp_min_c=10.0, temp_max_c=27.0,
+    source="FAO589/UVI (leafy band, high — heavy-feeding brassica)",
 )
 CELERY = Crop(
     name="celery", category="leafy",
@@ -191,10 +192,11 @@ CELERY = Crop(
 )
 CABBAGE = Crop(
     name="cabbage", category="leafy",
-    frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=95.0,
-    n_uptake_g_per_m2_day=1.0,
+    frr_g_per_m2_day=80.0, frr_low=55.0, frr_high=100.0,
+    n_uptake_g_per_m2_day=1.1,
     yield_kg_per_m2_year=30.0, edible_protein_pct=1.3,
-    ph_min=6.0, ph_max=7.2, temp_min_c=7.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
+    ph_min=6.0, ph_max=7.2, temp_min_c=7.0, temp_max_c=24.0,
+    source="FAO589/UVI (leafy band, high — heavy-feeding brassica)",
 )
 
 # ── Fruiting & heavy-feeding brassicas (fruiting band ~80-140 g/m2/day) ──────────────────────
@@ -214,10 +216,11 @@ CAULIFLOWER = Crop(
 )
 STRAWBERRY = Crop(
     name="strawberry", category="fruiting",
-    frr_g_per_m2_day=85.0, frr_low=80.0, frr_high=110.0,
-    n_uptake_g_per_m2_day=1.1,
+    frr_g_per_m2_day=60.0, frr_low=45.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.9,
     yield_kg_per_m2_year=6.0, edible_protein_pct=0.7,
-    ph_min=5.5, ph_max=6.5, temp_min_c=10.0, temp_max_c=27.0, source="FAO589 (fruiting band)",
+    ph_min=5.5, ph_max=6.5, temp_min_c=10.0, temp_max_c=27.0,
+    source="FAO589 (fruiting band, low — light/moderate feeder; excess N favours runners over fruit)",
 )
 EGGPLANT = Crop(
     name="eggplant", category="fruiting",
@@ -228,10 +231,11 @@ EGGPLANT = Crop(
 )
 GREEN_BEAN = Crop(
     name="green_bean", category="fruiting",
-    frr_g_per_m2_day=90.0, frr_low=80.0, frr_high=120.0,
-    n_uptake_g_per_m2_day=1.2,
+    frr_g_per_m2_day=65.0, frr_low=50.0, frr_high=90.0,
+    n_uptake_g_per_m2_day=0.85,
     yield_kg_per_m2_year=15.0, edible_protein_pct=1.8,
-    ph_min=6.0, ph_max=7.0, temp_min_c=18.0, temp_max_c=28.0, source="FAO589 (fruiting band)",
+    ph_min=6.0, ph_max=7.0, temp_min_c=18.0, temp_max_c=28.0,
+    source="FAO589 (fruiting band, low — legume: partial N-fixation lowers demand on fish-derived N)",
 )
 OKRA = Crop(
     name="okra", category="fruiting",
@@ -249,10 +253,11 @@ ZUCCHINI = Crop(
 )
 PEA = Crop(
     name="pea", category="fruiting",
-    frr_g_per_m2_day=85.0, frr_low=80.0, frr_high=115.0,
-    n_uptake_g_per_m2_day=1.1,
+    frr_g_per_m2_day=60.0, frr_low=45.0, frr_high=85.0,
+    n_uptake_g_per_m2_day=0.8,
     yield_kg_per_m2_year=10.0, edible_protein_pct=5.4,
-    ph_min=6.0, ph_max=7.0, temp_min_c=7.0, temp_max_c=24.0, source="FAO589 (fruiting band)",
+    ph_min=6.0, ph_max=7.0, temp_min_c=7.0, temp_max_c=24.0,
+    source="FAO589 (fruiting band, low — legume: partial N-fixation lowers demand on fish-derived N)",
 )
 
 CROPS: dict[str, Crop] = {
