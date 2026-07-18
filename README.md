@@ -1,5 +1,7 @@
 # 🌱 Agronaut
 
+[![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
+
 **A personal agronomy agent — chat with it to design, optimize, and maintain aquaponics systems.**
 
 Agronaut is a conversational agent (in the spirit of Hermes / OpenClaw) specialized for
