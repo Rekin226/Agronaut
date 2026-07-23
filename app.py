@@ -1,8 +1,14 @@
-"""Streamlit UI for the aquaponics diagnostic chatbot."""
+"""Streamlit UI: deterministic Design Calculator / Optimizer + the consultative agent chat.
+
+The "Assistant (chat)" mode drives the same tool-calling brain as the Telegram bot
+(agronaut_agent) — per-browser-session identity, System Profile memory, calibration, and
+the validation-gated deterministic tools. The legacy srcs/chatbot state machine is no
+longer wired to the UI.
+"""
 
 from __future__ import annotations
 
-from typing import List
+from uuid import uuid4
 
 import streamlit as st
 
@@ -13,61 +19,39 @@ from agent.optimizer_ui import render_optimizer
 APP_TITLE = "🌱 Agronaut"
 
 
-def _core():
-    """Lazy-import the chat/RAG core so the Design Calculator mode runs without the
-    chat stack (langchain, faiss, Ollama, requests_cache) installed."""
-    import srcs.chatbot as core
-    return core
-
-
-def _chat_available() -> bool:
-    """True when the optional chat/RAG stack is importable.
-
-    Lets the deterministic Calculator/Optimizer modes run — and the chat mode
-    degrade with a friendly message instead of a traceback — when langchain,
-    faiss, requests_cache, or an LLM backend isn't installed."""
+def _agent_error() -> str | None:
+    """Build the per-session agent if needed. Returns a user-facing reason when chat is
+    unavailable (missing chat stack or no tool-calling LLM provider configured)."""
+    if "agent" in st.session_state:
+        return None
+    if "agent_error" in st.session_state:
+        return st.session_state.agent_error
     try:
-        import srcs.chatbot  # noqa: F401
-    except ModuleNotFoundError:
-        return False
-    return True
+        from agronaut_agent.core import AgronautAgent
+        st.session_state.agent = AgronautAgent()
+        return None
+    except ModuleNotFoundError as exc:
+        reason = (f"Chat mode needs the optional chat stack (`{exc.name}` isn't installed). "
+                  "The **Design Calculator** and **Optimize Ratio** modes work without it — "
+                  "to enable chat: `pip install -r requirement.txt`.")
+    except Exception as exc:
+        reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` with "
+                  f"`NVIDIA_API_KEY`) — couldn't start one: {exc}. The **Design Calculator** "
+                  "and **Optimize Ratio** modes are fully deterministic and keep working.")
+    st.session_state.agent_error = reason
+    return reason
 
 
-def _init_cache() -> None:
-    # Cache HTTP fetches for RAG content.
-    import requests_cache
-    core = _core()
-    requests_cache.install_cache(core.CACHE_NAME, expire_after=core.CACHE_EXPIRE)
-
-
-@st.cache_resource(show_spinner=False)
-def _build_vectorstore() -> object | None:
-    _init_cache()
-    return _core().build_rag_index_from_urls()
-
-
-def _reset_session_state() -> None:
-    st.session_state.messages = []
-    st.session_state.last_bot = ""
-    core = _core()
-    core.state.reset()
-    core.last_bot = ""
+def _web_user() -> str:
+    """Stable per-browser-session identity — concurrent web users never share memory."""
+    if "web_user" not in st.session_state:
+        st.session_state.web_user = uuid4().hex[:12]
+    return st.session_state.web_user
 
 
 def _ensure_session_state() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    if "last_bot" not in st.session_state:
-        st.session_state.last_bot = ""
-
-
-def _set_rag(use_rag: bool) -> None:
-    core = _core()
-    if use_rag:
-        with st.spinner("Building knowledge index..."):
-            core.VECTORSTORE = _build_vectorstore()
-    else:
-        core.VECTORSTORE = None
 
 
 def _rerun() -> None:
@@ -82,33 +66,18 @@ def _render_header() -> None:
     st.write("Your agronomy agent: design, optimize, and troubleshoot aquaponics systems.")
 
 
-def _render_sidebar() -> None:
+def _render_chat_sidebar() -> None:
     st.sidebar.header("Controls")
-
-    use_rag = st.sidebar.checkbox(
-        "Use web knowledge (RAG)",
-        value=True,
-        help="Disable to use general aquaponics knowledge only.",
-    )
-
     if st.sidebar.button("Reset conversation", use_container_width=True):
-        _reset_session_state()
+        agent = st.session_state.get("agent")
+        if agent is not None:
+            agent.reset("web", _web_user())
+        st.session_state.messages = []
         _rerun()
-
-    _set_rag(use_rag)
-    if use_rag:
-        if _core().VECTORSTORE is None:
-            st.sidebar.caption("RAG unavailable; using general knowledge.")
-        else:
-            st.sidebar.caption("RAG ready.")
-
-
-def _format_questions(questions: List[str]) -> str:
-    if not questions:
-        return ""
-    lines = ["I need a bit more info:"]
-    lines.extend([f"- {q}" for q in questions])
-    return "\n".join(lines)
+    st.sidebar.caption(
+        "Memory lasts for this browser session. The bot remembers your system as you talk "
+        "(same brain as the Telegram bot)."
+    )
 
 
 def _add_message(role: str, content: str) -> None:
@@ -123,22 +92,15 @@ def _render_messages() -> None:
 
 
 def _handle_user_input(user_text: str) -> None:
-    core = _core()
     _add_message("user", user_text)
-
-    prev_pending = list(core.state.pending_questions)
-    prev_answer = core.state.last_answer
-
-    core.handle_turn(user_text)
-    core.last_bot = core.state.last_answer
-
-    # If the model asked follow-up questions, surface them as assistant message.
-    if core.state.pending_questions and core.state.pending_questions != prev_pending:
-        assistant_text = _format_questions(core.state.pending_questions)
-    else:
-        assistant_text = core.state.last_answer or prev_answer or "I'm here to help."
-
-    _add_message("assistant", assistant_text)
+    agent = st.session_state.agent
+    try:
+        with st.spinner("Thinking (running the numbers)..."):
+            reply = agent.handle_message("web", _web_user(), user_text)
+    except Exception:
+        reply = ("Something went wrong talking to the model — your message wasn't lost, "
+                 "please try again.")
+    _add_message("assistant", reply)
 
 
 def main() -> None:
@@ -152,12 +114,12 @@ def main() -> None:
     _render_header()
 
     # Design Calculator is the default: deterministic, no heavy deps, never crashes
-    # on a fresh install. Chat is the legacy mode and needs the optional chat stack.
+    # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
         ("Design Calculator", "Optimize Ratio", "Assistant (chat)"),
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. Chat troubleshoots a running system (needs the chat stack).",
+             "your constraint. Chat runs a consultation with the full agent (needs an LLM).",
     )
 
     if mode == "Design Calculator":
@@ -167,25 +129,21 @@ def main() -> None:
         render_optimizer()
         return
 
-    # Assistant (chat) — legacy. Degrade gracefully if the optional chat stack is
-    # absent, so a missing dependency never takes down the whole app.
-    if not _chat_available():
-        st.warning(
-            "Chat mode needs the optional chat stack (langchain, faiss, requests_cache, "
-            "and an LLM backend), which isn't installed. The **Design Calculator** and "
-            "**Optimize Ratio** modes work without it."
-        )
-        st.caption("To enable chat: `pip install -r requirement.txt`")
+    # Assistant (chat) — the real consultative agent, degrading gracefully when the
+    # chat stack or an LLM provider is missing (never a traceback in the UI).
+    reason = _agent_error()
+    if reason:
+        st.warning(reason)
         return
 
-    _render_sidebar()
-
+    _render_chat_sidebar()
     _render_messages()
 
     if not st.session_state.messages:
-        st.info("Start with your fish behavior, water temperature, and pH.")
+        st.info("Tell me what you're trying to do — design a system, optimize a ratio, "
+                "or troubleshoot a problem.")
 
-    prompt = st.chat_input("Describe your system issue or question...")
+    prompt = st.chat_input("Describe your system, goal, or problem...")
     if prompt:
         _handle_user_input(prompt)
         _rerun()
