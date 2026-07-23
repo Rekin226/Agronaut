@@ -1,5 +1,8 @@
 # TODOS
 
+> **Active plan:** the phased gap-closure plan (vs hermes-agent + DPG funding ladder) lives in
+> [`docs/PLAN.md`](docs/PLAN.md) — work it top-to-bottom, one task per PR.
+
 ## Product (deferred from CEO review 2026-06-16)
 - [ ] **Pilot-proposal generator.** A funder-ready document: proposed system for a site + the
   ask, projected food/water outcomes, cost, and the data the install will produce.
