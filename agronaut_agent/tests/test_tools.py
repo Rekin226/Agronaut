@@ -220,6 +220,30 @@ def test_record_measurement_maps_metric_to_qualified_key():
         runtime.clear_current()
 
 
+def test_record_measurement_is_honest_when_no_calibration_coverage():
+    # trout.harvest_weight has no published range in aqua_model.calibration: the value must
+    # still be stored (for when coverage lands), but the reply must say it can't calibrate —
+    # never the silent "I'll use your measurements to calibrate" lie.
+    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import record_measurement
+
+    db = _Db(":memory:")
+    mem, cal = MemoryStore(db), CalibrationStore(db)
+    mem.set_facts("telegram:2", {"fish_species": "trout", "crop": "kale"})
+    runtime.set_current(mem, "telegram:2", None, None, cal)
+    try:
+        out = record_measurement.invoke({"metric": "harvest_weight", "value": 1.1})
+        assert "can't calibrate" in out.lower()
+        assert "no published range" in out.lower()
+        assert cal._by_coefficient("telegram:2") == {"trout.harvest_weight": [1.1]}  # kept
+        # covered metrics keep the confident wording
+        out2 = record_measurement.invoke({"metric": "fcr", "value": 1.6})
+        assert "calibrate future sizings" in out2.lower()
+    finally:
+        runtime.clear_current()
+
+
 def test_record_measurement_rejects_unknown_metric_and_bad_value():
     from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
