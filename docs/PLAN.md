@@ -49,7 +49,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
 
 ## Phase 1 — Field senses (what a farmer actually sends)
 
-- [ ] **1.1 Photo input on Telegram.** (L)
+- [x] **1.1 Photo input on Telegram.** (L)
   - **What:** `telegram_adapter.py:182` handles only text. A photo of a sick fish / yellowing
     leaf / algae bloom is the most natural troubleshooting input that exists.
   - **Fix shape:** photo handler → vision-capable model (NVIDIA hosts open VLMs; keep the
@@ -59,7 +59,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** sending a leaf photo with "what's wrong?" yields a cited diagnosis flow;
     non-image documents get a graceful "can't read that yet."
 
-- [ ] **1.2 Semantic recall over memories.** (M)
+- [x] **1.2 Semantic recall over memories.** (M)
   - **What:** recall today is SQL `LIKE` + last-12-by-recency (`store.py:223-229`, `354-361`);
     it gets worse as history grows. FAISS + `all-mpnet-base-v2` already exist for the KB.
   - **Fix shape:** embed `memories` (and community insights) on write; recall = top-k by
@@ -67,7 +67,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** a user with 50+ memories asks about "that pump issue from before" and the
     relevant memory surfaces without keyword overlap.
 
-- [ ] **1.3 Enforced citations in RAG.** (M)
+- [x] **1.3 Enforced citations in RAG.** (M)
   - **What:** `rag.search` (`agronaut_agent/rag.py:33-41`) returns concatenated passages with
     no source attached — "cited advice" is currently prompt hope, not mechanics.
   - **Fix shape:** carry doc/URL metadata through the index; tool returns `[{passage, source}]`;
@@ -75,7 +75,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** every KB-derived claim in a reply names its source; a test asserts the tool
     output schema includes `source` for all passages.
 
-- [ ] **1.4 Voice notes in, one non-English language out.** (L)
+- [x] **1.4 Voice notes in, one non-English language out.** (L) — voice-input shipped; artifact localization deferred to a named pilot partner (see PR #45).
   - **What:** funders' last-mile bar (AIEP playbook): text-English-Telegram reaches trained
     extension agents, not farmers. Voice + local language is the gate every program checks.
   - **Fix shape:** Telegram voice handler → open ASR (e.g. Whisper-class, pluggable) → normal
