@@ -346,6 +346,15 @@ def record_measurement(metric: str, value: float) -> str:
         return f"Tell me your {need} first so I can record that measurement."
     coefficient = f"{str(subject).strip().lower()}.{suffix}"
     cal.record(user_id, coefficient, v)
+    from aqua_model import calibration as _calibration
+    try:
+        _calibration.get(coefficient)
+    except KeyError:
+        # Stored but inert: overrides_for skips coefficients without a published empirical
+        # range. Say so — the confident wording here would be a lie.
+        return (f"Stored your {coefficient} measurement, but I can't calibrate with it yet — "
+                f"no published range on file for that metric. I'll keep it in case coverage "
+                f"is added later.")
     return f"Recorded — I'll use your measurements to calibrate future sizings ({coefficient})."
 
 
