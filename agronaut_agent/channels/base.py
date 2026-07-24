@@ -24,6 +24,24 @@ class ChannelAdapter(ABC):
         raise NotImplementedError
 
 
+def room_identity(chat_id, chat_type: str | None, user_id) -> str:
+    """Stable per-PERSON identity for memory/profile keying.
+
+    In a 1:1 chat (chat_id == user_id, or type 'private') this is just the chat id — so
+    existing single-user memory keys are preserved byte-for-byte. In a shared room (group/
+    supergroup/channel) it becomes '<chat>:<user>', so members never collapse into one
+    profile. Delivery still targets the room — see delivery_chat_id."""
+    shared = (chat_type or "").lower() in {"group", "supergroup", "channel"} \
+        and str(chat_id) != str(user_id)
+    return f"{chat_id}:{user_id}" if shared else str(chat_id)
+
+
+def delivery_chat_id(channel_user: str):
+    """The address to deliver a proactive message (follow-up) to, derived from an identity.
+    For a composite room key '<chat>:<user>' this is the room; for a plain id it's itself."""
+    return int(str(channel_user).split(":", 1)[0])
+
+
 def chunk(text: str, size: int = 4000) -> list[str]:
     """Split a long reply to fit platform message-size caps (Telegram's is 4096)."""
     if len(text) <= size:

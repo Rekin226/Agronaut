@@ -369,21 +369,8 @@ def _repl() -> None:
     """Local dry-run: talk to the agent from the terminal, no Telegram. Needs a configured
     tool-calling provider (e.g. LLM_PROVIDER=nvidia NVIDIA_API_KEY=...)."""
     import agent  # loads .env
-    agent_ = AgronautAgent()
-    print("Agronaut REPL — type 'quit' to exit, '/reset' to clear.")
-    while True:
-        try:
-            text = input("you> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
-        if text.lower() in {"quit", "exit"}:
-            break
-        if text == "/reset":
-            agent_.reset("cli", "local")
-            print("(conversation reset)")
-            continue
-        if text:
-            print("agronaut>", agent_.handle_message("cli", "local", text))
+    from .channels.repl import ReplChannel
+    ReplChannel(AgronautAgent()).run()
 
 
 if __name__ == "__main__":

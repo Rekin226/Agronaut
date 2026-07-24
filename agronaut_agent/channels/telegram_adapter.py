@@ -16,7 +16,7 @@ from telegram.constants import ChatAction
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from ..core import AgronautAgent
-from .base import ChannelAdapter, chunk
+from .base import ChannelAdapter, chunk, room_identity, delivery_chat_id
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,14 @@ class TelegramAdapter(ChannelAdapter):
             return True
         user = update.effective_user
         return bool(user and str(user.id) in self.allowed_ids)
+
+    def _identity(self, update: Update) -> str:
+        """Per-person memory key. Private chats -> the chat id (unchanged); group rooms ->
+        '<chat>:<user>' so members don't share one profile."""
+        chat = update.effective_chat
+        user = update.effective_user
+        return room_identity(chat.id, getattr(chat, "type", None),
+                             user.id if user else chat.id)
 
     async def _on_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -80,27 +88,27 @@ class TelegramAdapter(ChannelAdapter):
         if not self._allowed(update):
             return await self._deny(update)
         text = await asyncio.to_thread(
-            self.agent.profile_text, self.channel_name, str(update.effective_chat.id)
+            self.agent.profile_text, self.channel_name, self._identity(update)
         )
         await update.message.reply_text("Here's what I remember:\n\n" + text)
 
     async def _on_forget(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
-        await asyncio.to_thread(self.agent.forget_everything, self.channel_name, str(update.effective_chat.id))
+        await asyncio.to_thread(self.agent.forget_everything, self.channel_name, self._identity(update))
         await update.message.reply_text("Done — I've wiped everything I knew about your system. Clean slate.")
 
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
-        await asyncio.to_thread(self.agent.reset, self.channel_name, str(update.effective_chat.id))
+        await asyncio.to_thread(self.agent.reset, self.channel_name, self._identity(update))
         await update.message.reply_text("Cleared this conversation (I still remember your setup). What's next?")
 
     async def _set_mode(self, update: Update, goal: str) -> None:
         if not self._allowed(update):
             return await self._deny(update)
         msg = await asyncio.to_thread(
-            self.agent.set_goal, self.channel_name, str(update.effective_chat.id), goal
+            self.agent.set_goal, self.channel_name, self._identity(update), goal
         )
         await update.message.reply_text(msg)
 
@@ -116,7 +124,7 @@ class TelegramAdapter(ChannelAdapter):
     async def _on_text(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._identity(update)
         await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
         try:
             reply = await asyncio.to_thread(
@@ -133,7 +141,7 @@ class TelegramAdapter(ChannelAdapter):
     async def _on_photo(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._identity(update)
         await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
         try:
             photo = update.message.photo[-1]              # largest available size
@@ -157,7 +165,7 @@ class TelegramAdapter(ChannelAdapter):
         mime = (getattr(doc, "mime_type", "") or "")
         if mime.startswith("image/"):
             # An image sent as an uncompressed file (not a Telegram "photo"): treat it as one.
-            chat_id = str(update.effective_chat.id)
+            chat_id = self._identity(update)
             try:
                 tg_file = await doc.get_file()
                 image_bytes = bytes(await tg_file.download_as_bytearray())
@@ -180,7 +188,7 @@ class TelegramAdapter(ChannelAdapter):
     async def _on_voice(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
-        chat_id = str(update.effective_chat.id)
+        chat_id = self._identity(update)
         await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
         try:
             voice = update.message.voice or update.message.audio
@@ -211,7 +219,7 @@ class TelegramAdapter(ChannelAdapter):
             due = await asyncio.to_thread(self.agent.due_followups, self.channel_name)
             for fu in due:
                 try:
-                    await ctx.bot.send_message(chat_id=int(fu["channel_user"]),
+                    await ctx.bot.send_message(chat_id=delivery_chat_id(fu["channel_user"]),
                                                text=fu["question"])
                     await asyncio.to_thread(self.agent.mark_followup_sent, fu["id"])
                 except Exception:
