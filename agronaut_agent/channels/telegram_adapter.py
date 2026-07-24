@@ -64,6 +64,7 @@ class TelegramAdapter(ChannelAdapter):
             "• *Optimize* the fish/crop ratio for a goal\n"
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
             "• *See* a photo you send (sick fish, yellowing leaves, algae)\n"
+            "• *Hear* a voice note and reply in your language\n"
             "• *Remember* your setup across chats\n\n"
             "Commands:\n"
             "/design — size a new system\n"
@@ -176,6 +177,27 @@ class TelegramAdapter(ChannelAdapter):
             "your fish, plants, or water, or just tell me what's going on."
         )
 
+    async def _on_voice(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        chat_id = str(update.effective_chat.id)
+        await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+        try:
+            voice = update.message.voice or update.message.audio
+            tg_file = await voice.get_file()
+            audio_bytes = bytes(await tg_file.download_as_bytearray())
+            mime = getattr(voice, "mime_type", None) or "audio/ogg"
+            reply = await asyncio.to_thread(
+                self.agent.handle_voice,
+                self.channel_name, chat_id, audio_bytes, mime,
+                update.effective_user.full_name if update.effective_user else None,
+            )
+        except Exception:
+            log.exception("agent.handle_voice failed")
+            reply = "Something went wrong with that voice note. Try again, or type your message?"
+        for part in chunk(reply):
+            await update.message.reply_text(part)
+
     async def _deny(self, update: Update) -> None:
         await update.message.reply_text(
             "This is a private Agronaut assistant. Ask the owner to add your Telegram ID "
@@ -228,6 +250,7 @@ class TelegramAdapter(ChannelAdapter):
         for name, handler, _desc in self._command_specs():
             app.add_handler(CommandHandler(name, handler))
         app.add_handler(MessageHandler(filters.PHOTO, self._on_photo))
+        app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, self._on_voice))
         app.add_handler(MessageHandler(filters.Document.ALL, self._on_document))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._on_text))
         scope = f"{len(self.allowed_ids)} allowed id(s)" if self.allowed_ids else "OPEN (no allowlist)"
