@@ -176,6 +176,28 @@ source .venv/bin/activate
 python bot.py            # long-polls Telegram; Ctrl-C to stop
 ```
 
+### Run on WhatsApp (Cloud API)
+
+Agronaut also speaks WhatsApp — the channel most smallholder-facing programs reach farmers
+on. It uses Meta's WhatsApp Cloud API (webhook in, Graph API out) and needs a WhatsApp
+Business account. Set:
+
+| Var | Purpose |
+|---|---|
+| `WHATSAPP_TOKEN` | permanent access token |
+| `WHATSAPP_PHONE_NUMBER_ID` | the sender phone-number id |
+| `WHATSAPP_VERIFY_TOKEN` | any string; also entered in Meta's webhook config |
+| `WHATSAPP_APP_SECRET` | app secret, used to verify inbound request signatures |
+
+```python
+from agronaut_agent.core import AgronautAgent
+from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
+WhatsAppAdapter(AgronautAgent()).run()   # serves the webhook + a follow-up poller
+```
+
+Point Meta's webhook at `https://your-host/` (put the process behind HTTPS — a reverse
+proxy or tunnel). The same brain, memory, tools, and follow-ups as Telegram.
+
 #### Keep it running (systemd)
 
 For an always-on bot that survives crashes and reboots, run it as a **`systemd --user`
