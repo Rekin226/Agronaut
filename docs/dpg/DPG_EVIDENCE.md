@@ -18,6 +18,10 @@ submission. Status: **draft — owner to review before submitting.**
 | 8 | **Standards & best practices** | ✅ | Open standards: OpenAI-compatible API, WhatsApp Cloud API, sentence-transformers; TDD with a 300+ test suite; cited engineering model; CI on push/PR. |
 | 9 | **Do no harm by design** | ✅ | Trust gate rejects unvalidated input; every quantitative answer cites sources + lists what is NOT modeled; LLM forbidden from inventing numbers; community sharing is human-gated + PII-stripped; advice-safety golden set scored each release. See `docs/dpg/AI_TRANSPARENCY.md`. |
 
+> **Ready to submit:** the paste-ready nomination answers and a structured nominee record are
+> in [`submission/`](submission/SUBMISSION.md) — the owner confirms a few `[CONFIRM]` fields
+> (contact, copyright holder) and submits.
+
 ## Submission checklist (owner actions)
 
 - [ ] Confirm SDG target selection with a domain reviewer.
