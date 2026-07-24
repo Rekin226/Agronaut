@@ -345,3 +345,59 @@ def test_measurement_reaches_calibration_store(tmp_path):
 def test_system_prompt_mentions_record_measurement():
     from agronaut_agent.core import SYSTEM_PROMPT
     assert "record_measurement" in SYSTEM_PROMPT.lower()
+
+
+class _ContextProbe:
+    """Sizes a system on the first invoke, then only replies — and records every message
+    list it is invoked with, so tests can assert what the model actually sees."""
+
+    def __init__(self):
+        self.seen = []
+        self._sized = False
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        self.seen.append(list(messages))
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Sized it — details above.")
+        if not self._sized:
+            self._sized = True
+            return AIMessage(content="", tool_calls=[{
+                "name": "size_aquaponics_system", "id": "call_1",
+                "args": {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 12,
+                         "temperature_c": 27, "water_budget_lpd": 300},
+            }])
+        return AIMessage(content="Answering from what I have.")
+
+
+def test_prior_tool_results_survive_into_next_turn_context(tmp_path):
+    # Turn 1 runs the sizing tool. On turn 2 the numbers it computed must be visible in the
+    # model's context, so follow-ups are answerable without re-running tools or guessing.
+    probe = _ContextProbe()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=probe)
+    agent.handle_message("cli", "ctx", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    agent.handle_message("cli", "ctx", "what tank volume did you give me?")
+
+    turn2_context = probe.seen[-1]
+    blob = "\n".join(str(getattr(m, "content", "")) for m in turn2_context)
+    assert "fish=" in blob  # the sizing tool's output, not just prose about it
+    assert "size_aquaponics_system" in blob  # labeled with its origin
+
+
+def test_tool_rows_do_not_shrink_conversation_window(tmp_path):
+    # A tool-heavy turn must not evict real conversation from the context window: the
+    # history limit counts user/assistant rows only.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    uid = agent._conv.get_or_create_user("cli", "win")
+    agent._conv.append_message(uid, "user", "FIRST_QUESTION")
+    for i in range(18):
+        agent._conv.append_message(uid, "tool", f"noise {i}", tool_name="list_supported_species_and_crops")
+    agent._conv.append_message(uid, "assistant", "first answer")
+    for i in range(3):
+        agent._conv.append_message(uid, "user", f"q{i}")
+        agent._conv.append_message(uid, "assistant", f"a{i}")
+
+    blob = "\n".join(str(getattr(m, "content", "")) for m in agent._build_context(uid))
+    assert "FIRST_QUESTION" in blob  # 18 tool rows must not push it out of a 20-row window

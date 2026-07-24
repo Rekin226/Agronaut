@@ -85,6 +85,7 @@ tool. To judge whether a value is safe (temperature, pH, DO), read the operating
 the prior sizing result; don't search the knowledge base for it."""
 
 _MAX_ITERS = 6
+_TOOL_REPLAY_MAX_CHARS = 2000
 
 
 class AgronautAgent:
@@ -117,12 +118,21 @@ class AgronautAgent:
         if recall:
             messages.append(SystemMessage(content=recall))
 
-        for m in self._conv.recent_messages(user_id, limit=20):
+        for m in self._conv.recent_context_messages(user_id, limit=20):
             if m["role"] == "user":
                 messages.append(HumanMessage(content=m["content"]))
             elif m["role"] == "assistant":
                 messages.append(AIMessage(content=m["content"]))
-            # stored 'tool' rows are audit history; the live loop handles tool exchange
+            elif m["role"] == "tool":
+                # Replay past tool results as assistant-side context (a bare tool role with
+                # no matching tool_call is rejected by OpenAI-compatible APIs). Without this,
+                # every computed number vanishes on the next turn and follow-ups re-run
+                # tools or guess.
+                content = m["content"] or ""
+                if len(content) > _TOOL_REPLAY_MAX_CHARS:
+                    content = content[:_TOOL_REPLAY_MAX_CHARS] + " …[truncated]"
+                messages.append(AIMessage(
+                    content=f"[earlier result from {m['tool_name']}]\n{content}"))
         return messages
 
     def _recall_block(self, user_id: str) -> str:

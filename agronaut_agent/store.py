@@ -168,6 +168,24 @@ class ConversationStore:
         )
         return [dict(r) for r in reversed(rows)]
 
+    def recent_context_messages(self, user_id: str, limit: int = 20) -> list[dict]:
+        """Like recent_messages, but `limit` budgets only user/assistant rows; tool rows
+        inside that window ride along without consuming it — a tool-heavy turn must not
+        evict real conversation from the model's context."""
+        convo = self.db.query(
+            "SELECT id FROM messages WHERE user_id=? AND role IN ('user','assistant') "
+            "ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        )
+        if not convo:
+            return []
+        cutoff = convo[-1]["id"]
+        rows = self.db.query(
+            "SELECT role, content, tool_name FROM messages WHERE user_id=? AND id>=? ORDER BY id",
+            (user_id, cutoff),
+        )
+        return [dict(r) for r in rows]
+
     def reset_conversation(self, user_id: str) -> None:
         self.db.execute("DELETE FROM messages WHERE user_id=?", (user_id,))
 
