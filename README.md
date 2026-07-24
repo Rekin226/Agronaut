@@ -116,6 +116,25 @@ The chat layer is model-agnostic — pick a backend with one env var, no code ch
 | Ollama (local) | `ollama` | Offline, default (`llama3`). Best for low-connectivity / field use. |
 | NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
 | Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
+| Self-hosted (OpenAI-compatible) | `openai_compat` | **Zero proprietary API** — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
+
+### Self-hosted, no vendor (the open-weights path)
+
+For a deployment with no hosted API at all, serve an open-weights model with an
+OpenAI-compatible server and point Agronaut at it:
+
+```bash
+# example: vLLM serving a tool-calling-capable open model
+python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-7B-Instruct
+# then:
+export LLM_PROVIDER=openai_compat
+export OPENAI_COMPAT_BASE_URL=http://localhost:8000/v1
+python bot.py
+```
+
+This runs the deterministic core **and** the tool-calling assistant with no proprietary
+dependency — the configuration Agronaut submits for [Digital Public Good](docs/dpg/)
+platform-independence.
 
 Override the model with `LLM_MODEL`. Provider libraries are imported lazily — install only
 the one you use. The design/optimizer modes run with **no LLM dependency at all.**

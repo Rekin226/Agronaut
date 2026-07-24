@@ -15,6 +15,7 @@ langchain-nvidia-ai-endpoints     # nvidia (hosted NIM, needs NVIDIA_API_KEY) â€
 # Messaging channels (the personal-assistant gateway)
 python-telegram-bot[job-queue]>=21  # Telegram bot (agronaut_agent/channels/telegram_adapter.py); job-queue extra powers the follow-up poller
 # faster-whisper                    # OPTIONAL: local speech-to-text for voice notes (ASR_PROVIDER=local). Install only for voice; offline after first model download.
+# langchain-openai                  # OPTIONAL: self-hosted OpenAI-compatible tool-calling backend (LLM_PROVIDER=openai_compat, e.g. vLLM/llama.cpp). Zero-proprietary-API path.
 faiss-cpu
 openpyxl
 streamlit
