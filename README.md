@@ -292,6 +292,21 @@ milestone (`aqua_model/tests/test_calibration.py`).
 
 ---
 
+## Use it from another agent (agentskills.io skill)
+
+Agronaut's deterministic engine is also packaged as a portable
+[agentskills.io](https://agentskills.io) skill in
+[`skills/aquaponics-engineer/`](skills/aquaponics_engineer/SKILL.md), so agents like
+Hermes, OpenClaw, or Claude Code can hand users a *computed*, cited design instead of a
+guess:
+
+```bash
+python -m skills.aquaponics_engineer.cli size-aquaponics \
+    --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+```
+
+Same trust zone, same citations, no LLM — a bad input is rejected at the gate.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The code is open by design (it's built on published science);
