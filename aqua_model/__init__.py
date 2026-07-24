@@ -18,6 +18,7 @@ Design rules (from the approved design doc + eng/CEO reviews):
 
 from .sizing import size_system
 from .hydroponics import size_hydroponic_system
+from .pilot import PilotInfo, to_pilot_proposal, projected_outcomes
 from .optimizer import optimize, OptimizeInput, OptimizeResult, Candidate, OBJECTIVES
 from .validate import validate_design_input, validate_hydroponic_input, ValidationError
 from .types import (
@@ -27,6 +28,9 @@ from .types import (
 __all__ = [
     "size_system",
     "size_hydroponic_system",
+    "PilotInfo",
+    "to_pilot_proposal",
+    "projected_outcomes",
     "optimize",
     "OptimizeInput",
     "OptimizeResult",

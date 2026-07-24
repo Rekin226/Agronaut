@@ -221,6 +221,41 @@ def render_design_report(
 
 
 @tool
+def render_pilot_proposal(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    site: str,
+    organization: str,
+    ask_amount: float,
+    currency: str = "USD",
+    beneficiaries: str | None = None,
+    context: str | None = None,
+    duration_months: int = 12,
+) -> str:
+    """Render a FUNDER-READY pilot proposal (Markdown) for a grant/NGO application: the
+    proposed system, the funding ask, projected annual food & water outcomes, and the data
+    the install will produce for monitoring & evaluation — plus the cited design + honesty
+    layer. Use when the user is preparing a proposal for a funder, NGO, or program officer.
+    Needs the system inputs (as for sizing) PLUS site, organization, and ask_amount."""
+    from aqua_model.pilot import PilotInfo, to_pilot_proposal
+    try:
+        design = validate_design_input(
+            fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd
+        )
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    pilot = PilotInfo(
+        site=site, organization=organization, ask_amount=ask_amount, currency=currency,
+        beneficiaries=_clean_optional(beneficiaries), context=_clean_optional(context),
+        duration_months=duration_months,
+    )
+    return to_pilot_proposal(design, size_system(design), pilot)
+
+
+@tool
 def search_knowledge_base(query: str) -> str:
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
@@ -397,6 +432,7 @@ AGRONAUT_TOOLS = [
     list_supported_species_and_crops,
     design_envelope_reality_check,
     render_design_report,
+    render_pilot_proposal,
     search_knowledge_base,
     remember_about_user,
     update_profile,
