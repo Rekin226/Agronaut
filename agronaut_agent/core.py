@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from .tools import AGRONAUT_TOOLS
 from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
-from . import memory_extract, runtime, profile
+from . import memory_extract, runtime, profile, semantic
 
 log = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
-                 fallback_model=None):
+                 fallback_model=None, embed_fn=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
         # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
@@ -109,12 +109,17 @@ class AgronautAgent:
         self._followups = FollowupStore(db)
         self._community = CommunityStore(db)
         self._calibration = CalibrationStore(db)
+        # Semantic recall over memories — injectable for tests; lazily built for the real
+        # path (model loads on first search). None -> recency fallback, the old behaviour.
+        if embed_fn is None and chat_model is None:
+            embed_fn = semantic.default_embedder()
+        self._semantic = semantic.SemanticMemory(db, embed_fn)
 
     # --- context assembly -------------------------------------------------
-    def _build_context(self, user_id: str) -> list:
+    def _build_context(self, user_id: str, query: str | None = None) -> list:
         messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
 
-        recall = self._recall_block(user_id)
+        recall = self._recall_block(user_id, query=query)
         if recall:
             messages.append(SystemMessage(content=recall))
 
@@ -135,9 +140,10 @@ class AgronautAgent:
                     content=f"[earlier result from {m['tool_name']}]\n{content}"))
         return messages
 
-    def _recall_block(self, user_id: str) -> str:
+    def _recall_block(self, user_id: str, query: str | None = None) -> str:
         """Assemble cross-session recall: goal-aware profile + missing essentials,
-        episodic memories, and the rolling summary."""
+        episodic memories (semantically ranked against `query` when an embedder is
+        available, else most-recent), and the rolling summary."""
         parts: list[str] = []
         facts = self._mem.get_facts(user_id)
         goal = facts.get("goal")
@@ -149,7 +155,11 @@ class AgronautAgent:
         if missing:
             parts.append(f"Still need for {goal}: " + ", ".join(missing))
 
-        memories = self._mem.get_memories(user_id)
+        memories = []
+        if query and self._semantic.available:
+            memories = self._semantic.search(user_id, query, k=12)
+        if not memories:
+            memories = self._mem.get_memories(user_id)
         if memories:
             if (goal or "").strip().lower() == "troubleshoot":
                 # surface what happened / what worked first when diagnosing
@@ -224,7 +234,7 @@ class AgronautAgent:
 
         runtime.set_current(self._mem, user_id, self._followups, self._community, self._calibration)  # tools reach this user
         try:
-            messages = self._build_context(user_id)
+            messages = self._build_context(user_id, query=text)
             if capture_note:
                 messages.append(SystemMessage(content=capture_note))
             reply = self._run_tool_loop(messages, user_id)

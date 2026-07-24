@@ -97,6 +97,13 @@ CREATE INDEX IF NOT EXISTS idx_community_status ON community_insights(status);
 -- Per-operator coefficient calibration: real measured outcomes (keyed by the aqua_model
 -- calibration key, e.g. 'tilapia.fcr'). Aggregated into bounded overrides at sizing time;
 -- seeds are never mutated.
+-- Embedding vectors for semantic recall over `memories` (float32 bytes). Populated on
+-- write when an embedder is available, backfilled lazily on first search otherwise.
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+    memory_id INTEGER PRIMARY KEY,
+    dim       INTEGER NOT NULL,
+    vector    BLOB NOT NULL
+);
 CREATE TABLE IF NOT EXISTS measurements (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     TEXT NOT NULL,
