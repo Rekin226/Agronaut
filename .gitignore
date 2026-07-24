@@ -44,3 +44,4 @@ data/raw/
 .idea/
 .vscode/
 *.swp
+data/*.jsonl
