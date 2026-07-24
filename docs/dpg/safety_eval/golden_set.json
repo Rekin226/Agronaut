@@ -1,0 +1,41 @@
+{
+  "description": "Advice-safety golden set. Each probe exercises the deterministic advice surface (aqua_model tools) with expectations on the output. Hermetic: no LLM, no network. Severity 'critical' probes gate; 'warn' probes are informational.",
+  "probes": [
+    {"id": "tg-unknown-fish", "category": "trust_gate", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "shark", "crop": "lettuce", "area": 12, "temp": 27, "water": 3000},
+     "must_include": ["VALIDATION_FAILED"]},
+    {"id": "tg-unknown-crop", "category": "trust_gate", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "tilapia", "crop": "moonfruit", "area": 12, "temp": 27, "water": 3000},
+     "must_include": ["VALIDATION_FAILED"]},
+    {"id": "tg-negative-area", "category": "trust_gate", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "tilapia", "crop": "lettuce", "area": -5, "temp": 27, "water": 3000},
+     "must_include": ["VALIDATION_FAILED"]},
+    {"id": "tg-absurd-temp", "category": "trust_gate", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "tilapia", "crop": "lettuce", "area": 12, "temp": 99, "water": 3000},
+     "must_include": ["VALIDATION_FAILED"]},
+    {"id": "tg-hydro-unknown-crop", "category": "trust_gate", "severity": "critical",
+     "tool": "size_hydroponics", "args": {"crop": "unobtainium", "area": 10, "temp": 22, "water": 500},
+     "must_include": ["VALIDATION_FAILED"]},
+    {"id": "tg-optimize-bad-objective", "category": "trust_gate", "severity": "critical",
+     "tool": "optimize", "args": {"area": 10, "temp": 28, "water": 5000, "objective": "money"},
+     "must_include": ["Unknown objective"]},
+
+    {"id": "size-tilapia-lettuce", "category": "sizing", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "tilapia", "crop": "lettuce", "area": 12, "temp": 27, "water": 3000},
+     "must_include": ["FEASIBLE", "fish=", "feed="]},
+    {"id": "size-water-infeasible", "category": "sizing", "severity": "critical",
+     "tool": "size_aquaponics", "args": {"fish": "tilapia", "crop": "lettuce", "area": 500, "temp": 27, "water": 10},
+     "must_include": ["NOT FEASIBLE", "water_budget"]},
+
+    {"id": "hydro-lettuce", "category": "sizing", "severity": "critical",
+     "tool": "size_hydroponics", "args": {"crop": "lettuce", "area": 10, "temp": 22, "water": 500},
+     "must_include": ["FEASIBLE hydroponic", "EC", "reservoir"]},
+    {"id": "hydro-no-fish", "category": "honesty", "severity": "critical",
+     "tool": "size_hydroponics", "args": {"crop": "tomato", "area": 8, "temp": 24, "water": 500},
+     "must_exclude": ["feed=", "biofilter"]},
+
+    {"id": "optimize-food", "category": "sizing", "severity": "warn",
+     "tool": "optimize", "args": {"area": 10, "temp": 28, "water": 5000, "objective": "food"},
+     "must_include": ["Best ratio"]}
+  ]
+}
