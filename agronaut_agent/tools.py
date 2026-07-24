@@ -15,9 +15,11 @@ from langchain_core.tools import tool
 
 from aqua_model import (
     size_system,
+    size_hydroponic_system,
     optimize,
     OptimizeInput,
     validate_design_input,
+    validate_hydroponic_input,
     ValidationError,
     OBJECTIVES,
 )
@@ -102,6 +104,36 @@ def size_aquaponics_system(
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
     return sized + note
+
+
+@tool
+def size_hydroponic_system_tool(
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    source_water_note: str | None = None,
+) -> str:
+    """Size ONE HYDROPONIC (soil-less, NO fish) system deterministically. Use this when the
+    user wants plants only — nutrients dosed as salts, not from fish. Returns the nutrient
+    reservoir volume, ET-driven daily water use, pump sizing, the nutrient-solution target
+    (EC band + elemental N/day + pH), bill of materials, operating envelope, the CITED
+    coefficients used, and what is NOT modeled. For fish+plants use size_aquaponics_system.
+
+    crop: one of the supported crops (call list_supported_species_and_crops if unsure).
+    grow_area_m2: planted DWC/NFT area (the anchor).
+    temperature_c: mean ambient/solution temperature.
+    water_budget_lpd: makeup water available per day, litres.
+    source_water_note: optional salinity/quality caveat.
+    """
+    try:
+        design = validate_hydroponic_input(
+            crop, grow_area_m2, temperature_c, water_budget_lpd,
+            _clean_optional(source_water_note),
+        )
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    return serialize.serialize_hydroponic_output(size_hydroponic_system(design))
 
 
 @tool
@@ -360,6 +392,7 @@ def record_measurement(metric: str, value: float) -> str:
 
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
+    size_hydroponic_system_tool,
     optimize_fish_crop_ratio,
     list_supported_species_and_crops,
     design_envelope_reality_check,

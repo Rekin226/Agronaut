@@ -28,6 +28,45 @@ class DesignInput:
 
 
 @dataclass(frozen=True)
+class HydroponicInput:
+    """Fixed inputs for ONE hydroponic system (nutrient solution, no fish). Built only by
+    validate_hydroponic_input — the trust gate — never from raw LLM output."""
+
+    crop: str                  # must exist in crops.CROPS
+    grow_area_m2: float        # the anchor; planted DWC/NFT area
+    temperature_c: float       # mean ambient/solution temperature
+    water_budget_lpd: float    # makeup water available per day
+    source_water_note: str | None = None
+
+
+@dataclass
+class HydroponicOutput:
+    feasible: bool
+    binding_constraint: str | None = None
+
+    # --- sizing numbers ---
+    grow_area_m2: float = 0.0
+    reservoir_volume_l: float = 0.0     # nutrient-solution reservoir (no fish tank)
+    daily_water_use_lpd: float = 0.0    # ET-driven solution consumption
+    makeup_water_lpd: float = 0.0
+    pump_turnover_lph: float = 0.0
+
+    # --- nutrient solution (the hydroponics-specific part) ---
+    nutrient_target: dict = field(default_factory=dict)  # EC band + elemental-N/day
+
+    # --- build artifacts ---
+    bill_of_materials: list[dict] = field(default_factory=list)
+    operating_envelope: dict = field(default_factory=dict)
+    maintenance_checklist: list[str] = field(default_factory=list)
+
+    # --- honesty layer ---
+    coefficients_used: list["CoefficientUse"] = field(default_factory=list)
+    not_modeled: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class CoefficientUse:
     """Provenance record: one coefficient as it was used in a specific design run."""
 

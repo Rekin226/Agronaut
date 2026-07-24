@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from .crops import CROPS
 from .species import SPECIES
-from .types import DesignInput
+from .types import DesignInput, HydroponicInput
 
 
 class ValidationError(ValueError):
@@ -70,6 +70,51 @@ def validate_design_input(
 
     return DesignInput(
         fish_species=species_key,
+        crop=crop_key,
+        grow_area_m2=float(grow_area_m2),
+        temperature_c=float(temperature_c),
+        water_budget_lpd=float(water_budget_lpd),
+        source_water_note=source_water_note,
+    )
+
+
+def validate_hydroponic_input(
+    crop,
+    grow_area_m2,
+    temperature_c,
+    water_budget_lpd,
+    source_water_note=None,
+) -> HydroponicInput:
+    """Trust gate for hydroponic sizing — same discipline as validate_design_input, but no
+    fish species (nutrients are dosed, not produced by fish)."""
+    errors: list[str] = []
+
+    crop_key = str(crop or "").strip().lower()
+    if crop_key not in CROPS:
+        errors.append(f"unknown crop {crop!r}; known: {sorted(CROPS)}")
+
+    grow_area_m2 = _as_float(grow_area_m2, "grow_area_m2", errors)
+    temperature_c = _as_float(temperature_c, "temperature_c", errors)
+    water_budget_lpd = _as_float(water_budget_lpd, "water_budget_lpd", errors)
+
+    for field, val in (
+        ("grow_area_m2", grow_area_m2),
+        ("temperature_c", temperature_c),
+        ("water_budget_lpd", water_budget_lpd),
+    ):
+        if val is None:
+            continue
+        lo, hi = _BOUNDS[field]
+        if not (lo <= val <= hi):
+            errors.append(f"{field}={val} out of range [{lo}, {hi}]")
+
+    if source_water_note is not None and not isinstance(source_water_note, str):
+        errors.append("source_water_note must be a string or None")
+
+    if errors:
+        raise ValidationError(errors)
+
+    return HydroponicInput(
         crop=crop_key,
         grow_area_m2=float(grow_area_m2),
         temperature_c=float(temperature_c),

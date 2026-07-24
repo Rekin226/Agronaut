@@ -104,6 +104,20 @@ NITRIFICATION_RATE = Coefficient(
     note="Conservative. Tank/raft surfaces also nitrify but are NOT counted here (eng decision).",
 )
 
+# --- Hydroponics: nutrient-solution targets (no fish; salts dosed directly). ------------
+# Target electrical conductivity (EC) of the nutrient solution, a standard proxy for total
+# dissolved nutrient strength. Leafy crops run leaner than fruiting crops.
+EC_TARGET_LEAFY = Coefficient(
+    name="ec_target_leafy",
+    value=1.5, low=1.2, high=1.8, unit="mS/cm", source="LIT",
+    note="DWC/NFT leafy-green nutrient strength; climate- and stage-dependent.",
+)
+EC_TARGET_FRUITING = Coefficient(
+    name="ec_target_fruiting",
+    value=2.6, low=2.0, high=3.5, unit="mS/cm", source="LIT",
+    note="Fruiting-crop nutrient strength (tomato/pepper/cucumber); raise as fruit sets.",
+)
+
 
 def registry() -> dict[str, Coefficient]:
     """All global coefficients by name (species/crop coefficients live in their own modules)."""
@@ -119,5 +133,7 @@ def registry() -> dict[str, Coefficient]:
             SUMP_FRACTION,
             PUMP_TURNOVER_RATE,
             NITRIFICATION_RATE,
+            EC_TARGET_LEAFY,
+            EC_TARGET_FRUITING,
         )
     }

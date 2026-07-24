@@ -17,22 +17,29 @@ Design rules (from the approved design doc + eng/CEO reviews):
 """
 
 from .sizing import size_system
+from .hydroponics import size_hydroponic_system
 from .optimizer import optimize, OptimizeInput, OptimizeResult, Candidate, OBJECTIVES
-from .validate import validate_design_input, ValidationError
-from .types import DesignInput, DesignOutput, CoefficientUse
+from .validate import validate_design_input, validate_hydroponic_input, ValidationError
+from .types import (
+    DesignInput, DesignOutput, CoefficientUse, HydroponicInput, HydroponicOutput,
+)
 
 __all__ = [
     "size_system",
+    "size_hydroponic_system",
     "optimize",
     "OptimizeInput",
     "OptimizeResult",
     "Candidate",
     "OBJECTIVES",
     "validate_design_input",
+    "validate_hydroponic_input",
     "ValidationError",
     "DesignInput",
     "DesignOutput",
     "CoefficientUse",
+    "HydroponicInput",
+    "HydroponicOutput",
 ]
 
 __version__ = "0.1.0"

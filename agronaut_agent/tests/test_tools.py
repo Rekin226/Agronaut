@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 12
+    assert len(AGRONAUT_TOOLS) == 13
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -27,6 +27,26 @@ def test_size_valid_carries_numbers_and_sources():
     # honesty layer: coefficients with sources and not-modeled caveats are present
     assert "Coefficients used" in out and "source:" in out
     assert "NOT modeled" in out
+
+
+def test_hydroponic_tool_registered_and_sizes_without_fish():
+    from agronaut_agent.tools import size_hydroponic_system_tool, AGRONAUT_TOOLS
+    assert "size_hydroponic_system_tool" in {t.name for t in AGRONAUT_TOOLS}
+    out = size_hydroponic_system_tool.invoke(
+        {"crop": "lettuce", "grow_area_m2": 10, "temperature_c": 22, "water_budget_lpd": 500})
+    assert "FEASIBLE hydroponic design" in out
+    assert "EC" in out and "reservoir" in out.lower()
+    assert "NOT modeled" in out
+    # no fish CONCEPT (feed/biofilter/fingerlings) — the only "fish" is the "(no fish)" label
+    assert "feed=" not in out and "biofilter" not in out.lower()
+    assert "fingerling" not in out.lower()
+
+
+def test_hydroponic_tool_trust_gate_rejects_unknown_crop():
+    from agronaut_agent.tools import size_hydroponic_system_tool
+    out = size_hydroponic_system_tool.invoke(
+        {"crop": "moonfruit", "grow_area_m2": 10, "temperature_c": 22, "water_budget_lpd": 500})
+    assert "VALIDATION_FAILED" in out
 
 
 def test_size_trust_gate_rejects_unknown_species():
@@ -71,7 +91,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 12
+    assert len(AGRONAUT_TOOLS) == 13
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -102,7 +122,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 12
+    assert len(AGRONAUT_TOOLS) == 13
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -146,7 +166,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 12
+    assert len(AGRONAUT_TOOLS) == 13
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -197,7 +217,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(AGRONAUT_TOOLS) == 12
+    assert len(AGRONAUT_TOOLS) == 13
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
