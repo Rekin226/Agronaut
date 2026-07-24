@@ -11,6 +11,9 @@ Select with the LLM_PROVIDER env var (or pass `provider=`):
     hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
                  after the first download). The simplest way to test the assistant with no
                  hosted backend or Ollama install — just `pip install -r requirement.txt`.
+    openai_compat -> any self-hosted OpenAI-compatible server (vLLM, llama.cpp --server,
+                 LM Studio, TGI). The zero-proprietary-API path for the tool-calling agent:
+                 set OPENAI_COMPAT_BASE_URL (and OPENAI_COMPAT_API_KEY if your server needs one).
 
 Override the model with LLM_MODEL (or pass `model=`).
 
@@ -39,6 +42,11 @@ DEFAULT_MODELS = {
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
     "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
+    # Self-hostable OpenAI-compatible server (vLLM, llama.cpp --server, LM Studio, TGI...).
+    # The zero-proprietary-API tool-calling path: point OPENAI_COMPAT_BASE_URL at your own
+    # box and the agent runs with no hosted vendor. Tool-calling works (ChatOpenAI.bind_tools)
+    # as long as the served model supports it (Qwen2.5, Llama-3.1, Hermes, etc.).
+    "openai_compat": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 SUPPORTED = tuple(DEFAULT_MODELS)
@@ -93,6 +101,16 @@ def _build_backend(provider: str, model: str, temperature: float):
             task="text-generation",
         )
         return ChatHuggingFace(llm=endpoint)
+    if provider == "openai_compat":
+        # Any OpenAI-compatible endpoint. base_url + api_key from env; a non-empty api_key
+        # is sent even for keyless local servers (many 401 on a blank Authorization header).
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model,
+            base_url=os.getenv("OPENAI_COMPAT_BASE_URL", "http://localhost:8000/v1"),
+            api_key=os.getenv("OPENAI_COMPAT_API_KEY") or "not-needed",
+            temperature=temperature,
+        )
     if provider == "hf_local":
         # Local transformers pipeline. No API token; downloads the model on first use
         # (cached in ~/.cache/huggingface) then runs offline. ChatHuggingFace applies the
