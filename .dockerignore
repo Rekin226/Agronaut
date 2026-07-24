@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+*.sqlite3
+*.sqlite
+web_cache.sqlite
+data/
+.superpowers/
+.pytest_cache/
+docs/
+*.md
+!README.md

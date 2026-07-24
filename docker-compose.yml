@@ -1,0 +1,33 @@
+# Agronaut — `docker compose up` brings up the web app; add the bot with a profile.
+#
+#   docker compose up web            # Streamlit at http://localhost:8501
+#   docker compose --profile bot up  # web + the Telegram bot (needs .env)
+#
+# Configuration comes from a local .env file (see README). The SQLite memory DB is shared
+# between web and bot via the named volume, so they see the same users and memory.
+
+services:
+  web:
+    build: .
+    image: agronaut:latest
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - agronaut-data:/data
+    restart: unless-stopped
+
+  bot:
+    build: .
+    image: agronaut:latest
+    profiles: ["bot"]
+    command: ["python", "bot.py"]
+    env_file:
+      - .env
+    volumes:
+      - agronaut-data:/data
+    restart: unless-stopped
+
+volumes:
+  agronaut-data:
