@@ -11,5 +11,7 @@ data/
 .superpowers/
 .pytest_cache/
 docs/
+# keep the advice-safety golden-set data — scripts/safety_eval.py loads it at runtime
+!docs/dpg/safety_eval/
 *.md
 !README.md
