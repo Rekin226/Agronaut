@@ -37,3 +37,97 @@ def test_adapter_has_followup_poller():
     assert hasattr(a, "_followup_tick")
     import inspect
     assert inspect.iscoroutinefunction(a._followup_tick)
+
+
+# --- media handlers -----------------------------------------------------------
+
+import asyncio
+
+
+class _FakePhoto:
+    async def get_file(self):
+        class _F:
+            async def download_as_bytearray(self_inner):
+                return bytearray(b"imgbytes")
+        return _F()
+
+
+class _FakeDoc:
+    def __init__(self, mime):
+        self.mime_type = mime
+
+    async def get_file(self):
+        class _F:
+            async def download_as_bytearray(self_inner):
+                return bytearray(b"imgbytes")
+        return _F()
+
+
+class _Recorder:
+    def __init__(self):
+        self.replies = []
+
+    async def reply_text(self, text, **kw):
+        self.replies.append(text)
+
+
+class _FakeUpdate:
+    def __init__(self, message, user_id=1, chat_id=99):
+        self.message = message
+        self.effective_user = type("U", (), {"id": user_id, "full_name": "Tester"})()
+        self.effective_chat = type("C", (), {"id": chat_id})()
+
+
+class _FakeMessage:
+    def __init__(self, photo=None, document=None, caption=None):
+        self.photo = photo
+        self.document = document
+        self.caption = caption
+        self.recorder = _Recorder()
+
+    async def reply_text(self, text, **kw):
+        await self.recorder.reply_text(text, **kw)
+
+
+class _FakeCtx:
+    class _Bot:
+        async def send_chat_action(self, *a, **k):
+            return None
+    bot = _Bot()
+
+
+class _ImgAgent:
+    channel = None
+
+    def handle_image(self, channel, chat_id, image_bytes, caption, display_name=None):
+        assert image_bytes == b"imgbytes"
+        return f"saw image (caption={caption})"
+
+
+def test_photo_handler_routes_to_handle_image():
+    a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
+    msg = _FakeMessage(photo=[_FakePhoto()], caption="what's wrong?")
+    upd = _FakeUpdate(msg)
+    asyncio.run(a._on_photo(upd, _FakeCtx()))
+    assert any("saw image" in r and "what's wrong?" in r for r in msg.recorder.replies)
+
+
+def test_document_image_routes_to_handle_image():
+    a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
+    msg = _FakeMessage(document=_FakeDoc("image/png"))
+    asyncio.run(a._on_document(_FakeUpdate(msg), _FakeCtx()))
+    assert any("saw image" in r for r in msg.recorder.replies)
+
+
+def test_non_image_document_declined_gracefully():
+    a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
+    msg = _FakeMessage(document=_FakeDoc("application/pdf"))
+    asyncio.run(a._on_document(_FakeUpdate(msg), _FakeCtx()))
+    assert any("can't read files like that yet" in r.lower() for r in msg.recorder.replies)
+
+
+def test_media_handlers_registered_in_run():
+    import inspect
+    src = inspect.getsource(TelegramAdapter.run)
+    assert "filters.PHOTO" in src
+    assert "Document" in src

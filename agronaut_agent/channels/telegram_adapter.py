@@ -63,6 +63,7 @@ class TelegramAdapter(ChannelAdapter):
             "• *Size* a system (species, grow area, water temp, water budget)\n"
             "• *Optimize* the fish/crop ratio for a goal\n"
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
+            "• *See* a photo you send (sick fish, yellowing leaves, algae)\n"
             "• *Remember* your setup across chats\n\n"
             "Commands:\n"
             "/design — size a new system\n"
@@ -128,6 +129,53 @@ class TelegramAdapter(ChannelAdapter):
         for part in chunk(reply):
             await update.message.reply_text(part)
 
+    async def _on_photo(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        chat_id = str(update.effective_chat.id)
+        await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+        try:
+            photo = update.message.photo[-1]              # largest available size
+            tg_file = await photo.get_file()
+            image_bytes = bytes(await tg_file.download_as_bytearray())
+            reply = await asyncio.to_thread(
+                self.agent.handle_image,
+                self.channel_name, chat_id, image_bytes, update.message.caption,
+                update.effective_user.full_name if update.effective_user else None,
+            )
+        except Exception:
+            log.exception("agent.handle_image failed")
+            reply = "Something went wrong reading that photo. Try again, or describe what you see?"
+        for part in chunk(reply):
+            await update.message.reply_text(part)
+
+    async def _on_document(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        doc = update.message.document
+        mime = (getattr(doc, "mime_type", "") or "")
+        if mime.startswith("image/"):
+            # An image sent as an uncompressed file (not a Telegram "photo"): treat it as one.
+            chat_id = str(update.effective_chat.id)
+            try:
+                tg_file = await doc.get_file()
+                image_bytes = bytes(await tg_file.download_as_bytearray())
+                reply = await asyncio.to_thread(
+                    self.agent.handle_image, self.channel_name, chat_id, image_bytes,
+                    update.message.caption,
+                    update.effective_user.full_name if update.effective_user else None,
+                )
+            except Exception:
+                log.exception("agent.handle_image (document) failed")
+                reply = "Something went wrong reading that image. Try again, or describe what you see?"
+            for part in chunk(reply):
+                await update.message.reply_text(part)
+            return
+        await update.message.reply_text(
+            "I can't read files like that yet — I work with text and photos. Send a photo of "
+            "your fish, plants, or water, or just tell me what's going on."
+        )
+
     async def _deny(self, update: Update) -> None:
         await update.message.reply_text(
             "This is a private Agronaut assistant. Ask the owner to add your Telegram ID "
@@ -179,6 +227,8 @@ class TelegramAdapter(ChannelAdapter):
         app = Application.builder().token(self.token).post_init(self._post_init).build()
         for name, handler, _desc in self._command_specs():
             app.add_handler(CommandHandler(name, handler))
+        app.add_handler(MessageHandler(filters.PHOTO, self._on_photo))
+        app.add_handler(MessageHandler(filters.Document.ALL, self._on_document))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._on_text))
         scope = f"{len(self.allowed_ids)} allowed id(s)" if self.allowed_ids else "OPEN (no allowlist)"
         log.info("Agronaut Telegram bot starting — %s", scope)
