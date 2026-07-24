@@ -14,7 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first for layer caching.
+# Install CPU-only torch FIRST, from PyTorch's CPU wheel index. sentence-transformers pulls
+# torch transitively, and the default Linux wheel drags in a multi-GB CUDA stack (cuBLAS,
+# cuDNN, NCCL…) this app never uses. Pinning the CPU build keeps the image lean and the
+# build fast — right for a small VPS. The later `pip install -r` then sees torch satisfied.
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch
+
+# Install the rest of the Python deps (layer cached on requirement.txt).
 COPY requirement.txt ./
 RUN pip install -r requirement.txt
 
