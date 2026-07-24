@@ -52,6 +52,10 @@ Reachable directly from chat at any time:
 
 - Data is stored in a single local SQLite database on the operator's own machine/server.
   There is no central Agronaut server and no third-party analytics on your content.
+- The operator may keep **local usage analytics** — event counts and funnels only (e.g. how
+  many messages, how many designs). These are content-free by construction: no message text
+  is recorded, and user ids are stored only as a truncated one-way hash, so distinct users
+  can be counted without identifying anyone. Disable with `AGRONAUT_ANALYTICS=off`.
 - Data is retained until you delete it. An operator deployment may set its own retention
   window; this reference build retains until erasure is requested.
 - Access control: on Telegram/WhatsApp an allowlist restricts who can use a given

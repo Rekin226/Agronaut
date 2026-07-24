@@ -132,6 +132,10 @@ class AgronautAgent:
             from agent import transcribe
             transcribe_fn = transcribe.default_transcriber()
         self._transcribe = transcribe_fn
+        # Privacy-preserving usage analytics (counts/funnels, no content). Local-only;
+        # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
+        from .analytics import Analytics
+        self._analytics = Analytics()
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None) -> list:
@@ -211,6 +215,8 @@ class AgronautAgent:
                         result = tool.invoke(call["args"])
                     except Exception as exc:  # fed back so the model can correct; never hidden
                         result = f"TOOL_ERROR: {exc}"
+                self._analytics.record("tool_call", user_id=user_id, tool=call["name"],
+                                       ok=not str(result).startswith("TOOL_ERROR"))
                 self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
                 captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
                 if captured:
@@ -232,6 +238,7 @@ class AgronautAgent:
     # --- the single public seam ------------------------------------------
     def handle_message(self, channel: str, channel_user: str, text: str, display_name: str | None = None) -> str:
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
+        self._analytics.record("message", user_id=user_id, channel=channel)
         self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
         self._conv.append_message(user_id, "user", text)
 
@@ -267,6 +274,8 @@ class AgronautAgent:
         """A photo arrives: the VLM produces a plain-language visual observation, which is
         then run through the NORMAL text turn — so memory, the trust-gated tools, and cited
         knowledge all still apply. The vision model never calls tools or emits numbers."""
+        self._analytics.record("image", user_id=self._conv.get_or_create_user(channel, channel_user),
+                               channel=channel)
         if self._describe is None:
             return ("I can't look at images yet — but describe what you see (leaf colour, "
                     "fish behaviour, water look) and I'll help from there.")
@@ -289,6 +298,8 @@ class AgronautAgent:
         """A voice note arrives: transcribe it, then run the transcript through the NORMAL
         text turn. The transcript IS the user's message, so everything (memory, tools, cited
         knowledge, reply-in-user-language) applies unchanged."""
+        self._analytics.record("voice", user_id=self._conv.get_or_create_user(channel, channel_user),
+                               channel=channel)
         if self._transcribe is None:
             return ("I can't listen to voice notes yet — type your message and I'll help "
                     "right away.")
@@ -364,6 +375,7 @@ class AgronautAgent:
             raise ValueError(f"unknown goal {goal!r}")
         user_id = self._conv.get_or_create_user(channel, channel_user)
         self._mem.set_fact(user_id, "goal", g, source="user_stated")
+        self._analytics.record("goal_set", user_id=user_id, goal=g)
         facts = self._mem.get_facts(user_id)
         return f"{profile.GOAL_HEADERS[g]}. {profile.essentials_hint(g, facts)}"
 
