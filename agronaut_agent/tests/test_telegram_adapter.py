@@ -20,6 +20,13 @@ def test_command_specs_keep_existing_commands_for_menu():
         assert cmd in names
 
 
+def test_command_specs_include_data_rights_commands():
+    a = _adapter()
+    names = [c for c, _h, _desc in a._command_specs()]
+    assert "export" in names and "delete_me" in names
+    assert hasattr(a, "_on_export") and hasattr(a, "_on_delete_me")
+
+
 def test_every_command_spec_has_a_callable_handler_and_description():
     for cmd, handler, desc in _adapter()._command_specs():
         assert callable(handler), cmd
