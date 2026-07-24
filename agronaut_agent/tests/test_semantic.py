@@ -14,13 +14,22 @@ from agronaut_agent.semantic import SemanticMemory
 from agronaut_agent.store import _Db, MemoryStore
 
 
+def _stable_bucket(word: str, dim: int = 64) -> int:
+    # A process-stable hash (Python's built-in hash() is salted per run via PYTHONHASHSEED,
+    # which makes bucket collisions — and thus ranking — flaky across runs).
+    h = 0
+    for ch in word:
+        h = (h * 131 + ord(ch)) & 0xFFFFFFFF
+    return h % dim
+
+
 def _bow_embed(texts):
-    """Deterministic toy embedder: hashed bag-of-words, L2-normalized."""
+    """Deterministic toy embedder: stable-hashed bag-of-words, L2-normalized."""
     out = []
     for t in texts:
         v = np.zeros(64, dtype="float32")
         for w in re.findall(r"[a-z]+", str(t).lower()):
-            v[hash(w) % 64] += 1.0
+            v[_stable_bucket(w)] += 1.0
         n = float(np.linalg.norm(v)) or 1.0
         out.append(v / n)
     return out
