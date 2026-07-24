@@ -92,7 +92,7 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
-                 fallback_model=None, embed_fn=None):
+                 fallback_model=None, embed_fn=None, describe_fn=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
         # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
@@ -116,6 +116,12 @@ class AgronautAgent:
         if embed_fn is None and chat_model is None:
             embed_fn = semantic.default_embedder()
         self._semantic = semantic.SemanticMemory(db, embed_fn)
+        # Vision: turn a photo into a visual observation that feeds the normal turn. The VLM
+        # only observes — diagnosis stays with the agent + cited KB. None -> images declined.
+        if describe_fn is None and chat_model is None:
+            from agent import vision
+            describe_fn = vision.default_describer()
+        self._describe = describe_fn
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None) -> list:
@@ -245,6 +251,28 @@ class AgronautAgent:
         self._conv.append_message(user_id, "assistant", reply)
         self._schedule_summary(user_id)
         return reply
+
+    def handle_image(self, channel: str, channel_user: str, image_bytes: bytes,
+                     caption: str | None = None, display_name: str | None = None) -> str:
+        """A photo arrives: the VLM produces a plain-language visual observation, which is
+        then run through the NORMAL text turn — so memory, the trust-gated tools, and cited
+        knowledge all still apply. The vision model never calls tools or emits numbers."""
+        if self._describe is None:
+            return ("I can't look at images yet — but describe what you see (leaf colour, "
+                    "fish behaviour, water look) and I'll help from there.")
+        try:
+            observation = (self._describe(image_bytes, caption) or "").strip()
+        except Exception:
+            log.warning("vision describe failed", exc_info=True)
+            return ("I couldn't read that photo just now — try again, or describe what you "
+                    "see and I'll help from there.")
+        if not observation:
+            return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
+                    "or describe what you see.")
+        ask = (caption or "").strip() or "What's going on here?"
+        composed = (f"[The user sent a photo. A vision model observed: {observation}]\n\n"
+                    f"{ask}")
+        return self.handle_message(channel, channel_user, composed, display_name)
 
     def profile_text(self, channel: str, channel_user: str) -> str:
         """Human-readable view of what the agent remembers — backs the /whoami command."""
