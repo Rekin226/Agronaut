@@ -140,6 +140,17 @@ def render_calculator() -> None:
     m5.metric("Pump", f"{out.pump_turnover_lph:g} L/h")
     m6.metric("Makeup water", f"{out.makeup_water_lpd:g} L/day")
 
+    import base64
+    from aqua_model.schematic import to_svg
+    svg = to_svg(out)
+    st.subheader("System schematic")
+    # SVG rendered as a data-URI <img> (st.image's PIL path can't parse raw SVG).
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    st.markdown(f'<img src="data:image/svg+xml;base64,{b64}" style="max-width:100%"/>',
+                unsafe_allow_html=True)
+    st.download_button("Download schematic (SVG)", data=svg,
+                       file_name="agronaut_schematic.svg", mime="image/svg+xml")
+
     with st.expander("Bill of materials"):
         st.table(out.bill_of_materials)
     with st.expander("Operating envelope"):
