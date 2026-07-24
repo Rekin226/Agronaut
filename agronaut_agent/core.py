@@ -92,7 +92,7 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
-                 fallback_model=None, embed_fn=None, describe_fn=None):
+                 fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
         # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
@@ -122,6 +122,12 @@ class AgronautAgent:
             from agent import vision
             describe_fn = vision.default_describer()
         self._describe = describe_fn
+        # Voice: transcribe a note, then run it as a normal turn. The system prompt's
+        # "reply in the user's language" rule answers in the note's language. None -> declined.
+        if transcribe_fn is None and chat_model is None:
+            from agent import transcribe
+            transcribe_fn = transcribe.default_transcriber()
+        self._transcribe = transcribe_fn
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None) -> list:
@@ -273,6 +279,24 @@ class AgronautAgent:
         composed = (f"[The user sent a photo. A vision model observed: {observation}]\n\n"
                     f"{ask}")
         return self.handle_message(channel, channel_user, composed, display_name)
+
+    def handle_voice(self, channel: str, channel_user: str, audio_bytes: bytes,
+                     mime: str | None = None, display_name: str | None = None) -> str:
+        """A voice note arrives: transcribe it, then run the transcript through the NORMAL
+        text turn. The transcript IS the user's message, so everything (memory, tools, cited
+        knowledge, reply-in-user-language) applies unchanged."""
+        if self._transcribe is None:
+            return ("I can't listen to voice notes yet — type your message and I'll help "
+                    "right away.")
+        try:
+            transcript = (self._transcribe(audio_bytes, mime) or "").strip()
+        except Exception:
+            log.warning("voice transcription failed", exc_info=True)
+            return ("I couldn't make out that voice note — try again, or type it and I'll "
+                    "help from there.")
+        if not transcript:
+            return "I didn't catch anything in that voice note — try again, or type it out?"
+        return self.handle_message(channel, channel_user, transcript, display_name)
 
     def profile_text(self, channel: str, channel_user: str) -> str:
         """Human-readable view of what the agent remembers — backs the /whoami command."""

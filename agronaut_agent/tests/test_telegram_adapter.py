@@ -78,11 +78,24 @@ class _FakeUpdate:
         self.effective_chat = type("C", (), {"id": chat_id})()
 
 
+class _FakeVoice:
+    def __init__(self, mime="audio/ogg"):
+        self.mime_type = mime
+
+    async def get_file(self):
+        class _F:
+            async def download_as_bytearray(self_inner):
+                return bytearray(b"oggbytes")
+        return _F()
+
+
 class _FakeMessage:
-    def __init__(self, photo=None, document=None, caption=None):
+    def __init__(self, photo=None, document=None, caption=None, voice=None, audio=None):
         self.photo = photo
         self.document = document
         self.caption = caption
+        self.voice = voice
+        self.audio = audio
         self.recorder = _Recorder()
 
     async def reply_text(self, text, **kw):
@@ -102,6 +115,10 @@ class _ImgAgent:
     def handle_image(self, channel, chat_id, image_bytes, caption, display_name=None):
         assert image_bytes == b"imgbytes"
         return f"saw image (caption={caption})"
+
+    def handle_voice(self, channel, chat_id, audio_bytes, mime, display_name=None):
+        assert audio_bytes == b"oggbytes"
+        return f"heard voice (mime={mime})"
 
 
 def test_photo_handler_routes_to_handle_image():
@@ -126,8 +143,16 @@ def test_non_image_document_declined_gracefully():
     assert any("can't read files like that yet" in r.lower() for r in msg.recorder.replies)
 
 
+def test_voice_handler_routes_to_handle_voice():
+    a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
+    msg = _FakeMessage(voice=_FakeVoice("audio/ogg"))
+    asyncio.run(a._on_voice(_FakeUpdate(msg), _FakeCtx()))
+    assert any("heard voice" in r for r in msg.recorder.replies)
+
+
 def test_media_handlers_registered_in_run():
     import inspect
     src = inspect.getsource(TelegramAdapter.run)
     assert "filters.PHOTO" in src
     assert "Document" in src
+    assert "filters.VOICE" in src
