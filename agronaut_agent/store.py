@@ -219,9 +219,20 @@ class MemoryStore:
                 self.set_fact(user_id, k, str(v), source)
 
     def forget(self, user_id: str) -> None:
+        # also drop any semantic-recall vectors for this user's memories (by memory_id)
+        self.db.execute(
+            "DELETE FROM memory_embeddings WHERE memory_id IN "
+            "(SELECT id FROM memories WHERE user_id=?)", (user_id,))
         self.db.execute("DELETE FROM user_facts WHERE user_id=?", (user_id,))
         self.db.execute("DELETE FROM memories WHERE user_id=?", (user_id,))
         self.db.execute("DELETE FROM session_summary WHERE user_id=?", (user_id,))
+
+    def all_memories(self, user_id: str) -> list[dict]:
+        """Every memory (not the recency-capped view) — for a full data export."""
+        rows = self.db.query(
+            "SELECT category, content, created_at FROM memories WHERE user_id=? ORDER BY id",
+            (user_id,))
+        return [dict(r) for r in rows]
 
     # --- agent-curated memories ------------------------------------------
     _MEMORY_CATEGORIES = ("profile", "event", "preference", "learning")
@@ -401,6 +412,15 @@ class CalibrationStore:
             "INSERT INTO measurements(user_id, coefficient, value, recorded_at) VALUES (?,?,?,?)",
             (user_id, coefficient, float(value), _now()),
         )
+
+    def export(self, user_id: str) -> list[dict]:
+        rows = self.db.query(
+            "SELECT coefficient, value, recorded_at FROM measurements WHERE user_id=? ORDER BY id",
+            (user_id,))
+        return [dict(r) for r in rows]
+
+    def purge(self, user_id: str) -> None:
+        self.db.execute("DELETE FROM measurements WHERE user_id=?", (user_id,))
 
     def _by_coefficient(self, user_id: str) -> dict[str, list[float]]:
         rows = self.db.query(

@@ -79,8 +79,10 @@ class TelegramAdapter(ChannelAdapter):
             "/optimize — best fish/crop ratio\n"
             "/troubleshoot — diagnose a problem\n"
             "/whoami — what I remember about you\n"
+            "/export — download all your data (open JSON)\n"
             "/reset — clear this conversation (keeps long-term memory)\n"
-            "/forget — wipe everything I know about you",
+            "/forget — wipe everything I know about you\n"
+            "/delete\\_me — permanently erase all your data",
             parse_mode="Markdown",
         )
 
@@ -97,6 +99,28 @@ class TelegramAdapter(ChannelAdapter):
             return await self._deny(update)
         await asyncio.to_thread(self.agent.forget_everything, self.channel_name, self._identity(update))
         await update.message.reply_text("Done — I've wiped everything I knew about your system. Clean slate.")
+
+    async def _on_export(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        import io
+        import json
+        data = await asyncio.to_thread(
+            self.agent.export_user_data, self.channel_name, self._identity(update))
+        buf = io.BytesIO(json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8"))
+        buf.name = "agronaut_my_data.json"
+        await update.message.reply_document(
+            document=buf,
+            caption="Everything I hold about you, in open JSON. /delete_me erases it all.")
+
+    async def _on_delete_me(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not self._allowed(update):
+            return await self._deny(update)
+        await asyncio.to_thread(
+            self.agent.delete_me, self.channel_name, self._identity(update))
+        await update.message.reply_text(
+            "Done — I've permanently erased all your data: conversation, profile, notes, and "
+            "measurements. Nothing about you remains.")
 
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -238,8 +262,10 @@ class TelegramAdapter(ChannelAdapter):
             ("optimize", self._on_optimize, "Mode: best fish/crop ratio"),
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
             ("whoami", self._on_whoami, "What I remember about you"),
+            ("export", self._on_export, "Download all my data (JSON)"),
             ("reset", self._on_reset, "Clear this conversation"),
             ("forget", self._on_forget, "Wipe everything I know"),
+            ("delete_me", self._on_delete_me, "Permanently erase all my data"),
         ]
 
     async def _post_init(self, app: Application) -> None:

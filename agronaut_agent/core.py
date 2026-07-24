@@ -315,6 +315,29 @@ class AgronautAgent:
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
 
+    # --- data rights (DPG indicators 6 & do-no-harm) ------------------------
+    def export_user_data(self, channel: str, channel_user: str) -> dict:
+        """Everything Agronaut holds about this user, as a portable JSON-serializable dict
+        (the DPG non-proprietary-export requirement). Scoped strictly to this user."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        return {
+            "identity": {"user_id": user_id, "channel": channel, "channel_user": str(channel_user)},
+            "profile": self._mem.get_facts(user_id),
+            "memories": self._mem.all_memories(user_id),
+            "summary": self._mem.get_summary(user_id),
+            "messages": self._conv.recent_messages(user_id, limit=100000),
+            "measurements": self._calibration.export(user_id),
+            "exported_at": _now(),
+        }
+
+    def delete_me(self, channel: str, channel_user: str) -> None:
+        """Erase ALL of this user's data — conversation, profile, memories, summary, and
+        calibration measurements. The chat-reachable right-to-erasure."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._conv.reset_conversation(user_id)
+        self._mem.forget(user_id)
+        self._calibration.purge(user_id)
+
     # --- follow-up delivery API (called by a channel poller) ----------------
     def due_followups(self, channel: str) -> list:
         """Follow-ups due for delivery on `channel` right now."""
