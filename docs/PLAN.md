@@ -14,7 +14,7 @@ Sizes: **S** ≤ half a day, **M** 1–3 days, **L** a week-plus of gradual work
 
 The two defects that undermine "consultative agent with memory" for every user, every day.
 
-- [ ] **0.1 Fix cross-turn context: stop dropping tool results.** (M)
+- [x] **0.1 Fix cross-turn context: stop dropping tool results.** (M)
   - **What:** `_build_context` (`agronaut_agent/core.py:120-126`) discards stored `tool` rows,
     so computed sizings vanish on the next turn; the prompt even tells the model to "answer
     from earlier tool results" that aren't there. Also `recent_messages(limit=20)`
@@ -26,7 +26,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** integration test — turn 1 sizes a system, turn 2 asks "what tank volume did
     you give me?" with tools disabled; the agent answers from context. No re-run, no guess.
 
-- [ ] **0.2 One brain: point Streamlit chat at the real agent.** (L)
+- [x] **0.2 One brain: point Streamlit chat at the real agent.** (L)
   - **What:** `app.py:125-141` "Assistant (chat)" drives legacy `srcs/chatbot.py` — a
     module-global `ThreadState()` singleton (`srcs/chatbot.py:310`) shared by ALL concurrent
     web users, with no deterministic tools, no System Profile, no calibration. The most
@@ -38,7 +38,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** two simultaneous browser sessions hold independent conversations with
     independent profiles; a web user can run a full design consultation with tools.
 
-- [ ] **0.3 Surface silent-calibration no-ops.** (S)
+- [x] **0.3 Surface silent-calibration no-ops.** (S)
   - **What:** `record_measurement` accepts measurements for species/crops that have no
     `calibration.py` row; `overrides_for` (`agronaut_agent/store.py:395-398`) silently skips
     them — the operator's data is inert with no signal.
