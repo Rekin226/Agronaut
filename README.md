@@ -143,6 +143,19 @@ the one you use. The design/optimizer modes run with **no LLM dependency at all.
 
 ## Quick start
 
+### Docker (one command)
+
+```bash
+docker compose up web            # Streamlit at http://localhost:8501
+docker compose --profile bot up  # web + the Telegram bot (needs .env)
+```
+
+The web app's Design Calculator and Optimizer work immediately. Chat and the bot need an
+LLM provider configured in a local `.env` (see below). The SQLite memory DB persists in a
+named volume, shared between web and bot.
+
+### From source
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirement.txt
