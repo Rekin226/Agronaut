@@ -52,6 +52,9 @@ YOU RUN A CONSULTATION, NOT A Q&A. Your job is to understand the person before y
 3. ANCHOR EVERY RECOMMENDATION to their stated goal and their system. Generic advice is a
    failure — tie the answer to what they told you (their species, area, budget, constraints).
 
+If the user asks to SEE, DRAW, or picture their system (a diagram/schematic), call
+render_system_schematic — it draws a labeled diagram and sends it to them as an image.
+
 REMEMBER AS YOU GO:
 - The moment the user reveals a durable structured fact (species, area, temperature, tank
   volume, water readings, location, their goal/objective, experience level), call
@@ -136,6 +139,9 @@ class AgronautAgent:
         # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
         from .analytics import Analytics
         self._analytics = Analytics()
+        # Per-user files a tool produced this turn (e.g. a rendered schematic), for the
+        # channel adapter to deliver alongside the text reply. Keyed by user_id.
+        self._pending_attachments: dict[str, list] = {}
 
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None) -> list:
@@ -263,11 +269,21 @@ class AgronautAgent:
             if capture_note:
                 messages.append(SystemMessage(content=capture_note))
             reply = self._run_tool_loop(messages, user_id)
+            # Capture any files a tool produced (e.g. a schematic) BEFORE clearing context.
+            atts = runtime.get_attachments()
         finally:
             runtime.clear_current()
+        if atts:
+            self._pending_attachments[user_id] = atts   # keyed by user; adapter drains it
         self._conv.append_message(user_id, "assistant", reply)
         self._schedule_summary(user_id)
         return reply
+
+    def take_attachments(self, channel: str, channel_user: str) -> list:
+        """Files the last turn produced for this user, to be sent by the channel adapter.
+        Draining is idempotent — returns [] once taken."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        return self._pending_attachments.pop(user_id, [])
 
     def handle_image(self, channel: str, channel_user: str, image_bytes: bytes,
                      caption: str | None = None, display_name: str | None = None) -> str:

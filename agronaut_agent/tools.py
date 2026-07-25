@@ -256,6 +256,41 @@ def render_pilot_proposal(
 
 
 @tool
+def render_system_schematic(
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    fish_species: str | None = None,
+) -> str:
+    """DRAW a labeled diagram of the system and send it to the user as an image. Use when the
+    user asks to see, draw, or picture their system, or wants a schematic/diagram. Provide
+    fish_species for an AQUAPONIC system (fish + plants); omit it for a HYDROPONIC one
+    (plants only). Same sizing inputs as the sizing tools. The image is generated
+    deterministically from the sized design — you do not describe it, just call this."""
+    import os
+    import tempfile
+    from aqua_model.schematic import to_png
+    fish = _clean_optional(fish_species)
+    try:
+        if fish:
+            design = validate_design_input(fish, crop, grow_area_m2, temperature_c, water_budget_lpd)
+            out = size_system(design)
+        else:
+            design = validate_hydroponic_input(crop, grow_area_m2, temperature_c, water_budget_lpd)
+            out = size_hydroponic_system(design)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    fd, path = tempfile.mkstemp(prefix="agronaut_schematic_", suffix=".png")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(to_png(out))
+    runtime.add_attachment(path)
+    kind = "aquaponic" if fish else "hydroponic"
+    return (f"Rendered a {kind} system schematic (attached as an image). Tell the user the "
+            "diagram is on its way and offer to size or refine it further.")
+
+
+@tool
 def search_knowledge_base(query: str) -> str:
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
@@ -433,6 +468,7 @@ AGRONAUT_TOOLS = [
     design_envelope_reality_check,
     render_design_report,
     render_pilot_proposal,
+    render_system_schematic,
     search_knowledge_base,
     remember_about_user,
     update_profile,

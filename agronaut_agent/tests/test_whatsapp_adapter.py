@@ -13,12 +13,17 @@ from agronaut_agent.channels import base
 
 
 class _FakeAgent:
-    def __init__(self):
+    def __init__(self, attachments=None):
         self.calls = []
+        self._atts = attachments or []
 
     def handle_message(self, channel, channel_user, text, display_name=None):
         self.calls.append((channel, channel_user, text))
         return f"reply to {text}"
+
+    def take_attachments(self, channel, channel_user):
+        atts, self._atts = self._atts, []
+        return atts
 
     def due_followups(self, channel):
         return [{"id": 1, "channel_user": "15551234567", "question": "did it work?"}]
@@ -115,6 +120,20 @@ def test_send_text_posts_to_graph_api(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer ACCESS_TOKEN"
     assert captured["json"]["to"] == "15551234567"
     assert captured["json"]["text"]["body"] == "hello"
+
+
+def test_handle_payload_sends_schematic_attachment(monkeypatch, tmp_path):
+    png = tmp_path / "schematic.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png)])
+    a = _adapter(agent)
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, **kw: sent_media.append((to, path)))
+
+    a.handle_payload(_incoming_payload("draw my system"))
+    assert sent_text == [("15551234567", "reply to draw my system")]
+    assert sent_media == [("15551234567", str(png))]        # image sent after the text
 
 
 def test_deliver_due_followups_sends_and_marks(monkeypatch):

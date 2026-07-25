@@ -73,9 +73,17 @@ class _FakeDoc:
 class _Recorder:
     def __init__(self):
         self.replies = []
+        self.photos = []
+        self.documents = []
 
     async def reply_text(self, text, **kw):
         self.replies.append(text)
+
+    async def reply_photo(self, photo, **kw):
+        self.photos.append(getattr(photo, "name", "photo"))
+
+    async def reply_document(self, document, **kw):
+        self.documents.append(getattr(document, "name", "document"))
 
 
 class _FakeUpdate:
@@ -108,6 +116,12 @@ class _FakeMessage:
     async def reply_text(self, text, **kw):
         await self.recorder.reply_text(text, **kw)
 
+    async def reply_photo(self, photo, **kw):
+        await self.recorder.reply_photo(photo, **kw)
+
+    async def reply_document(self, document, **kw):
+        await self.recorder.reply_document(document, **kw)
+
 
 class _FakeCtx:
     class _Bot:
@@ -119,6 +133,9 @@ class _FakeCtx:
 class _ImgAgent:
     channel = None
 
+    def __init__(self, attachments=None):
+        self._atts = attachments or []
+
     def handle_image(self, channel, chat_id, image_bytes, caption, display_name=None):
         assert image_bytes == b"imgbytes"
         return f"saw image (caption={caption})"
@@ -126,6 +143,13 @@ class _ImgAgent:
     def handle_voice(self, channel, chat_id, audio_bytes, mime, display_name=None):
         assert audio_bytes == b"oggbytes"
         return f"heard voice (mime={mime})"
+
+    def handle_message(self, channel, chat_id, text, display_name=None):
+        return "here's your diagram"
+
+    def take_attachments(self, channel, chat_id):
+        atts, self._atts = self._atts, []
+        return atts
 
 
 def test_photo_handler_routes_to_handle_image():
@@ -148,6 +172,18 @@ def test_non_image_document_declined_gracefully():
     msg = _FakeMessage(document=_FakeDoc("application/pdf"))
     asyncio.run(a._on_document(_FakeUpdate(msg), _FakeCtx()))
     assert any("can't read files like that yet" in r.lower() for r in msg.recorder.replies)
+
+
+def test_text_handler_sends_schematic_attachment_as_photo(tmp_path):
+    png = tmp_path / "schematic.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n fake")
+    a = TelegramAdapter(agent=_ImgAgent(attachments=[str(png)]), token="x:y", allowed_ids=[])
+    msg = _FakeMessage()
+    msg.text = "draw my system"
+    asyncio.run(a._on_text(_FakeUpdate(msg), _FakeCtx()))
+    assert any("diagram" in r for r in msg.recorder.replies)   # text reply
+    assert len(msg.recorder.photos) == 1                       # + the image, inline
+    assert msg.recorder.photos[0].endswith("schematic.png")
 
 
 def test_voice_handler_routes_to_handle_voice():

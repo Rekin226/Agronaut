@@ -17,6 +17,7 @@ python-telegram-bot[job-queue]>=21  # Telegram bot (agronaut_agent/channels/tele
 # faster-whisper                    # OPTIONAL: local speech-to-text for voice notes (ASR_PROVIDER=local). Install only for voice; offline after first model download.
 # langchain-openai                  # OPTIONAL: self-hosted OpenAI-compatible tool-calling backend (LLM_PROVIDER=openai_compat, e.g. vLLM/llama.cpp). Zero-proprietary-API path.
 faiss-cpu
+Pillow                              # renders the PNG system schematic (aqua_model/schematic.py to_png)
 openpyxl
 streamlit
 markdown
