@@ -106,6 +106,10 @@ def render_calculator() -> None:
             grow_area = st.number_input("Grow area (m²)", min_value=0.1, value=6.0, step=0.5)
             temperature = st.number_input("Mean water temp (°C)", min_value=0.0, max_value=45.0, value=26.0, step=0.5)
             water_budget = st.number_input("Water budget (L/day)", min_value=0.0, value=200.0, step=10.0)
+            system_type = st.selectbox(
+                "Growing method", facts.available_system_types(),
+                help="raft/DWC (forgiving, more water), NFT (light, low water, needs reliable "
+                     "power), or media bed (robust, also biofilters).")
         submitted = st.form_submit_button("Size system", use_container_width=True)
 
     if not submitted:
@@ -116,6 +120,7 @@ def render_calculator() -> None:
         design = facts.design_from_form(
             fish_species=species, crop=crop, grow_area_m2=grow_area,
             temperature_c=temperature, water_budget_lpd=water_budget,
+            system_type=system_type,
         )
     except facts.ValidationError as err:
         st.error("Invalid inputs:\n" + "\n".join(f"- {e}" for e in err.errors))

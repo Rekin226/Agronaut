@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from . import coefficients as C
 from .crops import get_crop
+from .system_types import get_system_type
 from .types import CoefficientUse, HydroponicInput, HydroponicOutput
 
 # What this hydroponics v1 does NOT model. Distinct from the aquaponics list — no fish,
@@ -46,12 +47,13 @@ def _ec_coeff(crop):
 
 def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
     crop = get_crop(design.crop)
+    system = get_system_type(design.system_type)
 
     # 1. ET drives daily solution consumption (the dominant water term in a covered system).
     daily_water_use = design.grow_area_m2 * C.EVAPOTRANSPIRATION_RATE.value
 
-    # 2. Reservoir (solution) volume = bed water (area x depth) + sump headroom. No fish tank.
-    bed_water_m3 = design.grow_area_m2 * C.RAFT_WATER_DEPTH.value
+    # 2. Reservoir (solution) volume = bed water (area x method depth) + sump headroom.
+    bed_water_m3 = design.grow_area_m2 * system.water_depth_m
     reservoir_m3 = bed_water_m3 / (1.0 - C.SUMP_FRACTION.value)
     reservoir_l = reservoir_m3 * 1000.0
 
@@ -75,6 +77,8 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
 
     out = HydroponicOutput(
         feasible=True,
+        system_type=system.key,
+        grow_bed_label=system.grow_bed_label,
         grow_area_m2=design.grow_area_m2,
         reservoir_volume_l=round(reservoir_l, 1),
         daily_water_use_lpd=round(daily_water_use, 1),
@@ -109,20 +113,22 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
         "temperature_target_c": [crop.temp_min_c, crop.temp_max_c],
         "dissolved_oxygen_min_mg_l": 5.0,
     }
-    out.bill_of_materials = _bill_of_materials(out, crop)
+    out.bill_of_materials = _bill_of_materials(out, crop, system)
     out.maintenance_checklist = _maintenance_checklist()
-    out.assumptions = _assumptions(crop)
-    out.coefficients_used = _coeff_uses(
-        C.EVAPOTRANSPIRATION_RATE, C.RAFT_WATER_DEPTH, C.SUMP_FRACTION,
-        C.PUMP_TURNOVER_RATE, ec,
+    out.assumptions = _assumptions(crop, system)
+    water_depth_coeff = CoefficientUse(
+        f"grow_bed_water_depth ({system.key})", system.water_depth_m,
+        system.water_depth_low, system.water_depth_high, "m", system.source)
+    out.coefficients_used = [water_depth_coeff] + _coeff_uses(
+        C.EVAPOTRANSPIRATION_RATE, C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, ec,
     )
     return out
 
 
-def _bill_of_materials(out: HydroponicOutput, crop) -> list[dict]:
+def _bill_of_materials(out: HydroponicOutput, crop, system) -> list[dict]:
     return [
         {"item": "nutrient reservoir / sump", "spec": f"~{round(out.reservoir_volume_l)} L", "qty": 1},
-        {"item": "DWC raft / NFT channel grow bed", "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
+        {"item": system.grow_bed_item, "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
         {"item": "circulation pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h at head", "qty": 1},
         {"item": "aeration", "spec": "air pump + stones; maintain DO ≥5 mg/L in the root zone", "qty": 1},
         {"item": "nutrient stock (A/B) + pH adjusters", "spec": f"dose to EC "
@@ -141,10 +147,10 @@ def _maintenance_checklist() -> list[str]:
     ]
 
 
-def _assumptions(crop) -> list[str]:
+def _assumptions(crop, system) -> list[str]:
     return [
-        f"Soil-less hydroponic system (DWC/NFT), single crop ({crop.name}), NO fish.",
+        f"Soil-less hydroponic system ({system.name}), single crop ({crop.name}), NO fish.",
         "Nutrients supplied by a complete dosed solution (not fish waste).",
         "Grow area anchors ET-driven water use; rainfall assumed 0 (covered system).",
         "EC band and N/day are seed targets — CALIBRATE against your crop and climate.",
-    ]
+    ] + [f"Method note ({system.key}): {c}" for c in system.considerations]

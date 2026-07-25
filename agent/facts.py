@@ -25,6 +25,11 @@ def available_crops() -> list[str]:
     return sorted(CROPS)
 
 
+def available_system_types() -> list[str]:
+    from aqua_model.system_types import SYSTEM_TYPES
+    return list(SYSTEM_TYPES)
+
+
 def design_from_form(
     fish_species: str,
     crop: str,
@@ -32,6 +37,7 @@ def design_from_form(
     temperature_c: float,
     water_budget_lpd: float,
     source_water_note: str | None = None,
+    system_type: str = "raft",
 ) -> DesignInput:
     """Validate structured form values into a DesignInput. Raises ValidationError on bad input.
 
@@ -44,12 +50,14 @@ def design_from_form(
         temperature_c=temperature_c,
         water_budget_lpd=water_budget_lpd,
         source_water_note=source_water_note,
+        system_type=system_type,
     )
 
 
 __all__ = [
     "available_species",
     "available_crops",
+    "available_system_types",
     "design_from_form",
     "ValidationError",
 ]

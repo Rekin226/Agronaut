@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from .crops import CROPS
 from .species import SPECIES
+from .system_types import SYSTEM_TYPES
 from .types import DesignInput, HydroponicInput
 
 
@@ -36,6 +37,7 @@ def validate_design_input(
     temperature_c,
     water_budget_lpd,
     source_water_note=None,
+    system_type="raft",
 ) -> DesignInput:
     errors: list[str] = []
 
@@ -46,6 +48,8 @@ def validate_design_input(
     crop_key = str(crop or "").strip().lower()
     if crop_key not in CROPS:
         errors.append(f"unknown crop {crop!r}; known: {sorted(CROPS)}")
+
+    system_type_key = _validate_system_type(system_type, errors)
 
     grow_area_m2 = _as_float(grow_area_m2, "grow_area_m2", errors)
     temperature_c = _as_float(temperature_c, "temperature_c", errors)
@@ -75,7 +79,15 @@ def validate_design_input(
         temperature_c=float(temperature_c),
         water_budget_lpd=float(water_budget_lpd),
         source_water_note=source_water_note,
+        system_type=system_type_key,
     )
+
+
+def _validate_system_type(system_type, errors) -> str:
+    key = str(system_type or "raft").strip().lower()
+    if key not in SYSTEM_TYPES:
+        errors.append(f"unknown system_type {system_type!r}; known: {sorted(SYSTEM_TYPES)}")
+    return key
 
 
 def validate_hydroponic_input(
@@ -84,6 +96,7 @@ def validate_hydroponic_input(
     temperature_c,
     water_budget_lpd,
     source_water_note=None,
+    system_type="raft",
 ) -> HydroponicInput:
     """Trust gate for hydroponic sizing — same discipline as validate_design_input, but no
     fish species (nutrients are dosed, not produced by fish)."""
@@ -92,6 +105,8 @@ def validate_hydroponic_input(
     crop_key = str(crop or "").strip().lower()
     if crop_key not in CROPS:
         errors.append(f"unknown crop {crop!r}; known: {sorted(CROPS)}")
+
+    system_type_key = _validate_system_type(system_type, errors)
 
     grow_area_m2 = _as_float(grow_area_m2, "grow_area_m2", errors)
     temperature_c = _as_float(temperature_c, "temperature_c", errors)
@@ -120,6 +135,7 @@ def validate_hydroponic_input(
         temperature_c=float(temperature_c),
         water_budget_lpd=float(water_budget_lpd),
         source_water_note=source_water_note,
+        system_type=system_type_key,
     )
 
 

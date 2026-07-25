@@ -72,6 +72,25 @@ def test_hydroponic_tool_trust_gate_rejects_unknown_crop():
     assert "VALIDATION_FAILED" in out
 
 
+def test_size_tool_accepts_growing_method():
+    raft = size_aquaponics_system.invoke(
+        {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+         "temperature_c": 27, "water_budget_lpd": 5000, "system_type": "nft"})
+    assert "NFT" in raft or "nutrient film" in raft.lower()
+    # unknown method is rejected at the trust gate
+    bad = size_aquaponics_system.invoke(
+        {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
+         "temperature_c": 27, "water_budget_lpd": 5000, "system_type": "sky-farm"})
+    assert "VALIDATION_FAILED" in bad
+
+
+def test_list_supported_includes_growing_methods():
+    out = list_supported_species_and_crops.invoke({})
+    assert "Growing methods" in out
+    for m in ("raft", "nft", "media_bed"):
+        assert m in out
+
+
 def test_size_trust_gate_rejects_unknown_species():
     out = size_aquaponics_system.invoke(
         {"fish_species": "shark", "crop": "lettuce", "grow_area_m2": 12,
