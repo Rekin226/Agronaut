@@ -101,6 +101,30 @@ class WhatsAppAdapter(ChannelAdapter):
             if resp.status_code >= 400:
                 log.warning("whatsapp send failed (%s): %s", resp.status_code, resp.text[:200])
 
+    def send_media(self, to: str, path: str, mime: str = "image/png") -> None:
+        """Send a local file (e.g. a rendered schematic). WhatsApp Cloud API is two steps:
+        upload the media to get an id, then send a message referencing it."""
+        import os
+        with open(path, "rb") as fh:
+            up = requests.post(
+                f"{GRAPH}/{self.phone_number_id}/media",
+                headers={"Authorization": f"Bearer {self.token}"},
+                files={"file": (os.path.basename(path), fh, mime)},
+                data={"messaging_product": "whatsapp", "type": mime},
+                timeout=60,
+            )
+        if up.status_code >= 400:
+            log.warning("whatsapp media upload failed (%s): %s", up.status_code, up.text[:200])
+            return
+        media_id = up.json().get("id")
+        kind = "image" if mime.startswith("image/") else "document"
+        requests.post(
+            f"{GRAPH}/{self.phone_number_id}/messages",
+            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
+            json={"messaging_product": "whatsapp", "to": to, "type": kind, kind: {"id": media_id}},
+            timeout=30,
+        )
+
     # --- routing ---------------------------------------------------------
     def handle_payload(self, payload: dict) -> None:
         for sender, text in self.parse_incoming(payload):
@@ -113,6 +137,11 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("agent.handle_message failed (whatsapp)")
                 reply = "Something went wrong on my side. Try again, or rephrase?"
             self.send_text(sender, reply)
+            for path in self.agent.take_attachments(self.channel_name, uid):
+                try:
+                    self.send_media(sender, path)
+                except Exception:
+                    log.warning("whatsapp media send failed for %s", path, exc_info=True)
 
     def deliver_due_followups(self) -> None:
         try:

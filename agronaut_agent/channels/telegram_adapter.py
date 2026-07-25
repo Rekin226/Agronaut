@@ -71,6 +71,7 @@ class TelegramAdapter(ChannelAdapter):
             "• *Size* a system (species, grow area, water temp, water budget)\n"
             "• *Optimize* the fish/crop ratio for a goal\n"
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
+            "• *Draw* your system as a labeled diagram (just ask me to draw it)\n"
             "• *See* a photo you send (sick fish, yellowing leaves, algae)\n"
             "• *Hear* a voice note and reply in your language\n"
             "• *Remember* your setup across chats\n\n"
@@ -122,6 +123,22 @@ class TelegramAdapter(ChannelAdapter):
             "Done — I've permanently erased all your data: conversation, profile, notes, and "
             "measurements. Nothing about you remains.")
 
+    async def _deliver(self, update: Update, chat_id: str, reply: str) -> None:
+        """Send the text reply, then any files the turn produced (e.g. a schematic).
+        PNG/JPG go as inline photos; anything else as a document."""
+        for part in chunk(reply):
+            await update.message.reply_text(part)
+        for path in self.agent.take_attachments(self.channel_name, chat_id):
+            try:
+                if str(path).lower().endswith((".png", ".jpg", ".jpeg")):
+                    with open(path, "rb") as fh:
+                        await update.message.reply_photo(photo=fh)
+                else:
+                    with open(path, "rb") as fh:
+                        await update.message.reply_document(document=fh)
+            except Exception:
+                log.warning("failed to send attachment %s", path, exc_info=True)
+
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
             return await self._deny(update)
@@ -159,8 +176,7 @@ class TelegramAdapter(ChannelAdapter):
         except Exception:  # never leave the user hanging on an unexpected error
             log.exception("agent.handle_message failed")
             reply = "Something went wrong on my side. Try again, or rephrase?"
-        for part in chunk(reply):
-            await update.message.reply_text(part)
+        await self._deliver(update, chat_id, reply)
 
     async def _on_photo(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -179,8 +195,7 @@ class TelegramAdapter(ChannelAdapter):
         except Exception:
             log.exception("agent.handle_image failed")
             reply = "Something went wrong reading that photo. Try again, or describe what you see?"
-        for part in chunk(reply):
-            await update.message.reply_text(part)
+        await self._deliver(update, chat_id, reply)
 
     async def _on_document(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -201,8 +216,7 @@ class TelegramAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_image (document) failed")
                 reply = "Something went wrong reading that image. Try again, or describe what you see?"
-            for part in chunk(reply):
-                await update.message.reply_text(part)
+            await self._deliver(update, chat_id, reply)
             return
         await update.message.reply_text(
             "I can't read files like that yet — I work with text and photos. Send a photo of "
@@ -227,8 +241,7 @@ class TelegramAdapter(ChannelAdapter):
         except Exception:
             log.exception("agent.handle_voice failed")
             reply = "Something went wrong with that voice note. Try again, or type your message?"
-        for part in chunk(reply):
-            await update.message.reply_text(part)
+        await self._deliver(update, chat_id, reply)
 
     async def _deny(self, update: Update) -> None:
         await update.message.reply_text(

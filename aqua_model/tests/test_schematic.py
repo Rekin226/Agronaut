@@ -63,3 +63,21 @@ def test_svg_has_no_external_references():
     assert "<script" not in low
     assert "<image" not in low and "xlink:href" not in low
     assert "url(http" not in low and "@import" not in low
+
+
+def test_to_png_returns_a_valid_png_image():
+    import io
+    from PIL import Image
+    from aqua_model.schematic import to_png
+
+    for out in (_aqua(), _hydro()):
+        data = to_png(out)
+        assert isinstance(data, (bytes, bytearray)) and data[:8] == b"\x89PNG\r\n\x1a\n"
+        img = Image.open(io.BytesIO(data))
+        img.load()                                  # raises if corrupt
+        assert img.width > 200 and img.height > 100
+
+
+def test_to_png_is_deterministic():
+    from aqua_model.schematic import to_png
+    assert to_png(_aqua()) == to_png(_aqua())
