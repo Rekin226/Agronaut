@@ -26,6 +26,7 @@ def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = No
     lines.append("## Inputs\n")
     lines.append(f"- Fish species: **{design.fish_species}**")
     lines.append(f"- Crop: **{design.crop}**")
+    lines.append(f"- Growing method: **{out.grow_bed_label}**")
     lines.append(f"- Grow area: **{design.grow_area_m2} m²**")
     lines.append(f"- Mean water temperature: **{design.temperature_c} °C**")
     lines.append(f"- Water budget: **{design.water_budget_lpd} L/day**")

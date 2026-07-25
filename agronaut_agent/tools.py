@@ -70,6 +70,7 @@ def size_aquaponics_system(
     temperature_c: float,
     water_budget_lpd: float,
     source_water_note: str | None = None,
+    system_type: str = "raft",
 ) -> str:
     """Size ONE aquaponics system deterministically from fixed inputs. Returns tank,
     biofilter and pump sizing, fish count/biomass/feed, bill of materials, operating
@@ -79,15 +80,19 @@ def size_aquaponics_system(
     fish_species: one of tilapia, clarias, channel_catfish, trout, carp.
     crop: one of the supported crops (30+, from leafy greens and herbs to fruiting crops
         like tomato, cucumber, strawberry). Call list_supported_species_and_crops if unsure.
-    grow_area_m2: planted raft/DWC area (the anchor).
+    grow_area_m2: planted area (the anchor).
     temperature_c: mean water temperature.
     water_budget_lpd: makeup water available per day, litres.
     source_water_note: optional salinity/quality caveat.
+    system_type: the GROWING METHOD, matching the user's preference: 'raft' (deep-water
+        culture, the default — forgiving, high water volume), 'nft' (nutrient film — light,
+        low water, needs reliable power), or 'media_bed' (flood & drain — robust, also
+        provides biofiltration). Ask the user which they want if they have a preference.
     """
     try:
         design = validate_design_input(
             fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd,
-            _clean_optional(source_water_note),
+            _clean_optional(source_water_note), system_type,
         )
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
@@ -113,6 +118,7 @@ def size_hydroponic_system_tool(
     temperature_c: float,
     water_budget_lpd: float,
     source_water_note: str | None = None,
+    system_type: str = "raft",
 ) -> str:
     """Size ONE HYDROPONIC (soil-less, NO fish) system deterministically. Use this when the
     user wants plants only — nutrients dosed as salts, not from fish. Returns the nutrient
@@ -121,15 +127,17 @@ def size_hydroponic_system_tool(
     coefficients used, and what is NOT modeled. For fish+plants use size_aquaponics_system.
 
     crop: one of the supported crops (call list_supported_species_and_crops if unsure).
-    grow_area_m2: planted DWC/NFT area (the anchor).
+    grow_area_m2: planted area (the anchor).
     temperature_c: mean ambient/solution temperature.
     water_budget_lpd: makeup water available per day, litres.
     source_water_note: optional salinity/quality caveat.
+    system_type: growing method — 'raft' (deep-water culture, default), 'nft' (nutrient
+        film — light, low water), or 'media_bed'. Match the user's preference.
     """
     try:
         design = validate_hydroponic_input(
             crop, grow_area_m2, temperature_c, water_budget_lpd,
-            _clean_optional(source_water_note),
+            _clean_optional(source_water_note), system_type,
         )
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)
@@ -178,12 +186,15 @@ def optimize_fish_crop_ratio(
 
 @tool
 def list_supported_species_and_crops() -> str:
-    """List the fish species, crops, and optimization objectives Agronaut supports. Call
-    this before sizing if unsure whether something the user named is supported."""
+    """List the fish species, crops, growing methods, and optimization objectives Agronaut
+    supports. Call this before sizing if unsure whether something the user named is supported."""
+    from aqua_model.system_types import SYSTEM_TYPES
     fish = ", ".join(sorted(SPECIES))
     crops = ", ".join(sorted(CROPS))
     objs = ", ".join(OBJECTIVES)
-    return f"Fish species: {fish}\nCrops: {crops}\nOptimization objectives: {objs}"
+    methods = ", ".join(f"{k} ({SYSTEM_TYPES[k].name})" for k in sorted(SYSTEM_TYPES))
+    return (f"Fish species: {fish}\nCrops: {crops}\nGrowing methods: {methods}\n"
+            f"Optimization objectives: {objs}")
 
 
 @tool
@@ -262,11 +273,13 @@ def render_system_schematic(
     temperature_c: float,
     water_budget_lpd: float,
     fish_species: str | None = None,
+    system_type: str = "raft",
 ) -> str:
     """DRAW a labeled diagram of the system and send it to the user as an image. Use when the
     user asks to see, draw, or picture their system, or wants a schematic/diagram. Provide
     fish_species for an AQUAPONIC system (fish + plants); omit it for a HYDROPONIC one
-    (plants only). Same sizing inputs as the sizing tools. The image is generated
+    (plants only). system_type is the growing method ('raft', 'nft', 'media_bed') — the
+    diagram labels reflect it. Same sizing inputs as the sizing tools. The image is generated
     deterministically from the sized design — you do not describe it, just call this."""
     import os
     import tempfile
@@ -274,10 +287,12 @@ def render_system_schematic(
     fish = _clean_optional(fish_species)
     try:
         if fish:
-            design = validate_design_input(fish, crop, grow_area_m2, temperature_c, water_budget_lpd)
+            design = validate_design_input(fish, crop, grow_area_m2, temperature_c,
+                                           water_budget_lpd, None, system_type)
             out = size_system(design)
         else:
-            design = validate_hydroponic_input(crop, grow_area_m2, temperature_c, water_budget_lpd)
+            design = validate_hydroponic_input(crop, grow_area_m2, temperature_c,
+                                               water_budget_lpd, None, system_type)
             out = size_hydroponic_system(design)
     except ValidationError as err:
         return serialize.serialize_validation_error(err.errors)

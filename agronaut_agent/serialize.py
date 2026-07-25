@@ -27,7 +27,7 @@ def serialize_validation_error(errors: list[str]) -> str:
 def serialize_design_output(out: DesignOutput) -> str:
     lines: list[str] = []
     if out.feasible:
-        lines.append("FEASIBLE design.")
+        lines.append(f"FEASIBLE design ({out.grow_bed_label}).")
     else:
         lines.append(f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
 
@@ -77,7 +77,7 @@ def serialize_design_output(out: DesignOutput) -> str:
 
 def serialize_hydroponic_output(out: HydroponicOutput) -> str:
     lines: list[str] = []
-    lines.append("FEASIBLE hydroponic design." if out.feasible
+    lines.append(f"FEASIBLE hydroponic design ({out.grow_bed_label})." if out.feasible
                  else f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
     lines.append(
         "Sizing (no fish — nutrient solution): "

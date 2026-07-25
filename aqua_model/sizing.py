@@ -24,6 +24,7 @@ from . import massbalance as mb
 from .crops import get_crop
 from .overrides import validate_overrides, apply_overrides
 from .species import get_species, temperature_feed_factor
+from .system_types import get_system_type
 from .types import CoefficientUse, DesignInput, DesignOutput
 
 # What this v1 model does NOT account for. Every output carries this so a design can
@@ -48,6 +49,7 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
         validate_overrides(overrides)
     species = get_species(design.fish_species)
     crop = get_crop(design.crop)
+    system = get_system_type(design.system_type)
     species, crop = apply_overrides(species=species, crop=crop, overrides=overrides)
 
     # 1. FRR sizes feed from grow area (the anchor).
@@ -66,9 +68,10 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     rearing_tank_volume_m3 = fish_biomass_kg / species.stocking_density_kg_m3
     rearing_tank_volume_l = rearing_tank_volume_m3 * 1000.0
 
-    # 5. System volume = rearing tank + raft water + sump.
-    raft_water_m3 = design.grow_area_m2 * C.RAFT_WATER_DEPTH.value
-    subtotal_m3 = rearing_tank_volume_m3 + raft_water_m3
+    # 5. System volume = rearing tank + grow-bed water + sump. The grow-bed water depth is
+    #    the method's (raft is deep, NFT a thin film, media bed the void space).
+    bed_water_m3 = design.grow_area_m2 * system.water_depth_m
+    subtotal_m3 = rearing_tank_volume_m3 + bed_water_m3
     system_volume_m3 = subtotal_m3 / (1.0 - C.SUMP_FRACTION.value)
     system_volume_l = system_volume_m3 * 1000.0
 
@@ -88,6 +91,8 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
 
     out = DesignOutput(
         feasible=True,
+        system_type=system.key,
+        grow_bed_label=system.grow_bed_label,
         system_volume_l=round(system_volume_l, 1),
         rearing_tank_volume_l=round(rearing_tank_volume_l, 1),
         fish_count=fish_count,
@@ -126,11 +131,15 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
         )
 
     out.operating_envelope = _operating_envelope(species, crop, design)
-    out.bill_of_materials = _bill_of_materials(out)
+    out.bill_of_materials = _bill_of_materials(out, system)
     out.maintenance_checklist = _maintenance_checklist()
-    out.assumptions = _assumptions(species, crop, temp_factor)
-    out.coefficients_used = _coeff_uses(
-        C.N_FRACTION_OF_PROTEIN, C.PLANT_N_UPTAKE_FRACTION, C.RAFT_WATER_DEPTH,
+    out.assumptions = _assumptions(species, crop, temp_factor, system)
+    # A method-specific water-depth coefficient replaces the raft default in the citation list.
+    water_depth_coeff = CoefficientUse(
+        f"grow_bed_water_depth ({system.key})", system.water_depth_m,
+        system.water_depth_low, system.water_depth_high, "m", system.source)
+    out.coefficients_used = [water_depth_coeff] + _coeff_uses(
+        C.N_FRACTION_OF_PROTEIN, C.PLANT_N_UPTAKE_FRACTION,
         C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, C.NITRIFICATION_RATE,
         C.EVAPOTRANSPIRATION_RATE, C.TANK_EVAPORATION_RATE, C.SAFETY_FACTOR,
     )
@@ -153,12 +162,15 @@ def species_ph_low(crop) -> float:
     return crop.ph_min
 
 
-def _bill_of_materials(out: DesignOutput) -> list[dict]:
+def _bill_of_materials(out: DesignOutput, system) -> list[dict]:
+    biofilter_spec = f"~{out.biofilter_media_m2} m2 surface"
+    if system.provides_biofiltration:
+        biofilter_spec += " (the media bed also nitrifies — a separate biofilter may be reduced)"
     return [
         {"item": "rearing tank", "spec": f"~{round(out.rearing_tank_volume_l)} L", "qty": 1},
-        {"item": "raft / DWC grow bed", "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
+        {"item": system.grow_bed_item, "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
         {"item": "water pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h at head", "qty": 1},
-        {"item": "biofilter media", "spec": f"~{out.biofilter_media_m2} m2 surface", "qty": 1},
+        {"item": "biofilter media", "spec": biofilter_spec, "qty": 1},
         {"item": "aeration", "spec": "air pump + stones; maintain DO ≥5 mg/L", "qty": 1},
         {"item": "fish (fingerlings)", "spec": f"~{out.fish_count} head", "qty": out.fish_count},
     ]
@@ -174,11 +186,12 @@ def _maintenance_checklist() -> list[str]:
     ]
 
 
-def _assumptions(species, crop, temp_factor) -> list[str]:
+def _assumptions(species, crop, temp_factor, system) -> list[str]:
     return [
-        f"Raft/DWC system, single fish species ({species.name}), single crop ({crop.name}).",
+        f"{system.name.capitalize()} system, single fish species ({species.name}), "
+        f"single crop ({crop.name}).",
         "Steady-state average biomass (no cohort/harvest scheduling).",
         f"Feeding scaled to {round(temp_factor * 100)}% for the given mean temperature.",
         "Coefficients are seed defaults — CALIBRATE against a real system before building.",
         "Rainfall assumed 0 (covered/controlled system).",
-    ]
+    ] + [f"Method note ({system.key}): {c}" for c in system.considerations]

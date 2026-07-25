@@ -21,10 +21,11 @@ class DesignInput:
 
     fish_species: str          # must exist in species.SPECIES
     crop: str                  # must exist in crops.CROPS
-    grow_area_m2: float        # the anchor; effective raft/DWC planted area
+    grow_area_m2: float        # the anchor; effective planted area
     temperature_c: float       # mean water temperature
     water_budget_lpd: float    # makeup water available per day (sanity-checked)
     source_water_note: str | None = None  # salinity/quality caveat
+    system_type: str = "raft"  # growing method: raft | nft | media_bed (system_types.py)
 
 
 @dataclass(frozen=True)
@@ -33,16 +34,19 @@ class HydroponicInput:
     validate_hydroponic_input — the trust gate — never from raw LLM output."""
 
     crop: str                  # must exist in crops.CROPS
-    grow_area_m2: float        # the anchor; planted DWC/NFT area
+    grow_area_m2: float        # the anchor; planted area
     temperature_c: float       # mean ambient/solution temperature
     water_budget_lpd: float    # makeup water available per day
     source_water_note: str | None = None
+    system_type: str = "raft"  # growing method: raft | nft | media_bed (system_types.py)
 
 
 @dataclass
 class HydroponicOutput:
     feasible: bool
     binding_constraint: str | None = None
+    system_type: str = "raft"
+    grow_bed_label: str = "DWC raft / NFT channel grow bed"
 
     # --- sizing numbers ---
     grow_area_m2: float = 0.0
@@ -82,6 +86,8 @@ class CoefficientUse:
 class DesignOutput:
     feasible: bool
     binding_constraint: str | None = None   # set when infeasible -> nearest-feasible hint
+    system_type: str = "raft"               # growing method used (for labels/schematic)
+    grow_bed_label: str = "raft / DWC grow beds"
 
     # --- sizing numbers ---
     system_volume_l: float = 0.0

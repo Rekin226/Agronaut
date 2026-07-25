@@ -56,14 +56,15 @@ class _Scene:
 
 def _aqua_scene(out: DesignOutput) -> _Scene:
     status = "FEASIBLE" if out.feasible else f"NOT FEASIBLE ({out.binding_constraint})"
-    s = _Scene("Aquaponics System", status)
+    method = (out.system_type or "raft").upper().replace("_", " ")
+    s = _Scene(f"Aquaponics System — {method}", status)
     s.boxes = [
         _Box(40, 90, 180, 90, "Rearing tank (fish)", [
             f"{out.fish_count} fish, {_g(out.fish_biomass_kg)} kg",
             f"~{_g(out.rearing_tank_volume_l)} L", f"feed {_g(out.feed_g_per_day)} g/day"], "#dbeafe"),
         _Box(270, 90, 170, 90, "Biofilter", [
             f"~{_g(out.biofilter_media_m2)} m2 media", "nitrification"], "#e6f4ea"),
-        _Box(490, 90, 190, 90, "Grow beds (raft/DWC)", [
+        _Box(490, 90, 190, 90, out.grow_bed_label, [
             f"{_g(out.grow_area_m2)} m2 planted", f"system {_g(out.system_volume_l)} L"], "#e8f5e9"),
         _Box(270, 250, 170, 80, "Sump + pump", [
             f"pump >={_g(out.pump_turnover_lph)} L/h", f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
@@ -78,13 +79,14 @@ def _aqua_scene(out: DesignOutput) -> _Scene:
 def _hydro_scene(out: HydroponicOutput) -> _Scene:
     status = "FEASIBLE" if out.feasible else f"NOT FEASIBLE ({out.binding_constraint})"
     ec = out.nutrient_target.get("ec_mS_cm", {})
-    s = _Scene("Hydroponic System (no fish)", status)
+    method = (out.system_type or "raft").upper().replace("_", " ")
+    s = _Scene(f"Hydroponic System (no fish) — {method}", status)
     s.boxes = [
         _Box(60, 100, 200, 100, "Nutrient reservoir", [
             f"~{_g(out.reservoir_volume_l)} L solution",
             f"EC {_g(ec.get('low'))}-{_g(ec.get('high'))} mS/cm",
             f"N {_g(out.nutrient_target.get('elemental_n_g_per_day'))} g/day"], "#e0f2fe"),
-        _Box(460, 100, 200, 100, "Grow beds (DWC/NFT)", [
+        _Box(460, 100, 200, 100, out.grow_bed_label, [
             f"{_g(out.grow_area_m2)} m2 planted",
             f"water use {_g(out.daily_water_use_lpd)} L/day"], "#e8f5e9"),
         _Box(260, 270, 200, 80, "Pump", [

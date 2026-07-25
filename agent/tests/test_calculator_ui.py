@@ -16,7 +16,7 @@ def test_calculator_renders_form():
     at = AppTest.from_string(_APP).run(timeout=30)
     assert not at.exception
     assert "Design Calculator" in [s.value for s in at.subheader]
-    assert [sb.label for sb in at.selectbox] == ["Fish species", "Crop"]
+    assert [sb.label for sb in at.selectbox] == ["Fish species", "Crop", "Growing method"]
     assert len(at.number_input) == 3
 
 
