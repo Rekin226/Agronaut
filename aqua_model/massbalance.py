@@ -116,6 +116,21 @@ def water_balance(grow_area_m2: float, tank_surface_m2: float, rainfall_lpd: flo
     }
 
 
+def pump_hydraulics(pump_turnover_lph: float, system) -> tuple[float, float]:
+    """Total dynamic head (m) and estimated electrical power (W) for the recirculation pump.
+
+    Head = static lift (the method's, sump surface to highest discharge) raised by a friction
+    allowance for pipework. Power = ρ g Q H / efficiency — a running-power estimate, not a
+    pump-curve spec. This is why a tower (high lift) costs more to run than a raft at the same
+    flow: power scales with head.
+    """
+    head_m = system.lift_height_m * (1.0 + C.FRICTION_HEAD_FRACTION.value)
+    q_m3_s = pump_turnover_lph / 1000.0 / 3600.0
+    hydraulic_w = 1000.0 * 9.81 * q_m3_s * head_m   # ρ(kg/m³) · g(m/s²) · Q(m³/s) · H(m)
+    power_w = hydraulic_w / C.PUMP_EFFICIENCY.value
+    return round(head_m, 2), round(power_w, 1)
+
+
 def biofilter_media_m2(feed_g_per_day: float, species: FishSpecies) -> float:
     """Required nitrifying media area, sized to TAN production with a safety factor.
 

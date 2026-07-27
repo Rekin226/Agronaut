@@ -45,8 +45,9 @@ def serialize_design_output(out: DesignOutput) -> str:
         "Sizing: "
         f"feed={_g(out.feed_g_per_day)} g/day, fish={out.fish_count} head, "
         f"biomass={_g(out.fish_biomass_kg)} kg, system_volume={_g(out.system_volume_l)} L, "
-        f"rearing_tank={_g(out.rearing_tank_volume_l)} L, pump={_g(out.pump_turnover_lph)} L/h, "
-        f"makeup_water={_g(out.makeup_water_lpd)} L/day"
+        f"rearing_tank={_g(out.rearing_tank_volume_l)} L, "
+        f"pump={_g(out.pump_turnover_lph)} L/h against {_g(out.pump_head_m)} m head "
+        f"(~{_g(out.pump_power_w)} W), makeup_water={_g(out.makeup_water_lpd)} L/day"
     )
     if out.biofilter_media_m2 is not None:
         lines.append(f"Biofilter media: ~{_g(out.biofilter_media_m2)} m2 surface")
@@ -98,7 +99,9 @@ def serialize_hydroponic_output(out: HydroponicOutput) -> str:
         "Sizing (no fish — nutrient solution): "
         f"grow_area={_g(out.grow_area_m2)} m2, reservoir={_g(out.reservoir_volume_l)} L, "
         f"daily_water_use={_g(out.daily_water_use_lpd)} L/day, "
-        f"makeup_water={_g(out.makeup_water_lpd)} L/day, pump={_g(out.pump_turnover_lph)} L/h"
+        f"makeup_water={_g(out.makeup_water_lpd)} L/day, "
+        f"pump={_g(out.pump_turnover_lph)} L/h against {_g(out.pump_head_m)} m head "
+        f"(~{_g(out.pump_power_w)} W)"
     )
     nt = out.nutrient_target
     if nt:

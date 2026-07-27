@@ -96,6 +96,23 @@ PUMP_TURNOVER_RATE = Coefficient(
     value=1.0, low=0.5, high=2.0, unit="system volumes / hour", source="FAO589",
 )
 
+# Pump HEAD: the static lift (per method, see system_types) is raised by this fraction to
+# cover pipe/fitting friction (dynamic head). A rough but standard allowance for the short,
+# low-velocity plumbing of a small recirculating system.
+FRICTION_HEAD_FRACTION = Coefficient(
+    name="friction_head_fraction",
+    value=0.30, low=0.20, high=0.50, unit="fraction of static lift", source="LIT",
+    note="Dynamic (friction) head as a fraction of static lift; size real pipework per layout.",
+)
+
+# Wire-to-water efficiency of a small submersible/pond pump — electrical power in vs hydraulic
+# power out. Low, as these pumps are inefficient; used only to estimate running power/energy.
+PUMP_EFFICIENCY = Coefficient(
+    name="pump_efficiency",
+    value=0.35, low=0.20, high=0.50, unit="dimensionless (wire-to-water)", source="LIT",
+    note="Small submersible pumps are inefficient; a power estimate, not a spec — verify the curve.",
+)
+
 # Biofilter: nitrification rate per m2 of media surface. HIGHLY media- and
 # temperature-dependent; deliberately conservative (low) so we don't undersize.
 NITRIFICATION_RATE = Coefficient(
@@ -132,6 +149,8 @@ def registry() -> dict[str, Coefficient]:
             RAFT_WATER_DEPTH,
             SUMP_FRACTION,
             PUMP_TURNOVER_RATE,
+            FRICTION_HEAD_FRACTION,
+            PUMP_EFFICIENCY,
             NITRIFICATION_RATE,
             EC_TARGET_LEAFY,
             EC_TARGET_FRUITING,
