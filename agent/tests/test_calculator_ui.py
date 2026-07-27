@@ -16,14 +16,15 @@ def test_calculator_renders_form():
     at = AppTest.from_string(_APP).run(timeout=30)
     assert not at.exception
     assert "Design Calculator" in [s.value for s in at.subheader]
-    assert [sb.label for sb in at.selectbox] == ["Fish species", "Crop", "Growing method"]
+    assert [sb.label for sb in at.selectbox] == ["Fish species", "Growing method"]
+    assert [ms.label for ms in at.multiselect] == ["Crops"]
     assert len(at.number_input) == 3
 
 
 def test_calculator_sizes_a_system_on_submit():
     at = AppTest.from_string(_APP).run(timeout=30)
     at.selectbox[0].set_value("tilapia")
-    at.selectbox[1].set_value("lettuce")
+    at.multiselect[0].set_value(["lettuce"])
     at.number_input[0].set_value(6.0)    # grow area
     at.number_input[1].set_value(26.0)   # temperature
     at.number_input[2].set_value(200.0)  # water budget
@@ -37,10 +38,45 @@ def test_calculator_sizes_a_system_on_submit():
     assert "head" in metrics["Fish"]
 
 
+def test_calculator_sizes_a_mixed_bed():
+    at = AppTest.from_string(_APP).run(timeout=30)
+    at.selectbox[0].set_value("tilapia")
+    at.multiselect[0].set_value(["lettuce", "basil"])
+    at.number_input[0].set_value(20.0)   # grow area, split evenly → 10 each
+    at.number_input[1].set_value(26.0)
+    at.number_input[2].set_value(8000.0)
+    at.button[0].click()
+    at.run(timeout=30)
+
+    assert not at.exception
+    assert "Feasible design." in [s.value for s in at.success]
+    captions = " ".join(c.value for c in at.caption)
+    assert "Mixed bed" in captions and "lettuce" in captions and "basil" in captions
+    # feed = 10*60 (lettuce) + 10*85 (basil) = 1450 g/day
+    assert {m.label: m.value for m in at.metric}["Feed"] == "1450 g/day"
+
+
+def test_calculator_vertical_tower_shows_floor_footprint():
+    at = AppTest.from_string(_APP).run(timeout=30)
+    at.selectbox[0].set_value("tilapia")
+    at.selectbox[1].set_value("vertical_tower")
+    at.multiselect[0].set_value(["lettuce"])
+    at.number_input[0].set_value(12.0)
+    at.number_input[1].set_value(26.0)
+    at.number_input[2].set_value(3000.0)
+    at.button[0].click()
+    at.run(timeout=30)
+
+    assert not at.exception
+    metrics = {m.label: m.value for m in at.metric}
+    assert "Floor footprint" in metrics
+    assert metrics["Floor footprint"] == "4 m²"    # 12 m² grow / 3.0 ratio
+
+
 def test_calculator_shows_reality_check_vs_real_ponds():
     at = AppTest.from_string(_APP).run(timeout=30)
     at.selectbox[0].set_value("tilapia")
-    at.selectbox[1].set_value("lettuce")
+    at.multiselect[0].set_value(["lettuce"])
     at.number_input[0].set_value(6.0)
     at.number_input[1].set_value(26.0)
     at.number_input[2].set_value(200.0)
@@ -57,7 +93,7 @@ def test_calculator_shows_reality_check_vs_real_ponds():
 def test_calculator_shows_basil_frr_calibration():
     at = AppTest.from_string(_APP).run(timeout=30)
     at.selectbox[0].set_value("tilapia")
-    at.selectbox[1].set_value("basil")
+    at.multiselect[0].set_value(["basil"])
     at.number_input[0].set_value(6.0)
     at.number_input[1].set_value(26.0)
     at.number_input[2].set_value(200.0)
@@ -74,7 +110,7 @@ def test_calculator_shows_basil_frr_calibration():
 def test_calculator_flags_infeasible_water_budget():
     at = AppTest.from_string(_APP).run(timeout=30)
     at.selectbox[0].set_value("tilapia")
-    at.selectbox[1].set_value("lettuce")
+    at.multiselect[0].set_value(["lettuce"])
     at.number_input[0].set_value(50.0)   # large area
     at.number_input[1].set_value(28.0)
     at.number_input[2].set_value(10.0)   # tiny water budget
