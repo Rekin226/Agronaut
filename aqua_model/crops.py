@@ -187,14 +187,16 @@ CELERY = Crop(
     name="celery", category="leafy",
     frr_g_per_m2_day=70.0, frr_low=50.0, frr_high=95.0,
     n_uptake_g_per_m2_day=0.9,
-    yield_kg_per_m2_year=25.0, edible_protein_pct=0.7,
+    # Yield moderated 25→18: long-season (~120 d) head crop, ~4-6 kg/m2/cycle × ~2-3 cycles/yr.
+    yield_kg_per_m2_year=18.0, edible_protein_pct=0.7,
     ph_min=6.0, ph_max=6.8, temp_min_c=15.0, temp_max_c=24.0, source="FAO589/UVI (leafy band)",
 )
 CABBAGE = Crop(
     name="cabbage", category="leafy",
     frr_g_per_m2_day=80.0, frr_low=55.0, frr_high=100.0,
     n_uptake_g_per_m2_day=1.1,
-    yield_kg_per_m2_year=30.0, edible_protein_pct=1.3,
+    # Yield moderated 30→20: field top ~75 t/ha = 7.5 kg/m2/head-crop, ~2-3 cycles/yr (FAO cabbage).
+    yield_kg_per_m2_year=20.0, edible_protein_pct=1.3,
     ph_min=6.0, ph_max=7.2, temp_min_c=7.0, temp_max_c=24.0,
     source="FAO589/UVI (leafy band, high — heavy-feeding brassica)",
 )
@@ -226,8 +228,10 @@ EGGPLANT = Crop(
     name="eggplant", category="fruiting",
     frr_g_per_m2_day=110.0, frr_low=80.0, frr_high=140.0,
     n_uptake_g_per_m2_day=1.5,
-    yield_kg_per_m2_year=25.0, edible_protein_pct=1.0,
-    ph_min=5.5, ph_max=6.5, temp_min_c=20.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
+    # Yield moderated 25→20 (greenhouse ~6.6 kg/m2/crop; aquaponics lower). temp_min 20→18:
+    # tolerates ~16 °C night / ~18 °C day, warm-season but not as heat-strict as okra.
+    yield_kg_per_m2_year=20.0, edible_protein_pct=1.0,
+    ph_min=5.5, ph_max=6.5, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
 )
 GREEN_BEAN = Crop(
     name="green_bean", category="fruiting",
@@ -241,14 +245,17 @@ OKRA = Crop(
     name="okra", category="fruiting",
     frr_g_per_m2_day=95.0, frr_low=80.0, frr_high=125.0,
     n_uptake_g_per_m2_day=1.3,
+    # temp_min 22→20: okra will not tolerate below ~18 °C (65 °F); 20 is the productive floor.
+    # Yield 12 confirmed conservative vs UVI (2.9 t okra/yr ≈ 14 kg/m2 on raft area).
     yield_kg_per_m2_year=12.0, edible_protein_pct=1.9,
-    ph_min=6.0, ph_max=6.8, temp_min_c=22.0, temp_max_c=32.0, source="FAO589 (fruiting band)",
+    ph_min=6.0, ph_max=6.8, temp_min_c=20.0, temp_max_c=32.0, source="FAO589/UVI (fruiting band)",
 )
 ZUCCHINI = Crop(
     name="zucchini", category="fruiting",
     frr_g_per_m2_day=100.0, frr_low=80.0, frr_high=130.0,
     n_uptake_g_per_m2_day=1.4,
-    yield_kg_per_m2_year=35.0, edible_protein_pct=1.2,
+    # Yield moderated 35→28: protected continuous zucchini is high-yielding but 35 was aggressive.
+    yield_kg_per_m2_year=28.0, edible_protein_pct=1.2,
     ph_min=5.5, ph_max=6.8, temp_min_c=18.0, temp_max_c=30.0, source="FAO589 (fruiting band)",
 )
 PEA = Crop(
