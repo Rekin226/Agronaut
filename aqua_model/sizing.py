@@ -85,8 +85,9 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     system_volume_m3 = subtotal_m3 / (1.0 - C.SUMP_FRACTION.value)
     system_volume_l = system_volume_m3 * 1000.0
 
-    # 6. Pump turnover.
+    # 6. Pump turnover (flow) and the head/power it must deliver it against (method lift).
     pump_turnover_lph = system_volume_l * C.PUMP_TURNOVER_RATE.value
+    pump_head_m, pump_power_w = mb.pump_hydraulics(pump_turnover_lph, system)
 
     # 7. Water balance (tank surface approximated from rearing tank at ~1 m depth).
     tank_surface_m2 = rearing_tank_volume_m3 / 1.0
@@ -120,6 +121,8 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
         feed_g_per_day=round(feed_g_per_day, 1),
         grow_area_m2=design.grow_area_m2,
         pump_turnover_lph=round(pump_turnover_lph, 1),
+        pump_head_m=pump_head_m,
+        pump_power_w=pump_power_w,
         biofilter_media_m2=media_m2,
         makeup_water_lpd=makeup_lpd,
         nitrogen_check=n_check,
@@ -164,9 +167,13 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     water_depth_coeff = CoefficientUse(
         f"grow_bed_water_depth ({system.key})", system.water_depth_m,
         system.water_depth_low, system.water_depth_high, "m", system.source)
-    out.coefficients_used = [water_depth_coeff] + _coeff_uses(
+    lift_coeff = CoefficientUse(
+        f"pump_lift_height ({system.key})", system.lift_height_m,
+        system.lift_low, system.lift_high, "m", system.source)
+    out.coefficients_used = [water_depth_coeff, lift_coeff] + _coeff_uses(
         C.N_FRACTION_OF_PROTEIN, C.PLANT_N_UPTAKE_FRACTION,
-        C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, C.NITRIFICATION_RATE,
+        C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, C.FRICTION_HEAD_FRACTION,
+        C.PUMP_EFFICIENCY, C.NITRIFICATION_RATE,
         C.EVAPOTRANSPIRATION_RATE, C.TANK_EVAPORATION_RATE, C.SAFETY_FACTOR,
     )
     return out
@@ -220,7 +227,8 @@ def _bill_of_materials(out: DesignOutput, system) -> list[dict]:
     return [
         {"item": "rearing tank", "spec": f"~{round(out.rearing_tank_volume_l)} L", "qty": 1},
         {"item": system.grow_bed_item, "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
-        {"item": "water pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h at head", "qty": 1},
+        {"item": "water pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h against "
+         f"~{out.pump_head_m} m head (~{round(out.pump_power_w)} W electrical)", "qty": 1},
         {"item": "biofilter media", "spec": biofilter_spec, "qty": 1},
         {"item": "aeration", "spec": "air pump + stones; maintain DO ≥5 mg/L", "qty": 1},
         {"item": "fish (fingerlings)", "spec": f"~{out.fish_count} head", "qty": out.fish_count},

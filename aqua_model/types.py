@@ -63,6 +63,8 @@ class HydroponicOutput:
     daily_water_use_lpd: float = 0.0    # ET-driven solution consumption
     makeup_water_lpd: float = 0.0
     pump_turnover_lph: float = 0.0
+    pump_head_m: float = 0.0            # total dynamic head the pump works against
+    pump_power_w: float = 0.0           # estimated electrical power at that flow + head
 
     # --- nutrient solution (the hydroponics-specific part) ---
     nutrient_target: dict = field(default_factory=dict)  # EC band + elemental-N/day
@@ -111,6 +113,8 @@ class DesignOutput:
     feed_g_per_day: float = 0.0
     grow_area_m2: float = 0.0
     pump_turnover_lph: float = 0.0
+    pump_head_m: float = 0.0                 # total dynamic head the pump works against
+    pump_power_w: float = 0.0                # estimated electrical power at that flow + head
     biofilter_media_m2: float | None = None
     makeup_water_lpd: float = 0.0
 

@@ -29,6 +29,11 @@ class SystemType:
     # m² of GROWING area packed onto 1 m² of FLOOR. 1.0 for flat beds (footprint == grow area);
     # >1 for stacked/tower systems that trade vertical structure for floor space.
     footprint_ratio: float = 1.0
+    # Static lift (m) the pump must raise water — sump surface to the highest discharge point.
+    # Flat beds lift water a little above the sump; towers lift it to the top of every tower.
+    lift_height_m: float = 0.5
+    lift_low: float = 0.3
+    lift_high: float = 0.8
 
 
 RAFT = SystemType(
@@ -41,6 +46,7 @@ RAFT = SystemType(
         "Highest water volume of the three methods (more makeup water to warm/cool).",
     ],
     source="FAO589",
+    lift_height_m=0.4, lift_low=0.3, lift_high=0.6,
 )
 
 NFT = SystemType(
@@ -55,6 +61,7 @@ NFT = SystemType(
         "Best for lightweight leafy greens and herbs; heavy fruiting crops need support.",
     ],
     source="LIT",
+    lift_height_m=0.8, lift_low=0.5, lift_high=1.2,
 )
 
 MEDIA_BED = SystemType(
@@ -69,6 +76,7 @@ MEDIA_BED = SystemType(
         "Effective water volume is the void space in the media (~40%), between raft and NFT.",
     ],
     source="LIT",
+    lift_height_m=0.6, lift_low=0.4, lift_high=0.9,
 )
 
 VERTICAL_TOWER = SystemType(
@@ -80,12 +88,13 @@ VERTICAL_TOWER = SystemType(
         "Packs roughly 3 m2 of growing face onto 1 m2 of floor — the most space-efficient "
         "method, for growers where land or floor area is the binding constraint.",
         "Needs a vertical frame and even top-down water distribution; the pump must LIFT water "
-        "to the top of every tower, so size it for the extra head, not just turnover.",
+        "to the top of every tower — the design sizes the pump for that head and its power.",
         "Thin film with little buffering, and towers self-shade — best for light leafy greens, "
         "herbs, and strawberries; heavy fruiting crops are a poor fit.",
     ],
     source="LIT",
     footprint_ratio=3.0,  # ~2-4 m2 grow face per m2 floor; 3.0 is a conservative mid value
+    lift_height_m=2.0, lift_low=1.5, lift_high=2.5,  # top of a ~2 m tower
 )
 
 SYSTEM_TYPES = {st.key: st for st in (RAFT, NFT, MEDIA_BED, VERTICAL_TOWER)}

@@ -42,6 +42,7 @@ def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = No
     lines.append(f"| Rearing tank | {out.rearing_tank_volume_l} L |")
     lines.append(f"| System volume | {out.system_volume_l} L |")
     lines.append(f"| Pump turnover | {out.pump_turnover_lph} L/h |")
+    lines.append(f"| Pump head / power | ~{out.pump_head_m} m (~{round(out.pump_power_w)} W electrical) |")
     lines.append(f"| Biofilter media | {out.biofilter_media_m2} m² |")
     lines.append(f"| Makeup water | {out.makeup_water_lpd} L/day |")
     lines.append("")

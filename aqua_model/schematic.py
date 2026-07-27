@@ -81,8 +81,10 @@ def _aqua_scene(out: DesignOutput) -> _Scene:
             f"~{_g(out.biofilter_media_m2)} m2 media", "nitrification"], "#e6f4ea"),
         _Box(490, 90, 190, 90, out.grow_bed_label,
              _grow_bed_lines(out), "#e8f5e9"),
-        _Box(270, 250, 170, 80, "Sump + pump", [
-            f"pump >={_g(out.pump_turnover_lph)} L/h", f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
+        _Box(270, 250, 170, 90, "Sump + pump", [
+            f"pump >={_g(out.pump_turnover_lph)} L/h",
+            f"{_g(out.pump_head_m)} m head, ~{_g(out.pump_power_w)} W",
+            f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
     ]
     s.arrows = [
         _Arrow(220, 135, 270, 135, "water"), _Arrow(440, 135, 490, 135, "nitrate"),
@@ -105,8 +107,10 @@ def _hydro_scene(out: HydroponicOutput) -> _Scene:
             f"{_g(out.grow_area_m2)} m2 planted"]
             + ([f"floor {_g(out.footprint_m2)} m2"] if out.footprint_ratio != 1.0 else [])
             + [f"water use {_g(out.daily_water_use_lpd)} L/day"], "#e8f5e9"),
-        _Box(260, 270, 200, 80, "Pump", [
-            f">={_g(out.pump_turnover_lph)} L/h", f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
+        _Box(260, 270, 200, 90, "Pump", [
+            f">={_g(out.pump_turnover_lph)} L/h",
+            f"{_g(out.pump_head_m)} m head, ~{_g(out.pump_power_w)} W",
+            f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
     ]
     s.arrows = [
         _Arrow(260, 150, 460, 150, "dosed solution"),

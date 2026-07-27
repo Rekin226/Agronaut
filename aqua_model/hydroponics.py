@@ -20,6 +20,7 @@ HydroponicInput.
 from __future__ import annotations
 
 from . import coefficients as C
+from . import massbalance as mb
 from .crops import get_crop
 from .system_types import get_system_type
 from .types import CoefficientUse, HydroponicInput, HydroponicOutput
@@ -57,8 +58,9 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
     reservoir_m3 = bed_water_m3 / (1.0 - C.SUMP_FRACTION.value)
     reservoir_l = reservoir_m3 * 1000.0
 
-    # 3. Pump turnover: circulate the reservoir volume at the standard turnover rate.
+    # 3. Pump turnover (flow) + the head/power it must deliver it against (method lift).
     pump_lph = reservoir_l * C.PUMP_TURNOVER_RATE.value
+    pump_head_m, pump_power_w = mb.pump_hydraulics(pump_lph, system)
 
     # 4. Makeup water = ET consumption (rainfall 0 for a covered system). Evaporative loss
     #    from open canals is folded into the ET range, which is wide and calibrated per site.
@@ -86,6 +88,8 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
         daily_water_use_lpd=round(daily_water_use, 1),
         makeup_water_lpd=makeup_lpd,
         pump_turnover_lph=round(pump_lph, 1),
+        pump_head_m=pump_head_m,
+        pump_power_w=pump_power_w,
         nutrient_target=nutrient_target,
         not_modeled=list(NOT_MODELED),
     )
@@ -121,8 +125,12 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
     water_depth_coeff = CoefficientUse(
         f"grow_bed_water_depth ({system.key})", system.water_depth_m,
         system.water_depth_low, system.water_depth_high, "m", system.source)
-    out.coefficients_used = [water_depth_coeff] + _coeff_uses(
-        C.EVAPOTRANSPIRATION_RATE, C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, ec,
+    lift_coeff = CoefficientUse(
+        f"pump_lift_height ({system.key})", system.lift_height_m,
+        system.lift_low, system.lift_high, "m", system.source)
+    out.coefficients_used = [water_depth_coeff, lift_coeff] + _coeff_uses(
+        C.EVAPOTRANSPIRATION_RATE, C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE,
+        C.FRICTION_HEAD_FRACTION, C.PUMP_EFFICIENCY, ec,
     )
     return out
 
@@ -131,7 +139,8 @@ def _bill_of_materials(out: HydroponicOutput, crop, system) -> list[dict]:
     return [
         {"item": "nutrient reservoir / sump", "spec": f"~{round(out.reservoir_volume_l)} L", "qty": 1},
         {"item": system.grow_bed_item, "spec": f"{out.grow_area_m2} m2 planted area", "qty": 1},
-        {"item": "circulation pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h at head", "qty": 1},
+        {"item": "circulation pump", "spec": f"≥{round(out.pump_turnover_lph)} L/h against "
+         f"~{out.pump_head_m} m head (~{round(out.pump_power_w)} W electrical)", "qty": 1},
         {"item": "aeration", "spec": "air pump + stones; maintain DO ≥5 mg/L in the root zone", "qty": 1},
         {"item": "nutrient stock (A/B) + pH adjusters", "spec": f"dose to EC "
          f"{out.nutrient_target['ec_mS_cm']['low']}–{out.nutrient_target['ec_mS_cm']['high']} mS/cm", "qty": 1},
