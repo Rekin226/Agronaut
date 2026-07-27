@@ -35,6 +35,12 @@ def serialize_design_output(out: DesignOutput) -> str:
         mix = ", ".join(f"{p['crop']} {_g(p['area_m2'])} m2" for p in out.crop_plan)
         lines.append(f"Mixed beds (crops sharing the water): {mix}")
 
+    if out.footprint_ratio != 1.0:
+        lines.append(
+            f"Floor footprint: ~{_g(out.footprint_m2)} m2 of floor for {_g(out.grow_area_m2)} m2 "
+            f"of growing area (vertical towers pack ~{_g(out.footprint_ratio)}x)."
+        )
+
     lines.append(
         "Sizing: "
         f"feed={_g(out.feed_g_per_day)} g/day, fish={out.fish_count} head, "
@@ -83,6 +89,11 @@ def serialize_hydroponic_output(out: HydroponicOutput) -> str:
     lines: list[str] = []
     lines.append(f"FEASIBLE hydroponic design ({out.grow_bed_label})." if out.feasible
                  else f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
+    if out.footprint_ratio != 1.0:
+        lines.append(
+            f"Floor footprint: ~{_g(out.footprint_m2)} m2 of floor for {_g(out.grow_area_m2)} m2 "
+            f"of growing area (vertical towers pack ~{_g(out.footprint_ratio)}x)."
+        )
     lines.append(
         "Sizing (no fish — nutrient solution): "
         f"grow_area={_g(out.grow_area_m2)} m2, reservoir={_g(out.reservoir_volume_l)} L, "

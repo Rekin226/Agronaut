@@ -61,9 +61,12 @@ def _grow_bed_lines(out: DesignOutput) -> list:
         lines = [f"{p['crop']} {_g(p['area_m2'])} m2" for p in out.crop_plan[:3]]
         if len(out.crop_plan) > 3:
             lines.append(f"+{len(out.crop_plan) - 3} more")
-        lines.append(f"system {_g(out.system_volume_l)} L")
-        return lines
-    return [f"{_g(out.grow_area_m2)} m2 planted", f"system {_g(out.system_volume_l)} L"]
+    else:
+        lines = [f"{_g(out.grow_area_m2)} m2 planted"]
+    if out.footprint_ratio and out.footprint_ratio != 1.0:  # towers: growing face on less floor
+        lines.append(f"floor {_g(out.footprint_m2)} m2")
+    lines.append(f"system {_g(out.system_volume_l)} L")
+    return lines
 
 
 def _aqua_scene(out: DesignOutput) -> _Scene:
@@ -99,8 +102,9 @@ def _hydro_scene(out: HydroponicOutput) -> _Scene:
             f"EC {_g(ec.get('low'))}-{_g(ec.get('high'))} mS/cm",
             f"N {_g(out.nutrient_target.get('elemental_n_g_per_day'))} g/day"], "#e0f2fe"),
         _Box(460, 100, 200, 100, out.grow_bed_label, [
-            f"{_g(out.grow_area_m2)} m2 planted",
-            f"water use {_g(out.daily_water_use_lpd)} L/day"], "#e8f5e9"),
+            f"{_g(out.grow_area_m2)} m2 planted"]
+            + ([f"floor {_g(out.footprint_m2)} m2"] if out.footprint_ratio != 1.0 else [])
+            + [f"water use {_g(out.daily_water_use_lpd)} L/day"], "#e8f5e9"),
         _Box(260, 270, 200, 80, "Pump", [
             f">={_g(out.pump_turnover_lph)} L/h", f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
     ]

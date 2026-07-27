@@ -51,6 +51,11 @@ class HydroponicOutput:
     binding_constraint: str | None = None
     system_type: str = "raft"
     grow_bed_label: str = "DWC raft / NFT channel grow bed"
+    footprint_ratio: float = 1.0             # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0                # floor space the system actually occupies
+
+    footprint_ratio: float = 1.0        # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0           # floor space the system actually occupies
 
     # --- sizing numbers ---
     grow_area_m2: float = 0.0
@@ -95,6 +100,8 @@ class DesignOutput:
     # Populated only for mixed beds (>1 crop): [{"crop": name, "area_m2": a}, ...]. Empty for a
     # single-crop design, so single-crop output/serialization is unchanged.
     crop_plan: list = field(default_factory=list)
+    footprint_ratio: float = 1.0             # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0                # floor space the system actually occupies
 
     # --- sizing numbers ---
     system_volume_l: float = 0.0
