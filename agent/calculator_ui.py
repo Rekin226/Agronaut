@@ -100,7 +100,10 @@ def render_calculator() -> None:
         col1, col2 = st.columns(2)
         with col1:
             species = st.selectbox("Fish species", facts.available_species())
-            crop = st.selectbox("Crop", facts.available_crops())
+            crops = st.multiselect(
+                "Crops", facts.available_crops(), default=["lettuce"],
+                help="Pick 2+ for a MIXED BED sharing one system — the grow area is split "
+                     "evenly, and the model warns if the crops can't share one water.")
             site = st.text_input("Site / project name (optional)", "")
         with col2:
             grow_area = st.number_input("Grow area (m²)", min_value=0.1, value=6.0, step=0.5)
@@ -116,12 +119,24 @@ def render_calculator() -> None:
         st.info("Set your inputs and press **Size system**.")
         return
 
+    if not crops:
+        st.error("Pick at least one crop.")
+        return
+
     try:
-        design = facts.design_from_form(
-            fish_species=species, crop=crop, grow_area_m2=grow_area,
-            temperature_c=temperature, water_budget_lpd=water_budget,
-            system_type=system_type,
-        )
+        if len(crops) > 1:
+            design = facts.design_from_form(
+                fish_species=species, crop=None, grow_area_m2=None,
+                temperature_c=temperature, water_budget_lpd=water_budget,
+                system_type=system_type,
+                crop_plan=facts.split_area_evenly(crops, grow_area),
+            )
+        else:
+            design = facts.design_from_form(
+                fish_species=species, crop=crops[0], grow_area_m2=grow_area,
+                temperature_c=temperature, water_budget_lpd=water_budget,
+                system_type=system_type,
+            )
     except facts.ValidationError as err:
         st.error("Invalid inputs:\n" + "\n".join(f"- {e}" for e in err.errors))
         return
@@ -132,6 +147,10 @@ def render_calculator() -> None:
         st.success("Feasible design.")
     else:
         st.warning(f"Not feasible — binding constraint: **{out.binding_constraint}**.")
+
+    if out.crop_plan:
+        st.caption("Mixed bed (crops sharing the water): "
+                   + ", ".join(f"{p['crop']} {p['area_m2']:g} m²" for p in out.crop_plan))
 
     for w in out.warnings:
         st.warning(w)
@@ -144,6 +163,10 @@ def render_calculator() -> None:
     m4.metric("System volume", f"{out.system_volume_l:g} L")
     m5.metric("Pump", f"{out.pump_turnover_lph:g} L/h")
     m6.metric("Makeup water", f"{out.makeup_water_lpd:g} L/day")
+    if out.footprint_ratio != 1.0:
+        st.metric("Floor footprint", f"{out.footprint_m2:g} m²",
+                  help=f"{out.grow_area_m2:g} m² of growing area packed onto the floor "
+                       f"(~{out.footprint_ratio:g}× via vertical towers).")
 
     import base64
     from aqua_model.schematic import to_svg
@@ -171,7 +194,9 @@ def render_calculator() -> None:
             {"name": c.name, "value": c.value, "range": f"{c.low}–{c.high}", "unit": c.unit, "source": c.source}
             for c in out.coefficients_used
         ])
-    _render_coefficient_sources(species, crop)
+    # Coefficient-source panels for each crop in the design (one for a single crop).
+    for c in (crops or []):
+        _render_coefficient_sources(species, c)
 
     report_md = to_markdown(design, out, site=site or None)
     st.download_button(

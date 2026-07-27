@@ -38,10 +38,13 @@ def design_from_form(
     water_budget_lpd: float,
     source_water_note: str | None = None,
     system_type: str = "raft",
+    crop_plan: list[dict] | None = None,
 ) -> DesignInput:
     """Validate structured form values into a DesignInput. Raises ValidationError on bad input.
 
     This is the ONLY way the UI puts numbers into the model — the validation gate, reused.
+    Pass crop_plan (a list of {crop, area_m2}) for a mixed bed; then crop/grow_area_m2 are
+    derived from it and may be None.
     """
     return validate_design_input(
         fish_species=fish_species,
@@ -51,7 +54,16 @@ def design_from_form(
         water_budget_lpd=water_budget_lpd,
         source_water_note=source_water_note,
         system_type=system_type,
+        crop_plan=crop_plan,
     )
+
+
+def split_area_evenly(crops: list[str], grow_area_m2: float) -> list[dict]:
+    """Turn a list of crops + a total area into an even-split crop_plan. The calculator form
+    can't collect per-crop areas reactively inside one submit, so it splits equally; the chat
+    agent (size_mixed_bed_aquaponics) takes explicit per-crop areas for finer control."""
+    per = round(grow_area_m2 / len(crops), 3)
+    return [{"crop": c, "area_m2": per} for c in crops]
 
 
 __all__ = [
@@ -59,5 +71,6 @@ __all__ = [
     "available_crops",
     "available_system_types",
     "design_from_form",
+    "split_area_evenly",
     "ValidationError",
 ]
