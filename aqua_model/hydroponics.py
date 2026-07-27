@@ -79,6 +79,8 @@ def size_hydroponic_system(design: HydroponicInput) -> HydroponicOutput:
         feasible=True,
         system_type=system.key,
         grow_bed_label=system.grow_bed_label,
+        footprint_ratio=system.footprint_ratio,
+        footprint_m2=round(design.grow_area_m2 / system.footprint_ratio, 1),
         grow_area_m2=design.grow_area_m2,
         reservoir_volume_l=round(reservoir_l, 1),
         daily_water_use_lpd=round(daily_water_use, 1),

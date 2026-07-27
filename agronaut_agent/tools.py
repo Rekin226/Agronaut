@@ -86,8 +86,10 @@ def size_aquaponics_system(
     source_water_note: optional salinity/quality caveat.
     system_type: the GROWING METHOD, matching the user's preference: 'raft' (deep-water
         culture, the default — forgiving, high water volume), 'nft' (nutrient film — light,
-        low water, needs reliable power), or 'media_bed' (flood & drain — robust, also
-        provides biofiltration). Ask the user which they want if they have a preference.
+        low water, needs reliable power), 'media_bed' (flood & drain — robust, also provides
+        biofiltration), or 'vertical_tower' (stacked — packs ~3x the growing area onto the
+        floor space, for land-scarce sites; best for leafy greens/herbs). Ask the user which
+        they want if they have a preference.
     """
     try:
         design = validate_design_input(
@@ -327,8 +329,8 @@ def render_system_schematic(
     """DRAW a labeled diagram of the system and send it to the user as an image. Use when the
     user asks to see, draw, or picture their system, or wants a schematic/diagram. Provide
     fish_species for an AQUAPONIC system (fish + plants); omit it for a HYDROPONIC one
-    (plants only). system_type is the growing method ('raft', 'nft', 'media_bed') — the
-    diagram labels reflect it. Same sizing inputs as the sizing tools. The image is generated
+    (plants only). system_type is the growing method ('raft', 'nft', 'media_bed',
+    'vertical_tower') — the diagram labels reflect it (towers also show the floor footprint). Same sizing inputs as the sizing tools. The image is generated
     deterministically from the sized design — you do not describe it, just call this."""
     import os
     import tempfile

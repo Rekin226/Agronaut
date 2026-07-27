@@ -26,6 +26,9 @@ class SystemType:
     grow_bed_item: str
     considerations: list          # honest, method-specific notes surfaced to the operator
     source: str
+    # m² of GROWING area packed onto 1 m² of FLOOR. 1.0 for flat beds (footprint == grow area);
+    # >1 for stacked/tower systems that trade vertical structure for floor space.
+    footprint_ratio: float = 1.0
 
 
 RAFT = SystemType(
@@ -68,7 +71,24 @@ MEDIA_BED = SystemType(
     source="LIT",
 )
 
-SYSTEM_TYPES = {st.key: st for st in (RAFT, NFT, MEDIA_BED)}
+VERTICAL_TOWER = SystemType(
+    key="vertical_tower", name="vertical towers (stacked)",
+    water_depth_m=0.04, water_depth_low=0.02, water_depth_high=0.06,
+    provides_biofiltration=False,
+    grow_bed_label="vertical towers", grow_bed_item="vertical grow towers",
+    considerations=[
+        "Packs roughly 3 m2 of growing face onto 1 m2 of floor — the most space-efficient "
+        "method, for growers where land or floor area is the binding constraint.",
+        "Needs a vertical frame and even top-down water distribution; the pump must LIFT water "
+        "to the top of every tower, so size it for the extra head, not just turnover.",
+        "Thin film with little buffering, and towers self-shade — best for light leafy greens, "
+        "herbs, and strawberries; heavy fruiting crops are a poor fit.",
+    ],
+    source="LIT",
+    footprint_ratio=3.0,  # ~2-4 m2 grow face per m2 floor; 3.0 is a conservative mid value
+)
+
+SYSTEM_TYPES = {st.key: st for st in (RAFT, NFT, MEDIA_BED, VERTICAL_TOWER)}
 DEFAULT_SYSTEM_TYPE = "raft"
 
 
