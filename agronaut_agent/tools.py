@@ -145,6 +145,55 @@ def size_hydroponic_system_tool(
 
 
 @tool
+def size_mixed_bed_aquaponics(
+    fish_species: str,
+    crop_plan: list[dict],
+    temperature_c: float,
+    water_budget_lpd: float,
+    source_water_note: str | None = None,
+    system_type: str = "raft",
+) -> str:
+    """Size ONE aquaponics system whose beds grow SEVERAL crops sharing the same water (a mixed
+    bed). Use this instead of size_aquaponics_system whenever the user wants more than one crop
+    in one system — e.g. "lettuce and basil and a bit of tomato". Feed is summed from each
+    crop's own feeding-rate ratio over its own area, and the system is sized for the total.
+    Returns the same artifacts as size_aquaponics_system, plus a check that WARNS if the crops
+    cannot share one water chemistry (e.g. their pH bands don't overlap) — never averages it
+    away silently. Never state sizing numbers yourself; call this tool.
+
+    fish_species: one of tilapia, clarias, channel_catfish, trout, carp.
+    crop_plan: the mix, as a list of {"crop": <name>, "area_m2": <planted m2>} entries — one per
+        crop. Each crop must be supported (call list_supported_species_and_crops if unsure); each
+        area must be > 0. The total grow area is their sum.
+    temperature_c: mean water temperature.
+    water_budget_lpd: makeup water available per day, litres.
+    source_water_note: optional salinity/quality caveat.
+    system_type: the GROWING METHOD — 'raft' (default), 'nft', or 'media_bed' — matching the
+        user's preference, exactly as in size_aquaponics_system.
+    """
+    try:
+        design = validate_design_input(
+            fish_species, None, None, temperature_c, water_budget_lpd,
+            _clean_optional(source_water_note), system_type, crop_plan=crop_plan,
+        )
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    cur = runtime.get_current()
+    overrides, note = None, ""
+    if cur is not None:
+        _mem, user_id = cur
+        cal = runtime.get_calibration()
+        if cal is not None:
+            overrides = cal.overrides_for(user_id) or None
+            note = _calibration_note(user_id, fish_species)
+    try:
+        sized = serialize.serialize_design_output(size_system(design, overrides=overrides))
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    return sized + note
+
+
+@tool
 def optimize_fish_crop_ratio(
     grow_area_m2: float,
     temperature_c: float,
@@ -477,6 +526,7 @@ def record_measurement(metric: str, value: float) -> str:
 
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
+    size_mixed_bed_aquaponics,
     size_hydroponic_system_tool,
     optimize_fish_crop_ratio,
     list_supported_species_and_crops,

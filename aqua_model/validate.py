@@ -38,6 +38,7 @@ def validate_design_input(
     water_budget_lpd,
     source_water_note=None,
     system_type="raft",
+    crop_plan=None,
 ) -> DesignInput:
     errors: list[str] = []
 
@@ -45,13 +46,19 @@ def validate_design_input(
     if species_key not in SPECIES:
         errors.append(f"unknown fish_species {fish_species!r}; known: {sorted(SPECIES)}")
 
-    crop_key = str(crop or "").strip().lower()
-    if crop_key not in CROPS:
-        errors.append(f"unknown crop {crop!r}; known: {sorted(CROPS)}")
-
     system_type_key = _validate_system_type(system_type, errors)
 
-    grow_area_m2 = _as_float(grow_area_m2, "grow_area_m2", errors)
+    # Mixed beds: a validated crop plan supersedes the single crop/area — the dominant crop and
+    # the summed area are DERIVED from it, so the single-crop fields stay meaningful downstream.
+    plan = _validate_crop_plan(crop_plan, errors)
+    if plan is not None:
+        crop_key = max(plan, key=lambda p: p[1])[0] if plan else ""
+        grow_area_m2 = sum(a for _, a in plan)
+    else:
+        crop_key = str(crop or "").strip().lower()
+        if crop_key not in CROPS:
+            errors.append(f"unknown crop {crop!r}; known: {sorted(CROPS)}")
+        grow_area_m2 = _as_float(grow_area_m2, "grow_area_m2", errors)
     temperature_c = _as_float(temperature_c, "temperature_c", errors)
     water_budget_lpd = _as_float(water_budget_lpd, "water_budget_lpd", errors)
 
@@ -80,6 +87,7 @@ def validate_design_input(
         water_budget_lpd=float(water_budget_lpd),
         source_water_note=source_water_note,
         system_type=system_type_key,
+        crop_plan=tuple(plan) if plan is not None else (),
     )
 
 
@@ -88,6 +96,36 @@ def _validate_system_type(system_type, errors) -> str:
     if key not in SYSTEM_TYPES:
         errors.append(f"unknown system_type {system_type!r}; known: {sorted(SYSTEM_TYPES)}")
     return key
+
+
+def _validate_crop_plan(crop_plan, errors) -> list | None:
+    """Normalize a mixed-bed plan to [(crop_key, area_m2), ...] or return None for single-crop.
+
+    Accepts a list of {"crop", "area_m2"} dicts or (crop, area) pairs. Every crop must be known
+    and every area strictly positive — a bad plan is rejected loudly, never partially applied.
+    """
+    if crop_plan is None:
+        return None
+    if not isinstance(crop_plan, (list, tuple)) or len(crop_plan) == 0:
+        errors.append("crop_plan must be a non-empty list of {crop, area_m2} entries")
+        return []
+    normalized: list = []
+    for entry in crop_plan:
+        if isinstance(entry, dict):
+            ck = str(entry.get("crop") or "").strip().lower()
+            area = entry.get("area_m2")
+        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+            ck, area = str(entry[0] or "").strip().lower(), entry[1]
+        else:
+            errors.append(f"crop_plan entry not understood: {entry!r}")
+            continue
+        if ck not in CROPS:
+            errors.append(f"unknown crop {ck!r} in crop_plan; known: {sorted(CROPS)}")
+        a = _as_float(area, f"crop_plan area for {ck!r}", errors)
+        if a is not None and a <= 0:
+            errors.append(f"crop_plan area for {ck!r} must be > 0, got {a}")
+        normalized.append((ck, float(a) if a is not None else 0.0))
+    return normalized
 
 
 def validate_hydroponic_input(

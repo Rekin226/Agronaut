@@ -31,6 +31,10 @@ def serialize_design_output(out: DesignOutput) -> str:
     else:
         lines.append(f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
 
+    if out.crop_plan:
+        mix = ", ".join(f"{p['crop']} {_g(p['area_m2'])} m2" for p in out.crop_plan)
+        lines.append(f"Mixed beds (crops sharing the water): {mix}")
+
     lines.append(
         "Sizing: "
         f"feed={_g(out.feed_g_per_day)} g/day, fish={out.fish_count} head, "

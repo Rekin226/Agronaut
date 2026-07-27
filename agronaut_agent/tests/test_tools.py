@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 15
+    assert len(AGRONAUT_TOOLS) == 16
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -27,6 +27,39 @@ def test_size_valid_carries_numbers_and_sources():
     # honesty layer: coefficients with sources and not-modeled caveats are present
     assert "Coefficients used" in out and "source:" in out
     assert "NOT modeled" in out
+
+
+def test_mixed_bed_tool_sizes_several_crops_and_carries_the_plan():
+    from agronaut_agent.tools import size_mixed_bed_aquaponics, AGRONAUT_TOOLS
+    assert "size_mixed_bed_aquaponics" in {t.name for t in AGRONAUT_TOOLS}
+    out = size_mixed_bed_aquaponics.invoke({
+        "fish_species": "tilapia",
+        "crop_plan": [{"crop": "lettuce", "area_m2": 10}, {"crop": "basil", "area_m2": 10}],
+        "temperature_c": 27, "water_budget_lpd": 8000,
+    })
+    assert "FEASIBLE" in out
+    assert "Mixed beds" in out and "lettuce" in out and "basil" in out
+    assert "Coefficients used" in out and "source:" in out
+
+
+def test_mixed_bed_tool_warns_on_incompatible_ph():
+    from agronaut_agent.tools import size_mixed_bed_aquaponics
+    out = size_mixed_bed_aquaponics.invoke({
+        "fish_species": "tilapia",
+        "crop_plan": [{"crop": "watercress", "area_m2": 10}, {"crop": "strawberry", "area_m2": 10}],
+        "temperature_c": 26, "water_budget_lpd": 8000,
+    })
+    assert "pH" in out and "Warnings" in out
+
+
+def test_mixed_bed_tool_rejects_unknown_crop_through_the_trust_gate():
+    from agronaut_agent.tools import size_mixed_bed_aquaponics
+    out = size_mixed_bed_aquaponics.invoke({
+        "fish_species": "tilapia",
+        "crop_plan": [{"crop": "dragonfruit", "area_m2": 10}],
+        "temperature_c": 26, "water_budget_lpd": 8000,
+    })
+    assert "unknown crop" in out.lower() or "VALIDATION" in out.upper()
 
 
 def test_pilot_proposal_tool_renders_funder_document():
@@ -133,7 +166,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 15
+    assert len(AGRONAUT_TOOLS) == 16
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -164,7 +197,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 15
+    assert len(AGRONAUT_TOOLS) == 16
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -208,7 +241,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 15
+    assert len(AGRONAUT_TOOLS) == 16
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -259,7 +292,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(AGRONAUT_TOOLS) == 15
+    assert len(AGRONAUT_TOOLS) == 16
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
