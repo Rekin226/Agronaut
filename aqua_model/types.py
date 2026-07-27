@@ -26,6 +26,10 @@ class DesignInput:
     water_budget_lpd: float    # makeup water available per day (sanity-checked)
     source_water_note: str | None = None  # salinity/quality caveat
     system_type: str = "raft"  # growing method: raft | nft | media_bed (system_types.py)
+    # Mixed beds: an optional ((crop_key, area_m2), ...) allocation. When set, it drives feed
+    # and total area (crop/grow_area_m2 above hold the dominant crop and the summed area). Empty
+    # => single-crop design, byte-identical to before. Built only by the validation gate.
+    crop_plan: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,9 @@ class DesignOutput:
     binding_constraint: str | None = None   # set when infeasible -> nearest-feasible hint
     system_type: str = "raft"               # growing method used (for labels/schematic)
     grow_bed_label: str = "raft / DWC grow beds"
+    # Populated only for mixed beds (>1 crop): [{"crop": name, "area_m2": a}, ...]. Empty for a
+    # single-crop design, so single-crop output/serialization is unchanged.
+    crop_plan: list = field(default_factory=list)
 
     # --- sizing numbers ---
     system_volume_l: float = 0.0

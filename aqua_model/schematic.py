@@ -54,6 +54,18 @@ class _Scene:
     arrows: list = field(default_factory=list)
 
 
+def _grow_bed_lines(out: DesignOutput) -> list:
+    """The grow-bed box body: a mixed bed lists each crop and its area; a single bed just
+    shows the planted area. System volume is always shown."""
+    if out.crop_plan:
+        lines = [f"{p['crop']} {_g(p['area_m2'])} m2" for p in out.crop_plan[:3]]
+        if len(out.crop_plan) > 3:
+            lines.append(f"+{len(out.crop_plan) - 3} more")
+        lines.append(f"system {_g(out.system_volume_l)} L")
+        return lines
+    return [f"{_g(out.grow_area_m2)} m2 planted", f"system {_g(out.system_volume_l)} L"]
+
+
 def _aqua_scene(out: DesignOutput) -> _Scene:
     status = "FEASIBLE" if out.feasible else f"NOT FEASIBLE ({out.binding_constraint})"
     method = (out.system_type or "raft").upper().replace("_", " ")
@@ -64,8 +76,8 @@ def _aqua_scene(out: DesignOutput) -> _Scene:
             f"~{_g(out.rearing_tank_volume_l)} L", f"feed {_g(out.feed_g_per_day)} g/day"], "#dbeafe"),
         _Box(270, 90, 170, 90, "Biofilter", [
             f"~{_g(out.biofilter_media_m2)} m2 media", "nitrification"], "#e6f4ea"),
-        _Box(490, 90, 190, 90, out.grow_bed_label, [
-            f"{_g(out.grow_area_m2)} m2 planted", f"system {_g(out.system_volume_l)} L"], "#e8f5e9"),
+        _Box(490, 90, 190, 90, out.grow_bed_label,
+             _grow_bed_lines(out), "#e8f5e9"),
         _Box(270, 250, 170, 80, "Sump + pump", [
             f"pump >={_g(out.pump_turnover_lph)} L/h", f"makeup {_g(out.makeup_water_lpd)} L/day"], "#fff7ed"),
     ]

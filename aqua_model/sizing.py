@@ -17,6 +17,7 @@ Never raises on a valid DesignInput; never returns a silently-wrong number.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 from . import coefficients as C
@@ -44,16 +45,25 @@ def _coeff_uses(*coeffs) -> list[CoefficientUse]:
     return [CoefficientUse(c.name, c.value, c.low, c.high, c.unit, c.source) for c in coeffs]
 
 
+def _area(a: float) -> str:
+    return f"{float(a):g}"
+
+
 def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOutput:
     if overrides:
         validate_overrides(overrides)
     species = get_species(design.fish_species)
-    crop = get_crop(design.crop)
     system = get_system_type(design.system_type)
-    species, crop = apply_overrides(species=species, crop=crop, overrides=overrides)
+    species, _ = apply_overrides(species=species, crop=None, overrides=overrides)
 
-    # 1. FRR sizes feed from grow area (the anchor).
-    feed_g_per_day = design.grow_area_m2 * crop.frr_g_per_m2_day
+    # Resolve the crop allocation: a mixed-bed plan (>1 crop sharing the water) or a single
+    # crop over the whole area. Each crop keeps its OWN feeding-rate ratio; overrides apply
+    # per crop. A single-entry plan is identical to the single-crop design (no drift).
+    plantings = _resolve_plantings(design, overrides)
+    dominant = max(plantings, key=lambda p: p[1])[0]
+
+    # 1. FRR sizes feed from grow area (the anchor) — summed over each crop's own area.
+    feed_g_per_day = sum(area * c.frr_g_per_m2_day for c, area in plantings)
 
     # 2. Feed -> fish biomass, adjusted for how well fish eat at this temperature.
     temp_factor = temperature_feed_factor(species, design.temperature_c)
@@ -86,8 +96,16 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     # 8. Biofilter media.
     media_m2 = mb.biofilter_media_m2(feed_g_per_day, species)
 
-    # 9. Nitrogen consistency check (does NOT resize anything).
-    n_check = mb.nitrogen_check(feed_g_per_day, species, crop, design.grow_area_m2)
+    # 9. Nitrogen consistency check (does NOT resize anything). For a mixed bed we check against
+    #    an area-weighted blended crop, so the FRR-vs-nitrogen agreement test still holds over
+    #    the whole planting (identical to the single crop when there is only one).
+    total_area = design.grow_area_m2
+    blended_crop = dataclasses.replace(
+        dominant,
+        frr_g_per_m2_day=feed_g_per_day / total_area,
+        n_uptake_g_per_m2_day=sum(a * c.n_uptake_g_per_m2_day for c, a in plantings) / total_area,
+    )
+    n_check = mb.nitrogen_check(feed_g_per_day, species, blended_crop, total_area)
 
     out = DesignOutput(
         feasible=True,
@@ -130,10 +148,16 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
             f"{round(temp_factor * 100)}% — yields and sizing reflect reduced intake."
         )
 
-    out.operating_envelope = _operating_envelope(species, crop, design)
+    # Mixed-bed honesty: record the plan, and flag crops that cannot share one water. Only
+    # emitted for a real mix (>1 crop) so the single-crop design is byte-for-byte unchanged.
+    if len(plantings) > 1:
+        out.crop_plan = [{"crop": c.name, "area_m2": a} for c, a in plantings]
+        _add_mixed_bed_warnings(out, plantings, design)
+
+    out.operating_envelope = _operating_envelope(species, plantings, design)
     out.bill_of_materials = _bill_of_materials(out, system)
     out.maintenance_checklist = _maintenance_checklist()
-    out.assumptions = _assumptions(species, crop, temp_factor, system)
+    out.assumptions = _assumptions(species, plantings, temp_factor, system)
     # A method-specific water-depth coefficient replaces the raft default in the citation list.
     water_depth_coeff = CoefficientUse(
         f"grow_bed_water_depth ({system.key})", system.water_depth_m,
@@ -146,20 +170,45 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     return out
 
 
-def _operating_envelope(species, crop, design) -> dict:
+def _resolve_plantings(design: DesignInput, overrides: dict | None) -> list[tuple]:
+    """The crop allocation as [(Crop, area_m2), ...]: the mixed-bed plan if set, else the single
+    crop over the whole area. Overrides apply per crop. Single crop => one entry (no drift)."""
+    if design.crop_plan:
+        raw = [(get_crop(k), float(a)) for k, a in design.crop_plan]
+    else:
+        raw = [(get_crop(design.crop), design.grow_area_m2)]
+    return [(apply_overrides(species=None, crop=c, overrides=overrides)[1], a) for c, a in raw]
+
+
+def _shared_ph_band(plantings) -> tuple[float, float]:
+    """The pH window every crop in the mix can tolerate — the INTERSECTION of their bands,
+    never a widening. If lo >= hi the crops have no usable shared band."""
+    return max(c.ph_min for c, _ in plantings), min(c.ph_max for c, _ in plantings)
+
+
+def _add_mixed_bed_warnings(out: DesignOutput, plantings, design) -> None:
+    ph_lo, ph_hi = _shared_ph_band(plantings)
+    if ph_lo >= ph_hi:
+        ranges = ", ".join(f"{c.name} {c.ph_min}-{c.ph_max}" for c, _ in plantings)
+        out.warnings.append(
+            f"These crops cannot share one pH — their pH ranges do not overlap ({ranges}). "
+            "Grow them in separate systems, or drop one, rather than compromising on a pH "
+            "that suits none of them."
+        )
+
+
+def _operating_envelope(species, plantings, design) -> dict:
+    ph_lo, ph_hi = _shared_ph_band(plantings)
     return {
-        "ph_target": [max(species_ph_low(crop), 6.0), min(crop.ph_max, 7.0)],
-        "ph_do_not_exceed": [crop.ph_min, crop.ph_max],
+        # Aquaponics compromise pH sits between fish, plants, and nitrifiers (~6.0-7.0); for a
+        # mixed bed the plants' half of that compromise is the intersection of all their bands.
+        "ph_target": [max(ph_lo, 6.0), min(ph_hi, 7.0)],
+        "ph_do_not_exceed": [ph_lo, ph_hi],
         "temperature_target_c": [species.temp_opt_low_c, species.temp_opt_high_c],
         "temperature_do_not_exceed_c": [species.temp_min_c, species.temp_max_c],
         "dissolved_oxygen_min_mg_l": 5.0,
         "ammonia_nitrite_target": "as low as possible (≈0)",
     }
-
-
-def species_ph_low(crop) -> float:
-    # Aquaponics compromise pH sits between fish, plants, and nitrifiers (~6.0-7.0).
-    return crop.ph_min
 
 
 def _bill_of_materials(out: DesignOutput, system) -> list[dict]:
@@ -186,10 +235,16 @@ def _maintenance_checklist() -> list[str]:
     ]
 
 
-def _assumptions(species, crop, temp_factor, system) -> list[str]:
+def _assumptions(species, plantings, temp_factor, system) -> list[str]:
+    if len(plantings) > 1:
+        mix = ", ".join(f"{c.name} ({_area(a)} m2)" for c, a in plantings)
+        crop_line = (f"{system.name.capitalize()} system, single fish species "
+                     f"({species.name}), mixed beds: {mix}.")
+    else:
+        crop_line = (f"{system.name.capitalize()} system, single fish species "
+                     f"({species.name}), single crop ({plantings[0][0].name}).")
     return [
-        f"{system.name.capitalize()} system, single fish species ({species.name}), "
-        f"single crop ({crop.name}).",
+        crop_line,
         "Steady-state average biomass (no cohort/harvest scheduling).",
         f"Feeding scaled to {round(temp_factor * 100)}% for the given mean temperature.",
         "Coefficients are seed defaults — CALIBRATE against a real system before building.",
