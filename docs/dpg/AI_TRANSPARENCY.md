@@ -29,7 +29,16 @@ design.
   Llama-3.1) — the configuration used for DPG platform-independence — or hosted open models.
   No proprietary model is required.
 - **Vision (optional):** an operator-chosen VLM turns a photo into a text observation. It
-  only *observes*; it never emits numbers or calls a tool.
+  only *observes*; it never emits numbers or calls a tool. Parts of that contract are
+  enforced in code rather than merely requested in the prompt: a deterministic guard
+  (`agent.vision.sanitize_observation`) strips measurement readings and prescriptive
+  sentences from the observation, and discards observations the model could not read.
+  Stripping is pattern-based, so an unusual phrasing can occasionally survive it. A
+  named condition is flagged in code, and the flag attaches an explicit instruction that
+  the verdict is unverified and must be cited or hedged — that last step is an instruction
+  to the model, not a mechanical guarantee. The guard is scored in CI
+  (`scripts/safety_eval.py`, `vision_guard` category); the model's behaviour on real field
+  photographs is scored separately by `scripts/vision_eval.py`.
 - **Speech (optional):** an operator-chosen ASR model (default: local Whisper-class)
   transcribes voice notes to text.
 - **Embeddings:** a sentence-transformers model for semantic recall over the user's own

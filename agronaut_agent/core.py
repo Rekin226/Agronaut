@@ -14,6 +14,7 @@ import threading
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
+from agent.vision import sanitize_observation
 from .tools import AGRONAUT_TOOLS
 from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
 from . import memory_extract, runtime, profile, semantic
@@ -104,6 +105,16 @@ ANSWERING FOLLOW-UPS: use the conversation, YOUR SYSTEM, and earlier tool result
 number was already computed or a fact already known, answer from it directly — don't re-run a
 tool. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope from
 the prior sizing result; don't search the knowledge base for it."""
+
+# Attached when the vision model names a condition. Its observation enters the turn as a
+# user-provided fact, which the agent has no reason to distrust — so the doubt has to be
+# stated explicitly. This routes VLM-derived claims into the same citation discipline that
+# PLAN 1.3 established for KB-derived ones.
+_VERDICT_INSTRUCTION = (
+    "[Note: the vision model named a possible condition. That is an UNVERIFIED visual guess, "
+    "not a diagnosis. Do not repeat it as a conclusion unless the knowledge base supports it "
+    "and you cite the source. Otherwise, hedge it and confirm the details with the user.]"
+)
 
 _MAX_ITERS = 6
 _TOOL_REPLAY_MAX_CHARS = 2000
@@ -316,8 +327,25 @@ class AgronautAgent:
         if not observation:
             return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
                     "or describe what you see.")
+
+        # The VLM was told to observe without diagnosing, prescribing, or stating numbers.
+        # The guard enforces the enforceable part of that instruction.
+        observation, flags = sanitize_observation(observation)
+        for category in ("verdict", "stripped", "unclear"):
+            if any(f.split(":")[0] == category for f in flags):
+                # Event name, not a field: analytics._ALLOWED_FIELDS is a whitelist, and the
+                # observation text itself must never be recorded.
+                self._analytics.record(f"image_guard_{category}",
+                                       user_id=self._conv.get_or_create_user(channel, channel_user),
+                                       channel=channel)
+
+        if "unclear" in flags or not observation:
+            return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
+                    "or describe what you see.")
+
         ask = (caption or "").strip() or "What's going on here?"
-        composed = (f"[The user sent a photo. A vision model observed: {observation}]\n\n"
+        note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
+        composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}\n\n"
                     f"{ask}")
         return self.handle_message(channel, channel_user, composed, display_name)
 

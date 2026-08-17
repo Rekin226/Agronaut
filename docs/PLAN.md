@@ -85,6 +85,22 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Accept:** a voice note in the target language gets a correct-language reply; the design
     report renders fully localized.
 
+- [x] **1.5 Harden the vision path before widening it.** (M)
+  - **What:** 1.1 shipped photo input, but "observe, don't diagnose" lived only in the prompt
+    (`agent/vision.py` `_OBSERVE_PROMPT`), no eval probe touched the image path, and raw
+    EXIF-bearing bytes reached a hosted provider against PRIVACY.md's wording.
+  - **Fix shape:** a pure guard between VLM and agent turn — strip measurement readings and
+    prescriptive sentences, flag named conditions and attach an unverified-verdict
+    instruction, short-circuit unreadable photos; EXIF stripped at ingest. Two-tier eval:
+    guard probes score in CI (the guard is pure, so `safety_eval` stays hermetic), real
+    photographs score in an opt-in runner that never blocks a merge.
+  - **Accept:** a VLM observation containing "pH 6.2" or "add 5 mL of salt" cannot reach the
+    agent turn intact; a named condition reaches it with doubt attached; `safety_eval`
+    reports a passing `vision_guard` category with no network.
+  - **Design:** `docs/superpowers/specs/2026-08-17-vision-hardening-design.md`
+  - **Deferred to follow-on tasks:** WhatsApp inbound images, Streamlit photo upload,
+    structured observation schema feeding a deterministic triage table.
+
 ---
 
 ## Phase 2 — Reach & compliance (DPG-shaped work)
