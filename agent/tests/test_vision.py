@@ -217,6 +217,55 @@ def test_flags_plural_verdict_terms():
     assert "undersides" in cleaned
 
 
+# --- Critical regression fix: bare imperatives must not erase ordinary observations --------
+
+def test_lower_leaves_observation_survives_the_imperative_widening():
+    # "lower" is a prescriptive verb ONLY when it opens a sentence ("Lower the pH"); here it's
+    # an adjective describing which leaves, and the sentence must not be dropped.
+    text = "The lower leaves are yellow while the new growth is green."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert cleaned == text
+    assert "stripped:prescriptive" not in flags
+
+
+def test_fish_stop_at_surface_observation_survives_the_imperative_widening():
+    # "stop" mid-sentence describing fish behaviour (the safety-critical gasping-fish case)
+    # must not be mistaken for the imperative "Stop feeding".
+    text = "The fish stop at the surface when the light comes on."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert cleaned == text
+    assert "stripped:prescriptive" not in flags
+
+
+def test_incidental_bare_verbs_mid_sentence_survive():
+    text = "The nets add shade over the raft and the roots use the full depth."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert cleaned == text
+    assert "stripped:prescriptive" not in flags
+
+
+def test_labelled_reading_gap_preserves_intervening_words():
+    cleaned, flags = vision.sanitize_observation("The pH meter has 2 buttons.")
+    assert "meter has" in cleaned
+    assert "2 buttons" not in cleaned
+    assert "[number removed]" in cleaned
+
+
+def test_labelled_reading_gap_does_not_cross_a_clause_boundary():
+    cleaned, flags = vision.sanitize_observation("Temperature feels warm; 5 plants wilted.")
+    assert "5 plants" in cleaned
+    assert "[number removed]" not in cleaned
+
+
+def test_multi_sentence_observation_survives_intact():
+    text = ("The lower leaves of the lettuce are pale yellow between the veins. "
+            "A thin film of algae has started on the raft edge. "
+            "The water is clear and the fish use the whole tank.")
+    cleaned, flags = vision.sanitize_observation(text)
+    assert cleaned == text
+    assert "stripped:prescriptive" not in flags
+
+
 # --- Finding 2: importable-with-nothing-installed promise ----------------------------
 
 def _real_jpeg_bytes() -> bytes:

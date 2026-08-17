@@ -58,26 +58,38 @@ _MEASUREMENT_RE = re.compile(
 )
 
 # A reading whose label carries the unit. The label is kept (that the model mentioned pH is
-# itself an observation); only the figure is redacted. The bounded [^.!?\d] gap catches
-# hedged phrasings ("pH is about 6.4") without crossing a sentence boundary.
+# itself an observation); only the figure is redacted. The bounded [^.!?;,\d] gap catches
+# hedged phrasings ("pH is about 6.4") without crossing a sentence OR clause boundary, and the
+# gap itself is captured and re-emitted so intervening words ("pH meter has 2 buttons" ->
+# "meter has") survive rather than being swallowed along with the figure.
 _LABELLED_READING_RE = re.compile(
     r"\b(pH|EC|TDS|KH|GH|ammonia|nitrite|nitrate|temp|temperature|salinity|alkalinity)"
-    r"\b[^.!?\d]{0,15}?\d+(?:\.\d+)?",
+    r"\b([^.!?;,\d]{0,15}?)\d+(?:\.\d+)?",
     re.IGNORECASE,
 )
 
 # Dissolved oxygen, matched case-sensitively: with IGNORECASE the ordinary word "do" would
 # match and redact unrelated numbers ("the fish do swim near 3 outlets").
-_DO_READING_RE = re.compile(r"\bDO\b[^.!?\d]{0,15}?\d+(?:\.\d+)?")
+_DO_READING_RE = re.compile(r"\bDO\b([^.!?;,\d]{0,15}?)\d+(?:\.\d+)?")
 
 # Prescriptions are the highest-harm output a VLM can produce here, and it was told not to.
-# Removed at SENTENCE granularity — a clause cut mid-sentence leaves mangled text, and the
-# sentence is the unit of advice.
+# Removed at SENTENCE granularity, in two families:
+#   * explicit advice markers — unambiguous anywhere in a sentence;
+#   * bare imperatives — advice ONLY at the start of a sentence. "Add chelated iron" is a
+#     prescription; "The nets add shade" and "The lower leaves are yellow" are ordinary
+#     observations, and an unanchored verb list erases them.
 _PRESCRIPTIVE_RE = re.compile(
     r"\b(?:you should|you need to|you'?ll need to|you will need to|treat with|treatment|"
-    r"dose|dosing|apply|administer|medicate|i recommend|recommend(?:ed)? (?:that|you)|"
-    r"increase|reduce|lower|raise|boost|add|use|stop|start|quarantine|isolate|"
-    r"water change|change the water|salt bath|flush|drain|top up)\b",
+    r"dose|dosing|administer|medicate|i recommend|recommend(?:ed)? (?:that|you)|"
+    r"salt bath|water change|change the water)\b",
+    re.IGNORECASE,
+)
+
+# Sentence-initial imperatives. _strip_prescriptive splits first, so ^ anchors to the
+# start of each sentence.
+_IMPERATIVE_RE = re.compile(
+    r"^\s*(?:add|use|apply|stop|start|increase|reduce|lower|raise|boost|quarantine|"
+    r"isolate|remove|replace|flush|drain|top up|feed)\b",
     re.IGNORECASE,
 )
 
@@ -136,9 +148,13 @@ def looks_unclear(sanitized: str) -> bool:
     return len(sanitized) <= _UNCLEAR_MAX_CHARS and bool(_UNCLEAR_RE.search(sanitized))
 
 
+def _is_prescriptive_sentence(s: str) -> bool:
+    return bool(_PRESCRIPTIVE_RE.search(s) or _IMPERATIVE_RE.match(s))
+
+
 def _strip_prescriptive(text: str) -> tuple[str, bool]:
     sentences = _SENTENCE_SPLIT_RE.split(text)
-    kept = [s for s in sentences if not _PRESCRIPTIVE_RE.search(s)]
+    kept = [s for s in sentences if not _is_prescriptive_sentence(s)]
     return " ".join(kept).strip(), len(kept) != len(sentences)
 
 
@@ -147,7 +163,9 @@ def residual_leaks(text: str) -> list[str]:
     assert the end-to-end guarantee against real model output, rather than re-listing the
     lexicon in a second place where it would drift."""
     leaks = []
-    if _PRESCRIPTIVE_RE.search(text or ""):
+    # Split into sentences so the prescriptive check matches what the guard actually removes
+    # (the imperative half of the predicate is anchored to sentence-start).
+    if any(_is_prescriptive_sentence(s) for s in _SENTENCE_SPLIT_RE.split(text or "")):
         leaks.append("prescriptive")
     if (_MEASUREMENT_RE.search(text or "") or _LABELLED_READING_RE.search(text or "")
             or _DO_READING_RE.search(text or "")):
@@ -173,8 +191,8 @@ def sanitize_observation(text: str) -> tuple[str, list[str]]:
         flags.append("stripped:prescriptive")
 
     cleaned, n_units = _MEASUREMENT_RE.subn(_NUMBER_PLACEHOLDER, cleaned)
-    cleaned, n_labelled = _LABELLED_READING_RE.subn(r"\1 " + _NUMBER_PLACEHOLDER, cleaned)
-    cleaned, n_do = _DO_READING_RE.subn("DO " + _NUMBER_PLACEHOLDER, cleaned)
+    cleaned, n_labelled = _LABELLED_READING_RE.subn(r"\1\2" + _NUMBER_PLACEHOLDER, cleaned)
+    cleaned, n_do = _DO_READING_RE.subn(r"DO\1" + _NUMBER_PLACEHOLDER, cleaned)
     if n_units or n_labelled or n_do:
         flags.append("stripped:measurement")
 

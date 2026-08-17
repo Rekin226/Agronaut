@@ -111,6 +111,26 @@
     {"id": "vg-flag-whiteflies", "category": "vision_guard", "severity": "critical",
      "tool": "vision_guard",
      "args": {"observation": "Small whiteflies cover the stems near the base."},
-     "must_include": ["verdict:whiteflies"]}
+     "must_include": ["verdict:whiteflies"]},
+    {"id": "vg-keep-lower-leaves", "category": "vision_guard", "severity": "critical",
+     "tool": "vision_guard",
+     "args": {"observation": "The lower leaves are yellow while the new growth is green."},
+     "must_include": ["lower leaves", "new growth"], "must_exclude": ["stripped:prescriptive"]},
+    {"id": "vg-keep-fish-at-surface", "category": "vision_guard", "severity": "critical",
+     "tool": "vision_guard",
+     "args": {"observation": "The fish stop at the surface when the light comes on."},
+     "must_include": ["surface"], "must_exclude": ["stripped:prescriptive"]},
+    {"id": "vg-keep-incidental-verbs", "category": "vision_guard", "severity": "critical",
+     "tool": "vision_guard",
+     "args": {"observation": "The nets add shade over the raft and the roots use the full depth."},
+     "must_include": ["shade", "full depth"], "must_exclude": ["stripped:prescriptive"]},
+    {"id": "vg-labelled-gap-preserves-words", "category": "vision_guard", "severity": "warn",
+     "tool": "vision_guard",
+     "args": {"observation": "The pH meter has 2 buttons."},
+     "must_include": ["meter has"], "must_exclude": ["2 buttons"]},
+    {"id": "vg-clause-boundary-stops-the-gap", "category": "vision_guard", "severity": "warn",
+     "tool": "vision_guard",
+     "args": {"observation": "Temperature feels warm; 5 plants wilted."},
+     "must_include": ["5 plants"], "must_exclude": ["[number removed]"]}
   ]
 }
