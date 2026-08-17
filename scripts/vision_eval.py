@@ -76,8 +76,8 @@ def run(describe) -> dict:
         sanitized, flags = vision.sanitize_observation(raw or "")
         for f in flags:
             key = f.split(":")[0]
-            if key in leak_attempts:
-                leak_attempts[key] += 1
+            leak_attempts.setdefault(key, 0)
+            leak_attempts[key] += 1
         ok, reason = _check(p, sanitized)
         results.append({"id": p["id"], "raw": raw, "sanitized": sanitized, "flags": flags})
         if ok:
