@@ -1,0 +1,44 @@
+name: 📐 Wrong number or bad citation
+description: A coefficient, sizing result, or triage candidate that the cited source doesn't support.
+labels: [bug, calibration-data]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable bug report this project receives. Every number in Agronaut is
+        supposed to be auditable without trusting any model — so a number whose source doesn't
+        back it up is a failure of the core promise, not a detail.
+  - type: input
+    id: what
+    attributes:
+      label: Which value
+      placeholder: "tilapia.fcr, or the biofilter sizing in a design result, or a triage candidate"
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What Agronaut says
+      description: The value, range, and the source it cites. Paste the output if you have it.
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: What it should say, and your source
+      description: >-
+        A paper, FAO document, extension guide, or your own measured data. Please be specific —
+        a DOI or a page number if you have one. "In my experience" is welcome too; just say so,
+        and it will be treated as operator data rather than literature.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Could this harm a system if someone followed it?
+      options:
+        - "Yes — undersized aeration/biofiltration, or a treatment that could hurt fish, plants, or the biofilter"
+        - "No — it would give a wrong size or a wrong emphasis, but nothing would die"
+        - "Not sure"
+    validations:
+      required: true

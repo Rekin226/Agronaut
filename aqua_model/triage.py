@@ -185,6 +185,26 @@ _RULES: tuple[_Rule, ...] = (
             priority=_P_SUPPLY,
         ),
     ),
+    # -- plant: interveinal chlorosis on OLD growth -------------------------------------
+    # Same pattern, opposite end of the plant, different answer. The KB's mobility rule does
+    # the work: "Old (lower) leaves affected first → mobile nutrient: nitrogen, potassium,
+    # magnesium", while iron and calcium are immobile and show on new growth. Getting this
+    # backwards sends the operator to chelated iron for a magnesium problem.
+    _Rule(
+        matches=lambda f: "interveinal" in f.leaf_pattern and f.leaf_age == "old",
+        candidate=TriageCandidate(
+            cause="Magnesium (Mg) deficiency",
+            because="interveinal yellowing on OLDER leaves — magnesium is mobile, so it shows "
+                    "on old growth first, unlike immobile iron which shows on new growth",
+            checks=("which leaves are worst: older/lower points at magnesium, newer/upper at "
+                    "iron — this one distinction narrows it fastest",
+                    "pH, since an availability problem mimics a shortfall here too"),
+            safe_actions=("confirm which end of the plant is affected before treating — the fix "
+                          "for magnesium is not the fix for iron",),
+            source=_KB_DEFICIENCY,
+            priority=_P_SUPPLY,
+        ),
+    ),
     # -- plant: OLD leaves, margins -----------------------------------------------------
     _Rule(
         matches=lambda f: "margin_scorch" in f.leaf_pattern and f.leaf_age in {"old", "both"},

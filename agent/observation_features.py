@@ -149,13 +149,52 @@ def _scope(text: str, cue: re.Pattern) -> str:
     return " ".join(s for s in _sentences(text) if cue.search(s))
 
 
+_SCALAR_FIELDS = ("leaf_age", "root_state", "water_state")
+
+
+def merge_feature_kwargs(primary: dict, secondary: dict) -> dict:
+    """Union two feature-kwarg dicts.
+
+    Sequence fields union (two sources noticing different things is additive). Scalar fields
+    take `primary`'s value unless it is unset — the caller passes the prose extractor as
+    primary because it describes THIS photo, while a classifier label is a coarser prior."""
+    merged = {k: list(v) if isinstance(v, list) else v for k, v in (primary or {}).items()}
+    for key, value in (secondary or {}).items():
+        if isinstance(value, list):
+            cur = list(merged.get(key, []))
+            for item in value:
+                if item not in cur:
+                    cur.append(item)
+            merged[key] = cur
+        elif key in _SCALAR_FIELDS:
+            if merged.get(key, "unknown") in (None, "", "unknown"):
+                merged[key] = value
+        else:
+            merged.setdefault(key, value)
+    return merged
+
+
+def features_from(text: str, extra: dict | None = None) -> ObservationFeatures:
+    """Features from prose PLUS another source's feature kwargs (e.g. an image classifier).
+
+    Both sources speak the same categorical vocabulary and both pass through the same trust
+    gate, so an extra source can add evidence but never a new kind of claim."""
+    return validate_observation_features(
+        **merge_feature_kwargs(_feature_kwargs(text), extra or {}))
+
+
 def extract_observation_features(text: str) -> ObservationFeatures:
     """Prose → categorical features. Pure and total: any string in, valid features out.
 
     Never raises: an unrecognisable observation yields empty features, and `triage` turns
     that into "ask for a better photo" rather than a guess."""
+    return validate_observation_features(**_feature_kwargs(text))
+
+
+def _feature_kwargs(text: str) -> dict:
+    """The raw kwargs, before the trust gate — so another source can be merged in first."""
     if not text or not text.strip():
-        return ObservationFeatures()
+        return {}
 
     subject: list[str] = []
     if _PLANT_CUE.search(text):
@@ -248,9 +287,7 @@ def extract_observation_features(text: str) -> ObservationFeatures:
 
     pests: list[str] = [name for name, cue in _PEST_CUES if cue.search(text)]
 
-    # Route through the trust gate rather than constructing directly, so a vocabulary drift
-    # between this module and the table fails loudly in tests instead of silently here.
-    return validate_observation_features(
+    return dict(
         subject=subject, leaf_age=leaf_age, leaf_pattern=leaf_pattern, colour=colour,
         root_state=root_state, water_state=water_state, fish_behaviour=fish_behaviour,
         fish_body=fish_body, pests_visible=pests,

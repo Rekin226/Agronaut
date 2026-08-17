@@ -2,8 +2,8 @@
 
 The channel smallholder-facing NGOs actually reach farmers on. Built on the same
 ChannelAdapter contract as Telegram — the brain, tools, and memory are unchanged; this only
-translates WhatsApp webhook events into agent.handle_message / agent.handle_image and sends
-replies back via the Graph API. Inbound photos route through the same agent seam Telegram
+translates WhatsApp webhook events into agent.handle_message / handle_image / handle_voice and sends
+replies back via the Graph API. Inbound photos and voice notes route through the same seams Telegram
 uses, so the observation guard and cited tools apply identically here.
 
 WhatsApp is webhook-based (not long-poll): Meta POSTs inbound messages to a public HTTPS
@@ -112,6 +112,30 @@ class WhatsAppAdapter(ChannelAdapter):
                         out.append((str(sender), str(media_id), media.get("caption")))
         return out
 
+    def parse_incoming_audio(self, payload: dict) -> list[tuple[str, str, str]]:
+        """Extract [(sender_wa_id, media_id, mime)] for inbound voice notes.
+
+        Three shapes count: `audio`, `voice`, and a `document` whose mime is audio. This is
+        the channel where voice matters most — it is what reaches an operator who would
+        rather talk than type."""
+        out: list[tuple[str, str, str]] = []
+        for entry in (payload or {}).get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    kind = msg.get("type")
+                    if kind in {"audio", "voice"}:
+                        media = msg.get(kind, {})
+                    elif kind == "document" and str(
+                            msg.get("document", {}).get("mime_type", "")).startswith("audio/"):
+                        media = msg.get("document", {})
+                    else:
+                        continue
+                    media_id, sender = media.get("id"), msg.get("from")
+                    if media_id and sender:
+                        out.append((str(sender), str(media_id),
+                                    str(media.get("mime_type") or "audio/ogg")))
+        return out
+
     def parse_unsupported_files(self, payload: dict) -> list[tuple[str, str]]:
         """[(sender, filename_or_type)] for inbound files we deliberately do NOT read —
         a PDF, a spreadsheet, a video. Surfaced so the user is told what we can read
@@ -121,11 +145,12 @@ class WhatsAppAdapter(ChannelAdapter):
             for change in entry.get("changes", []):
                 for msg in change.get("value", {}).get("messages", []):
                     kind = msg.get("type")
-                    if kind in {"text", "image"}:
-                        continue
+                    if kind in {"text", "image", "audio", "voice"}:
+                        continue          # all handled elsewhere
                     doc = msg.get(kind or "", {}) if isinstance(msg.get(kind or ""), dict) else {}
-                    if kind == "document" and str(doc.get("mime_type", "")).startswith("image/"):
-                        continue          # that one IS readable — handled as an image
+                    mime = str(doc.get("mime_type", ""))
+                    if kind == "document" and mime.startswith(("image/", "audio/")):
+                        continue          # those ARE readable — handled as photo / voice note
                     sender = msg.get("from")
                     if sender and kind:
                         out.append((str(sender), str(doc.get("filename") or kind)))
@@ -224,6 +249,26 @@ class WhatsAppAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_image failed (whatsapp)")
                 reply = "Something went wrong reading that photo. Try again, or describe what you see?"
+            self.send_text(sender, reply)
+            self._flush_attachments(sender, uid)
+
+        # Voice notes: the same agent seam Telegram uses, so the transcript runs through a
+        # normal turn with memory, tools and cited knowledge intact.
+        for sender, media_id, mime in self.parse_incoming_audio(payload):
+            if not self._allowed(sender):
+                continue
+            uid = room_identity(sender, "private", sender)
+            audio_bytes = self.download_media(media_id)
+            if not audio_bytes:
+                self.send_text(sender, "I couldn't download that voice note — could you send "
+                                       "it again, or type your message?")
+                continue
+            try:
+                reply = self.agent.handle_voice(self.channel_name, uid, audio_bytes, mime)
+            except Exception:
+                log.exception("agent.handle_voice failed (whatsapp)")
+                reply = ("Something went wrong with that voice note. Try again, or type your "
+                         "message?")
             self.send_text(sender, reply)
             self._flush_attachments(sender, uid)
 

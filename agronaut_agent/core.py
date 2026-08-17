@@ -128,7 +128,8 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
-                 fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None):
+                 fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
+                 classify_fn=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
         # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
@@ -158,6 +159,13 @@ class AgronautAgent:
             from agent import vision
             describe_fn = vision.default_describer()
         self._describe = describe_fn
+        # Optional specialist image classifier. It is an extra FEATURE source, never a verdict
+        # source (see agent/classifier.py). No backend ships yet, so this is normally None and
+        # the whole path is inert.
+        if classify_fn is None and chat_model is None:
+            from agent import classifier
+            classify_fn = classifier.default_classifier()
+        self._classify = classify_fn
         # Voice: transcribe a note, then run it as a normal turn. The system prompt's
         # "reply in the user's language" rule answers in the note's language. None -> declined.
         if transcribe_fn is None and chat_model is None:
@@ -362,26 +370,45 @@ class AgronautAgent:
 
         ask = (caption or "").strip() or "What's going on here?"
         note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
+        classifier_features, classifier_note = self._classify_image(image_bytes)
         # Deterministic differential from the visible features. Attached rather than left to a
         # tool call so the cited candidates are ALWAYS present for a photo — the observation
         # itself is untrusted prose, but this part is auditable like the sizing path.
         composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}"
-                    f"{self._visual_triage(observation)}\n\n{ask}")
+                    f"{classifier_note}"
+                    f"{self._visual_triage(observation, classifier_features)}\n\n{ask}")
         # Facts come from the CAPTION only — never from the model's observation. See
         # handle_message's fact_text docstring for why the guard alone is not enough.
         return self.handle_message(channel, channel_user, composed, display_name,
                                    fact_text=(caption or ""))
 
+    def _classify_image(self, image_bytes: bytes) -> tuple[dict, str]:
+        """(extra feature kwargs, a note naming what the classifier said).
+
+        Returns ({}, "") whenever no classifier is configured — the normal case — so this is
+        a no-op for every existing deployment. Best-effort: a failing classifier must never
+        cost the user their answer."""
+        if self._classify is None:
+            return {}, ""
+        try:
+            from agent.classifier import describe_predictions, features_from_predictions
+            predictions = self._classify(image_bytes) or []
+            note = describe_predictions(predictions)
+            return features_from_predictions(predictions), ("\n\n" + note if note else "")
+        except Exception:
+            log.debug("image classifier unavailable", exc_info=True)
+            return {}, ""
+
     @staticmethod
-    def _visual_triage(observation: str) -> str:
+    def _visual_triage(observation: str, extra_features: dict | None = None) -> str:
         """A cited differential for what the photo shows, or "" when nothing is diagnostic.
 
         Best-effort: triage is a convenience on top of the observation, so any failure here
         degrades to the plain observation rather than costing the user their answer."""
         try:
-            from agent.observation_features import extract_observation_features
+            from agent.observation_features import features_from
             from aqua_model.triage import format_triage, triage_symptoms
-            result = triage_symptoms(extract_observation_features(observation))
+            result = triage_symptoms(features_from(observation, extra_features))
             return "" if result.is_empty() else "\n\n" + format_triage(result)
         except Exception:
             log.debug("visual triage unavailable", exc_info=True)

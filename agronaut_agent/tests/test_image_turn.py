@@ -227,8 +227,8 @@ def test_an_observation_with_nothing_diagnostic_carries_no_differential(tmp_path
 
 def test_triage_failure_never_costs_the_user_their_answer(tmp_path, monkeypatch):
     import agent.observation_features as of
-    monkeypatch.setattr(of, "extract_observation_features",
-                        lambda text: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(of, "features_from",
+                        lambda text, extra=None: (_ for _ in ()).throw(RuntimeError("boom")))
     chat = _EchoContext()
     agent = AgronautAgent(
         db_path=tmp_path / "t.sqlite3", chat_model=chat,
