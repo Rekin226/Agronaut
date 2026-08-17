@@ -1,7 +1,7 @@
 # 🌱 Agronaut
 
 [![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
-[![Advice-safety golden set](https://img.shields.io/badge/advice--safety-223%2F223-brightgreen)](docs/dpg/safety_eval/golden_set.json)
+[![Advice-safety golden set](https://img.shields.io/badge/advice--safety-enforced%20in%20CI-brightgreen)](docs/dpg/safety_eval/golden_set.json)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](requirement.txt)
 [![good first issues](https://img.shields.io/github/issues/Rekin226/Agronaut/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
@@ -58,6 +58,29 @@ Three modes in the app (sidebar **Mode** switch):
   efficiency, and showing the gain over a naive even split.
 
 The design and optimizer modes are **fully deterministic and need no LLM at all.**
+
+### Send it a photo
+
+Photograph a yellowing leaf, a sick fish, or green water — on **Telegram, WhatsApp, or the
+web chat** — and you get a *cited differential*, not a guess:
+
+1. A vision model describes what it sees. It only **observes**.
+2. A deterministic guard strips any measurement or prescription out of that description, so a
+   fabricated `pH 6.4` or an invented `add 5 mL of salt` can never enter the conversation as
+   though you had said it. A named condition is kept but flagged **unverified**.
+3. A fixed, cited table (`aqua_model/triage.py`) maps the visible symptoms to a **ranked list
+   of candidate causes** — each naming the knowledge document it came from, and each with the
+   checks that would tell it apart from its neighbours.
+
+It will not hand you a single confident diagnosis, because a photograph cannot support one:
+iron deficiency and pH lockout look identical in an image, so you get both plus the check that
+separates them. Ordering follows the knowledge base's own rules — pH before iron, water quality
+before any fish pathogen. Nothing it says states a dose.
+
+### Voice notes
+
+Speak instead of typing, on Telegram or WhatsApp. The transcript runs through a normal turn, so
+memory, tools and cited knowledge all apply.
 
 ### Consultative agent
 
@@ -264,22 +287,41 @@ journalctl --user -u agronaut-bot -f     # live logs
 ## Project layout
 
 ```
-aqua_model/          # TRUST ZONE — pure Python, no LLM, no network, fully tested
-  coefficients.py    #   cited data layer (value + range + unit + source + safety factor)
-  species.py crops.py#   seed databases (calibration-flagged)
-  massbalance.py     #   nitrogen consistency check, water balance, biofilter
-  sizing.py          #   size_system() — FRR anchors; build-artifact output
-  optimizer.py       #   optimize() — best fish/crop ratio under a constraint
-  validate.py        #   the trust gate (typed input only)
-  report.py          #   funder-facing design report
-  logging_schema.py  #   versioned install-logging standard (the dataset moat)
-agent/               # LLM-facing layer (imports aqua_model, never the reverse)
-  llm.py             #   pluggable backend (ollama | nvidia | hf)
-  facts.py           #   UI↔model seam
-  calculator_ui.py optimizer_ui.py   # Streamlit views
-app.py               # Streamlit app (chat | calculator | optimizer)
-srcs/chatbot.py      # the conversational/RAG troubleshooting flow
-knowledge/  urls.txt # reference content for RAG
+aqua_model/            # TRUST ZONE — pure Python, no LLM, no network, no I/O, fully tested
+  coefficients.py      #   cited data layer (value + range + unit + source + safety factor)
+  species.py crops.py  #   seed databases, every field sourced (5 species, 30 crops)
+  massbalance.py       #   nitrogen consistency check, water balance, biofilter
+  sizing.py            #   size_system() — FRR anchors; build-artifact output
+  hydroponics.py       #   size_hydroponic_system() — plants only, no fish
+  optimizer.py         #   optimize() — best fish/crop ratio under a constraint
+  triage.py            #   visual symptoms -> a ranked, CITED differential (never a verdict)
+  calibration.py       #   bound coefficients toward an operator's own measurements
+  validate.py          #   the trust gate — the only door into the model
+  report.py pilot.py   #   funder-facing design report and pilot proposal
+  schematic.py         #   deterministic SVG/PNG system diagram
+  logging_schema.py    #   versioned install-logging standard (the dataset moat)
+
+agent/                 # LLM-facing layer (imports aqua_model, never the reverse)
+  llm.py               #   pluggable chat backend (ollama | nvidia | hf | openai_compat)
+  vision.py            #   pluggable VLM + the observation guard + EXIF stripping
+  observation_features.py #   prose -> the categorical vocabulary triage.py accepts
+  classifier.py        #   pluggable image classifier as a FEATURE source (no backend yet)
+  transcribe.py        #   pluggable speech-to-text
+  calculator_ui.py optimizer_ui.py facts.py   # Streamlit views + the UI/model seam
+
+agronaut_agent/        # the channel-agnostic brain
+  core.py              #   handle_message / handle_image / handle_voice — the three seams
+  tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
+  store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
+  rag.py semantic.py   #   citation-enforced retrieval and semantic recall
+  channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
+
+scripts/               # safety_eval.py (hermetic golden set, runs in CI), vision_eval.py
+skills/                # the deterministic core as a portable agentskills.io skill + CLI
+knowledge/ urls.txt    # the curated, cited knowledge base
+docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval
+app.py                 # Streamlit app (chat | calculator | optimizer)
+srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (#25)
 ```
 
 ---
@@ -288,13 +330,21 @@ knowledge/  urls.txt # reference content for RAG
 
 - **M1 — design calculator** ✅ deterministic sizing, cited coefficients, report, logging standard
 - **M2 — ratio optimizer** ✅ fish/crop mix for max efficiency
-- **M3 — agent orchestrator** — refactor chat into a tool-calling agent; RAG → citation tool
-- **M4 — digital twin** — time-series simulator calibrated on real installed systems
-- **M5 — field maintenance assistant** — phone-friendly, low-connectivity
+- **M3 — agent orchestrator** — 🟡 the tool-calling agent is built and is what every channel
+  now runs on; demoting RAG to a pure citation tool is still open ([#25](https://github.com/Rekin226/Agronaut/issues/25))
+- **Field senses** ✅ photos and voice notes on Telegram, WhatsApp and the web, behind a
+  code-enforced observation guard and a cited visual-triage table
+- **M4 — digital twin** — time-series simulator calibrated on real installed systems ([#26](https://github.com/Rekin226/Agronaut/issues/26))
+- **M5 — reach** — SMS/USSD for farmers without a smartphone ([#73](https://github.com/Rekin226/Agronaut/issues/73)), offline-first ([#79](https://github.com/Rekin226/Agronaut/issues/79))
+- **Beyond aquaponics** — does the architecture generalise to irrigated field crops via
+  FAO-56? ([#78](https://github.com/Rekin226/Agronaut/issues/78))
 
-**Status:** the design + optimizer core is built and tested. The model is *validated* once
-it reproduces a real running system within tolerance — that calibration step is the next
-milestone (`aqua_model/tests/test_calibration.py`).
+**Status, honestly.** The design, optimizer, and triage core is built, tested, and enforced in
+CI (541 tests; a hermetic advice-safety golden set that fails the build on a regression). What
+is *not* done is **validation against reality**: the coefficients are literature seeds meant to
+be calibrated, and the vision path has never been scored against a real photograph because
+[the corpus is empty](https://github.com/Rekin226/Agronaut/issues/72). Calibrated ≠ validated,
+and the model says so in every result it produces.
 
 ---
 
