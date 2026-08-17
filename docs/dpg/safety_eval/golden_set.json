@@ -615,6 +615,36 @@
         "dawn",
         "knowledge/algae_control.md"
       ]
+    },
+    {
+      "id": "vt-interveinal-on-old-leaves-is-magnesium",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The older lower leaves are yellow between the veins."
+      },
+      "must_include": [
+        "Magnesium"
+      ],
+      "must_exclude": [
+        "Iron (Fe) deficiency"
+      ]
+    },
+    {
+      "id": "vt-interveinal-on-new-leaves-is-iron",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The newest upper leaves are yellow between the veins."
+      },
+      "must_include": [
+        "Iron (Fe) deficiency"
+      ],
+      "must_exclude": [
+        "Magnesium"
+      ]
     }
   ]
 }
