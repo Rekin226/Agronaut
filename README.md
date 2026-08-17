@@ -181,7 +181,7 @@ The consultative agent is reachable over Telegram. Set these (in `.env` or the e
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
 | `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
 | `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
-| `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model; `AGRONAUT_VISION=off` disables. The vision model only *observes* — it never feeds numbers into the design tools. |
+| `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model; `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
 | `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
 
 ```bash

@@ -15,11 +15,17 @@ from agronaut_agent.channels import base
 class _FakeAgent:
     def __init__(self, attachments=None):
         self.calls = []
+        self.images = []
         self._atts = attachments or []
 
     def handle_message(self, channel, channel_user, text, display_name=None):
         self.calls.append((channel, channel_user, text))
         return f"reply to {text}"
+
+    def handle_image(self, channel, channel_user, image_bytes, caption=None,
+                     display_name=None):
+        self.images.append((channel, channel_user, image_bytes, caption))
+        return "reply about the photo"
 
     def take_attachments(self, channel, channel_user):
         atts, self._atts = self._atts, []
@@ -144,3 +150,169 @@ def test_deliver_due_followups_sends_and_marks(monkeypatch):
     a.deliver_due_followups()
     assert sent == [("15551234567", "did it work?")]
     assert ("sent", 1) in agent.calls
+
+
+# --- inbound images ---------------------------------------------------------------------
+# A photo is the most natural troubleshooting input a farmer has, and WhatsApp is the
+# channel NGOs actually reach farmers on. send_media existed; there was no receive path.
+
+def _image_payload(media_id="MEDIA123", caption="what's wrong with these?",
+                   sender="15551234567", mime="image/jpeg"):
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [{"changes": [{"value": {
+            "messaging_product": "whatsapp",
+            "messages": [{"from": sender, "id": "wamid.IMG", "type": "image",
+                          "image": {"id": media_id, "mime_type": mime,
+                                    "caption": caption}}],
+        }}]}],
+    }
+
+
+def _document_payload(media_id="MEDIA456", mime="image/png", filename="leaf.png",
+                      sender="15551234567"):
+    return {
+        "entry": [{"changes": [{"value": {
+            "messages": [{"from": sender, "id": "wamid.DOC", "type": "document",
+                          "document": {"id": media_id, "mime_type": mime,
+                                       "filename": filename}}],
+        }}]}],
+    }
+
+
+def test_parse_incoming_images_extracts_media_id_and_caption():
+    a = _adapter()
+    assert a.parse_incoming_images(_image_payload()) == [
+        ("15551234567", "MEDIA123", "what's wrong with these?")]
+
+
+def test_parse_incoming_images_handles_a_missing_caption():
+    a = _adapter()
+    payload = _image_payload(caption=None)
+    del payload["entry"][0]["changes"][0]["value"]["messages"][0]["image"]["caption"]
+    assert a.parse_incoming_images(payload) == [("15551234567", "MEDIA123", None)]
+
+
+def test_parse_incoming_images_accepts_an_image_sent_as_a_document():
+    a = _adapter()
+    assert a.parse_incoming_images(_document_payload()) == [
+        ("15551234567", "MEDIA456", None)]
+
+
+def test_parse_incoming_images_ignores_non_image_documents():
+    a = _adapter()
+    assert a.parse_incoming_images(_document_payload(mime="application/pdf")) == []
+
+
+def test_parse_incoming_images_ignores_text_and_empty_payloads():
+    a = _adapter()
+    assert a.parse_incoming_images(_incoming_payload()) == []
+    assert a.parse_incoming_images({}) == []
+
+
+def test_text_parser_still_ignores_image_messages():
+    # parse_incoming is the text path; images must not leak into it as empty bodies.
+    a = _adapter()
+    assert a.parse_incoming(_image_payload()) == []
+
+
+def test_handle_payload_routes_an_image_to_handle_image(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"jpegbytes")
+
+    a.handle_payload(_image_payload())
+    assert agent.images == [("whatsapp", "15551234567", b"jpegbytes",
+                            "what's wrong with these?")]
+    assert sent == [("15551234567", "reply about the photo")]
+
+
+def test_handle_payload_declines_an_unsupported_document(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+
+    a.handle_payload(_document_payload(mime="application/pdf"))
+    assert agent.images == []                      # nothing invented from a PDF
+    assert len(sent) == 1
+    assert "photo" in sent[0][1].lower()           # told what it CAN read
+
+
+def test_handle_payload_survives_a_failed_media_download(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: None)
+
+    a.handle_payload(_image_payload())
+    assert agent.images == []
+    assert len(sent) == 1 and "couldn't" in sent[0][1].lower()
+
+
+def test_handle_payload_survives_a_handle_image_error(monkeypatch):
+    class _Boom(_FakeAgent):
+        def handle_image(self, *a, **kw):
+            raise RuntimeError("vlm down")
+
+    a = _adapter(_Boom())
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"jpegbytes")
+
+    a.handle_payload(_image_payload())
+    assert len(sent) == 1 and "went wrong" in sent[0][1].lower()
+
+
+def test_images_from_a_disallowed_sender_are_ignored(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent, allowed_ids=["15559999999"])
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"jpegbytes")
+
+    a.handle_payload(_image_payload(sender="15551234567"))
+    assert agent.images == [] and sent == []
+
+
+def test_download_media_does_the_two_step_graph_fetch(monkeypatch):
+    a = _adapter()
+    calls = []
+
+    class _Resp:
+        def __init__(self, status=200, payload=None, content=b""):
+            self.status_code, self._payload, self.content = status, payload or {}, content
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    def _fake_get(url, headers=None, timeout=None):
+        calls.append((url, headers))
+        if url.endswith("/MEDIA123"):
+            return _Resp(payload={"url": "https://lookaside.fbsbx.com/x", "mime_type": "image/jpeg"})
+        return _Resp(content=b"realjpegbytes")
+
+    monkeypatch.setattr("requests.get", _fake_get)
+    assert a.download_media("MEDIA123") == b"realjpegbytes"
+    assert len(calls) == 2
+    # BOTH hops need the bearer token — the lookaside URL is authenticated too
+    assert calls[0][1]["Authorization"] == "Bearer ACCESS_TOKEN"
+    assert calls[1][1]["Authorization"] == "Bearer ACCESS_TOKEN"
+
+
+def test_download_media_returns_none_when_the_lookup_fails(monkeypatch):
+    a = _adapter()
+
+    class _Resp:
+        status_code = 404
+        text = "not found"
+
+        def json(self):
+            return {}
+
+    monkeypatch.setattr("requests.get", lambda *args, **kw: _Resp())
+    assert a.download_media("MEDIA123") is None

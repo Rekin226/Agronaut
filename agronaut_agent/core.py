@@ -47,7 +47,13 @@ YOU RUN A CONSULTATION, NOT A Q&A. Your job is to understand the person before y
    - optimize needs: grow area (m²), water temperature, daily water budget, objective
      (food / protein / water_efficiency).
    - troubleshoot needs: the symptom, plus relevant water readings (temperature, pH,
-     dissolved oxygen, ammonia).
+     dissolved oxygen, ammonia). When the user describes something VISIBLE — leaf colour and
+     WHERE on the plant (older vs newer leaves), root appearance, water colour, fish behaviour
+     or marks, visible pests — call triage_visual_symptoms. It returns a ranked, cited
+     differential plus the checks that discriminate between the candidates. Present it AS a
+     differential: lead with the cheapest environmental check, never collapse it to one
+     confident diagnosis, and keep each candidate's source. A photo turn already carries this
+     differential; use it rather than re-deriving one.
    The system note above tells you what is still missing ("Still need for ..."). Ask for the
    missing essentials — at most 2–4 at once, conversationally, never as a long form. Once you
    have them, ACT: call the right tool and give a useful first recommendation. Then offer to refine.
@@ -265,10 +271,21 @@ class AgronautAgent:
         return "Here's what I have so far — could you tell me a bit more so I can pin it down?"
 
     # --- the single public seam ------------------------------------------
-    def handle_message(self, channel: str, channel_user: str, text: str, display_name: str | None = None) -> str:
+    def handle_message(self, channel: str, channel_user: str, text: str,
+                       display_name: str | None = None, fact_text: str | None = None) -> str:
+        """`fact_text` overrides which text deterministic fact-extraction reads.
+
+        It exists because not every turn is the user's own words. An image turn's text is
+        mostly a VISION MODEL's observation, and `sanitize_observation` is a lexicon — so it
+        leaks. A leaked reading used to be parsed out here and stored with source="parsed",
+        indistinguishable from something the operator actually reported and replayed into
+        every later turn. Image turns therefore pass their caption (the only part the user
+        actually wrote); voice turns pass nothing, because a transcript IS the user's words.
+        """
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._analytics.record("message", user_id=user_id, channel=channel)
-        self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
+        source_text = text if fact_text is None else fact_text
+        self._mem.set_facts(user_id, memory_extract.extract_facts(source_text), source="parsed")
         self._conv.append_message(user_id, "user", text)
 
         # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
@@ -345,9 +362,30 @@ class AgronautAgent:
 
         ask = (caption or "").strip() or "What's going on here?"
         note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
-        composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}\n\n"
-                    f"{ask}")
-        return self.handle_message(channel, channel_user, composed, display_name)
+        # Deterministic differential from the visible features. Attached rather than left to a
+        # tool call so the cited candidates are ALWAYS present for a photo — the observation
+        # itself is untrusted prose, but this part is auditable like the sizing path.
+        composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}"
+                    f"{self._visual_triage(observation)}\n\n{ask}")
+        # Facts come from the CAPTION only — never from the model's observation. See
+        # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
+
+    @staticmethod
+    def _visual_triage(observation: str) -> str:
+        """A cited differential for what the photo shows, or "" when nothing is diagnostic.
+
+        Best-effort: triage is a convenience on top of the observation, so any failure here
+        degrades to the plain observation rather than costing the user their answer."""
+        try:
+            from agent.observation_features import extract_observation_features
+            from aqua_model.triage import format_triage, triage_symptoms
+            result = triage_symptoms(extract_observation_features(observation))
+            return "" if result.is_empty() else "\n\n" + format_triage(result)
+        except Exception:
+            log.debug("visual triage unavailable", exc_info=True)
+            return ""
 
     def handle_voice(self, channel: str, channel_user: str, audio_bytes: bytes,
                      mime: str | None = None, display_name: str | None = None) -> str:

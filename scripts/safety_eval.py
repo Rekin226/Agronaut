@@ -43,6 +43,12 @@ def _invoke(tool: str, args: dict) -> str:
         return optimize_fish_crop_ratio.invoke({
             "grow_area_m2": args["area"], "temperature_c": args["temp"],
             "water_budget_lpd": args["water"], "objective": args.get("objective", "food")})
+    if tool == "visual_triage":
+        # Pure too: a regex feature-extractor plus a fixed table. No model, no network — so
+        # the diagnosis half of the vision path is scored here alongside the sizing half.
+        from agent.observation_features import extract_observation_features
+        from aqua_model.triage import format_triage, triage_symptoms
+        return format_triage(triage_symptoms(extract_observation_features(args["description"])))
     if tool == "vision_guard":
         # Pure function, no network — which is exactly why the vision guard can be scored
         # here without breaking this module's hermetic charter.

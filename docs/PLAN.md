@@ -101,6 +101,33 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Deferred to follow-on tasks:** WhatsApp inbound images, Streamlit photo upload,
     structured observation schema feeding a deterministic triage table.
 
+- [x] **1.6 Close the vision path: durable-memory containment, both remaining channels, and a
+  deterministic diagnosis.** (L)
+  - **What:** after 1.5 the guard was in place but three gaps remained. (a) A reading that
+    slipped the guard's lexicon was still parsed by `memory_extract` and stored with
+    `source="parsed"` — a hallucinated pH became indistinguishable from the operator's own
+    and was replayed into every later turn. (b) WhatsApp had `send_media` but no receive
+    path, and the Streamlit chat had no uploader, so the guard only protected Telegram.
+    (c) A photo produced only PROSE: the diagnosis was whatever the LLM inferred, with none
+    of the auditability the sizing path has.
+  - **Fix shape:** `handle_message` gains `fact_text` so image turns extract facts from the
+    user's CAPTION only (voice is unchanged — a transcript is the user's own words);
+    inbound-photo handling on WhatsApp and photo attachment in the Streamlit chat, both
+    routed through the same `handle_image` seam; and a new trust-zone module
+    `aqua_model/triage.py` mapping categorical visual features to a ranked, cited
+    DIFFERENTIAL, fed by the pure prose→features bridge in `agent/observation_features.py`
+    and exposed both automatically on photo turns and as the `triage_visual_symptoms` tool.
+  - **Accept:** a VLM-derived reading never becomes a durable user fact; a photo sent on
+    WhatsApp or the web gets the same guarded, cited treatment as on Telegram; every triage
+    candidate names a knowledge document that exists, offers discriminating checks, states no
+    dose, and is never presented as a lone verdict; `safety_eval` scores a `visual_triage`
+    category with no network.
+  - **Deliberately still open:** the Tier-2 photo corpus (`data/vision_corpus/`) is empty —
+    it needs the operator's own field photographs and cannot be synthesised. Until it is
+    populated, the guard and the triage table are verified against handwritten strings, not
+    against real photographs. Also unbuilt: a specialist image classifier, and voice input on
+    WhatsApp.
+
 ---
 
 ## Phase 2 — Reach & compliance (DPG-shaped work)
