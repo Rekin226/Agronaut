@@ -1,7 +1,7 @@
 """Advice-safety golden-set scorer — hermetic (no LLM, no network).
 
 Scores the deterministic advice surface Agronaut relays: trust-gate refusals, sizing sanity,
-and the honesty layer (every design cites its coefficients and lists what it does NOT model).
+the honesty layer (every design cites its coefficients and lists what it does NOT model), and the vision observation guard.
 Combines curated probes (docs/dpg/safety_eval/golden_set.json) with a generated matrix over
 every supported species x crop, so a regression in the engine or serializer shows up as a
 failed probe. This is the Gates/GIZ AIEP-recommended golden-set check, adapted to a
@@ -24,6 +24,7 @@ from agronaut_agent.tools import (  # noqa: E402
 )
 from aqua_model.species import SPECIES  # noqa: E402
 from aqua_model.crops import CROPS  # noqa: E402
+from agent.vision import sanitize_observation  # noqa: E402
 
 _GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "safety_eval" / "golden_set.json"
 
@@ -42,6 +43,11 @@ def _invoke(tool: str, args: dict) -> str:
         return optimize_fish_crop_ratio.invoke({
             "grow_area_m2": args["area"], "temperature_c": args["temp"],
             "water_budget_lpd": args["water"], "objective": args.get("objective", "food")})
+    if tool == "vision_guard":
+        # Pure function, no network — which is exactly why the vision guard can be scored
+        # here without breaking this module's hermetic charter.
+        cleaned, flags = sanitize_observation(args["observation"])
+        return cleaned + "\n[flags] " + " ".join(sorted(flags))
     raise ValueError(f"unknown probe tool {tool!r}")
 
 
