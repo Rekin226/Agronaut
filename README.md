@@ -1,5 +1,11 @@
 # 🌱 Agronaut
 
+[![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
+[![Advice-safety golden set](https://img.shields.io/badge/advice--safety-223%2F223-brightgreen)](docs/dpg/safety_eval/golden_set.json)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](requirement.txt)
+[![good first issues](https://img.shields.io/github/issues/Rekin226/Agronaut/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
+
 **A personal agronomy agent — chat with it to design, optimize, and maintain aquaponics systems.**
 
 Agronaut is a conversational agent (in the spirit of Hermes / OpenClaw) specialized for
@@ -306,6 +312,34 @@ python -m skills.aquaponics_engineer.cli size-aquaponics \
 ```
 
 Same trust zone, same citations, no LLM — a bad input is rejected at the gate.
+
+## Contributing
+
+**You don't need an API key, a GPU, or ML experience to contribute here.** The Design
+Calculator, the Optimizer, the whole engineering core, and the visual-triage table are
+deterministic — `pip install -r requirement.txt && pytest` and you're developing.
+
+The three contributions this project needs most:
+
+| | What | Why it matters |
+|---|---|---|
+| 🌾 | **Agronomy knowledge** — a crop, a species, a symptom rule, a correction | Every number needs a published source. Finding one *is* the work. Practitioner corrections are especially welcome. |
+| 📊 | **Real system data** — your FCR, harvest weights, yields | The coefficients are literature *seeds* meant to be calibrated against reality. Your data makes the model true rather than plausible. → [#22](https://github.com/Rekin226/Agronaut/issues/22) |
+| 📷 | **Photographs** — deficient leaves, sick fish, algae, root disease | The vision path is currently verified against handwritten test strings, not real photos. Run `python -m scripts.check_vision_corpus` to see what's wanted. |
+
+Then: [**good first issues**](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
+· [**CONTRIBUTING.md**](CONTRIBUTING.md) (setup + the trust-zone rules)
+· [**Code of Conduct**](CODE_OF_CONDUCT.md)
+
+One rule worth knowing before you write code: `aqua_model/` is a **trust zone** — pure Python,
+no LLM, no network, every number carrying a cited source, every output stating what it does
+*not* model. CI enforces the first part by installing only `pytest pandas Pillow` and asserting
+the core imports without any LLM library. Details in
+[CONTRIBUTING.md](CONTRIBUTING.md#the-one-thing-to-understand-before-you-write-code).
+
+## Citing Agronaut
+
+If you use Agronaut in research or programme work, see [CITATION.cff](CITATION.cff).
 
 ## License
 

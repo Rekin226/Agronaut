@@ -1,0 +1,52 @@
+name: 🌾 Agronomy knowledge or field experience
+description: Add or correct domain knowledge — no code required.
+labels: [documentation, help wanted]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You do not need to write any code for this. If you grow things, you know things this
+        project doesn't. Corrections from practitioners are especially welcome.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind
+      options:
+        - A new crop or fish species (with published values)
+        - A visual-symptom triage rule (what it looks like → what it could be)
+        - A correction to something in knowledge/ that is wrong or unsafe
+        - A new knowledge topic that's missing entirely
+        - Real data from a system I run
+    validations:
+      required: true
+  - type: textarea
+    id: content
+    attributes:
+      label: The knowledge
+      description: >-
+        Be as concrete as you can. For a triage rule, the most useful part is what
+        DISTINGUISHES the cause from the ones it looks like.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source
+      description: >-
+        A paper, FAO/extension document, textbook — or "my own system, N years" which is a
+        legitimate source here, just label it as operator experience rather than literature.
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Region or climate this applies to
+      description: Most agronomy is local. Saying where matters.
+      options:
+        - Tropical / equatorial
+        - Arid / semi-arid
+        - Temperate
+        - Subtropical
+        - Greenhouse / fully controlled
+        - Applies broadly
+        - Not sure

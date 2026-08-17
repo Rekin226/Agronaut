@@ -1,0 +1,45 @@
+name: 🐛 Bug report
+description: Something behaves differently from what it says it does.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Exact command or steps. A failing test is the ideal form.
+      placeholder: |
+        python -m skills.aquaponics_engineer.cli size-aquaponics --fish tilapia ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - aqua_model (sizing / optimizer / triage — the deterministic core)
+        - agent (chat, tools, memory)
+        - channels (Telegram / WhatsApp)
+        - web UI (Streamlit)
+        - vision (photos, observation guard)
+        - knowledge base / citations
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "Python 3.12, Ubuntu 24.04, installed from requirement.txt"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: "`pytest` and `python -m scripts.safety_eval` were run (paste output if either fails)"

@@ -1,0 +1,34 @@
+name: ✨ Feature or improvement
+description: Something Agronaut should be able to do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What can't you do today? Please describe the situation rather than the solution — the
+        best features here have come from someone describing a real day on a real farm.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+  - type: dropdown
+    id: trust
+    attributes:
+      label: Would this produce a number or a recommendation for a user?
+      description: If yes, it needs a cited source and a validation gate — see CONTRIBUTING.md.
+      options:
+        - "No — UI, tooling, docs, or developer experience"
+        - "Yes — and I have sources in mind"
+        - "Yes — and I'd need help finding sources"
+    validations:
+      required: true
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you like to build it?
+      options:
+        - label: I'd like to work on this myself (mentoring welcome)
