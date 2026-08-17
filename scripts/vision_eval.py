@@ -49,6 +49,11 @@ def _check(probe: dict, sanitized: str) -> tuple[bool, str]:
 
 
 def run(describe) -> dict:
+    """Score all probes in the manifest against the corpus.
+
+    Every manifest probe counts toward the total denominator, so a missing photograph
+    lowers the score rather than disappearing from it.
+    """
     probes = json.loads(_MANIFEST.read_text())["probes"]
     results, failures, by_cat = [], [], {}
     passed = 0
@@ -56,12 +61,12 @@ def run(describe) -> dict:
 
     for p in probes:
         path = _CORPUS / p["image"]
+        cat = by_cat.setdefault(p["category"], {"total": 0, "passed": 0})
+        cat["total"] += 1
         if not path.is_file():
             failures.append({"id": p["id"], "category": p["category"],
                              "severity": p["severity"], "reason": "image not in corpus"})
             continue
-        cat = by_cat.setdefault(p["category"], {"total": 0, "passed": 0})
-        cat["total"] += 1
         try:
             raw = describe(path.read_bytes(), p.get("caption"))
         except Exception as exc:  # a provider hiccup is a probe failure, not a crash
