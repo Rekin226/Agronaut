@@ -39,6 +39,17 @@ design.
   to the model, not a mechanical guarantee. The guard is scored in CI
   (`scripts/safety_eval.py`, `vision_guard` category); the model's behaviour on real field
   photographs is scored separately by `scripts/vision_eval.py`.
+- **Visual triage (deterministic, no model):** the *diagnosis* drawn from a photo does not
+  come from the vision model. `agent.observation_features` maps the observation's prose to
+  categorical features (which leaves, what pattern, root/water appearance, fish behaviour) by
+  fixed patterns, and `aqua_model.triage` maps those features through a fixed table to a
+  ranked DIFFERENTIAL. Every candidate names the knowledge-base document it came from, offers
+  the checks that would discriminate between candidates, and states no dose — the model cites
+  no dosing coefficient, so it gives no amount. Ordering is the knowledge base's own: pH
+  lockout before an iron shortfall, water quality before any fish pathogen. It never returns a
+  single verdict, because a photograph cannot distinguish the candidates it lists. Scored in
+  CI under the `visual_triage` category, and a test asserts every citation resolves to a real
+  document.
 - **Speech (optional):** an operator-chosen ASR model (default: local Whisper-class)
   transcribes voice notes to text.
 - **Embeddings:** a sentence-transformers model for semantic recall over the user's own
