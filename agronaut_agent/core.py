@@ -265,10 +265,21 @@ class AgronautAgent:
         return "Here's what I have so far — could you tell me a bit more so I can pin it down?"
 
     # --- the single public seam ------------------------------------------
-    def handle_message(self, channel: str, channel_user: str, text: str, display_name: str | None = None) -> str:
+    def handle_message(self, channel: str, channel_user: str, text: str,
+                       display_name: str | None = None, fact_text: str | None = None) -> str:
+        """`fact_text` overrides which text deterministic fact-extraction reads.
+
+        It exists because not every turn is the user's own words. An image turn's text is
+        mostly a VISION MODEL's observation, and `sanitize_observation` is a lexicon — so it
+        leaks. A leaked reading used to be parsed out here and stored with source="parsed",
+        indistinguishable from something the operator actually reported and replayed into
+        every later turn. Image turns therefore pass their caption (the only part the user
+        actually wrote); voice turns pass nothing, because a transcript IS the user's words.
+        """
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._analytics.record("message", user_id=user_id, channel=channel)
-        self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
+        source_text = text if fact_text is None else fact_text
+        self._mem.set_facts(user_id, memory_extract.extract_facts(source_text), source="parsed")
         self._conv.append_message(user_id, "user", text)
 
         # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
@@ -347,7 +358,10 @@ class AgronautAgent:
         note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
         composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}\n\n"
                     f"{ask}")
-        return self.handle_message(channel, channel_user, composed, display_name)
+        # Facts come from the CAPTION only — never from the model's observation. See
+        # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
 
     def handle_voice(self, channel: str, channel_user: str, audio_bytes: bytes,
                      mime: str | None = None, display_name: str | None = None) -> str:

@@ -136,3 +136,52 @@ def test_clean_observation_gets_no_verdict_instruction(tmp_path):
     agent.handle_image("telegram", "g6", b"fakebytes", caption="ok?")
     assert "UNVERIFIED" not in chat.last_human
     assert "uniformly green" in chat.last_human
+
+
+# --- the guard is a lexicon, so it leaks; durable memory must not inherit the leak -------
+# A VLM-derived reading that slips sanitize_observation was previously extracted by
+# memory_extract and stored with source="parsed" — indistinguishable from something the
+# operator actually told us, and replayed into every later turn. Facts now come from the
+# user's own caption only.
+
+_LEAKY_READING = ("The pH strip is taped to the pipe, well away from the camera, "
+                  "and the reading was 6.4.")
+
+
+def test_model_derived_reading_never_becomes_a_durable_user_fact(tmp_path):
+    chat = _EchoContext()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=chat,
+                          describe_fn=_describer(_LEAKY_READING))
+    agent.handle_image("telegram", "f1", b"fakebytes", caption="what's wrong?")
+    user_id = agent._conv.get_or_create_user("telegram", "f1")
+    assert "ph" not in agent._mem.get_facts(user_id)
+
+
+def test_model_derived_species_never_becomes_a_durable_user_fact(tmp_path):
+    chat = _EchoContext()
+    agent = AgronautAgent(
+        db_path=tmp_path / "t.sqlite3", chat_model=chat,
+        describe_fn=_describer("There are tilapia visible near the bottom of the tank."))
+    agent.handle_image("telegram", "f2", b"fakebytes", caption="are they ok?")
+    user_id = agent._conv.get_or_create_user("telegram", "f2")
+    assert "fish_species" not in agent._mem.get_facts(user_id)
+
+
+def test_the_users_own_caption_still_yields_facts(tmp_path):
+    # The caption IS the user's own words — suppressing extraction there would lose real data.
+    chat = _EchoContext()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=chat,
+                          describe_fn=_describer("Leaves look pale."))
+    agent.handle_image("telegram", "f3", b"fakebytes",
+                       caption="my pH is 6.4, what's wrong with these?")
+    user_id = agent._conv.get_or_create_user("telegram", "f3")
+    assert agent._mem.get_facts(user_id).get("ph") == "6.4"
+
+
+def test_image_turn_with_no_caption_stores_no_facts(tmp_path):
+    chat = _EchoContext()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=chat,
+                          describe_fn=_describer(_LEAKY_READING))
+    agent.handle_image("telegram", "f4", b"fakebytes", caption=None)
+    user_id = agent._conv.get_or_create_user("telegram", "f4")
+    assert agent._mem.get_facts(user_id) == {}
