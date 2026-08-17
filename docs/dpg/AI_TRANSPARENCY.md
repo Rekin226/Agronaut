@@ -32,7 +32,8 @@ design.
   only *observes*; it never emits numbers or calls a tool. Parts of that contract are
   enforced in code rather than merely requested in the prompt: a deterministic guard
   (`agent.vision.sanitize_observation`) strips measurement readings and prescriptive
-  sentences from the observation, and discards observations the model could not read. A
+  sentences from the observation, and discards observations the model could not read.
+  Stripping is pattern-based, so an unusual phrasing can occasionally survive it. A
   named condition is flagged in code, and the flag attaches an explicit instruction that
   the verdict is unverified and must be cited or hedged — that last step is an instruction
   to the model, not a mechanical guarantee. The guard is scored in CI
