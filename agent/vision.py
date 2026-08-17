@@ -186,6 +186,30 @@ def _data_uri(image_bytes: bytes, mime: str = "image/jpeg") -> str:
     return f"data:{mime};base64,{base64.b64encode(image_bytes).decode()}"
 
 
+def strip_exif(image_bytes: bytes) -> bytes:
+    """Remove embedded metadata — EXIF GPS above all — before the image leaves this process
+    for a hosted model. PRIVACY.md promises no location beyond what the user types; raw
+    camera bytes would quietly break that.
+
+    Best-effort by design: anything unexpected returns the original bytes, because a failed
+    strip must never cost the user their answer. Pillow is imported HERE, not at module
+    scope — importing this module must stay dependency-free."""
+    try:
+        import io
+        from PIL import Image
+        with Image.open(io.BytesIO(image_bytes)) as im:
+            im = im.convert("RGB")
+            # frombytes copies pixels into a fresh image with no .info dict — unlike copy(),
+            # which carries metadata across. Avoids materialising a Python list of pixels.
+            clean = Image.frombytes(im.mode, im.size, im.tobytes())
+            out = io.BytesIO()
+            clean.save(out, format="JPEG", quality=90)
+            return out.getvalue()
+    except Exception:
+        log.debug("EXIF strip skipped", exc_info=True)
+        return image_bytes
+
+
 def _build_vlm_backend(provider: str, model: str):
     """Return a callable(data_uri, prompt) -> str for the resolved provider. Lazy imports."""
     if provider == "nvidia":
@@ -211,7 +235,7 @@ def make_describer(backend):
         prompt = _OBSERVE_PROMPT
         if user_prompt:
             prompt += f"\n\nThe user asked: {user_prompt}"
-        return backend(_data_uri(image_bytes), prompt)
+        return backend(_data_uri(strip_exif(image_bytes)), prompt)
     return _describe
 
 

@@ -130,3 +130,44 @@ def test_hedge_inside_a_rich_observation_is_not_unclear():
     assert len(text) > 200
     _, flags = vision.sanitize_observation(text)
     assert "unclear" not in flags
+
+
+def _jpeg_with_gps() -> bytes:
+    """A real JPEG carrying an EXIF GPS tag, built in-memory."""
+    import io
+    from PIL import Image
+    im = Image.new("RGB", (32, 32), (10, 120, 40))
+    exif = Image.Exif()
+    exif[0x8825] = {1: "N", 2: (12.0, 22.0, 0.0)}   # GPSInfo
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def test_strip_exif_removes_embedded_metadata():
+    import io
+    from PIL import Image
+    raw = _jpeg_with_gps()
+    assert Image.open(io.BytesIO(raw)).getexif()          # precondition: EXIF is there
+    cleaned = vision.strip_exif(raw)
+    assert not Image.open(io.BytesIO(cleaned)).getexif()  # and it is gone
+    assert Image.open(io.BytesIO(cleaned)).size == (32, 32)
+
+
+def test_strip_exif_passes_through_undecodable_bytes():
+    # Best-effort by design: a failed strip must never cost the user their answer.
+    junk = b"\x89PNG\r\n\x1a\n not really an image"
+    assert vision.strip_exif(junk) == junk
+
+
+def test_describer_strips_exif_before_building_the_data_uri():
+    import base64
+    seen = {}
+
+    def _fake_backend(data_uri, prompt):
+        seen["data_uri"] = data_uri
+        return "ok"
+
+    raw = _jpeg_with_gps()
+    vision.make_describer(backend=_fake_backend)(raw, "what is this?")
+    assert base64.b64encode(raw).decode() not in seen["data_uri"]
