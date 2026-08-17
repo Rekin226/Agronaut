@@ -16,6 +16,7 @@ class _FakeAgent:
     def __init__(self, attachments=None):
         self.calls = []
         self.images = []
+        self.voices = []
         self._atts = attachments or []
 
     def handle_message(self, channel, channel_user, text, display_name=None):
@@ -26,6 +27,11 @@ class _FakeAgent:
                      display_name=None):
         self.images.append((channel, channel_user, image_bytes, caption))
         return "reply about the photo"
+
+    def handle_voice(self, channel, channel_user, audio_bytes, mime=None,
+                     display_name=None):
+        self.voices.append((channel, channel_user, audio_bytes, mime))
+        return "reply about the voice note"
 
     def take_attachments(self, channel, channel_user):
         atts, self._atts = self._atts, []
@@ -316,3 +322,96 @@ def test_download_media_returns_none_when_the_lookup_fails(monkeypatch):
 
     monkeypatch.setattr("requests.get", lambda *args, **kw: _Resp())
     assert a.download_media("MEDIA123") is None
+
+
+# --- inbound voice notes ------------------------------------------------------------------
+# Telegram has had voice input since PLAN 1.4. WhatsApp is the channel that actually reaches
+# low-literacy farmers, so a voice note mattering more here than anywhere else was the gap.
+
+def _audio_payload(media_id="AUDIO789", sender="15551234567",
+                   mime="audio/ogg; codecs=opus", kind="audio"):
+    return {
+        "entry": [{"changes": [{"value": {
+            "messages": [{"from": sender, "id": "wamid.AUD", "type": kind,
+                          kind: {"id": media_id, "mime_type": mime, "voice": True}}],
+        }}]}],
+    }
+
+
+def test_parse_incoming_audio_extracts_media_id_and_mime():
+    a = _adapter()
+    assert a.parse_incoming_audio(_audio_payload()) == [
+        ("15551234567", "AUDIO789", "audio/ogg; codecs=opus")]
+
+
+def test_parse_incoming_audio_accepts_a_voice_type_message():
+    a = _adapter()
+    assert a.parse_incoming_audio(_audio_payload(kind="voice")) == [
+        ("15551234567", "AUDIO789", "audio/ogg; codecs=opus")]
+
+
+def test_parse_incoming_audio_accepts_an_audio_document():
+    a = _adapter()
+    payload = _document_payload(mime="audio/mpeg", filename="note.mp3")
+    assert a.parse_incoming_audio(payload) == [("15551234567", "MEDIA456", "audio/mpeg")]
+
+
+def test_parse_incoming_audio_ignores_text_and_images():
+    a = _adapter()
+    assert a.parse_incoming_audio(_incoming_payload()) == []
+    assert a.parse_incoming_audio(_image_payload()) == []
+
+
+def test_audio_is_not_also_reported_as_an_unsupported_file():
+    """The decline path must not fire for something we now handle — otherwise the user gets
+    an answer AND a "can't read that" message for the same voice note."""
+    a = _adapter()
+    assert a.parse_unsupported_files(_audio_payload()) == []
+    assert a.parse_unsupported_files(_document_payload(mime="audio/mpeg")) == []
+
+
+def test_handle_payload_routes_a_voice_note_to_handle_voice(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"oggbytes")
+
+    a.handle_payload(_audio_payload())
+    assert agent.voices == [("whatsapp", "15551234567", b"oggbytes", "audio/ogg; codecs=opus")]
+    assert sent == [("15551234567", "reply about the voice note")]
+
+
+def test_handle_payload_survives_a_failed_voice_download(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: None)
+
+    a.handle_payload(_audio_payload())
+    assert agent.voices == []
+    assert len(sent) == 1 and "couldn't" in sent[0][1].lower()
+
+
+def test_handle_payload_survives_a_handle_voice_error(monkeypatch):
+    class _Boom(_FakeAgent):
+        def handle_voice(self, *a, **kw):
+            raise RuntimeError("asr down")
+
+    a = _adapter(_Boom())
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"oggbytes")
+
+    a.handle_payload(_audio_payload())
+    assert len(sent) == 1 and "went wrong" in sent[0][1].lower()
+
+
+def test_voice_notes_from_a_disallowed_sender_are_ignored(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent, allowed_ids=["15559999999"])
+    monkeypatch.setattr(a, "send_text", lambda to, text: None)
+    monkeypatch.setattr(a, "download_media", lambda mid: b"oggbytes")
+    a.handle_payload(_audio_payload())
+    assert agent.voices == []
