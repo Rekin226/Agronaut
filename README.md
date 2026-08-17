@@ -1,14 +1,21 @@
 # 🌱 Agronaut
 
-**A personal agronomy agent — chat with it to design, optimize, and maintain aquaponics systems.**
+**An open-source AI agronomy agent that runs locally on your own computer or server,
+connects to messaging apps like Telegram and WhatsApp, and computes aquaponics system
+designs from a deterministic, source-cited engineering core instead of guessing them.**
 
-Agronaut is a conversational agent (in the spirit of Hermes / OpenClaw) specialized for
-agriculture. Its first deep domain is **aquaponics**: it turns the trial-and-error of
-designing a fish-and-plant system into a calculated, cited, honest answer — and finds the
-fish/crop ratio that squeezes the most food from the least water.
+A self-hostable agent specialized for agriculture: a domain application in the spirit of
+Hermes / OpenClaw, rather than another agent framework. Its first deep domain is
+**aquaponics**. Describe your water, space and species in one sentence and it returns a
+buildable design, with a bill of materials, an operating envelope, a source for every
+number, and an explicit list of what it does *not* model. It will also search fish × crop
+mixes for the ratio that grows the most food from the least water.
 
 > Built by a hands-on aquaponics operator to cut the pain he lived: years of reading papers
 > and losing fish to figure out what the math could have told him up front.
+
+The sizing method behind it is a granted Taiwan utility model patent (**TW M661364**).
+The code is MIT, runs on open weights, and needs no proprietary API.
 
 ---
 
