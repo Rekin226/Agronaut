@@ -25,6 +25,8 @@ or any special-category data. Photos and voice notes you send are processed to p
 text observation/transcript and are **not retained** as media. Embedded photo metadata —
 EXIF GPS above all — is stripped before an image is sent to a vision model, so a
 geotagged camera file does not leak a location you did not type.
+Stripping is best-effort: an image the software cannot decode is sent as received rather
+than discarded, so an unusual or malformed file may still carry its metadata.
 
 ## How it is used
 
