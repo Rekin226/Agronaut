@@ -140,3 +140,35 @@ def test_extracted_features_drive_a_cited_differential():
 def test_an_unusable_observation_produces_no_differential():
     result = triage_symptoms(extract("A blurry photo of something indoors."))
     assert result.is_empty()
+
+
+# --- precision: cues must not cross between subjects -------------------------------------
+# Domain cues are read only from the sentences mentioning that domain, and "at the surface"
+# needs a fish actually doing something there. These are the false positives that scoping and
+# a tightened verb list removed.
+
+def test_algae_on_the_surface_is_not_a_gasping_fish():
+    f = extract("The fish look healthy but a mat of algae floats on the surface.")
+    assert "gasping_surface" not in f.fish_behaviour
+
+
+def test_slow_moving_water_is_not_a_lethargic_fish():
+    f = extract("The fish are active; the water moves slowly through the channel.")
+    assert "lethargic" not in f.fish_behaviour
+
+
+def test_a_real_gasping_report_still_registers():
+    for text in ("Several fish are holding at the surface, gasping.",
+                 "The tilapia are crowding at the surface this morning.",
+                 "Fish are gulping at the top of the tank."):
+        assert "gasping_surface" in extract(text).fish_behaviour, text
+
+
+def test_brown_leaves_in_another_sentence_do_not_make_the_roots_rotten():
+    f = extract("The roots are white and firm. The lower leaves are brown and crisp.")
+    assert f.root_state == "white_healthy"
+
+
+def test_cloudy_described_of_something_other_than_water_is_not_a_water_state():
+    f = extract("The lettuce leaves are pale. The cover looks cloudy with condensation.")
+    assert f.water_state == "unknown"

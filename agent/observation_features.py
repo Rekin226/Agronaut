@@ -91,8 +91,13 @@ _WATER_BROWN = _rx(r"\bbrown water\b", r"\btea.?colou?red\b",
 _WATER_CLEAR = _rx(r"\bwater is clear\b", r"\bclear water\b", r"\bwater (?:looks|appears) clear\b")
 
 # --- fish -------------------------------------------------------------------------------
+# "at the surface" alone is too broad — algae, debris and light all sit on the surface. The
+# phrase only signals gasping when a fish is DOING something there, so require the verb.
 _GASPING = _rx(r"\bgasp", r"\bpiping\b", r"\bmouths? at the surface\b",
-               r"\b(?:at|near|on) the surface\b", r"\bmouthing the surface\b")
+               r"\bmouthing the surface\b", r"\bgulping\b",
+               r"\b(?:holding|hanging|sitting|staying|stay|gathered|gathering|crowding|"
+               r"crowded|hovering|congregat\w+|swimming|swim)\s+(?:up\s+)?"
+               r"(?:at|near|by|on)\s+the surface\b")
 _LETHARGIC = _rx(r"\blethargic\b", r"\bslow(?:ly)?\b", r"\bsluggish\b", r"\blistless\b",
                  r"\bmotionless\b", r"\bhardly moving\b", r"\binactive\b")
 _NOT_EATING = _rx(r"\bnot eating\b", r"\boff (?:their )?feed\b", r"\brefusing (?:food|feed)\b",
@@ -130,6 +135,20 @@ def _near(text: str, cue_a: re.Pattern, cue_b: re.Pattern) -> bool:
     return any(cue_a.search(s) and cue_b.search(s) for s in _sentences(text))
 
 
+def _scope(text: str, cue: re.Pattern) -> str:
+    """Just the sentences that mention this subject.
+
+    Domain cues are then read against that slice instead of the whole observation, so
+    "The fish look healthy but a mat of algae floats on the surface" does not register fish
+    gasping, and "the water moves slowly" does not register a lethargic fish. This narrows
+    the window; it does not eliminate the problem — within a single sentence that mentions
+    two subjects, cues can still cross ("the pump is slow and the fish are fine"). Getting
+    that last case right needs parsing, and the cost of being wrong here is bounded: a
+    spurious feature adds one more candidate to a differential that never claims certainty,
+    and the environment-first ordering means the extra candidate is a cheap, safe check."""
+    return " ".join(s for s in _sentences(text) if cue.search(s))
+
+
 def extract_observation_features(text: str) -> ObservationFeatures:
     """Prose → categorical features. Pure and total: any string in, valid features out.
 
@@ -154,32 +173,33 @@ def extract_observation_features(text: str) -> ObservationFeatures:
     leaf_pattern: list[str] = []
     colour: list[str] = []
     if "plant" in subject:
-        old, new = bool(_OLD_LEAF.search(text)), bool(_NEW_LEAF.search(text))
+        pt = _scope(text, _PLANT_CUE)          # only the sentences about plants
+        old, new = bool(_OLD_LEAF.search(pt)), bool(_NEW_LEAF.search(pt))
         leaf_age = "both" if old and new else "old" if old else "new" if new else "unknown"
 
-        if _INTERVEINAL.search(text):
+        if _INTERVEINAL.search(pt):
             leaf_pattern.append("interveinal")
-        if _near(text, _MARGIN, _SCORCH):
+        if _near(pt, _MARGIN, _SCORCH):
             leaf_pattern.append("margin_scorch")
-        if _WHOLE_PALE.search(text):
+        if _WHOLE_PALE.search(pt):
             leaf_pattern.append("whole_pale")
-        if _TIP_BURN.search(text):
+        if _TIP_BURN.search(pt):
             leaf_pattern.append("tip_burn")
-        if _STIPPLED.search(text):
+        if _STIPPLED.search(pt):
             leaf_pattern.append("stippled")
-        if _HOLES.search(text):
+        if _HOLES.search(pt):
             leaf_pattern.append("holes")
-        if _POWDER.search(text):
+        if _POWDER.search(pt):
             leaf_pattern.append("powder")
-        if _WEBBING.search(text):
+        if _WEBBING.search(pt):
             leaf_pattern.append("webbing")
         # Leaf "spots" only when this is NOT a fish observation — otherwise a fish's white
         # spots would be double-counted as a leaf pattern too.
-        if _SPOTS.search(text) and "fish" not in subject:
+        if _SPOTS.search(pt) and "fish" not in subject:
             leaf_pattern.append("spots")
 
         for name, cue in _COLOUR_CUES:
-            if cue.search(text):
+            if cue.search(pt):
                 colour.append(name)
 
     root_state = "unknown"
@@ -191,37 +211,39 @@ def extract_observation_features(text: str) -> ObservationFeatures:
 
     water_state = "unknown"
     if "water" in subject:
-        if _WATER_GREEN.search(text):
+        wt = _scope(text, _WATER_CUE)          # only the sentences about water
+        if _WATER_GREEN.search(wt):
             water_state = "green"
-        elif _WATER_BROWN.search(text):
+        elif _WATER_BROWN.search(wt):
             water_state = "brown"
-        elif _WATER_CLOUDY.search(text):
+        elif _WATER_CLOUDY.search(wt):
             water_state = "cloudy"
-        elif _WATER_CLEAR.search(text):
+        elif _WATER_CLEAR.search(wt):
             water_state = "clear"
 
     fish_behaviour: list[str] = []
     fish_body: list[str] = []
     if "fish" in subject:
-        if _GASPING.search(text):
+        ft = _scope(text, _FISH_CUE)           # only the sentences about fish
+        if _GASPING.search(ft):
             fish_behaviour.append("gasping_surface")
-        if _LETHARGIC.search(text):
+        if _LETHARGIC.search(ft):
             fish_behaviour.append("lethargic")
-        if _NOT_EATING.search(text):
+        if _NOT_EATING.search(ft):
             fish_behaviour.append("not_eating")
-        if _FLASHING.search(text):
+        if _FLASHING.search(ft):
             fish_behaviour.append("flashing")
-        if _CLAMPED.search(text):
+        if _CLAMPED.search(ft):
             fish_behaviour.append("clamped_fins")
-        if _FISH_WHITE_SPOTS.search(text):
+        if _FISH_WHITE_SPOTS.search(ft):
             fish_body.append("white_spots")
-        if _LESION.search(text):
+        if _LESION.search(ft):
             fish_body.append("lesion")
-        if _FRAYED.search(text):
+        if _FRAYED.search(ft):
             fish_body.append("frayed_fins")
-        if _SWOLLEN.search(text):
+        if _SWOLLEN.search(ft):
             fish_body.append("swollen")
-        if _COTTON.search(text):
+        if _COTTON.search(ft):
             fish_body.append("cotton_tufts")
 
     pests: list[str] = [name for name, cue in _PEST_CUES if cue.search(text)]
