@@ -171,3 +171,97 @@ def test_describer_strips_exif_before_building_the_data_uri():
     raw = _jpeg_with_gps()
     vision.make_describer(backend=_fake_backend)(raw, "what is this?")
     assert base64.b64encode(raw).decode() not in seen["data_uri"]
+
+
+# --- Finding 1: widened lexicons -----------------------------------------------------
+
+def test_strips_hedged_ph_reading():
+    cleaned, flags = vision.sanitize_observation("The test strip suggests pH is about 6.4.")
+    assert "6.4" not in cleaned
+    assert "[number removed]" in cleaned
+    assert "stripped:measurement" in flags
+
+
+def test_strips_bare_temperature_reading():
+    cleaned, flags = vision.sanitize_observation("Water temperature is 26 and the fish are active.")
+    assert "26" not in cleaned
+    assert "[number removed]" in cleaned
+    assert "stripped:measurement" in flags
+
+
+def test_strips_uppercase_do_reading_but_not_lowercase_do():
+    cleaned, flags = vision.sanitize_observation("DO is around 4 in the morning.")
+    assert "around 4" not in cleaned
+    assert "[number removed]" in cleaned
+    assert "stripped:measurement" in flags
+
+    # the ordinary English word "do" must never be mistaken for dissolved oxygen
+    cleaned2, flags2 = vision.sanitize_observation("The fish do swim near 3 outlets.")
+    assert "3 outlets" in cleaned2
+    assert "[number removed]" not in cleaned2
+    assert "stripped:measurement" not in flags2
+
+
+def test_strips_bare_imperative_prescriptions():
+    cleaned, flags = vision.sanitize_observation(
+        "Older leaves are pale. Add chelated iron to the sump.")
+    assert "Older leaves are pale" in cleaned
+    assert "chelated iron" not in cleaned
+    assert "stripped:prescriptive" in flags
+
+
+def test_flags_plural_verdict_terms():
+    cleaned, flags = vision.sanitize_observation(
+        "The undersides of the leaves are covered in aphids.")
+    assert "verdict:aphid" in flags
+    assert "undersides" in cleaned
+
+
+# --- Finding 2: importable-with-nothing-installed promise ----------------------------
+
+def _real_jpeg_bytes() -> bytes:
+    import io
+    from PIL import Image
+    im = Image.new("RGB", (10, 10), (200, 50, 50))
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def test_strip_exif_falls_back_to_passthrough_when_pillow_is_unavailable(monkeypatch):
+    import sys
+
+    raw = _real_jpeg_bytes()  # decodable — so passthrough can ONLY be due to missing Pillow
+    # Setting a module to None in sys.modules makes `import <name>` raise ImportError, the
+    # same trick test_llm.py uses (via setitem) to control what a lazy import inside the
+    # module under test resolves to, without needing Pillow to actually be uninstalled.
+    monkeypatch.setitem(sys.modules, "PIL", None)
+
+    assert vision.strip_exif(raw) == raw
+
+
+# --- Finding 4: EXIF Orientation is applied, not merely discarded --------------------
+
+def _jpeg_rotated(width=40, height=20, orientation=6) -> bytes:
+    """A landscape JPEG carrying EXIF Orientation=6 (rotate 90° CW to display correctly),
+    i.e. the pixel data is landscape but should be DISPLAYED as portrait."""
+    import io
+    from PIL import Image
+    im = Image.new("RGB", (width, height), (10, 120, 40))
+    exif = Image.Exif()
+    exif[0x0112] = orientation  # Orientation tag
+    buf = io.BytesIO()
+    im.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def test_strip_exif_applies_orientation_before_discarding_it():
+    import io
+    from PIL import Image
+    raw = _jpeg_rotated(width=40, height=20, orientation=6)
+    assert Image.open(io.BytesIO(raw)).size == (40, 20)  # precondition: raw pixels are landscape
+
+    cleaned = vision.strip_exif(raw)
+    out = Image.open(io.BytesIO(cleaned))
+    assert out.size == (20, 40)  # orientation applied: now portrait
+    assert not out.getexif()     # and the tag itself is gone

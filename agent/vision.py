@@ -57,12 +57,18 @@ _MEASUREMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# "pH 6.2", "DO of 4", "nitrate: 40" — a reading whose label carries the unit. The label is
-# kept (that the model mentioned pH is itself an observation); only the figure is redacted.
+# A reading whose label carries the unit. The label is kept (that the model mentioned pH is
+# itself an observation); only the figure is redacted. The bounded [^.!?\d] gap catches
+# hedged phrasings ("pH is about 6.4") without crossing a sentence boundary.
 _LABELLED_READING_RE = re.compile(
-    r"\b(pH|DO|EC|TDS|ammonia|nitrite|nitrate)\s*(?:of|is|at|=|:)?\s*\d+(?:\.\d+)?",
+    r"\b(pH|EC|TDS|KH|GH|ammonia|nitrite|nitrate|temp|temperature|salinity|alkalinity)"
+    r"\b[^.!?\d]{0,15}?\d+(?:\.\d+)?",
     re.IGNORECASE,
 )
+
+# Dissolved oxygen, matched case-sensitively: with IGNORECASE the ordinary word "do" would
+# match and redact unrelated numbers ("the fish do swim near 3 outlets").
+_DO_READING_RE = re.compile(r"\bDO\b[^.!?\d]{0,15}?\d+(?:\.\d+)?")
 
 # Prescriptions are the highest-harm output a VLM can produce here, and it was told not to.
 # Removed at SENTENCE granularity — a clause cut mid-sentence leaves mangled text, and the
@@ -70,7 +76,8 @@ _LABELLED_READING_RE = re.compile(
 _PRESCRIPTIVE_RE = re.compile(
     r"\b(?:you should|you need to|you'?ll need to|you will need to|treat with|treatment|"
     r"dose|dosing|apply|administer|medicate|i recommend|recommend(?:ed)? (?:that|you)|"
-    r"increase the|reduce the|lower the|raise the)\b",
+    r"increase|reduce|lower|raise|boost|add|use|stop|start|quarantine|isolate|"
+    r"water change|change the water|salt bath|flush|drain|top up)\b",
     re.IGNORECASE,
 )
 
@@ -90,11 +97,12 @@ _VERDICT_TERMS = frozenset({
     "potassium deficiency", "phosphorus deficiency", "chlorosis", "necrosis",
     "powdery mildew", "downy mildew", "root rot", "pythium", "blossom end rot",
     "damping off", "tip burn", "aphid", "spider mite", "thrips", "whitefly",
+    "whiteflies", "white spot", "bacterial gill disease", "hole-in-the-head",
 })
 
 _VERDICT_RE = re.compile(
     r"\b(" + "|".join(sorted((re.escape(t) for t in _VERDICT_TERMS), key=len, reverse=True))
-    + r")\b",
+    + r")(?:e?s)?\b",
     re.IGNORECASE,
 )
 
@@ -141,7 +149,8 @@ def residual_leaks(text: str) -> list[str]:
     leaks = []
     if _PRESCRIPTIVE_RE.search(text or ""):
         leaks.append("prescriptive")
-    if _MEASUREMENT_RE.search(text or "") or _LABELLED_READING_RE.search(text or ""):
+    if (_MEASUREMENT_RE.search(text or "") or _LABELLED_READING_RE.search(text or "")
+            or _DO_READING_RE.search(text or "")):
         leaks.append("measurement")
     return leaks
 
@@ -165,7 +174,8 @@ def sanitize_observation(text: str) -> tuple[str, list[str]]:
 
     cleaned, n_units = _MEASUREMENT_RE.subn(_NUMBER_PLACEHOLDER, cleaned)
     cleaned, n_labelled = _LABELLED_READING_RE.subn(r"\1 " + _NUMBER_PLACEHOLDER, cleaned)
-    if n_units or n_labelled:
+    cleaned, n_do = _DO_READING_RE.subn("DO " + _NUMBER_PLACEHOLDER, cleaned)
+    if n_units or n_labelled or n_do:
         flags.append("stripped:measurement")
 
     cleaned = cleaned.strip()
@@ -196,8 +206,9 @@ def strip_exif(image_bytes: bytes) -> bytes:
     scope — importing this module must stay dependency-free."""
     try:
         import io
-        from PIL import Image
+        from PIL import Image, ImageOps
         with Image.open(io.BytesIO(image_bytes)) as im:
+            im = ImageOps.exif_transpose(im)   # honour Orientation before discarding the tag
             im = im.convert("RGB")
             # frombytes copies pixels into a fresh image with no .info dict — unlike copy(),
             # which carries metadata across. Avoids materialising a Python list of pixels.
