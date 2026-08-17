@@ -5,12 +5,19 @@ identity so concurrent web users never share a conversation or profile.
 Uses AppTest with a fake chat model injected at the agronaut_agent.core seam (no network).
 """
 
+import pathlib
+
 import pytest
 
 pytest.importorskip("streamlit.testing.v1")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
 from langchain_core.messages import AIMessage, ToolMessage  # noqa: E402
+
+# AppTest.from_file resolves a RELATIVE path against the file that calls it — so "app.py"
+# looks for agent/tests/app.py, not the repo root. That happened to work on some Streamlit
+# versions and not others, which made the suite pass locally and fail in CI. Absolute path.
+_APP = str(pathlib.Path(__file__).resolve().parents[2] / "app.py")
 
 
 class _FakeChat:
@@ -48,7 +55,7 @@ def _open_chat(at):
 
 
 def test_web_chat_routes_through_the_tool_calling_agent(fake_agent_backend):
-    at = _open_chat(AppTest.from_file("app.py"))
+    at = _open_chat(AppTest.from_file(_APP))
     at.chat_input[0].set_value("size a 12 m2 tilapia + lettuce at 27C, 300 L/day").run(timeout=60)
 
     assert not at.exception
@@ -67,9 +74,9 @@ def test_web_chat_routes_through_the_tool_calling_agent(fake_agent_backend):
 
 
 def test_two_web_sessions_are_independent(fake_agent_backend):
-    at1 = _open_chat(AppTest.from_file("app.py"))
+    at1 = _open_chat(AppTest.from_file(_APP))
     at1.chat_input[0].set_value("size a 12 m2 tilapia + lettuce at 27C, 300 L/day").run(timeout=60)
-    at2 = _open_chat(AppTest.from_file("app.py"))
+    at2 = _open_chat(AppTest.from_file(_APP))
     at2.chat_input[0].set_value("hello, new user here").run(timeout=60)
 
     assert not at1.exception and not at2.exception
@@ -92,7 +99,7 @@ def test_web_chat_degrades_gracefully_without_a_provider(monkeypatch, tmp_path):
     monkeypatch.setattr(core, "get_chat_model", _boom)
     monkeypatch.setenv("AGRONAUT_DB", str(tmp_path / "web.sqlite3"))
 
-    at = _open_chat(AppTest.from_file("app.py"))
+    at = _open_chat(AppTest.from_file(_APP))
     assert not at.exception                      # never a traceback in the UI
     warnings = "\n".join(str(w.value) for w in at.warning)
     assert "chat" in warnings.lower() or "provider" in warnings.lower()
@@ -143,6 +150,6 @@ def test_route_turn_without_a_photo_uses_handle_message():
 
 def test_chat_mode_still_renders_with_the_file_accepting_input(fake_agent_backend):
     # Guards the accept_file wiring: a signature mismatch would raise on first render.
-    at = _open_chat(AppTest.from_file("app.py"))
+    at = _open_chat(AppTest.from_file(_APP))
     assert not at.exception
     assert at.chat_input
