@@ -96,3 +96,53 @@ def test_web_chat_degrades_gracefully_without_a_provider(monkeypatch, tmp_path):
     assert not at.exception                      # never a traceback in the UI
     warnings = "\n".join(str(w.value) for w in at.warning)
     assert "chat" in warnings.lower() or "provider" in warnings.lower()
+
+
+# --- photo upload in the web chat -------------------------------------------------------
+# The routing decision is extracted from the widget code so it can be tested without a
+# Streamlit script run. Photos must reach the SAME agent seam Telegram and WhatsApp use, so
+# the observation guard and cited tools apply on the web too.
+
+class _RecordingAgent:
+    def __init__(self):
+        self.messages, self.images = [], []
+
+    def handle_message(self, channel, user, text, display_name=None):
+        self.messages.append((channel, user, text))
+        return "text reply"
+
+    def handle_image(self, channel, user, image_bytes, caption=None, display_name=None):
+        self.images.append((channel, user, image_bytes, caption))
+        return "photo reply"
+
+
+def test_route_turn_sends_a_photo_to_handle_image():
+    import app
+    agent = _RecordingAgent()
+    reply = app._route_turn(agent, "web1", "what's wrong?", b"jpegbytes")
+    assert reply == "photo reply"
+    assert agent.images == [("web", "web1", b"jpegbytes", "what's wrong?")]
+    assert agent.messages == []          # not double-handled as a text turn
+
+
+def test_route_turn_photo_without_text_passes_no_caption():
+    import app
+    agent = _RecordingAgent()
+    app._route_turn(agent, "web1", "", b"jpegbytes")
+    assert agent.images[0][3] is None    # empty string must not become a caption
+
+
+def test_route_turn_without_a_photo_uses_handle_message():
+    import app
+    agent = _RecordingAgent()
+    reply = app._route_turn(agent, "web1", "size my system", None)
+    assert reply == "text reply"
+    assert agent.messages == [("web", "web1", "size my system")]
+    assert agent.images == []
+
+
+def test_chat_mode_still_renders_with_the_file_accepting_input(fake_agent_backend):
+    # Guards the accept_file wiring: a signature mismatch would raise on first render.
+    at = _open_chat(AppTest.from_file("app.py"))
+    assert not at.exception
+    assert at.chat_input
