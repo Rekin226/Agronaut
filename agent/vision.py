@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import re
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,92 @@ _OBSERVE_PROMPT = (
     "Do NOT diagnose, prescribe, or state any numbers; another system does that. If the image "
     "is unclear or unrelated to aquaponics, say so."
 )
+
+# --- Observation guard --------------------------------------------------------------
+# _OBSERVE_PROMPT ASKS the model not to diagnose, prescribe, or state numbers. An
+# instruction is not a guarantee — the same gap PLAN 1.3 closed for citations. These
+# functions enforce the mechanically enforceable part, so a hallucinated dose or reading
+# can never reach the agent turn dressed as something the user said.
+#
+# Pure and total: no I/O, no model, never raises. That purity is load-bearing — it is what
+# lets scripts/safety_eval.py score this guard in CI without breaking its no-network charter.
+
+_NUMBER_PLACEHOLDER = "[number removed]"
+
+# A numeral carrying a unit is a MEASUREMENT — the kind of value that could travel toward a
+# tool argument. A bare count ("3 leaves are yellow") is an observation and is left alone.
+# Alternation runs longest-first; the trailing lookahead (not \b) is required so units ending
+# in a non-word character — %, °C, m² — still match at end of string.
+_MEASUREMENT_RE = re.compile(
+    r"\b\d+(?:\.\d+)?\s*"
+    r"(?:mg/?L|µg/?L|g/?L|ppm|ppt|kilograms?|kilos?|kg|grams?|pounds?|lbs?|"
+    r"millilit(?:re|er)s?|litres?|liters?|gallons?|gal|ml|"
+    r"centimet(?:re|er)s?|cm|millimet(?:re|er)s?|mm|met(?:re|er)s?|m²|m2|"
+    r"degrees?|°\s*[CF]|%|g|L|m)"
+    r"(?![a-z0-9])",
+    re.IGNORECASE,
+)
+
+# "pH 6.2", "DO of 4", "nitrate: 40" — a reading whose label carries the unit. The label is
+# kept (that the model mentioned pH is itself an observation); only the figure is redacted.
+_LABELLED_READING_RE = re.compile(
+    r"\b(pH|DO|EC|TDS|ammonia|nitrite|nitrate)\s*(?:of|is|at|=|:)?\s*\d+(?:\.\d+)?",
+    re.IGNORECASE,
+)
+
+# Prescriptions are the highest-harm output a VLM can produce here, and it was told not to.
+# Removed at SENTENCE granularity — a clause cut mid-sentence leaves mangled text, and the
+# sentence is the unit of advice.
+_PRESCRIPTIVE_RE = re.compile(
+    r"\b(?:you should|you need to|you'?ll need to|you will need to|treat with|treatment|"
+    r"dose|dosing|apply|administer|medicate|i recommend|recommend(?:ed)? (?:that|you)|"
+    r"increase the|reduce the|lower the|raise the)\b",
+    re.IGNORECASE,
+)
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _strip_prescriptive(text: str) -> tuple[str, bool]:
+    sentences = _SENTENCE_SPLIT_RE.split(text)
+    kept = [s for s in sentences if not _PRESCRIPTIVE_RE.search(s)]
+    return " ".join(kept).strip(), len(kept) != len(sentences)
+
+
+def residual_leaks(text: str) -> list[str]:
+    """Which guarded categories are still present in a string. Used by the Tier-2 eval to
+    assert the end-to-end guarantee against real model output, rather than re-listing the
+    lexicon in a second place where it would drift."""
+    leaks = []
+    if _PRESCRIPTIVE_RE.search(text or ""):
+        leaks.append("prescriptive")
+    if _MEASUREMENT_RE.search(text or "") or _LABELLED_READING_RE.search(text or ""):
+        leaks.append("measurement")
+    return leaks
+
+
+def sanitize_observation(text: str) -> tuple[str, list[str]]:
+    """Enforce the observe-only contract on a VLM observation.
+
+    Returns (cleaned_text, flags). Flags are category-prefixed strings:
+    'stripped:measurement', 'stripped:prescriptive' (and, from Task 2, 'verdict:<term>'
+    and 'unclear')."""
+    if not text:
+        return "", []
+    flags: list[str] = []
+
+    cleaned, dropped = _strip_prescriptive(text)
+    if dropped:
+        flags.append("stripped:prescriptive")
+
+    # Measurements before labelled readings: "DO 4 mg/L" becomes "DO [number removed]"
+    # rather than leaving a dangling unit behind.
+    cleaned, n_units = _MEASUREMENT_RE.subn(_NUMBER_PLACEHOLDER, cleaned)
+    cleaned, n_labelled = _LABELLED_READING_RE.subn(r"\1 " + _NUMBER_PLACEHOLDER, cleaned)
+    if n_units or n_labelled:
+        flags.append("stripped:measurement")
+
+    return cleaned.strip(), flags
 
 
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:

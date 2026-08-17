@@ -45,3 +45,47 @@ def test_describer_none_when_unavailable(monkeypatch):
     # No provider library installed / build fails -> None, so callers degrade gracefully.
     monkeypatch.setattr(vision, "_build_vlm_backend", lambda *a, **k: (_ for _ in ()).throw(ImportError("no vlm")))
     assert vision.default_describer() is None
+
+
+def test_strips_measurement_numerals_but_keeps_bare_counts():
+    text = "3 leaves are yellow, ammonia reads 4 mg/L and the tank is 26 °C."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert "4 mg/L" not in cleaned
+    assert "26 °C" not in cleaned
+    assert "[number removed]" in cleaned
+    assert "stripped:measurement" in flags
+    # a bare count is an observation, not a measurement — it survives
+    assert "3 leaves" in cleaned
+
+
+def test_strips_labelled_readings_but_keeps_the_label():
+    cleaned, flags = vision.sanitize_observation("The strip shows pH 6.2 on the sample.")
+    assert "6.2" not in cleaned
+    assert "pH" in cleaned
+    assert "stripped:measurement" in flags
+
+
+def test_drops_prescriptive_sentences_and_keeps_their_neighbours():
+    text = "Older leaves are pale. You should add chelated iron to the sump. New growth is green."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert "Older leaves are pale" in cleaned
+    assert "New growth is green" in cleaned
+    assert "chelated iron" not in cleaned
+    assert "stripped:prescriptive" in flags
+
+
+def test_clean_observation_passes_through_untouched():
+    text = "Lettuce leaves are uniformly green; the water is clear; fish swim evenly."
+    cleaned, flags = vision.sanitize_observation(text)
+    assert cleaned == text
+    assert flags == []
+
+
+def test_sanitize_is_total_on_empty_input():
+    assert vision.sanitize_observation("") == ("", [])
+
+
+def test_residual_leaks_reports_what_survived():
+    assert vision.residual_leaks("Lettuce leaves are green.") == []
+    leaks = vision.residual_leaks("You should dose 5 mg/L of iron.")
+    assert "prescriptive" in leaks and "measurement" in leaks
