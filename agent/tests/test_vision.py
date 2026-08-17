@@ -89,3 +89,44 @@ def test_residual_leaks_reports_what_survived():
     assert vision.residual_leaks("Lettuce leaves are green.") == []
     leaks = vision.residual_leaks("You should dose 5 mg/L of iron.")
     assert "prescriptive" in leaks and "measurement" in leaks
+
+
+def test_named_conditions_are_flagged_but_left_in_the_text():
+    text = "The fish has white spots on its gills; this is ich."
+    cleaned, flags = vision.sanitize_observation(text)
+    # kept verbatim: redacting the word would not hide the implication of "white spots"
+    assert "ich" in cleaned
+    assert "white spots" in cleaned
+    assert "verdict:ich" in flags
+
+
+def test_plant_verdict_flagged():
+    cleaned, flags = vision.sanitize_observation(
+        "Interveinal yellowing on older leaves suggests iron deficiency.")
+    assert "verdict:iron deficiency" in flags
+    assert "Interveinal yellowing" in cleaned
+
+
+def test_verdict_inside_a_dropped_prescriptive_sentence_still_flags():
+    # The sentence is removed, but the signal that the model rendered a verdict must survive
+    # — otherwise the turn looks clean and the agent loses the warning.
+    cleaned, flags = vision.sanitize_observation(
+        "The gills look inflamed. Treat with salt for ich.")
+    assert "Treat with salt" not in cleaned
+    assert "verdict:ich" in flags
+    assert "stripped:prescriptive" in flags
+
+
+def test_unclear_short_reply_is_flagged():
+    _, flags = vision.sanitize_observation("The image is too blurry to make out.")
+    assert "unclear" in flags
+
+
+def test_hedge_inside_a_rich_observation_is_not_unclear():
+    text = ("The lettuce in the front raft shows uniform pale green colour across the older "
+            "outer leaves, while the newest inner leaves stay darker. Several leaf tips are "
+            "browning and curled. The water surface is slightly cloudy and it is hard to see "
+            "the roots below the raft.")
+    assert len(text) > 200
+    _, flags = vision.sanitize_observation(text)
+    assert "unclear" not in flags

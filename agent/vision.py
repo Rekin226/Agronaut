@@ -76,6 +76,57 @@ _PRESCRIPTIVE_RE = re.compile(
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# Named conditions. These are KEPT in the text and merely flagged: redacting "ich" while
+# leaving "white spots on the gills" hides the word, not the implication — and the
+# description is genuinely useful to the agent. The doubt is carried by an instruction in
+# core.handle_image instead. Extend this set freely; nothing else needs to change.
+_VERDICT_TERMS = frozenset({
+    # fish
+    "ich", "ichthyophthirius", "white spot disease", "columnaris", "dropsy", "fin rot",
+    "tail rot", "saprolegnia", "velvet", "swim bladder", "gill flukes", "popeye",
+    "septicaemia", "septicemia", "ammonia burn", "nitrite poisoning",
+    # plant
+    "nitrogen deficiency", "iron deficiency", "magnesium deficiency", "calcium deficiency",
+    "potassium deficiency", "phosphorus deficiency", "chlorosis", "necrosis",
+    "powdery mildew", "downy mildew", "root rot", "pythium", "blossom end rot",
+    "damping off", "tip burn", "aphid", "spider mite", "thrips", "whitefly",
+})
+
+_VERDICT_RE = re.compile(
+    r"\b(" + "|".join(sorted((re.escape(t) for t in _VERDICT_TERMS), key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
+
+# The prompt already invites the model to say when an image is unreadable; nothing acted on
+# it, so the agent reasoned on top of a non-observation.
+_UNCLEAR_RE = re.compile(
+    r"\b(?:unclear|blurry|out of focus|too dark|"
+    r"cannot (?:see|tell|make out|determine)|can'?t (?:see|tell|make out|determine)|"
+    r"unrelated|not related to|difficult to (?:see|tell)|hard to (?:see|tell))\b",
+    re.IGNORECASE,
+)
+_UNCLEAR_MAX_CHARS = 200
+
+
+def find_verdicts(text: str) -> list[str]:
+    """Named conditions present in the text, lowercased, in order of first appearance."""
+    found: list[str] = []
+    for m in _VERDICT_RE.finditer(text or ""):
+        term = m.group(1).lower()
+        if term not in found:
+            found.append(term)
+    return found
+
+
+def looks_unclear(sanitized: str) -> bool:
+    """True only when the WHOLE reply is essentially "I can't tell". A long, rich observation
+    that merely contains a hedge is a real observation and must not be discarded — hence the
+    length bound as well as the phrase match."""
+    if not sanitized:
+        return False
+    return len(sanitized) <= _UNCLEAR_MAX_CHARS and bool(_UNCLEAR_RE.search(sanitized))
+
 
 def _strip_prescriptive(text: str) -> tuple[str, bool]:
     sentences = _SENTENCE_SPLIT_RE.split(text)
@@ -99,24 +150,28 @@ def sanitize_observation(text: str) -> tuple[str, list[str]]:
     """Enforce the observe-only contract on a VLM observation.
 
     Returns (cleaned_text, flags). Flags are category-prefixed strings:
-    'stripped:measurement', 'stripped:prescriptive' (and, from Task 2, 'verdict:<term>'
-    and 'unclear')."""
+    'verdict:<term>', 'stripped:measurement', 'stripped:prescriptive', 'unclear'.
+
+    Order is significant: verdicts are found in the ORIGINAL text so a condition named
+    inside a sentence the prescriptive filter is about to drop still raises its flag;
+    unclear is judged on the SANITIZED text so the length bound measures what survives."""
     if not text:
         return "", []
-    flags: list[str] = []
+    flags: list[str] = [f"verdict:{t}" for t in find_verdicts(text)]
 
     cleaned, dropped = _strip_prescriptive(text)
     if dropped:
         flags.append("stripped:prescriptive")
 
-    # Measurements before labelled readings: "DO 4 mg/L" becomes "DO [number removed]"
-    # rather than leaving a dangling unit behind.
     cleaned, n_units = _MEASUREMENT_RE.subn(_NUMBER_PLACEHOLDER, cleaned)
     cleaned, n_labelled = _LABELLED_READING_RE.subn(r"\1 " + _NUMBER_PLACEHOLDER, cleaned)
     if n_units or n_labelled:
         flags.append("stripped:measurement")
 
-    return cleaned.strip(), flags
+    cleaned = cleaned.strip()
+    if looks_unclear(cleaned):
+        flags.append("unclear")
+    return cleaned, flags
 
 
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
