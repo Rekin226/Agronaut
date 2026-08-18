@@ -77,6 +77,9 @@ def _calibrations() -> list[SizingCalibration]:
     clarias, channel = get_species("clarias"), get_species("channel_catfish")
     lettuce, basil, tomato = get_crop("lettuce"), get_crop("basil"), get_crop("tomato")
     carp = get_species("carp")
+    barramundi, silver_perch = get_species("barramundi"), get_species("silver_perch")
+    tambaqui, prawn, pangasius = (
+        get_species("tambaqui"), get_species("freshwater_prawn"), get_species("pangasius"))
     kale, swiss_chard, spinach = get_crop("kale"), get_crop("swiss_chard"), get_crop("spinach")
     cucumber, pepper = get_crop("cucumber"), get_crop("pepper")
 
@@ -117,6 +120,56 @@ def _calibrations() -> list[SizingCalibration]:
             carp.fcr, 1.5, 2.5, "g feed / g gain",
             ("Common carp (Cyprinus carpio) pond/RAS grow-out FCR ~1.5–2.5",),
             "One of the most-farmed fish worldwide; seed 2.0 is mid-range.",
+        ),
+        SizingCalibration(
+            "barramundi.fcr", "Barramundi (Asian seabass) feed conversion ratio",
+            barramundi.fcr, 1.2, 1.8, "g feed / g gain",
+            (
+                "FAO Lates calcarifer aquaculture species card: commercial FCR ~1.6–1.8, "
+                "experimental pellet FCR 1.0–1.2",
+                "Barlow, C.G. et al. (1996) barramundi feeding/nutrition (lab FCR ~1.1–1.4)",
+            ),
+            "Fast, efficient warm-water grower; seed 1.6 is mid-band.",
+        ),
+        SizingCalibration(
+            "silver_perch.fcr", "Silver perch feed conversion ratio",
+            silver_perch.fcr, 1.2, 2.0, "g feed / g gain",
+            (
+                "NSW DPI silver perch species note: FCR ~1.3–2.0, fingerling 1.2 to grow-out 1.5",
+                "Adebayo et al. (2005), Aquaculture Research 36:441–452 (cage feeding strategy)",
+            ),
+            "Australian aquaponics staple; seed 1.6 is near mid-band.",
+        ),
+        SizingCalibration(
+            "tambaqui.fcr", "Tambaqui (black pacu) feed conversion ratio",
+            tambaqui.fcr, 1.2, 1.9, "g feed / g gain",
+            (
+                "Rodrigues, A.P.O. et al. (2024), 'Feeding rate and feeding frequency during "
+                "the grow-out phase of tambaqui (Colossoma macropomum) in earthen ponds', "
+                "Aquaculture Reports — pond grow-out FCR ~1.5–1.8",
+                "Tambaqui cage trials report FCR ~0.9–1.2 (cage vs pond natural-food intake)",
+            ),
+            "Amazonian flagship (FAO 589); seed 1.5 is mid-band.",
+        ),
+        SizingCalibration(
+            "freshwater_prawn.fcr", "Giant freshwater prawn feed conversion ratio",
+            prawn.fcr, 1.8, 2.8, "g feed / g gain",
+            (
+                "Macrobrachium rosenbergii grow-out FCR ~2.0–2.5 (decapods convert feed less "
+                "efficiently than finfish; D'Abramo, Daniels et al. 2000, MSU Bull. B1030)",
+            ),
+            "The shrimp/prawn entry; seed 2.2 is mid-band.",
+        ),
+        SizingCalibration(
+            "pangasius.fcr", "Striped/pangasius catfish feed conversion ratio",
+            pangasius.fcr, 1.4, 2.0, "g feed / g gain",
+            (
+                "MRC Mekong tech. symposium (2005): cage grow-out FCR averaged ~1.84 across "
+                "three feeds (Pangasius hypophthalmus)",
+                "Water-temperature trial (2025), SVU Int. J. Vet. Sci.: juvenile FCR "
+                "1.22–1.28 at 24 °C up to 1.60–2.00 at 34 °C",
+            ),
+            "Among the most-farmed fish in SE Asia; seed 1.8 is high-but-valid.",
         ),
         # ---- Feeding-rate ratio (g feed / m² plant / day) — the load-bearing sizing rule ----
         SizingCalibration(

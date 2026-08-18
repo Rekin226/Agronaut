@@ -74,8 +74,63 @@ CARP = FishSpecies(
     source="LIT (carp aquaculture)",
 )
 
+# Barramundi / Asian seabass (Lates calcarifer): the flagship Australian aquaponics fish
+# (FAO 589 lists it among warm-water options). Warm-water euryhaline; efficient grower.
+# Commercial FCR ~1.6-1.8, experimental pellets 1.0-1.2 (FAO species card).
+BARRAMUNDI = FishSpecies(
+    name="barramundi",
+    feeding_rate_pct_bw=1.5, fcr=1.6, feed_protein_pct=45.0,
+    body_protein_pct=18.0, harvest_weight_kg=0.5, stocking_density_kg_m3=30.0,
+    temp_min_c=20.0, temp_opt_low_c=26.0, temp_opt_high_c=32.0, temp_max_c=36.0,
+    source="FAO Lates calcarifer species card; FAO589",
+)
+
+# Silver perch (Bidyanus bidyanus): Australian native, a backyard-aquaponics standard.
+# NSW DPI cites FCR 1.3-2.0 and optimum production temperature 23-28 C.
+SILVER_PERCH = FishSpecies(
+    name="silver_perch",
+    feeding_rate_pct_bw=1.5, fcr=1.6, feed_protein_pct=35.0,
+    body_protein_pct=17.0, harvest_weight_kg=0.6, stocking_density_kg_m3=25.0,
+    temp_min_c=12.0, temp_opt_low_c=23.0, temp_opt_high_c=28.0, temp_max_c=35.0,
+    source="NSW DPI silver perch species note; Business Queensland",
+)
+
+# Tambaqui (Colossoma macropomum): the Amazonian flagship FAO 589 names alongside tilapia.
+# Hardy, low-oxygen tolerant, omnivorous. Pond grow-out FCR ~1.5-1.8; optimum ~30 C.
+TAMBAQUI = FishSpecies(
+    name="tambaqui",
+    feeding_rate_pct_bw=2.0, fcr=1.5, feed_protein_pct=30.0,
+    body_protein_pct=16.0, harvest_weight_kg=1.2, stocking_density_kg_m3=20.0,
+    temp_min_c=22.0, temp_opt_low_c=27.0, temp_opt_high_c=30.0, temp_max_c=34.0,
+    source="Rodrigues et al. (2024), Aquaculture Reports; IMAZONIA (2013)",
+)
+
+# Giant freshwater prawn (Macrobrachium rosenbergii): the shrimp/prawn example for
+# aquaponics. Decapod, so feed efficiency and density differ from finfish (higher FCR,
+# lower stocking). Optimum 27-32 C (MSU B1030 / Daniels et al. 2000).
+FRESHWATER_PRAWN = FishSpecies(
+    name="freshwater_prawn",
+    feeding_rate_pct_bw=3.0, fcr=2.2, feed_protein_pct=30.0,
+    body_protein_pct=18.0, harvest_weight_kg=0.045, stocking_density_kg_m3=5.0,
+    temp_min_c=18.0, temp_opt_low_c=27.0, temp_opt_high_c=32.0, temp_max_c=35.0,
+    source="Daniels et al. (2000), MSU Bull. B1030; D'Abramo et al.",
+)
+
+# Striped / pangasius catfish (Pangasius hypophthalmus): among the most-farmed fish in
+# SE Asia; dense-tolerant and fast-growing in cages/ponds. Grow-out FCR ~1.4-2.0.
+PANGASIUS = FishSpecies(
+    name="pangasius",
+    feeding_rate_pct_bw=3.0, fcr=1.8, feed_protein_pct=28.0,
+    body_protein_pct=16.0, harvest_weight_kg=1.0, stocking_density_kg_m3=60.0,
+    temp_min_c=22.0, temp_opt_low_c=27.0, temp_opt_high_c=31.0, temp_max_c=35.0,
+    source="MRC Tech. Symp. (2005); Sci. Rep. (2025) grow-out trial",
+)
+
 SPECIES: dict[str, FishSpecies] = {
-    s.name: s for s in (TILAPIA, CLARIAS, CHANNEL_CATFISH, TROUT, CARP)
+    s.name: s for s in (
+        TILAPIA, CLARIAS, CHANNEL_CATFISH, TROUT, CARP,
+        BARRAMUNDI, SILVER_PERCH, TAMBAQUI, FRESHWATER_PRAWN, PANGASIUS,
+    )
 }
 
 

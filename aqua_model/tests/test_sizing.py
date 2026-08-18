@@ -100,7 +100,9 @@ from aqua_model.species import SPECIES
 from aqua_model.crops import CROPS
 
 
-@pytest.mark.parametrize("fish", ["tilapia", "clarias", "channel_catfish", "trout", "carp"])
+@pytest.mark.parametrize("fish", ["tilapia", "clarias", "channel_catfish", "trout", "carp",
+                                  "barramundi", "silver_perch", "tambaqui",
+                                  "freshwater_prawn", "pangasius"])
 def test_every_species_sizes(fish):
     from aqua_model import size_system
     from aqua_model.validate import validate_design_input
