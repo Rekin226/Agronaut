@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agronaut"
+version = "1.0.0"
+description = "Cited, deterministic aquaponics and hydroponics design with a conversational agent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Abdoul Rachid Ouédraogo", email = "abdoulrachid03@gmail.com" }]
+keywords = ["aquaponics", "hydroponics", "agriculture", "food security", "digital public good"]
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/Rekin226/Agronaut"
+Source = "https://github.com/Rekin226/Agronaut"
+
+[project.scripts]
+agronaut = "agronaut_agent.cli:main"
+
+[tool.setuptools.dynamic]
+# requirement.txt stays the single source of truth — it is what the Dockerfile and CI install.
+dependencies = { file = ["requirement.txt"] }
+
+[tool.setuptools]
+# bot.py and app.py sit at the project root as scripts, not inside a package; `agronaut bot`
+# and `agronaut web` need them installed alongside the packages.
+py-modules = ["bot", "app"]
+
+[tool.setuptools.packages.find]
+include = ["agronaut_agent*", "agent*", "aqua_model*", "srcs*", "skills*", "scripts*"]

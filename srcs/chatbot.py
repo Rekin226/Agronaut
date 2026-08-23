@@ -34,8 +34,13 @@ from langchain_community.vectorstores import FAISS
 # Configuration
 # =============================================================================
 
-URL_FILE = "urls.txt"
-KNOWLEDGE_DIR = "knowledge"
+# Anchored to the project root, not the current directory: `agronaut` is an installed
+# command that can be run from anywhere, and a cwd-relative corpus would silently degrade
+# RAG to KNOWLEDGE_UNAVAILABLE instead of failing loudly.
+_PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+URL_FILE = str(_PROJECT_ROOT / "urls.txt")
+KNOWLEDGE_DIR = str(_PROJECT_ROOT / "knowledge")
 WEB_LOAD_TIMEOUT = 20
 
 
@@ -45,7 +50,7 @@ CHUNK_OVERLAP = 100
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 3
 
-CACHE_NAME = "web_cache"
+CACHE_NAME = str(_PROJECT_ROOT / "web_cache")   # absolute: see _PROJECT_ROOT above
 CACHE_EXPIRE = 86_400  # 1 day
 
 LOG_LEVEL = logging.INFO

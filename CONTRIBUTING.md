@@ -52,7 +52,7 @@ gate, that is a bug worth an issue on its own.
 git clone https://github.com/Rekin226/Agronaut.git
 cd Agronaut
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirement.txt
+pip install -e .                         # deps + the `agronaut` command on your PATH
 ```
 
 Run things:
@@ -62,7 +62,8 @@ pytest                                   # the full suite (~530 tests)
 pytest aqua_model/tests -q               # just the deterministic core (fast, no LLM needed)
 python -m scripts.safety_eval            # the advice-safety golden set; exits non-zero on a CRITICAL failure
 streamlit run app.py                     # the web UI (Calculator + Optimizer need no LLM at all)
-python -m skills.aquaponics_engineer.cli size-aquaponics --help   # headless CLI
+agronaut --help                          # the one command over all of the above
+python -m skills.aquaponics_engineer.cli size-aquaponics --help   # the portable skill CLI
 ```
 
 **You do not need an API key to contribute.** The Design Calculator, the Optimizer, the whole
