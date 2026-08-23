@@ -187,13 +187,40 @@ named volume, shared between web and bot.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirement.txt
+pip install -e .                 # installs the deps and the `agronaut` command
 streamlit run app.py
 ```
 
 Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio** modes
 work immediately (no model server). For **chat**, run Ollama locally or set a hosted
 provider (see above).
+
+(`pip install -r requirement.txt` still works if you only want the libraries — `pip install -e .`
+installs the same list and adds the command below.)
+
+### The `agronaut` command
+
+One front door over everything the project ships. It works from any directory once
+installed; bare `agronaut` is the chat REPL, because that is what most people want.
+
+```bash
+agronaut                         # chat with the agent in the terminal
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+agronaut size-hydro --crop lettuce --area 10 --temp 22 --water 500
+agronaut optimize --area 10 --temp 28 --water 5000 --objective food
+agronaut list                    # supported species, crops, objectives
+agronaut web                     # the Streamlit app (trailing flags go to streamlit,
+                                 #   e.g. agronaut web --server.port=9000)
+agronaut bot                     # the Telegram bot
+agronaut review                  # approve/reject pending community insights
+agronaut analytics               # usage summary
+```
+
+| Command | Needs an LLM? |
+|---|---|
+| `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |
+| `chat` (the default) / `bot` | Yes — a tool-calling provider (see above). |
+| `web` | Only for the app's chat mode; the calculator and optimizer run without one. |
 
 ### Run the tests
 ```bash
@@ -215,7 +242,7 @@ The consultative agent is reachable over Telegram. Set these (in `.env` or the e
 
 ```bash
 source .venv/bin/activate
-python bot.py            # long-polls Telegram; Ctrl-C to stop
+agronaut bot             # long-polls Telegram; Ctrl-C to stop (same as `python bot.py`)
 ```
 
 ### Run on WhatsApp (Cloud API)
@@ -310,6 +337,7 @@ agent/                 # LLM-facing layer (imports aqua_model, never the reverse
   calculator_ui.py optimizer_ui.py facts.py   # Streamlit views + the UI/model seam
 
 agronaut_agent/        # the channel-agnostic brain
+  cli.py               #   the `agronaut` command — one front door, routes to the real callables
   core.py              #   handle_message / handle_image / handle_voice — the three seams
   tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
   store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
@@ -321,6 +349,7 @@ skills/                # the deterministic core as a portable agentskills.io ski
 knowledge/ urls.txt    # the curated, cited knowledge base
 docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval
 app.py                 # Streamlit app (chat | calculator | optimizer)
+pyproject.toml         # packaging + the `agronaut` console script (deps read from requirement.txt)
 srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (#25)
 ```
 
