@@ -117,15 +117,43 @@ def test_run_accepts_an_injected_retriever():
     assert all(n["top_score"] is None for n in report["negative_controls"])
 
 
-def test_golden_set_references_only_real_files():
-    """A golden set that points at a deleted knowledge file silently caps recall below 1.0
-    and looks like a retrieval regression. Fail loudly instead."""
+def test_golden_set_references_only_real_sources():
+    """Ground truth must name sources that actually exist in the corpus.
+
+    A label pointing at a deleted knowledge file — or a web source whose LABEL was edited in
+    urls.txt — silently caps recall below 1.0 and reads as a retrieval regression rather than a
+    stale annotation. Both kinds are checked: local entries look like paths and must exist on
+    disk; anything else must match a declared web source's citation label exactly, because that
+    label is what `_source_label` returns and therefore what the metrics compare against.
+    """
+    import sys
     root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root))
+    from srcs.chatbot import parse_urls_file
+
+    web_labels = {e["label"] for e in parse_urls_file(str(root / "urls.txt")) if e["label"]}
     golden = json.loads((root / "docs/dpg/retrieval_eval/golden_set.json").read_text())
     for q in golden["queries"]:
         assert q["relevant"], f"{q['id']} has no relevant sources"
         for src in q["relevant"]:
-            assert (root / src).exists(), f"{q['id']} references missing {src}"
+            if src.startswith("knowledge/"):
+                assert (root / src).exists(), f"{q['id']} references missing file {src}"
+            else:
+                assert src in web_labels, (
+                    f"{q['id']} references {src!r}, which is not a declared source label in "
+                    "urls.txt — did the LABEL change?")
+
+
+def test_relabelled_queries_carry_their_evidence():
+    """Ground truth was re-annotated after FAO 589 entered the corpus. Every addition must record
+    WHY, quoting the passage that justified it — otherwise relabelling is indistinguishable from
+    tuning the ruler to fit the result."""
+    root = Path(__file__).resolve().parents[2]
+    golden = json.loads((root / "docs/dpg/retrieval_eval/golden_set.json").read_text())
+    annotated = [q for q in golden["queries"] if "annotation_note" in q]
+    assert annotated, "expected re-annotated queries to be marked"
+    for q in annotated:
+        assert len(q["annotation_note"]) > 40, f"{q['id']} annotation is not substantive"
 
 
 def test_golden_set_ids_are_unique():

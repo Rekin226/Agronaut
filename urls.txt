@@ -40,16 +40,14 @@ SURVEY|https://doi.org/10.1371/journal.pone.0102662|Love et al. (2014), An Inter
 #   https://doi.org/10.4081/ija.2017.1012
 #
 # ---------------------------------------------------------------------------------------------
-# CANDIDATE — pending a licensing decision, NOT yet indexed.
+# FAO 589 — the canonical small-scale aquaponics reference.
 #
-# FAO 589 "Small-scale aquaponic food production" — verified reachable, 275 pages, 713 907 chars,
-# ~1034 chunks. It would roughly quadruple the corpus and is the canonical small-scale reference.
-# Held back for two reasons:
-#   1. LICENCE: published 2014, before FAO adopted Creative Commons. Its grant is "FAO encourages
-#      the use, reproduction and dissemination of material in this information product ... for
-#      educational or other non-commercial products or services" with attribution. Permissive, but
-#      NOT Creative Commons — confirm compatibility with redistributing Agronaut (MIT) as a DPG.
-#   2. INGESTION: 56 MB, ~47 s to download, and raw extraction pulls the table of contents and
-#      list-of-figures in as chunks. Needs index persistence and front-matter filtering first.
-#
-#   FAO|https://openknowledge.fao.org/server/api/core/bitstreams/2ca21047-390f-42cd-bd1d-0c2ebc9c1df2/content|FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)|FAO permissive (educational/non-commercial, attribution)
+# LICENCE NOTE. Published 2014, before FAO adopted Creative Commons (their CC policy applies to
+# material from ~Nov 2019 onward). Its grant reads: "FAO encourages the use, reproduction and
+# dissemination of material in this information product ... for private study, research and
+# teaching, or for use in non-commercial products or services, provided that appropriate
+# acknowledgement of FAO as the source and copyright holder is given." That is functionally
+# equivalent to CC BY-NC, which the DPG Alliance accepts (it prefers CC BY / CC BY-SA / CC0 but
+# does not require them). Note the asymmetry this creates and keep it explicit: Agronaut's CODE is
+# MIT, while this part of its knowledge corpus is non-commercial-only. See docs/dpg/CORPUS.md.
+FAO|https://openknowledge.fao.org/server/api/core/bitstreams/2ca21047-390f-42cd-bd1d-0c2ebc9c1df2/content|FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)|FAO permissive (educational/non-commercial, attribution)
