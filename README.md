@@ -216,6 +216,12 @@ agronaut review                  # approve/reject pending community insights
 agronaut analytics               # usage summary
 ```
 
+**Where it keeps things.** In a checkout, the knowledge base, the fetched-page cache and the
+SQLite memory DB all sit beside the source, as before. Installed non-editably, the cited
+corpus is read from `<prefix>/share/agronaut` and state goes to your XDG directories rather
+than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
+`AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
+
 | Command | Needs an LLM? |
 |---|---|
 | `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |

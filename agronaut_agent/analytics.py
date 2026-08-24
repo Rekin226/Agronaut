@@ -24,7 +24,9 @@ _ALLOWED_FIELDS = {"tool", "goal", "channel", "ok"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
 
-_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "analytics.jsonl"
+from . import paths as _paths
+
+_DEFAULT_PATH = _paths.data_dir() / "analytics.jsonl"
 
 
 def _hash_uid(user_id: str) -> str:
