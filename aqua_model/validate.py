@@ -177,6 +177,37 @@ def validate_hydroponic_input(
     )
 
 
+def validate_optimize_input(grow_area_m2, temperature_c, water_budget_lpd):
+    """The optimizer's door into the model — the same bounds as `validate_design_input`.
+
+    The optimizer enumerates thousands of designs and reports a winner, so an unchecked
+    number here is worse than an unchecked one in sizing: it comes back as a confident,
+    cited-looking "best ratio". A negative area used to produce negative yields at exit 0,
+    and a NaN temperature scored identically to an optimal one because every NaN comparison
+    is False and the temperature penalty silently never applied. The range check below
+    rejects NaN and infinity for free, since neither satisfies `lo <= val <= hi`.
+
+    Returns the three validated floats; raises ValidationError listing every problem.
+    """
+    errors: list[str] = []
+    values = {
+        "grow_area_m2": _as_float(grow_area_m2, "grow_area_m2", errors),
+        "temperature_c": _as_float(temperature_c, "temperature_c", errors),
+        "water_budget_lpd": _as_float(water_budget_lpd, "water_budget_lpd", errors),
+    }
+    for field, val in values.items():
+        if val is None:
+            continue
+        lo, hi = _BOUNDS[field]
+        if not (lo <= val <= hi):
+            errors.append(f"{field}={val} out of range [{lo}, {hi}]")
+
+    if errors:
+        raise ValidationError(errors)
+
+    return values["grow_area_m2"], values["temperature_c"], values["water_budget_lpd"]
+
+
 def _as_float(value, field, errors):
     if isinstance(value, bool):  # bool is an int subclass; reject explicitly
         errors.append(f"{field} must be a number, got bool")

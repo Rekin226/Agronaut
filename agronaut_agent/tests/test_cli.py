@@ -73,11 +73,41 @@ def test_list_shows_species_and_crops():
     assert "tilapia" in out and "lettuce" in out
 
 
-def test_trust_gate_survives_the_new_front_door():
-    code, out = _run(["size", "--fish", "shark", "--crop", "lettuce",
-                      "--area", "12", "--temp", "27", "--water", "3000"])
-    assert code != 0
+# The gate has to hold on EVERY sizing command, not just the one that was easy to test.
+# `optimize` shipped with no gate at all: `--area -5` returned a confident "Best ratio" with
+# negative yields at exit 0, and `--temp nan` scored identically to an optimal temperature.
+# Exit code is asserted exactly: setuptools' console script does sys.exit(main()), and
+# sys.exit(None) exits 0 — so `!= 0` would pass for a command that silently stopped
+# returning its status, and an agent shelling out would read a rejected design as success.
+_HOSTILE = [
+    ("size", ["--fish", "shark", "--crop", "lettuce", "--area", "12", "--temp", "27",
+              "--water", "3000"], "unknown fish_species"),
+    ("size", ["--fish", "tilapia", "--crop", "lettuce", "--area", "-5", "--temp", "27",
+              "--water", "3000"], "grow_area_m2"),
+    ("size-hydro", ["--crop", "unobtainium", "--area", "10", "--temp", "22",
+                    "--water", "500"], "unknown crop"),
+    ("size-hydro", ["--crop", "lettuce", "--area", "10", "--temp", "nan",
+                    "--water", "500"], "temperature_c"),
+    ("optimize", ["--area", "-5", "--temp", "28", "--water", "5000"], "grow_area_m2"),
+    ("optimize", ["--area", "10", "--temp", "nan", "--water", "5000"], "temperature_c"),
+    ("optimize", ["--area", "10", "--temp", "28", "--water", "inf"], "water_budget_lpd"),
+]
+
+
+@pytest.mark.parametrize("cmd,args,expected", _HOSTILE,
+                         ids=[f"{c}:{e}" for c, _, e in _HOSTILE])
+def test_trust_gate_survives_the_new_front_door(cmd, args, expected):
+    code, out = _run([cmd, *args])
+    assert code == 2, f"{cmd} accepted {args} and exited {code}"
     assert "VALIDATION_FAILED" in out
+    assert expected in out
+
+
+def test_unknown_objective_is_rejected_not_defaulted():
+    code, out = _run(["optimize", "--area", "10", "--temp", "28", "--water", "5000",
+                      "--objective", "maximise_vibes"])
+    assert code == 2
+    assert "maximise_vibes" in out
 
 
 def test_canonical_skill_names_still_work():

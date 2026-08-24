@@ -55,3 +55,47 @@ def test_multiple_errors_collected_together():
             grow_area_m2=-5, temperature_c=200, water_budget_lpd="n/a",
         )
     assert len(e.value.errors) >= 4
+
+
+# --- the optimizer shares the gate ------------------------------------------------------
+# The optimizer enumerates designs and reports a "best ratio". It used to accept its three
+# numbers unchecked, so a negative area produced a confident recommendation with negative
+# yields at exit 0, and a NaN temperature scored identically to an optimal one (every NaN
+# comparison is False, so the temperature penalty silently never applied).
+
+from aqua_model import optimize, OptimizeInput  # noqa: E402
+
+
+def _opt(**over):
+    base = dict(grow_area_m2=10.0, temperature_c=28.0, water_budget_lpd=5000.0,
+                objective="food")
+    base.update(over)
+    return optimize(OptimizeInput(**base))
+
+
+def test_optimizer_accepts_a_valid_input():
+    assert _opt().best is not None
+
+
+def test_optimizer_rejects_negative_grow_area():
+    with pytest.raises(ValidationError) as e:
+        _opt(grow_area_m2=-5.0)
+    assert "grow_area_m2" in str(e.value)
+
+
+def test_optimizer_rejects_nan_temperature():
+    with pytest.raises(ValidationError) as e:
+        _opt(temperature_c=float("nan"))
+    assert "temperature_c" in str(e.value)
+
+
+def test_optimizer_rejects_infinite_water_budget():
+    with pytest.raises(ValidationError) as e:
+        _opt(water_budget_lpd=float("inf"))
+    assert "water_budget_lpd" in str(e.value)
+
+
+def test_optimizer_rejects_unknown_objective():
+    with pytest.raises(ValidationError) as e:
+        _opt(objective="maximise_vibes")
+    assert "objective" in str(e.value)
