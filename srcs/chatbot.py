@@ -271,11 +271,97 @@ def load_web_page(url: str):
         return []
 
 
+def _markdown_header_chunks(doc):
+    """Split one knowledge document on its own headings, and give each chunk its context back.
+
+    The corpus is hand-authored markdown: 21 files carrying 21 `#` titles and 102 `##` sections.
+    Those headings are boundaries a human already chose, and a blind 800-character window ignores
+    them — it runs the tail of "Ammonia spike - safe actions" into the head of "Nitrite spike",
+    producing a chunk that belongs to neither.
+
+    Each chunk is also prefixed with "TITLE - Section". A bullet reading "keep it below 0.5 mg/L"
+    is nearly meaningless embedded on its own; prefixed with "Nitrogen Cycle - Target readings" it
+    carries its subject. This is context-aware chunking, and it improves the text the model reads
+    as well as the vector it is found by.
+
+    Falls back to returning the document unchanged when it has no headings to split on.
+    """
+    from langchain_text_splitters import MarkdownHeaderTextSplitter
+
+    text = getattr(doc, "page_content", "") or ""
+    try:
+        pieces = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[("#", "h1"), ("##", "h2")],
+            strip_headers=False,
+        ).split_text(text)
+    except Exception:  # noqa: BLE001 — malformed markdown must not lose the document
+        return [doc]
+    if not pieces:
+        return [doc]
+
+    out = []
+    for piece in pieces:
+        md = dict(doc.metadata)
+        h1 = piece.metadata.get("h1", "")
+        h2 = piece.metadata.get("h2", "")
+        md.update({k: v for k, v in (("h1", h1), ("h2", h2)) if v})
+        crumb = " — ".join(x for x in (h1, h2) if x) if _crumb_enabled() else ""
+        body = piece.page_content.strip()
+        if crumb and not body.startswith(crumb):
+            body = f"{crumb}\n{body}"
+        piece.page_content = body
+        piece.metadata = md
+        out.append(piece)
+    return out
+
+
+def _crumb_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_MD_CRUMB", "").lower() not in {"off", "0", "false"}
+
+
+def markdown_headers_enabled() -> bool:
+    """Header-aware chunking ships DISABLED, on evidence — docs/dpg/retrieval_eval/chunking_ablation.json.
+
+        variant                              hit    recall  prec    MRR     MAP
+        A  baseline (character splitter)     0.970  0.919   0.626   0.909   0.869
+        B  header split, no prefix           0.939  0.889   0.606   0.843   0.793
+        C  header split + context prefix     0.909  0.879   0.722   0.848   0.818
+
+    The ablation separates two effects usually bundled together: the SPLIT costs quality (B loses
+    on all five metrics), while the CONTEXT PREFIX genuinely helps (C gains 0.116 precision over
+    B). Baseline still wins overall.
+
+    The cause is corpus geometry rather than the technique. 95% of this corpus's 123 sections are
+    SMALLER than the 800-character chunk window (mean 381 chars), so the recursive splitter was
+    already packing about two related sections into each chunk, and splitting on headings
+    fragments that useful co-occurrence into context-poor pieces.
+
+    That reasoning predicts exactly when to turn this on: documents whose sections are LARGER than
+    the chunk window. FAO 589 is 275 pages, and blind 800-character windows across a book ignore
+    every structural boundary in it. The natural end state is header chunking for PDF sources and
+    the character splitter for the short hand-authored corpus. Enable with AGRONAUT_MD_HEADERS=on.
+    """
+    import os
+    return os.getenv("AGRONAUT_MD_HEADERS", "").lower() in {"on", "1", "true"}
+
+
 def build_vector_store(documents) -> FAISS:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
     )
+    if markdown_headers_enabled():
+        # Header-split the hand-authored corpus first, then let the character splitter handle any
+        # section that is still oversized. Web and PDF documents have no reliable heading
+        # structure, so they go straight to the character splitter as before.
+        prepared = []
+        for d in documents:
+            if d.metadata.get("source_type") == "local_file":
+                prepared.extend(_markdown_header_chunks(d))
+            else:
+                prepared.append(d)
+        documents = prepared
     docs = splitter.split_documents(documents)
 
     filtered = [d for d in docs if not _is_boilerplate_text(getattr(d, "page_content", ""))]

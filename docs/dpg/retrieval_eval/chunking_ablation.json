@@ -1,0 +1,42 @@
+{
+  "description": "Ablation of markdown-header-aware chunking and the context prefix, over docs/dpg/retrieval_eval/golden_set.json. Recorded so shipping this DISABLED is reproducible.",
+  "corpus": {
+    "chunks_baseline": 362,
+    "local_sections": 123,
+    "mean_section_chars": 381,
+    "median_section_chars": 365,
+    "chunk_size": 800,
+    "sections_smaller_than_chunk_window": "117/123 (95%)"
+  },
+  "variants": [
+    {
+      "id": "A",
+      "name": "baseline \u2014 recursive character splitter only",
+      "hit_rate": 0.97,
+      "recall@k": 0.919,
+      "precision@k": 0.626,
+      "MRR": 0.909,
+      "MAP@k": 0.869
+    },
+    {
+      "id": "B",
+      "name": "header split, no context prefix",
+      "hit_rate": 0.939,
+      "recall@k": 0.889,
+      "precision@k": 0.606,
+      "MRR": 0.843,
+      "MAP@k": 0.793
+    },
+    {
+      "id": "C",
+      "name": "header split + 'Title \u2014 Section' context prefix",
+      "hit_rate": 0.909,
+      "recall@k": 0.879,
+      "precision@k": 0.722,
+      "MRR": 0.848,
+      "MAP@k": 0.818
+    }
+  ],
+  "conclusion": "Baseline wins on every metric except precision. The ablation separates two effects that are usually bundled: the SPLIT costs quality (B loses on all five metrics), while the CONTEXT PREFIX genuinely helps (C gains 0.116 precision and 0.025 MAP over B). The mechanism is corpus geometry, not the technique: 95% of sections are SMALLER than the 800-char chunk window (mean 381 chars), so the recursive splitter was already packing ~2 related sections per chunk and header splitting fragments that useful co-occurrence into context-poor pieces. Ships DISABLED (AGRONAUT_MD_HEADERS=off by default).",
+  "when_to_revisit": "This is expected to invert for documents whose sections are LARGER than the chunk window \u2014 exactly the book-length PDFs the corpus is growing toward. FAO 589 is 275 pages; blind 800-char windows across a book ignore every structural boundary in it. Re-run this ablation once such a source is indexed, and consider enabling header chunking for PDF sources specifically while leaving the short hand-authored corpus on the character splitter."
+}
