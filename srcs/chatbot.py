@@ -1525,7 +1525,88 @@ def handle_turn(user: str) -> None:
 # =============================================================================
 
 
+INDEX_CACHE_DIR = _PROJECT_ROOT / "data" / ".index_cache"
+INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
+
+
+def _corpus_fingerprint() -> str:
+    """Identity of the corpus AND the parameters that shape it.
+
+    Covers the local knowledge files, urls.txt, the embedding model and the chunk geometry, so
+    changing any of them invalidates the cache automatically. It cannot see a WEB source being
+    silently edited by its publisher — detecting that would mean fetching, which is the cost the
+    cache exists to avoid — so a TTL bounds how stale web content may get.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    h.update(f"{EMBEDDING_MODEL}|{CHUNK_SIZE}|{CHUNK_OVERLAP}".encode())
+    kb = pathlib.Path(KNOWLEDGE_DIR)
+    if kb.exists():
+        for fp in sorted(kb.rglob("*")):
+            if fp.suffix.lower() in {".md", ".txt"}:
+                h.update(fp.name.encode())
+                h.update(fp.read_bytes())
+    urls = pathlib.Path(URL_FILE)
+    if urls.exists():
+        h.update(urls.read_bytes())
+    return h.hexdigest()[:16]
+
+
+def _index_cache_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_INDEX_CACHE", "").lower() not in {"off", "0", "false"}
+
+
+def _load_cached_index(fingerprint: str):
+    """A previously built index for this exact corpus, or None.
+
+    Rebuilding costs a network fetch per source plus embedding every chunk. That was tolerable at
+    365 chunks of HTML; it is not once a corpus includes a 56 MB, 275-page publication that takes
+    47 s just to download.
+    """
+    import os
+    import time
+    if not _index_cache_enabled():
+        return None
+    path = INDEX_CACHE_DIR / fingerprint
+    if not (path / "index.faiss").exists():
+        return None
+    age = time.time() - (path / "index.faiss").stat().st_mtime
+    if age > INDEX_CACHE_TTL:
+        logging.info("Knowledge index cache is %.1f days old; rebuilding", age / 86_400)
+        return None
+    try:
+        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+        # allow_dangerous_deserialization: this pickle is one WE wrote, under the project's own
+        # data directory, keyed by a hash of our own corpus — not third-party input.
+        index = FAISS.load_local(str(path), embeddings,
+                                 allow_dangerous_deserialization=True)
+        logging.info("Loaded knowledge index from cache (%s, %.1f h old)",
+                     fingerprint, age / 3600)
+        return index
+    except Exception as err:  # noqa: BLE001 — a bad cache must never block a rebuild
+        logging.warning("Ignoring unreadable index cache %s — %s", fingerprint, err)
+        return None
+
+
+def _save_cached_index(index, fingerprint: str) -> None:
+    if not _index_cache_enabled():
+        return
+    try:
+        path = INDEX_CACHE_DIR / fingerprint
+        path.mkdir(parents=True, exist_ok=True)
+        index.save_local(str(path))
+        logging.info("Cached knowledge index -> %s", path)
+    except Exception as err:  # noqa: BLE001 — caching is an optimisation, never a hard failure
+        logging.warning("Could not cache knowledge index — %s", err)
+
+
 def build_rag_index_from_urls() -> Optional[FAISS]:
+    fingerprint = _corpus_fingerprint()
+    cached = _load_cached_index(fingerprint)
+    if cached is not None:
+        return cached
+
     url_entries = parse_urls_file(URL_FILE)
     urls = [e["url"] for e in url_entries]
     if not urls:
@@ -1553,10 +1634,12 @@ def build_rag_index_from_urls() -> Optional[FAISS]:
         return None
 
     try:
-        return build_vector_store(documents)
+        index = build_vector_store(documents)
     except Exception as err:  # noqa: BLE001
         logging.warning("Failed to build FAISS index – %s", err)
         return None
+    _save_cached_index(index, fingerprint)
+    return index
 
 
 def chat() -> None:
