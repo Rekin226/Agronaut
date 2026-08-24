@@ -224,6 +224,89 @@ def _probe_url(url: str) -> dict | None:
     }
 
 
+def _normalise_for_repetition(line: str) -> str:
+    """A line with its PAGE NUMBER removed, for detecting text that repeats across pages.
+
+    Only leading and trailing digits are stripped, because that is where page numbers sit —
+    "...plant farming62" and "61Design of aquaponic units". Stripping digits everywhere would
+    make lines that differ ONLY by an interior number collapse into one string, so a genuine
+    sequence like "Step 1: check the pH" / "Step 2: check the pH" across pages would look like
+    repeated furniture and be deleted as such. That is content loss disguised as cleaning.
+    """
+    return re.sub(r"^\d+|\d+$", "", line.strip()).strip().lower()
+
+
+def _strip_running_headers(docs, min_fraction: float = 0.15):
+    """Remove the running header/footer that repeats on nearly every page of a publication.
+
+    Every even page of FAO 589 opens "Small-scale aquaponic food production - Integrated fish and
+    plant farming62" and every odd page "61Design of aquaponic units". Left in, that text lands in
+    EVERY chunk the document produces — roughly 70 characters of the book's own title repeated
+    across a thousand vectors, pulling each one toward the title and away from the specific thing
+    the chunk is actually about. It is the highest-volume noise in a PDF corpus and the easiest to
+    remove.
+
+    Page numbers are stripped before counting, since the header differs by exactly that on each
+    page. A line has to appear on at least `min_fraction` of pages (and at least 3) to qualify, so
+    a phrase that genuinely recurs in the prose is not mistaken for furniture.
+    """
+    from collections import Counter
+    counts: Counter = Counter()
+    for d in docs:
+        seen = {_normalise_for_repetition(l) for l in d.page_content.splitlines() if l.strip()}
+        for line in seen:
+            if line:
+                counts[line] += 1
+    threshold = max(3, int(len(docs) * min_fraction))
+    furniture = {l for l, c in counts.items() if c >= threshold and len(l) > 8}
+    if not furniture:
+        return docs
+    for d in docs:
+        d.page_content = "\n".join(
+            l for l in d.page_content.splitlines()
+            if _normalise_for_repetition(l) not in furniture)
+    logging.info("Stripped %d running header/footer line(s) from %d pages",
+                 len(furniture), len(docs))
+    return docs
+
+
+def _looks_like_contents_page(text: str) -> bool:
+    """A table of contents, list of figures, or index — structure, not knowledge.
+
+    Such a page is mostly lines that end in a page number ("3.3.1 Photosynthetic activity of algae
+    28"). It embeds as a dense bag of the document's own section titles, so it matches almost any
+    query about the document's subject while answering none of them.
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) < 6:
+        return False
+    numbered = sum(1 for l in lines if re.search(r"\s\d{1,4}\s*$", l))
+    return numbered / len(lines) >= 0.6
+
+
+def pdf_cleaning_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_PDF_CLEAN", "").lower() not in {"off", "0", "false"}
+
+
+def _clean_pdf_documents(docs):
+    """Drop a publication's structural pages and its repeated furniture.
+
+    Applied at extraction so both the index and `corpus_report` see the same cleaned text — a
+    chunk count that includes 40 pages of table of contents is not a useful measure of what a
+    source contributes.
+    """
+    if not docs or not pdf_cleaning_enabled():
+        return docs
+    before = len(docs)
+    docs = _strip_running_headers(docs)
+    kept = [d for d in docs
+            if d.page_content.strip() and not _looks_like_contents_page(d.page_content)]
+    if len(kept) < before:
+        logging.info("Dropped %d structural page(s) (contents/index/blank)", before - len(kept))
+    return kept
+
+
 def _pdf_documents(content: bytes, url: str):
     """Text from already-downloaded PDF bytes, one Document per page so a retrieved passage
     can be cited back to a page number."""
@@ -238,6 +321,7 @@ def _pdf_documents(content: bytes, url: str):
             text = (page.extract_text() or "").strip()
             if text:
                 docs.append(Document(page_content=text, metadata={"source": url, "page": n}))
+        docs = _clean_pdf_documents(docs)
         logging.info("Loaded %d PDF pages from %s", len(docs), url)
         return docs
     except Exception as err:  # noqa: BLE001
