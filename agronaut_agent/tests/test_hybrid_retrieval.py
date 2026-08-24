@@ -154,3 +154,39 @@ def test_citation_labels_survive_fusion(index_with, monkeypatch):
     index_with([(_Doc("Aeration prevents DO crashes.", source_type="web",
                       url_label="FAO 589"), 0.30)])
     assert "[source: FAO 589]" in rag.search("aeration")
+
+
+def test_bm25_index_actually_builds_and_ranks(monkeypatch):
+    """A functional check, not a degradation check.
+
+    Every other test here tolerates a missing rank_bm25 by design, so with the package absent the
+    whole file still passed while hybrid retrieval was completely inert. This one exercises the
+    real BM25 path: the index must build from the FAISS docstore and rank the document containing
+    the query's exact terms first.
+    """
+    import rank_bm25  # noqa: F401 — the point is that this must be installed
+
+    docs = [
+        _Doc("Green water means suspended single-celled algae blooming in the tank.",
+             source_path="/r/knowledge/algae.md"),
+        _Doc("Feed the fish twice daily and remove uneaten pellets promptly.",
+             source_path="/r/knowledge/feed.md"),
+    ]
+    monkeypatch.setattr(rag, "_INDEX", type("_I", (), {
+        "docstore": type("_S", (), {"_dict": dict(enumerate(docs))})()})())
+    monkeypatch.setattr(rag, "_TRIED", True)
+    monkeypatch.setattr(rag, "_BM25", None)
+    monkeypatch.setattr(rag, "_BM25_TRIED", False)
+
+    built = rag._get_bm25()
+    assert built is not None, "BM25 index failed to build — is rank_bm25 installed?"
+    bm25, indexed = built
+    scores = bm25.get_scores(rag._tokenize("green water algae bloom"))
+    best = max(range(len(indexed)), key=lambda i: scores[i])
+    assert "algae" in indexed[best].metadata["source_path"]
+
+
+def test_tokenizer_is_case_and_punctuation_insensitive():
+    """BM25 matches on exact tokens, so "Nitrite," and "nitrite" must normalise to one term or
+    keyword search silently misses the terminology it exists to catch."""
+    assert rag._tokenize("Nitrite, pH 6.8 — DO!") == ["nitrite", "ph", "6", "8", "do"]

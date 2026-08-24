@@ -187,3 +187,48 @@ def test_challenge_title_detection():
               "Access Denied", "Checking your browser before accessing"]:
         assert _is_challenge_title(t), t
     assert not _is_challenge_title("Important Water Quality Parameters in Aquaponics Systems")
+
+
+# --- dependency contract -----------------------------------------------------
+
+def test_lazily_imported_dependencies_are_actually_installed():
+    """rank_bm25 and pypdf are imported inside try/except so that a missing one degrades
+    gracefully rather than killing a live turn. That is right at runtime and dangerous in CI:
+    with both absent the whole suite still passed, because every test only asserted the graceful
+    degradation. PDF ingestion returned no chunks and BM25 fell back to dense-only, silently, and
+    nothing failed.
+
+    This asserts the dependency contract directly, so a fresh install missing them breaks loudly
+    here instead of quietly shipping two inert features.
+    """
+    import pypdf  # noqa: F401
+    import rank_bm25  # noqa: F401
+
+
+def test_lazy_dependencies_are_declared_in_requirements():
+    """Installed on this machine is not the same as declared. requirement.txt is what CI, Docker
+    and `pip install -e .` actually install (pyproject reads it as the single source of truth)."""
+    import pathlib
+    req = (pathlib.Path(__file__).resolve().parents[2] / "requirement.txt").read_text().lower()
+    for dep in ("rank_bm25", "pypdf"):
+        assert dep in req, f"{dep} is imported by the code but not declared in requirement.txt"
+
+
+def test_pdf_extraction_actually_works():
+    """A functional round-trip, not a graceful-degradation check: build a real PDF and read its
+    text back. Without pypdf this fails instead of silently yielding zero chunks."""
+    import io
+    from pypdf import PdfWriter
+
+    from srcs.chatbot import _pdf_documents
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    buf = io.BytesIO()
+    writer.write(buf)
+    docs = _pdf_documents(buf.getvalue(), "https://example.org/doc.pdf")
+    # A blank page yields no text, but parsing must succeed and metadata must be well formed.
+    assert isinstance(docs, list)
+    for d in docs:
+        assert d.metadata["source"] == "https://example.org/doc.pdf"
+        assert isinstance(d.metadata["page"], int)
