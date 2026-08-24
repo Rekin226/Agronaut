@@ -136,3 +136,19 @@ def test_cache_is_not_committed():
     """The index is derived data — rebuildable from knowledge/ and urls.txt, and large."""
     root = pathlib.Path(__file__).resolve().parents[2]
     assert "data/.index_cache/" in (root / ".gitignore").read_text()
+
+
+@pytest.mark.parametrize("var", ["AGRONAUT_MD_HEADERS", "AGRONAUT_MD_CRUMB", "AGRONAUT_PDF_CLEAN"])
+def test_chunking_flags_invalidate_the_cache(corpus, monkeypatch, var):
+    """A chunking flag changes what text lands in each vector, so an index built under one setting
+    is wrong under the other. Leaving these out of the fingerprint made an ablation appear to
+    measure a setting while it was actually re-reading the previous run's index.
+
+    AGRONAUT_MD_CRUMB is here because it was MISSED the first time this was fixed, and the only
+    thing that revealed it was an ablation reporting byte-identical numbers for two variants that
+    should have differed. Every flag that changes chunk text belongs in the fingerprint.
+    """
+    monkeypatch.setenv(var, "on")
+    on = chatbot._corpus_fingerprint()
+    monkeypatch.setenv(var, "off")
+    assert chatbot._corpus_fingerprint() != on

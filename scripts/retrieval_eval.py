@@ -125,6 +125,17 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
     if unfiltered is None:
         unfiltered = retrieve
 
+    def nearest(hits):
+        """The smallest L2 distance in a result set.
+
+        NOT hits[0]'s score: once hybrid fusion is on, reciprocal-rank fusion reorders results, so
+        the first-ranked hit is frequently not the closest one — and a keyword-only hit carries no
+        distance at all. Calibrating a distance floor against a fused rank silently compares the
+        wrong numbers.
+        """
+        scored = [h["score"] for h in hits if h.get("score") is not None]
+        return min(scored) if scored else None
+
     per_query, latencies = [], []
     for q in golden["queries"]:
         t0 = time.perf_counter()
@@ -132,7 +143,7 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
         latencies.append((time.perf_counter() - t0) * 1000)
         row = score_query([h["source"] for h in hits], q["relevant"], k)
         row.update(id=q["id"], query=q["query"], relevant=q["relevant"],
-                   top_score=hits[0]["score"] if hits else None)
+                   top_score=nearest(hits))
         per_query.append(row)
 
     # Negative controls carry no relevant set — their value is the SCORE distribution, which is
@@ -143,14 +154,14 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
         raw = unfiltered(q["query"], k)          # raw distances, for calibrating the floor
         kept = retrieve(q["query"], k)           # what the operator would actually be shown
         negatives.append({"id": q["id"], "query": q["query"],
-                          "top_score": raw[0]["score"] if raw else None,
+                          "top_score": nearest(raw),
                           "returned": [h["source"] for h in kept],
                           "rejected_by_floor": bool(raw) and not kept})
 
     # On-topic distances also measured unfiltered, so the two bands are compared on equal terms.
     for row, q in zip(per_query, golden["queries"]):
         raw = unfiltered(q["query"], k)
-        row["raw_top_score"] = raw[0]["score"] if raw else None
+        row["raw_top_score"] = nearest(raw)
         row["floor_returned_nothing"] = not retrieve(q["query"], k)
 
     summary = aggregate(per_query, k)

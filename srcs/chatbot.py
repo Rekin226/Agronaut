@@ -405,26 +405,29 @@ def _crumb_enabled() -> bool:
 
 
 def markdown_headers_enabled() -> bool:
-    """Header-aware chunking ships DISABLED, on evidence — docs/dpg/retrieval_eval/chunking_ablation.json.
+    """Header-aware chunking ships DISABLED — docs/dpg/retrieval_eval/chunking_ablation.json.
 
-        variant                              hit    recall  prec    MRR     MAP
-        A  baseline (character splitter)     0.970  0.919   0.626   0.909   0.869
-        B  header split, no prefix           0.939  0.889   0.606   0.843   0.793
-        C  header split + context prefix     0.909  0.879   0.722   0.848   0.818
+    Ablated on two corpora. Baseline wins both times:
 
-    The ablation separates two effects usually bundled together: the SPLIT costs quality (B loses
-    on all five metrics), while the CONTEXT PREFIX genuinely helps (C gains 0.116 precision over
-    B). Baseline still wins overall.
+        corpus        variant                       hit    recall  prec    MRR     MAP
+        362 chunks    A baseline                    0.970  0.919   0.626   0.909   0.869
+                      C header split + prefix       0.909  0.879   0.722   0.848   0.818
+        1354 chunks   A baseline                    0.848  0.788   0.495   0.692   0.636
+                      C header split + prefix       0.758  0.667   0.444   0.621   0.538
 
-    The cause is corpus geometry rather than the technique. 95% of this corpus's 123 sections are
-    SMALLER than the 800-character chunk window (mean 381 chars), so the recursive splitter was
-    already packing about two related sections into each chunk, and splitting on headings
-    fragments that useful co-occurrence into context-poor pieces.
+    95% of the hand-authored corpus's 123 sections are SMALLER than the 800-character chunk window
+    (mean 381), so the recursive splitter already packs about two related sections per chunk and
+    splitting on headings fragments that useful co-occurrence.
 
-    That reasoning predicts exactly when to turn this on: documents whose sections are LARGER than
-    the chunk window. FAO 589 is 275 pages, and blind 800-character windows across a book ignore
-    every structural boundary in it. The natural end state is header chunking for PDF sources and
-    the character splitter for the short hand-authored corpus. Enable with AGRONAUT_MD_HEADERS=on.
+    The CONTEXT PREFIX reversed sign between the two runs, which is worth knowing before reaching
+    for it elsewhere: on the small uniform corpus it gained 0.116 precision by disambiguating a
+    chunk among 21 similar files; once a 992-chunk book joined the index the same added words made
+    curated chunks read as generic aquaponics prose and compete WORSE against it. The value of a
+    preprocessing step is a property of the corpus it runs on.
+
+    Note this splits MARKDOWN only — FAO 589 reaches the character splitter either way, so the
+    ablation does not test structural chunking of the PDF itself. That is unimplemented and is the
+    more promising direction for book-length sources. Enable with AGRONAUT_MD_HEADERS=on.
     """
     import os
     return os.getenv("AGRONAUT_MD_HEADERS", "").lower() in {"on", "1", "true"}
@@ -1709,7 +1712,14 @@ def _corpus_fingerprint() -> str:
     """
     import hashlib
     h = hashlib.sha256()
-    h.update(f"{EMBEDDING_MODEL}|{CHUNK_SIZE}|{CHUNK_OVERLAP}".encode())
+    # The chunking FLAGS belong here as much as the chunk size does: they change what text ends up
+    # in each vector, so an index built with one setting is simply wrong for another. Omitting
+    # them meant toggling AGRONAUT_MD_HEADERS or AGRONAUT_PDF_CLEAN silently reused a stale index
+    # — an ablation that appears to measure a setting while actually re-reading the previous one.
+    h.update(f"{EMBEDDING_MODEL}|{CHUNK_SIZE}|{CHUNK_OVERLAP}"
+             f"|md_headers={markdown_headers_enabled()}"
+             f"|md_crumb={_crumb_enabled()}"
+             f"|pdf_clean={pdf_cleaning_enabled()}".encode())
     kb = pathlib.Path(KNOWLEDGE_DIR)
     if kb.exists():
         for fp in sorted(kb.rglob("*")):
