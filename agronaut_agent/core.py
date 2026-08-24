@@ -14,6 +14,7 @@ import threading
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
+from agent.vision import sanitize_observation
 from .tools import AGRONAUT_TOOLS
 from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
 from . import memory_extract, runtime, profile, semantic
@@ -46,7 +47,13 @@ YOU RUN A CONSULTATION, NOT A Q&A. Your job is to understand the person before y
    - optimize needs: grow area (m²), water temperature, daily water budget, objective
      (food / protein / water_efficiency).
    - troubleshoot needs: the symptom, plus relevant water readings (temperature, pH,
-     dissolved oxygen, ammonia).
+     dissolved oxygen, ammonia). When the user describes something VISIBLE — leaf colour and
+     WHERE on the plant (older vs newer leaves), root appearance, water colour, fish behaviour
+     or marks, visible pests — call triage_visual_symptoms. It returns a ranked, cited
+     differential plus the checks that discriminate between the candidates. Present it AS a
+     differential: lead with the cheapest environmental check, never collapse it to one
+     confident diagnosis, and keep each candidate's source. A photo turn already carries this
+     differential; use it rather than re-deriving one.
    The system note above tells you what is still missing ("Still need for ..."). Ask for the
    missing essentials — at most 2–4 at once, conversationally, never as a long form. Once you
    have them, ACT: call the right tool and give a useful first recommendation. Then offer to refine.
@@ -105,13 +112,24 @@ number was already computed or a fact already known, answer from it directly —
 tool. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope from
 the prior sizing result; don't search the knowledge base for it."""
 
+# Attached when the vision model names a condition. Its observation enters the turn as a
+# user-provided fact, which the agent has no reason to distrust — so the doubt has to be
+# stated explicitly. This routes VLM-derived claims into the same citation discipline that
+# PLAN 1.3 established for KB-derived ones.
+_VERDICT_INSTRUCTION = (
+    "[Note: the vision model named a possible condition. That is an UNVERIFIED visual guess, "
+    "not a diagnosis. Do not repeat it as a conclusion unless the knowledge base supports it "
+    "and you cite the source. Otherwise, hedge it and confirm the details with the user.]"
+)
+
 _MAX_ITERS = 6
 _TOOL_REPLAY_MAX_CHARS = 2000
 
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
-                 fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None):
+                 fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
+                 classify_fn=None):
         # chat_model injectable for tests (a fake bindable model); else build from config.
         base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
         # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
@@ -141,6 +159,13 @@ class AgronautAgent:
             from agent import vision
             describe_fn = vision.default_describer()
         self._describe = describe_fn
+        # Optional specialist image classifier. It is an extra FEATURE source, never a verdict
+        # source (see agent/classifier.py). No backend ships yet, so this is normally None and
+        # the whole path is inert.
+        if classify_fn is None and chat_model is None:
+            from agent import classifier
+            classify_fn = classifier.default_classifier()
+        self._classify = classify_fn
         # Voice: transcribe a note, then run it as a normal turn. The system prompt's
         # "reply in the user's language" rule answers in the note's language. None -> declined.
         if transcribe_fn is None and chat_model is None:
@@ -254,10 +279,21 @@ class AgronautAgent:
         return "Here's what I have so far — could you tell me a bit more so I can pin it down?"
 
     # --- the single public seam ------------------------------------------
-    def handle_message(self, channel: str, channel_user: str, text: str, display_name: str | None = None) -> str:
+    def handle_message(self, channel: str, channel_user: str, text: str,
+                       display_name: str | None = None, fact_text: str | None = None) -> str:
+        """`fact_text` overrides which text deterministic fact-extraction reads.
+
+        It exists because not every turn is the user's own words. An image turn's text is
+        mostly a VISION MODEL's observation, and `sanitize_observation` is a lexicon — so it
+        leaks. A leaked reading used to be parsed out here and stored with source="parsed",
+        indistinguishable from something the operator actually reported and replayed into
+        every later turn. Image turns therefore pass their caption (the only part the user
+        actually wrote); voice turns pass nothing, because a transcript IS the user's words.
+        """
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._analytics.record("message", user_id=user_id, channel=channel)
-        self._mem.set_facts(user_id, memory_extract.extract_facts(text), source="parsed")
+        source_text = text if fact_text is None else fact_text
+        self._mem.set_facts(user_id, memory_extract.extract_facts(source_text), source="parsed")
         self._conv.append_message(user_id, "user", text)
 
         # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
@@ -316,10 +352,67 @@ class AgronautAgent:
         if not observation:
             return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
                     "or describe what you see.")
+
+        # The VLM was told to observe without diagnosing, prescribing, or stating numbers.
+        # The guard enforces the enforceable part of that instruction.
+        observation, flags = sanitize_observation(observation)
+        for category in ("verdict", "stripped", "unclear"):
+            if any(f.split(":")[0] == category for f in flags):
+                # Event name, not a field: analytics._ALLOWED_FIELDS is a whitelist, and the
+                # observation text itself must never be recorded.
+                self._analytics.record(f"image_guard_{category}",
+                                       user_id=self._conv.get_or_create_user(channel, channel_user),
+                                       channel=channel)
+
+        if "unclear" in flags or not observation:
+            return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
+                    "or describe what you see.")
+
         ask = (caption or "").strip() or "What's going on here?"
-        composed = (f"[The user sent a photo. A vision model observed: {observation}]\n\n"
-                    f"{ask}")
-        return self.handle_message(channel, channel_user, composed, display_name)
+        note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
+        classifier_features, classifier_note = self._classify_image(image_bytes)
+        # Deterministic differential from the visible features. Attached rather than left to a
+        # tool call so the cited candidates are ALWAYS present for a photo — the observation
+        # itself is untrusted prose, but this part is auditable like the sizing path.
+        composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}"
+                    f"{classifier_note}"
+                    f"{self._visual_triage(observation, classifier_features)}\n\n{ask}")
+        # Facts come from the CAPTION only — never from the model's observation. See
+        # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
+
+    def _classify_image(self, image_bytes: bytes) -> tuple[dict, str]:
+        """(extra feature kwargs, a note naming what the classifier said).
+
+        Returns ({}, "") whenever no classifier is configured — the normal case — so this is
+        a no-op for every existing deployment. Best-effort: a failing classifier must never
+        cost the user their answer."""
+        if self._classify is None:
+            return {}, ""
+        try:
+            from agent.classifier import describe_predictions, features_from_predictions
+            predictions = self._classify(image_bytes) or []
+            note = describe_predictions(predictions)
+            return features_from_predictions(predictions), ("\n\n" + note if note else "")
+        except Exception:
+            log.debug("image classifier unavailable", exc_info=True)
+            return {}, ""
+
+    @staticmethod
+    def _visual_triage(observation: str, extra_features: dict | None = None) -> str:
+        """A cited differential for what the photo shows, or "" when nothing is diagnostic.
+
+        Best-effort: triage is a convenience on top of the observation, so any failure here
+        degrades to the plain observation rather than costing the user their answer."""
+        try:
+            from agent.observation_features import features_from
+            from aqua_model.triage import format_triage, triage_symptoms
+            result = triage_symptoms(features_from(observation, extra_features))
+            return "" if result.is_empty() else "\n\n" + format_triage(result)
+        except Exception:
+            log.debug("visual triage unavailable", exc_info=True)
+            return ""
 
     def handle_voice(self, channel: str, channel_user: str, audio_bytes: bytes,
                      mime: str | None = None, display_name: str | None = None) -> str:

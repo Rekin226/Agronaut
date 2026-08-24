@@ -72,12 +72,20 @@ def _cmd_list(a) -> int:
     return 0
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="aquaponics-engineer",
-                                description="Computed, cited aquaponics/hydroponics sizing.")
-    sub = p.add_subparsers(dest="cmd", required=True)
+def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
+    """Register the four sizing commands on an existing subparser group.
 
-    sa = sub.add_parser("size-aquaponics", help="size a fish+plant system")
+    Shared so the top-level `agronaut` command and this portable skill CLI define the
+    arguments once and cannot drift apart. `aliases` maps a canonical command name to
+    extra names — `agronaut` offers shorter ones (`size`, `size-hydro`) while the skill
+    keeps the explicit names an agent reads from SKILL.md.
+    """
+    aliases = aliases or {}
+
+    def _add(name, **kw):
+        return sub.add_parser(name, aliases=aliases.get(name, []), **kw)
+
+    sa = _add("size-aquaponics", help="size a fish+plant system")
     sa.add_argument("--fish", required=True)
     sa.add_argument("--crop", required=True)
     sa.add_argument("--area", type=float, required=True, help="grow area m2")
@@ -85,22 +93,29 @@ def _build_parser() -> argparse.ArgumentParser:
     sa.add_argument("--water", type=float, required=True, help="daily water budget L")
     sa.set_defaults(func=_cmd_size_aquaponics)
 
-    sh = sub.add_parser("size-hydroponics", help="size a plant-only (no fish) system")
+    sh = _add("size-hydroponics", help="size a plant-only (no fish) system")
     sh.add_argument("--crop", required=True)
     sh.add_argument("--area", type=float, required=True)
     sh.add_argument("--temp", type=float, required=True)
     sh.add_argument("--water", type=float, required=True)
     sh.set_defaults(func=_cmd_size_hydroponics)
 
-    so = sub.add_parser("optimize", help="best fish/crop ratio under a constraint")
+    so = _add("optimize", help="best fish/crop ratio under a constraint")
     so.add_argument("--area", type=float, required=True)
     so.add_argument("--temp", type=float, required=True)
     so.add_argument("--water", type=float, required=True)
     so.add_argument("--objective", default="water_efficiency")
     so.set_defaults(func=_cmd_optimize)
 
-    sl = sub.add_parser("list", help="list supported species, crops, objectives")
+    sl = _add("list", help="list supported species, crops, objectives")
     sl.set_defaults(func=_cmd_list)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="aquaponics-engineer",
+                                description="Computed, cited aquaponics/hydroponics sizing.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    add_sizing_subcommands(sub)
     return p
 
 

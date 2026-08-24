@@ -64,3 +64,14 @@ def test_handle_voice_handles_empty_transcript(tmp_path):
     reply = agent.handle_voice("telegram", "v4", b"oggbytes", "audio/ogg")
     assert "didn't catch" in reply.lower() or "couldn't make out" in reply.lower()
     assert chat.last_human is None
+
+
+def test_voice_transcript_still_yields_facts(tmp_path):
+    # A transcript IS the user's own words, so deterministic extraction stays ON for voice —
+    # only model-DERIVED text (the vision observation) is excluded.
+    chat = _EchoContext()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=chat,
+                          transcribe_fn=lambda b, m: "my pH is 6.4 and the fish are slow")
+    agent.handle_voice("telegram", "v9", b"oggbytes", "audio/ogg")
+    user_id = agent._conv.get_or_create_user("telegram", "v9")
+    assert agent._mem.get_facts(user_id).get("ph") == "6.4"

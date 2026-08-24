@@ -365,6 +365,30 @@ def search_knowledge_base(query: str) -> str:
 
 
 @tool
+def triage_visual_symptoms(description: str) -> str:
+    """Turn a DESCRIPTION OF VISIBLE SYMPTOMS into a deterministic, cited differential —
+    ranked candidate causes, each with the checks that would tell them apart and fish-safe
+    first actions. Use whenever the user describes or photographs what they can SEE (leaf
+    colour and where on the plant, root appearance, water colour, fish behaviour or marks,
+    visible pests).
+
+    Pass the symptom description in the user's own words, or the visual observation of a
+    photo. Prefer this over search_knowledge_base for visible symptoms: it returns a ranked
+    differential with sources rather than loose passages. It reads only qualitative features
+    — it never infers pH, DO, ammonia or any measurement, and it never states a dose."""
+    from agent.observation_features import extract_observation_features
+    from aqua_model.triage import format_triage, triage_symptoms
+
+    features = extract_observation_features(description or "")
+    result = triage_symptoms(features)
+    if result.is_empty():
+        return ("VISUAL_TRIAGE: nothing diagnostic in that description. Ask which part is "
+                "affected (older vs newer leaves, roots, water, fish behaviour) or for a "
+                "closer photo — then call this again.")
+    return format_triage(result)
+
+
+@tool
 def remember_about_user(note: str, category: str = "profile") -> str:
     """Save a durable note about THIS user's system or history so you recall it in future
     conversations. Use when you learn something lasting: their tank size/location/setup
@@ -537,6 +561,7 @@ AGRONAUT_TOOLS = [
     render_pilot_proposal,
     render_system_schematic,
     search_knowledge_base,
+    triage_visual_symptoms,
     remember_about_user,
     update_profile,
     schedule_followup,

@@ -1,5 +1,11 @@
 # 🌱 Agronaut
 
+[![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
+[![Advice-safety golden set](https://img.shields.io/badge/advice--safety-enforced%20in%20CI-brightgreen)](docs/dpg/safety_eval/golden_set.json)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](requirement.txt)
+[![good first issues](https://img.shields.io/github/issues/Rekin226/Agronaut/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
+
 **An open-source AI agronomy agent that runs locally on your own computer or server,
 connects to messaging apps like Telegram and WhatsApp, and computes aquaponics system
 designs from a deterministic, source-cited engineering core instead of guessing them.**
@@ -59,6 +65,29 @@ Three modes in the app (sidebar **Mode** switch):
   efficiency, and showing the gain over a naive even split.
 
 The design and optimizer modes are **fully deterministic and need no LLM at all.**
+
+### Send it a photo
+
+Photograph a yellowing leaf, a sick fish, or green water — on **Telegram, WhatsApp, or the
+web chat** — and you get a *cited differential*, not a guess:
+
+1. A vision model describes what it sees. It only **observes**.
+2. A deterministic guard strips any measurement or prescription out of that description, so a
+   fabricated `pH 6.4` or an invented `add 5 mL of salt` can never enter the conversation as
+   though you had said it. A named condition is kept but flagged **unverified**.
+3. A fixed, cited table (`aqua_model/triage.py`) maps the visible symptoms to a **ranked list
+   of candidate causes** — each naming the knowledge document it came from, and each with the
+   checks that would tell it apart from its neighbours.
+
+It will not hand you a single confident diagnosis, because a photograph cannot support one:
+iron deficiency and pH lockout look identical in an image, so you get both plus the check that
+separates them. Ordering follows the knowledge base's own rules — pH before iron, water quality
+before any fish pathogen. Nothing it says states a dose.
+
+### Voice notes
+
+Speak instead of typing, on Telegram or WhatsApp. The transcript runs through a normal turn, so
+memory, tools and cited knowledge all apply.
 
 ### Consultative agent
 
@@ -165,13 +194,40 @@ named volume, shared between web and bot.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirement.txt
+pip install -e .                 # installs the deps and the `agronaut` command
 streamlit run app.py
 ```
 
 Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio** modes
 work immediately (no model server). For **chat**, run Ollama locally or set a hosted
 provider (see above).
+
+(`pip install -r requirement.txt` still works if you only want the libraries — `pip install -e .`
+installs the same list and adds the command below.)
+
+### The `agronaut` command
+
+One front door over everything the project ships. It works from any directory once
+installed; bare `agronaut` is the chat REPL, because that is what most people want.
+
+```bash
+agronaut                         # chat with the agent in the terminal
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+agronaut size-hydro --crop lettuce --area 10 --temp 22 --water 500
+agronaut optimize --area 10 --temp 28 --water 5000 --objective food
+agronaut list                    # supported species, crops, objectives
+agronaut web                     # the Streamlit app (trailing flags go to streamlit,
+                                 #   e.g. agronaut web --server.port=9000)
+agronaut bot                     # the Telegram bot
+agronaut review                  # approve/reject pending community insights
+agronaut analytics               # usage summary
+```
+
+| Command | Needs an LLM? |
+|---|---|
+| `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |
+| `chat` (the default) / `bot` | Yes — a tool-calling provider (see above). |
+| `web` | Only for the app's chat mode; the calculator and optimizer run without one. |
 
 ### Run the tests
 ```bash
@@ -188,12 +244,12 @@ The consultative agent is reachable over Telegram. Set these (in `.env` or the e
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
 | `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
 | `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
-| `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model; `AGRONAUT_VISION=off` disables. The vision model only *observes* — it never feeds numbers into the design tools. |
+| `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model; `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
 | `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
 
 ```bash
 source .venv/bin/activate
-python bot.py            # long-polls Telegram; Ctrl-C to stop
+agronaut bot             # long-polls Telegram; Ctrl-C to stop (same as `python bot.py`)
 ```
 
 ### Run on WhatsApp (Cloud API)
@@ -265,22 +321,43 @@ journalctl --user -u agronaut-bot -f     # live logs
 ## Project layout
 
 ```
-aqua_model/          # TRUST ZONE — pure Python, no LLM, no network, fully tested
-  coefficients.py    #   cited data layer (value + range + unit + source + safety factor)
-  species.py crops.py#   seed databases (calibration-flagged)
-  massbalance.py     #   nitrogen consistency check, water balance, biofilter
-  sizing.py          #   size_system() — FRR anchors; build-artifact output
-  optimizer.py       #   optimize() — best fish/crop ratio under a constraint
-  validate.py        #   the trust gate (typed input only)
-  report.py          #   funder-facing design report
-  logging_schema.py  #   versioned install-logging standard (the dataset moat)
-agent/               # LLM-facing layer (imports aqua_model, never the reverse)
-  llm.py             #   pluggable backend (ollama | nvidia | hf)
-  facts.py           #   UI↔model seam
-  calculator_ui.py optimizer_ui.py   # Streamlit views
-app.py               # Streamlit app (chat | calculator | optimizer)
-srcs/chatbot.py      # the conversational/RAG troubleshooting flow
-knowledge/  urls.txt # reference content for RAG
+aqua_model/            # TRUST ZONE — pure Python, no LLM, no network, no I/O, fully tested
+  coefficients.py      #   cited data layer (value + range + unit + source + safety factor)
+  species.py crops.py  #   seed databases, every field sourced (5 species, 30 crops)
+  massbalance.py       #   nitrogen consistency check, water balance, biofilter
+  sizing.py            #   size_system() — FRR anchors; build-artifact output
+  hydroponics.py       #   size_hydroponic_system() — plants only, no fish
+  optimizer.py         #   optimize() — best fish/crop ratio under a constraint
+  triage.py            #   visual symptoms -> a ranked, CITED differential (never a verdict)
+  calibration.py       #   bound coefficients toward an operator's own measurements
+  validate.py          #   the trust gate — the only door into the model
+  report.py pilot.py   #   funder-facing design report and pilot proposal
+  schematic.py         #   deterministic SVG/PNG system diagram
+  logging_schema.py    #   versioned install-logging standard (the dataset moat)
+
+agent/                 # LLM-facing layer (imports aqua_model, never the reverse)
+  llm.py               #   pluggable chat backend (ollama | nvidia | hf | openai_compat)
+  vision.py            #   pluggable VLM + the observation guard + EXIF stripping
+  observation_features.py #   prose -> the categorical vocabulary triage.py accepts
+  classifier.py        #   pluggable image classifier as a FEATURE source (no backend yet)
+  transcribe.py        #   pluggable speech-to-text
+  calculator_ui.py optimizer_ui.py facts.py   # Streamlit views + the UI/model seam
+
+agronaut_agent/        # the channel-agnostic brain
+  cli.py               #   the `agronaut` command — one front door, routes to the real callables
+  core.py              #   handle_message / handle_image / handle_voice — the three seams
+  tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
+  store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
+  rag.py semantic.py   #   citation-enforced retrieval and semantic recall
+  channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
+
+scripts/               # safety_eval.py (hermetic golden set, runs in CI), vision_eval.py
+skills/                # the deterministic core as a portable agentskills.io skill + CLI
+knowledge/ urls.txt    # the curated, cited knowledge base
+docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval
+app.py                 # Streamlit app (chat | calculator | optimizer)
+pyproject.toml         # packaging + the `agronaut` console script (deps read from requirement.txt)
+srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (#25)
 ```
 
 ---
@@ -289,13 +366,21 @@ knowledge/  urls.txt # reference content for RAG
 
 - **M1 — design calculator** ✅ deterministic sizing, cited coefficients, report, logging standard
 - **M2 — ratio optimizer** ✅ fish/crop mix for max efficiency
-- **M3 — agent orchestrator** — refactor chat into a tool-calling agent; RAG → citation tool
-- **M4 — digital twin** — time-series simulator calibrated on real installed systems
-- **M5 — field maintenance assistant** — phone-friendly, low-connectivity
+- **M3 — agent orchestrator** — 🟡 the tool-calling agent is built and is what every channel
+  now runs on; demoting RAG to a pure citation tool is still open ([#25](https://github.com/Rekin226/Agronaut/issues/25))
+- **Field senses** ✅ photos and voice notes on Telegram, WhatsApp and the web, behind a
+  code-enforced observation guard and a cited visual-triage table
+- **M4 — digital twin** — time-series simulator calibrated on real installed systems ([#26](https://github.com/Rekin226/Agronaut/issues/26))
+- **M5 — reach** — SMS/USSD for farmers without a smartphone ([#73](https://github.com/Rekin226/Agronaut/issues/73)), offline-first ([#79](https://github.com/Rekin226/Agronaut/issues/79))
+- **Beyond aquaponics** — does the architecture generalise to irrigated field crops via
+  FAO-56? ([#78](https://github.com/Rekin226/Agronaut/issues/78))
 
-**Status:** the design + optimizer core is built and tested. The model is *validated* once
-it reproduces a real running system within tolerance — that calibration step is the next
-milestone (`aqua_model/tests/test_calibration.py`).
+**Status, honestly.** The design, optimizer, and triage core is built, tested, and enforced in
+CI (541 tests; a hermetic advice-safety golden set that fails the build on a regression). What
+is *not* done is **validation against reality**: the coefficients are literature seeds meant to
+be calibrated, and the vision path has never been scored against a real photograph because
+[the corpus is empty](https://github.com/Rekin226/Agronaut/issues/72). Calibrated ≠ validated,
+and the model says so in every result it produces.
 
 ---
 
@@ -313,6 +398,34 @@ python -m skills.aquaponics_engineer.cli size-aquaponics \
 ```
 
 Same trust zone, same citations, no LLM — a bad input is rejected at the gate.
+
+## Contributing
+
+**You don't need an API key, a GPU, or ML experience to contribute here.** The Design
+Calculator, the Optimizer, the whole engineering core, and the visual-triage table are
+deterministic — `pip install -r requirement.txt && pytest` and you're developing.
+
+The three contributions this project needs most:
+
+| | What | Why it matters |
+|---|---|---|
+| 🌾 | **Agronomy knowledge** — a crop, a species, a symptom rule, a correction | Every number needs a published source. Finding one *is* the work. Practitioner corrections are especially welcome. |
+| 📊 | **Real system data** — your FCR, harvest weights, yields | The coefficients are literature *seeds* meant to be calibrated against reality. Your data makes the model true rather than plausible. → [#22](https://github.com/Rekin226/Agronaut/issues/22) |
+| 📷 | **Photographs** — deficient leaves, sick fish, algae, root disease | The vision path is currently verified against handwritten test strings, not real photos. Run `python -m scripts.check_vision_corpus` to see what's wanted. |
+
+Then: [**good first issues**](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
+· [**CONTRIBUTING.md**](CONTRIBUTING.md) (setup + the trust-zone rules)
+· [**Code of Conduct**](CODE_OF_CONDUCT.md)
+
+One rule worth knowing before you write code: `aqua_model/` is a **trust zone** — pure Python,
+no LLM, no network, every number carrying a cited source, every output stating what it does
+*not* model. CI enforces the first part by installing only `pytest pandas Pillow` and asserting
+the core imports without any LLM library. Details in
+[CONTRIBUTING.md](CONTRIBUTING.md#the-one-thing-to-understand-before-you-write-code).
+
+## Citing Agronaut
+
+If you use Agronaut in research or programme work, see [CITATION.cff](CITATION.cff).
 
 ## License
 

@@ -34,8 +34,13 @@ from langchain_community.vectorstores import FAISS
 # Configuration
 # =============================================================================
 
-URL_FILE = "urls.txt"
-KNOWLEDGE_DIR = "knowledge"
+# Anchored to the project root, not the current directory: `agronaut` is an installed
+# command that can be run from anywhere, and a cwd-relative corpus would silently degrade
+# RAG to KNOWLEDGE_UNAVAILABLE instead of failing loudly.
+_PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+URL_FILE = str(_PROJECT_ROOT / "urls.txt")
+KNOWLEDGE_DIR = str(_PROJECT_ROOT / "knowledge")
 WEB_LOAD_TIMEOUT = 20
 
 
@@ -45,7 +50,7 @@ CHUNK_OVERLAP = 100
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 3
 
-CACHE_NAME = "web_cache"
+CACHE_NAME = str(_PROJECT_ROOT / "web_cache")   # absolute: see _PROJECT_ROOT above
 CACHE_EXPIRE = 86_400  # 1 day
 
 LOG_LEVEL = logging.INFO
@@ -201,29 +206,7 @@ def build_vector_store(documents) -> FAISS:
     )
     docs = splitter.split_documents(documents)
 
-    boilerplate_kw = (
-        "privacy policy",
-        "cookie",
-        "terms",
-        "accessibility",
-        "legal notice",
-        "help and support",
-        "contact us",
-        "subscribe",
-        "sign in",
-        "log in",
-        "all rights reserved",
-    )
-
-    def looks_like_boilerplate(text: str) -> bool:
-        t = (text or "").lower()
-        if not t or len(t) < 200:
-            return True
-        if any(k in t for k in boilerplate_kw):
-            return True
-        return False
-
-    filtered = [d for d in docs if not looks_like_boilerplate(getattr(d, "page_content", ""))]
+    filtered = [d for d in docs if not _is_boilerplate_text(getattr(d, "page_content", ""))]
     if filtered:
         docs = filtered
 

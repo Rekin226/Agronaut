@@ -37,6 +37,10 @@ bge-large-en/
 # The derived data/empirical_envelope.json IS committed.
 data/raw/
 
+# Tier-2 vision eval corpus: the operator's own field photos. Private, and large.
+# Only the manifest (docs/dpg/safety_eval/vision_set.json) is committed.
+data/vision_corpus/
+
 # Secrets / local environment (NEVER commit API tokens)
 .env
 .env.*
