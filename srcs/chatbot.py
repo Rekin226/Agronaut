@@ -98,12 +98,18 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
     New format (recommended):
       CATEGORY|URL
       CATEGORY|URL|LABEL
+      CATEGORY|URL|LABEL|LICENCE
+
+    LICENCE records the terms the text is published under (e.g. "CC BY 4.0", "CC BY-NC-SA 3.0").
+    Agronaut is a Digital Public Good, so what it indexes has to be openly licensed — and in
+    practice the paywalled sources are also the ones that return no text, so recording the licence
+    and keeping the corpus retrievable turn out to be the same discipline.
 
     Legacy format (backward compatible):
       URL
 
     Returns list of dicts:
-      {"category": "...", "url": "...", "label": "..."}
+      {"category": "...", "url": "...", "label": "...", "licence": "..."}
     """
     p = pathlib.Path(file_path)
     if not p.exists():
@@ -120,6 +126,7 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
 
         category = "UNCATEGORIZED"
         label = ""
+        licence = ""
 
         if "|" in line:
             parts = [x.strip() for x in line.split("|")]
@@ -128,6 +135,8 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
                 url = parts[1]
                 if len(parts) >= 3:
                     label = parts[2]
+                if len(parts) >= 4:
+                    licence = parts[3]
             else:
                 # Fallback to legacy if the split is malformed
                 url = line
@@ -142,7 +151,8 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
             continue
         seen.add(key)
 
-        entries.append({"category": category, "url": url, "label": label})
+        entries.append({"category": category, "url": url, "label": label,
+                        "licence": licence})
 
     return entries
 
@@ -177,8 +187,70 @@ def load_local_knowledge_documents(knowledge_dir: str = KNOWLEDGE_DIR):
     return docs
 
 
-def load_web_page(url: str):
+def _probe_url(url: str) -> dict | None:
+    """Fetch `url` ONCE and report what it is: status, content type, and body bytes.
 
+    Two things depend on this and both were previously getting their own request — the HTTP
+    status (WebBaseLoader never surfaces it, so an error page would otherwise be indexed as
+    content) and the PDF sniff. Downloading a 12 MB FAO publication three times to answer three
+    questions about it made vetting a source slower than it needs to be, and hammers the
+    publisher for no reason.
+
+    Returns None when the source must not be indexed (non-2xx). Returns a dict on success.
+    On a transport error it returns a dict with no content, letting WebBaseLoader try and apply
+    its own error handling rather than silently dropping a healthy source on one flaky request.
+    """
+    try:
+        import requests
+        r = requests.get(url, timeout=WEB_LOAD_TIMEOUT, allow_redirects=True,
+                         headers={"User-Agent": "Mozilla/5.0 (compatible; Agronaut/1.0)"})
+    except Exception as err:  # noqa: BLE001 — a probe failure must not cost us the source
+        logging.debug("Probe failed for %s (%s); deferring to the loader", url, err)
+        return {"status": 0, "content": b"", "content_type": "", "is_pdf": False}
+
+    if not (200 <= r.status_code < 300):
+        logging.warning("Skipping %s — HTTP %s, not indexing an error page", url, r.status_code)
+        return None
+
+    ctype = r.headers.get("Content-Type", "").lower()
+    content = r.content
+    return {
+        "status": r.status_code,
+        "content": content,
+        "content_type": ctype.split(";")[0],
+        # Detected by type/magic bytes, not a .pdf suffix: publication PDFs are routinely served
+        # from extension-less download endpoints (FAO's bitstream API is exactly this).
+        "is_pdf": "pdf" in ctype or content[:5].startswith(b"%PDF"),
+    }
+
+
+def _pdf_documents(content: bytes, url: str):
+    """Text from already-downloaded PDF bytes, one Document per page so a retrieved passage
+    can be cited back to a page number."""
+    try:
+        import io
+        from langchain_core.documents import Document
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        docs = []
+        for n, page in enumerate(reader.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                docs.append(Document(page_content=text, metadata={"source": url, "page": n}))
+        logging.info("Loaded %d PDF pages from %s", len(docs), url)
+        return docs
+    except Exception as err:  # noqa: BLE001
+        logging.warning("Failed to read PDF %s — %s", url, err)
+        return []
+
+
+def load_web_page(url: str):
+    probe = _probe_url(url)
+    if probe is None:
+        return []
+    if probe["is_pdf"]:
+        return _pdf_documents(probe["content"], url)
     try:
         logging.info("Loading %s", url)
         loader = WebBaseLoader(url)

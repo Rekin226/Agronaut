@@ -80,10 +80,36 @@ def test_unavailable_index_message_unchanged(monkeypatch):
 
 
 def test_urls_txt_has_no_duplicates():
-    lines = [ln.strip().rstrip("/").lower() for ln in
-             Path(__file__).resolve().parents[2].joinpath("urls.txt").read_text().splitlines()
-             if ln.strip()]
-    assert len(lines) == len(set(lines)), "urls.txt contains duplicate entries"
+    """No source may be indexed twice — duplicate chunks crowd out other documents in the top k.
+
+    Asserted over PARSED entries rather than raw lines: comment lines legitimately repeat (urls.txt
+    keeps a commented record of de-indexed references), and a raw-line check both trips over that
+    and misses the duplicate that actually matters — the same URL declared once bare and once in
+    CATEGORY|URL|LABEL form.
+    """
+    from srcs.chatbot import parse_urls_file
+    root = Path(__file__).resolve().parents[2]
+    urls = [e["url"].rstrip("/").lower() for e in parse_urls_file(str(root / "urls.txt"))]
+    assert len(urls) == len(set(urls)), "urls.txt declares the same source more than once"
+
+
+def test_every_indexed_source_declares_a_licence():
+    """Agronaut is a Digital Public Good: it may only index openly licensed text. An unlicensed
+    entry is a compliance problem, and empirically also a retrievability one — every source
+    measured that returned usable full text was openly licensed."""
+    from srcs.chatbot import parse_urls_file
+    root = Path(__file__).resolve().parents[2]
+    for e in parse_urls_file(str(root / "urls.txt")):
+        assert e["licence"], f"{e['url']} is indexed without a declared licence"
+
+
+def test_every_indexed_source_declares_a_label():
+    """The LABEL is what an operator sees in a citation, and it is what makes topic drift
+    detectable — an unlabelled source can silently become a different document."""
+    from srcs.chatbot import parse_urls_file
+    root = Path(__file__).resolve().parents[2]
+    for e in parse_urls_file(str(root / "urls.txt")):
+        assert e["label"], f"{e['url']} is indexed without a citable label"
 
 
 def test_system_prompt_requires_naming_sources():

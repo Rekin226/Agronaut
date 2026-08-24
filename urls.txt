@@ -1,14 +1,55 @@
-https://doi.org/10.3390/SU7044199
-https://doi.org/10.1016/J.COMPAG.2022.106785
-https://doi.org/10.1109/ICMI60790.2024.10586162
-https://doi.org/10.1007/S10462-024-11003-X
-https://doi.org/10.3390/w9030182
-https://doi.org/10.1016/j.jclepro.2019.04.290
-https://doi.org/10.1371/journal.pone.0102662
-https://doi.org/10.1016/j.aquaculture.2014.09.023
-https://doi.org/10.4081/ija.2017.1012
-https://doi.org/10.1016/j.jclepro.2018.01.037
-https://doi.org/10.1016/j.biortech.2015.01.013
-https://doi.org/10.1016/j.egypro.2017.12.694
-https://doi.org/10.1109/ACCESS.2019.2953491
-https://doi.org/10.3390/w8100468
+# Agronaut RAG corpus — web sources.
+#
+# Format:  CATEGORY|URL|LABEL|LICENCE
+# LABEL is what the operator sees in a "[source: ...]" citation, so it must name the real work.
+# LICENCE records the terms the text is published under; Agronaut is a Digital Public Good, so
+# only openly licensed material may be indexed.
+#
+# Vet a proposed source BEFORE adding it here — it is checked for reachability, substance, topic
+# drift and licence in one pass:
+#     python -m scripts.corpus_report --candidate "<url>" --label "<expected topic>"
+#
+# Audit everything currently declared:
+#     python -m scripts.corpus_report
+
+REVIEW|https://doi.org/10.1007/S10462-024-11003-X|Applications, technologies, and evaluation methods in smart aquaponics: a systematic literature review (Artif Intell Rev, 2024)|CC BY 4.0
+SURVEY|https://doi.org/10.1371/journal.pone.0102662|Love et al. (2014), An International Survey of Aquaponics Practitioners, PLOS ONE|CC BY 4.0
+
+# ---------------------------------------------------------------------------------------------
+# REFERENCES — real citations, NOT indexed (measured: each contributes 0 retrievable chunks).
+#
+# Kept here so the bibliographic record survives, removed from the index so they stop costing a
+# network fetch per cold start while presenting as citation depth. Verified with corpus_report:
+# the MDPI entries return HTTP 403 (their "Access Denied" body was previously being indexed as a
+# citable passage), the rest resolve to JavaScript redirect shims of ~11 characters.
+#
+# Paywalled — publisher blocks automated retrieval (HTTP 403):
+#   https://doi.org/10.3390/SU7044199
+#   https://doi.org/10.3390/w8100468
+#   https://doi.org/10.3390/w9030182
+#
+# Paywalled — resolve to a redirect shim with no extractable text:
+#   https://doi.org/10.1016/J.COMPAG.2022.106785
+#   https://doi.org/10.1016/j.aquaculture.2014.09.023
+#   https://doi.org/10.1016/j.biortech.2015.01.013
+#   https://doi.org/10.1016/j.egypro.2017.12.694
+#   https://doi.org/10.1016/j.jclepro.2018.01.037
+#   https://doi.org/10.1016/j.jclepro.2019.04.290
+#   https://doi.org/10.1109/ACCESS.2019.2953491
+#   https://doi.org/10.1109/ICMI60790.2024.10586162
+#   https://doi.org/10.4081/ija.2017.1012
+#
+# ---------------------------------------------------------------------------------------------
+# CANDIDATE — pending a licensing decision, NOT yet indexed.
+#
+# FAO 589 "Small-scale aquaponic food production" — verified reachable, 275 pages, 713 907 chars,
+# ~1034 chunks. It would roughly quadruple the corpus and is the canonical small-scale reference.
+# Held back for two reasons:
+#   1. LICENCE: published 2014, before FAO adopted Creative Commons. Its grant is "FAO encourages
+#      the use, reproduction and dissemination of material in this information product ... for
+#      educational or other non-commercial products or services" with attribution. Permissive, but
+#      NOT Creative Commons — confirm compatibility with redistributing Agronaut (MIT) as a DPG.
+#   2. INGESTION: 56 MB, ~47 s to download, and raw extraction pulls the table of contents and
+#      list-of-figures in as chunks. Needs index persistence and front-matter filtering first.
+#
+#   FAO|https://openknowledge.fao.org/server/api/core/bitstreams/2ca21047-390f-42cd-bd1d-0c2ebc9c1df2/content|FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)|FAO permissive (educational/non-commercial, attribution)
