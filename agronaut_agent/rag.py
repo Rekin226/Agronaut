@@ -273,12 +273,37 @@ def index_available() -> bool:
     return _get_index() is not None
 
 
+def search_with_stats(query: str, k: int = 3) -> tuple[str, dict]:
+    """search(), plus non-identifying telemetry about how the retrieval went.
+
+    The stats deliberately contain NO query text and NO passage text — only shape and timing. The
+    production question this answers is not "what did people ask" but "is the retriever behaving
+    the way the golden set says it should": how often the floor fires, how far the closest match
+    typically sits, how long retrieval takes. A drift in those is the earliest signal that the
+    corpus or the model has moved out from under the calibrated threshold.
+    """
+    import time
+    t0 = time.perf_counter()
+    if not index_available():
+        return _UNAVAILABLE, {"outcome": "unavailable", "n_results": 0,
+                              "latency_ms": int((time.perf_counter() - t0) * 1000)}
+    hits = retrieve(query, k=k)
+    latency_ms = int((time.perf_counter() - t0) * 1000)
+    scored = [h["score"] for h in hits if h.get("score") is not None]
+    stats = {
+        "outcome": "hit" if hits else "no_match",
+        "n_results": len(hits),
+        "k": k,
+        "latency_ms": latency_ms,
+        "top_score": round(min(scored), 3) if scored else None,
+        "hybrid": hybrid_enabled(),
+    }
+    if not hits:
+        return _NO_MATCH, stats
+    return "\n\n".join(f"[source: {h['source']}]\n{h['text']}" for h in hits), stats
+
+
 def search(query: str, k: int = 3) -> str:
     """Return retrieved knowledge passages for `query`, each labeled with its source —
     citation is enforced here, not left to the model — or a clear 'no context' note."""
-    if not index_available():
-        return _UNAVAILABLE
-    hits = retrieve(query, k=k)
-    if not hits:
-        return _NO_MATCH
-    return "\n\n".join(f"[source: {h['source']}]\n{h['text']}" for h in hits)
+    return search_with_stats(query, k=k)[0]
