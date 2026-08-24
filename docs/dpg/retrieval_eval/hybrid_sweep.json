@@ -1,0 +1,76 @@
+{
+  "description": "Hybrid BM25+RRF weighting sweep over docs/dpg/retrieval_eval/golden_set.json. beta is the weight on the SEMANTIC ranking; the keyword ranking gets (1-beta). Recorded so the decision to ship hybrid retrieval DISABLED is reproducible rather than an opinion.",
+  "corpus": {
+    "chunks": 362,
+    "local_files": 21,
+    "web_sources": 2
+  },
+  "embedding_model": "sentence-transformers/all-mpnet-base-v2",
+  "k": 3,
+  "sweep": [
+    {
+      "beta": 0.0,
+      "hit_rate": 0.788,
+      "recall@k": 0.768,
+      "precision@k": 0.328,
+      "MRR": 0.692,
+      "MAP@k": 0.677
+    },
+    {
+      "beta": 0.3,
+      "hit_rate": 0.879,
+      "recall@k": 0.859,
+      "precision@k": 0.424,
+      "MRR": 0.823,
+      "MAP@k": 0.819
+    },
+    {
+      "beta": 0.5,
+      "hit_rate": 0.939,
+      "recall@k": 0.924,
+      "precision@k": 0.485,
+      "MRR": 0.874,
+      "MAP@k": 0.861
+    },
+    {
+      "beta": 0.7,
+      "hit_rate": 0.97,
+      "recall@k": 0.919,
+      "precision@k": 0.5,
+      "MRR": 0.899,
+      "MAP@k": 0.862
+    },
+    {
+      "beta": 0.8,
+      "hit_rate": 0.97,
+      "recall@k": 0.919,
+      "precision@k": 0.5,
+      "MRR": 0.889,
+      "MAP@k": 0.852
+    },
+    {
+      "beta": 0.9,
+      "hit_rate": 0.909,
+      "recall@k": 0.859,
+      "precision@k": 0.49,
+      "MRR": 0.864,
+      "MAP@k": 0.823
+    },
+    {
+      "beta": 0.95,
+      "hit_rate": 0.97,
+      "recall@k": 0.904,
+      "precision@k": 0.581,
+      "MRR": 0.884,
+      "MAP@k": 0.838
+    }
+  ],
+  "dense_only": {
+    "hit_rate": 0.97,
+    "recall@k": 0.919,
+    "precision@k": 0.626,
+    "MRR": 0.909,
+    "MAP@k": 0.869
+  },
+  "conclusion": "Dense-only equals or beats every hybrid setting on every metric. The best hybrid configuration (beta=0.70) matches dense hit_rate and recall but loses 0.126 precision and 0.010 MRR. BM25 adds noise without adding signal on a 362-chunk corpus whose documents share one vocabulary domain: common aquaponics terms match across many files, so keyword rank is weakly informative. Hybrid ships DISABLED (AGRONAUT_HYBRID=off by default). Re-run this sweep after any substantial corpus growth - a larger, more heterogeneous corpus (e.g. adding FAO 589's ~1034 chunks) is exactly where BM25 is expected to start earning its place."
+}
