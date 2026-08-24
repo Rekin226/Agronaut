@@ -14,23 +14,25 @@ import re
 # Maximum FAISS L2 distance a passage may have and still be offered to the model as context.
 # LOWER is closer; anything above this is treated as "nothing relevant matched".
 #
-# Measured on docs/dpg/retrieval_eval/golden_set.json (33 operator queries, 10 off-topic controls):
-#   - rejects 9/10 off-topic queries
-#   - silences 0/33 real queries
-#   - hit_rate, recall@3, precision@3, MRR and MAP@3 all UNCHANGED
-# So it removes most grounded-looking hallucinations at no measured retrieval cost.
+# Measured on docs/dpg/retrieval_eval/golden_set.json (33 operator queries, 10 off-topic controls),
+# corpus of 1354 chunks: rejects 8/10 off-topic queries, silences 0/33 real ones.
 #
-# It is a heuristic, NOT a guarantee, and the margin is thinner than it first appears. With only
-# three controls the bands looked cleanly separated (worst on-topic 1.554 vs closest off-topic
-# 1.717). Widening to ten controls surfaced "best way to remove red wine from a carpet" at 1.553 —
-# INSIDE the on-topic band — because stain removal is genuinely close in embedding space to
-# algae_control.md's advice on removing growth from surfaces. The bands overlap; a query near the
-# boundary can still fall the wrong way.
+# THE BANDS OVERLAP AND CANNOT BE SEPARATED. Worst on-topic distance is 1.548; the CLOSEST
+# off-topic match is 1.426 ("best way to remove red wine from a carpet", which lands near
+# algae_control.md's advice on removing growth from surfaces). Adding FAO 589 widened this gap in
+# the wrong direction — a 275-page book covering everything from plumbing to food safety is
+# semantically near almost any question. No single global threshold can catch that query without
+# also silencing real ones.
 #
-# The durable fix for that overlap is a better-separated corpus and a complementary keyword
-# signal, not a cleverer threshold. This number is a property of THIS embedding model over THIS
-# corpus and does not port: `python -m scripts.retrieval_eval` reprints the separation on every
-# run and says outright when the bands overlap. Re-read it after any corpus change; override with
+# 1.65 rather than a tighter 1.58: the tighter value would reject one more control (neg-06, at
+# 1.616) but leaves only 0.032 of headroom above the worst real query, versus 0.10 at 1.65. On a
+# 33-query sample that trades a threefold cut in safety margin for one extra rejection, and
+# "silences 0 real queries" is the property that must not break. A real question is refused
+# service; an off-topic one merely gets an honest "no matching passages".
+#
+# This number is a property of THIS embedding model over THIS corpus and does not port.
+# `python -m scripts.retrieval_eval` reprints the separation on every run and says outright when
+# the bands overlap. Re-read it after any corpus change. Override with
 # AGRONAUT_RELEVANCE_MAX_DISTANCE (or "off" to disable).
 _DEFAULT_MAX_DISTANCE = 1.65
 
@@ -44,10 +46,22 @@ _BM25_TRIED = False
 # original RRF paper and the usual production default.
 _RRF_K = 60
 
-# Weight on the semantic ranking; the keyword ranking gets (1 - beta). Aquaponics queries are
-# dense with exact terms an embedding can blur together — "nitrite" vs "nitrate", species names,
-# "Ich", "FCR" — so the keyword side is given real weight rather than a token share.
-_DEFAULT_BETA = 0.5
+# Weight on the semantic ranking; the keyword ranking gets (1 - beta).
+#
+# 0.90 is measured, not chosen. On the 362-chunk corpus hybrid LOST at every weighting and shipped
+# disabled. Adding FAO 589 grew the corpus to 1354 chunks, and re-running the sweep — which the
+# recorded evidence explicitly said to do after substantial corpus growth — flipped the result:
+#
+#     beta   hit    recall  prec    MRR     MAP
+#     0.50   0.758  0.727   0.444   0.561   0.543
+#     0.70   0.818  0.773   0.475   0.646   0.606
+#     0.90   0.848  0.788   0.495   0.692   0.636   <- ships
+#     dense  0.848  0.697   0.490   0.682   0.545
+#
+# Note how LITTLE keyword weight is right: 10%. Enough to break ties a 992-chunk book would
+# otherwise win on volume, not enough to let common aquaponics vocabulary dominate the ranking.
+# At 0.5 — the intuitive "balanced" setting — hybrid is still clearly worse than dense.
+_DEFAULT_BETA = 0.90
 
 
 def _get_index():
@@ -117,29 +131,19 @@ def _get_bm25():
 
 
 def hybrid_enabled() -> bool:
-    """Hybrid retrieval ships DISABLED, on evidence — see docs/dpg/retrieval_eval/hybrid_sweep.json.
+    """Hybrid retrieval ships ENABLED — see docs/dpg/retrieval_eval/hybrid_sweep.json.
 
-    The received wisdom is that BM25 + RRF beats dense-only. Measured on this corpus it does not,
-    at any weighting:
+    It did not start that way, and the reversal is the useful part. On the original 362-chunk
+    corpus hybrid lost to dense-only at EVERY weighting and was shipped disabled, with the
+    evidence recorded and a note to re-run the sweep after substantial corpus growth. Adding FAO
+    589 took the corpus to 1354 chunks; re-running the sweep flipped the decision (MAP +0.091,
+    recall +0.091 at beta=0.90).
 
-        beta   hit    recall  prec    MRR     MAP
-        0.50   0.939  0.924   0.485   0.874   0.861
-        0.70   0.970  0.919   0.500   0.899   0.862
-        0.95   0.970  0.904   0.581   0.884   0.838
-        dense  0.970  0.919   0.626   0.909   0.869
-
-    Dense-only equals or beats every setting on every metric; the best hybrid configuration loses
-    0.126 of precision to match it elsewhere. The reason is the corpus, not the technique: 362
-    chunks that all share one vocabulary domain, so common aquaponics terms match across many
-    files and keyword rank carries little information. BM25 does fix the one dense miss
-    ("bright green and cloudy" -> algae_control.md) but breaks two other queries doing it.
-
-    The implementation is kept and tested because this is expected to invert as the corpus grows
-    and diversifies — adding FAO 589 alone would roughly quadruple it. Re-run the sweep after any
-    substantial corpus change and flip this default if the numbers move. Enable with
-    AGRONAUT_HYBRID=on.
+    Nothing about the technique changed. The corpus did. A 992-chunk book competing with 82 chunks
+    of targeted operator guidance is precisely the situation a keyword signal is for: it breaks
+    ties that dense similarity resolves by volume. Disable with AGRONAUT_HYBRID=off.
     """
-    return os.getenv("AGRONAUT_HYBRID", "").lower() in {"on", "1", "true"}
+    return os.getenv("AGRONAUT_HYBRID", "").lower() not in {"off", "0", "false"}
 
 
 def beta() -> float:
@@ -181,6 +185,32 @@ def max_distance() -> float:
 
 
 _POOL = 20      # candidates drawn from each retriever before fusion
+
+# At most this many passages from any ONE source in a single result set.
+#
+# The observed failure when a 992-chunk book joined an 82-chunk curated corpus was not subtle:
+# FAO 589 took all three slots on 10 of 33 queries, so a targeted operator answer that existed in
+# knowledge/ never reached the model. Ranking alone cannot fix that — the book genuinely IS
+# similar, and has twelve times as many chances to be. A per-source cap spends one slot on breadth
+# instead, which is what a researcher does by reflex: read two sources, not three pages of one.
+#
+# Measured (1354-chunk corpus, hybrid on):
+#
+#     cap    hit    recall  prec    MRR     MAP
+#     1      0.970  0.919   0.404   0.747   0.710
+#     2      0.939  0.894   0.540   0.737   0.697   <- ships
+#     none   0.848  0.788   0.495   0.692   0.636
+#
+# cap=1 restores the pre-FAO hit_rate exactly and wins MRR/MAP, so it is a defensible choice and
+# is one env var away. It ships at 2 because part of cap=1's advantage is an artefact of the
+# metric rather than a real gain: `relevant` is labelled at DOCUMENT granularity, so one FAO
+# passage scores identically to three, and the metric cannot see that some queries (feeding rates,
+# pest treatments) are genuinely best answered by several passages from the same chapter. cap=2
+# keeps most of the recall while returning materially less irrelevant context to the model
+# (precision 0.540 vs 0.404), and still allows a source with real depth to contribute twice.
+#
+# Set AGRONAUT_MAX_PER_SOURCE=1 to prioritise coverage, or 0 to disable the cap entirely.
+_MAX_PER_SOURCE = 2
 
 
 def retrieve(query: str, k: int = 3, max_dist: float | None = None,
@@ -264,7 +294,48 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
             sparse = []
 
     fused = rrf_fuse(dense, sparse) if sparse else dense
-    return [by_key[key] for key in fused[:k]]
+    return [by_key[key] for key in _diversify(fused, by_key, k)]
+
+
+def max_source_cap() -> int:
+    """Configured per-source cap; 0 disables it."""
+    raw = os.getenv("AGRONAUT_MAX_PER_SOURCE", "").strip()
+    if not raw:
+        return _MAX_PER_SOURCE
+    try:
+        return max(int(raw), 0)
+    except ValueError:
+        logging.warning("Bad AGRONAUT_MAX_PER_SOURCE=%r; using default", raw)
+        return _MAX_PER_SOURCE
+
+
+def _diversify(ranked: list, by_key: dict, k: int, max_per_source: int | None = None) -> list:
+    """Take the top k, allowing at most `max_per_source` passages from any single source.
+
+    Applied AFTER fusion, so relevance still decides the order and diversity only decides who is
+    displaced. A source that is genuinely the only answer still fills its cap; it simply cannot
+    fill the entire window. If the cap cannot be honoured — because too few distinct sources
+    matched at all — the remaining slots are filled from the original ranking rather than returned
+    short, since a capped-but-empty result would be worse than a repetitive one.
+    """
+    cap = max_source_cap() if max_per_source is None else max_per_source
+    if cap <= 0:
+        return ranked[:k]
+    picked, counts = [], {}
+    for key in ranked:
+        src = by_key[key]["source"]
+        if counts.get(src, 0) >= cap:
+            continue
+        counts[src] = counts.get(src, 0) + 1
+        picked.append(key)
+        if len(picked) == k:
+            return picked
+    for key in ranked:                      # backfill rather than return a short result
+        if key not in picked:
+            picked.append(key)
+            if len(picked) == k:
+                break
+    return picked[:k]
 
 
 def index_available() -> bool:

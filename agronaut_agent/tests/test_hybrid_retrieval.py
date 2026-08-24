@@ -74,12 +74,24 @@ def test_beta_is_clamped_and_falls_back_on_bad_config(monkeypatch):
     assert rag.beta() == rag._DEFAULT_BETA
 
 
-def test_hybrid_is_off_unless_explicitly_enabled(monkeypatch):
-    """Shipping default. An unset variable must mean OFF here — the sweep says dense-only wins."""
+def test_hybrid_is_on_by_default(monkeypatch):
+    """Shipping default, and it was reversed on evidence.
+
+    On the 362-chunk corpus hybrid lost at every weighting and shipped OFF. Adding FAO 589 took
+    the corpus to 1354 chunks and re-running the sweep flipped it: MAP +0.091 and recall +0.091 at
+    beta=0.90. The technique did not change; the corpus did.
+    """
     monkeypatch.delenv("AGRONAUT_HYBRID", raising=False)
-    assert not rag.hybrid_enabled()
-    monkeypatch.setenv("AGRONAUT_HYBRID", "on")
     assert rag.hybrid_enabled()
+    monkeypatch.setenv("AGRONAUT_HYBRID", "off")
+    assert not rag.hybrid_enabled()
+
+
+def test_default_beta_is_the_measured_optimum():
+    """0.90, not the intuitive 0.5. Only 10% keyword weight — enough to break ties a 992-chunk
+    book wins on volume, not enough to let shared aquaponics vocabulary dominate. At 0.5 hybrid
+    is still clearly worse than dense-only."""
+    assert rag._DEFAULT_BETA == 0.90
 
 
 # --- fusion must not weaken the relevance floor ------------------------------

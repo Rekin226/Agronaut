@@ -1,42 +1,83 @@
 {
-  "description": "Ablation of markdown-header-aware chunking and the context prefix, over docs/dpg/retrieval_eval/golden_set.json. Recorded so shipping this DISABLED is reproducible.",
-  "corpus": {
-    "chunks_baseline": 362,
-    "local_sections": 123,
-    "mean_section_chars": 381,
-    "median_section_chars": 365,
-    "chunk_size": 800,
-    "sections_smaller_than_chunk_window": "117/123 (95%)"
-  },
-  "variants": [
+  "description": "Ablation of markdown-header chunking and its context prefix. Run on two corpus sizes. Baseline wins both times, but the CONTEXT PREFIX reverses sign between them, which is the interesting part.",
+  "runs": [
     {
-      "id": "A",
-      "name": "baseline \u2014 recursive character splitter only",
-      "hit_rate": 0.97,
-      "recall@k": 0.919,
-      "precision@k": 0.626,
-      "MRR": 0.909,
-      "MAP@k": 0.869
+      "corpus": {
+        "chunks": 362,
+        "local_sections": 123,
+        "mean_section_chars": 381,
+        "chunk_size": 800,
+        "sections_smaller_than_chunk_window": "117/123 (95%)"
+      },
+      "variants": [
+        {
+          "id": "A",
+          "name": "baseline \u2014 recursive character splitter",
+          "hit_rate": 0.97,
+          "recall@k": 0.919,
+          "precision@k": 0.626,
+          "MRR": 0.909,
+          "MAP@k": 0.869
+        },
+        {
+          "id": "B",
+          "name": "header split, no context prefix",
+          "hit_rate": 0.939,
+          "recall@k": 0.889,
+          "precision@k": 0.606,
+          "MRR": 0.843,
+          "MAP@k": 0.793
+        },
+        {
+          "id": "C",
+          "name": "header split + context prefix",
+          "hit_rate": 0.909,
+          "recall@k": 0.879,
+          "precision@k": 0.722,
+          "MRR": 0.848,
+          "MAP@k": 0.818
+        }
+      ],
+      "note": "Prefix HELPED: C gains 0.116 precision and 0.025 MAP over B."
     },
     {
-      "id": "B",
-      "name": "header split, no context prefix",
-      "hit_rate": 0.939,
-      "recall@k": 0.889,
-      "precision@k": 0.606,
-      "MRR": 0.843,
-      "MAP@k": 0.793
-    },
-    {
-      "id": "C",
-      "name": "header split + 'Title \u2014 Section' context prefix",
-      "hit_rate": 0.909,
-      "recall@k": 0.879,
-      "precision@k": 0.722,
-      "MRR": 0.848,
-      "MAP@k": 0.818
+      "corpus": {
+        "chunks": 1354,
+        "note": "FAO 589 added (992 chunks)"
+      },
+      "variants": [
+        {
+          "id": "A",
+          "name": "baseline \u2014 recursive character splitter",
+          "hit_rate": 0.848,
+          "recall@k": 0.788,
+          "precision@k": 0.495,
+          "MRR": 0.692,
+          "MAP@k": 0.636
+        },
+        {
+          "id": "B",
+          "name": "header split, no context prefix",
+          "hit_rate": 0.818,
+          "recall@k": 0.753,
+          "precision@k": 0.475,
+          "MRR": 0.692,
+          "MAP@k": 0.631
+        },
+        {
+          "id": "C",
+          "name": "header split + context prefix",
+          "hit_rate": 0.758,
+          "recall@k": 0.667,
+          "precision@k": 0.444,
+          "MRR": 0.621,
+          "MAP@k": 0.538
+        }
+      ],
+      "note": "Prefix HURT: C loses 0.060 hit_rate and 0.093 MAP against B \u2014 the opposite sign."
     }
   ],
-  "conclusion": "Baseline wins on every metric except precision. The ablation separates two effects that are usually bundled: the SPLIT costs quality (B loses on all five metrics), while the CONTEXT PREFIX genuinely helps (C gains 0.116 precision and 0.025 MAP over B). The mechanism is corpus geometry, not the technique: 95% of sections are SMALLER than the 800-char chunk window (mean 381 chars), so the recursive splitter was already packing ~2 related sections per chunk and header splitting fragments that useful co-occurrence into context-poor pieces. Ships DISABLED (AGRONAUT_MD_HEADERS=off by default).",
-  "when_to_revisit": "This is expected to invert for documents whose sections are LARGER than the chunk window \u2014 exactly the book-length PDFs the corpus is growing toward. FAO 589 is 275 pages; blind 800-char windows across a book ignore every structural boundary in it. Re-run this ablation once such a source is indexed, and consider enabling header chunking for PDF sources specifically while leaving the short hand-authored corpus on the character splitter."
+  "conclusion": "Baseline wins on both corpora, so header chunking stays DISABLED (AGRONAUT_MD_HEADERS=off). The prefix's reversal is the finding worth keeping: on a small uniform corpus, prefixing a chunk with 'Title - Section' disambiguated it among 21 similar files; once a 992-chunk book joined the index, those same added words made curated chunks read as generic aquaponics prose and compete WORSE against it. A preprocessing step's value is a property of the corpus it runs on, not of the step.",
+  "why_header_chunking_still_loses": "95% of the hand-authored corpus's sections are SMALLER than the 800-char chunk window (mean 381), so the recursive splitter already packs ~2 related sections per chunk and header splitting fragments that co-occurrence. Note this implementation only splits MARKDOWN; FAO 589 reaches the character splitter either way, so this ablation does NOT test structural chunking of the PDF itself. That remains unimplemented and is the more promising direction for book-length sources.",
+  "methodology_note": "The first attempt at this second run reported BYTE-IDENTICAL numbers for B and C. The cause was the index-cache fingerprint not covering AGRONAUT_MD_CRUMB, so variant C silently re-read variant B's index. Suspiciously identical results were the only symptom. All three chunking flags are now in the fingerprint, with a test per flag."
 }
