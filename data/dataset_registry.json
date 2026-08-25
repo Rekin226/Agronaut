@@ -27,7 +27,7 @@
       "pairs_feed_with_nitrogen": false,
       "role": "fish_growth + calibration",
       "verdict": "REVIEW",
-      "verdict_reason": "the repo's 4 ponds are a subset — the full 12 include fortnightly catfish length/weight alongside water quality, the only open fish-growth-with-chemistry pairing found; needs a (free) Kaggle API key, so not fetchable unattended"
+      "verdict_reason": "ADOPTED for fish-growth calibration (fetched 2026-08-26 with the operator's Kaggle key; 11 of 12 ponds in the deposit): the only open fish-growth-with-chemistry pairing found. Gate verdict REVIEW (turbidity saturation; no feed/nitrite). Produced the clarias TGC fit — scripts/calibrate_tgc.py -> data/tgc_calibration.json (median 1.91, IQR 1.82-2.22, 10 usable ponds). Stays REVIEW because the fetch needs a key, so it is not unattended"
     },
     {
       "id": "mendeley_redtilapia_pond",
