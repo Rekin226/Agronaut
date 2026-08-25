@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --panel-bg: rgba(18, 26, 24, 0.82);
+    --panel-fg: #e8f0ec;
+    --accent: #5dd39e;
+    --muted: #9db4aa;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1412;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #c { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: absolute; top: 14px; left: 14px; max-width: 320px;
+    background: var(--panel-bg); color: var(--panel-fg);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    padding: 12px 14px; backdrop-filter: blur(6px); font-size: 13px; line-height: 1.45;
+  }
+  #hud h1 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
+  #hud .sub { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  #hud ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 38vh; overflow-y: auto; }
+  #hud li { padding: 3px 6px; border-radius: 6px; cursor: pointer; display: flex; gap: 7px; align-items: center; }
+  #hud li:hover { background: rgba(255,255,255,0.07); }
+  #hud li .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  #toggles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  #toggles button {
+    background: rgba(255,255,255,0.06); color: var(--panel-fg);
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 7px;
+    font-size: 12px; padding: 4px 9px; cursor: pointer;
+  }
+  #toggles button.on { background: var(--accent); color: #0c1a13; border-color: var(--accent); font-weight: 600; }
+  #tip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--panel-bg); color: var(--panel-fg); font-size: 12.5px;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 7px; padding: 6px 9px; max-width: 260px;
+  }
+  #cap { position: absolute; bottom: 10px; left: 14px; color: var(--muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <h1 id="t-name"></h1>
+  <div class="sub" id="t-sub"></div>
+  <div id="toggles">
+    <button id="b-gh" class="on">greenhouse</button>
+    <button id="b-flow" class="on">flow</button>
+    <button id="b-fish" class="on">fish</button>
+    <button id="b-labels">labels</button>
+  </div>
+  <ul id="t-list"></ul>
+</div>
+<div id="tip"></div>
+<div id="cap">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
+
+<script>/*__THREE_JS__*/</script>
+<script>/*__ORBIT_CONTROLS__*/</script>
+<script id="scene-data" type="application/json">__SCENE_JSON__</script>
+<script>
+"use strict";
+const SCENE = JSON.parse(document.getElementById("scene-data").textContent);
+
+/* ---------- palette by component role ---------- */
+const ROLE_STYLE = {
+  fish_tank:   { color: 0x2f6f8f, label: "fish tank" },
+  sump:        { color: 0x3d5a66, label: "sump" },
+  clarifier:   { color: 0x8a6d3b, label: "clarifier" },
+  biofilter:   { color: 0x7a4f9e, label: "biofilter" },
+  mineraliser: { color: 0x9e6a4f, label: "mineraliser" },
+  dwc_bed:     { color: 0xdfe6e9, label: "DWC raft bed" },
+  media_bed:   { color: 0x8d6e63, label: "media bed" },
+  nft_channel: { color: 0xb0bec5, label: "NFT channel" },
+  vertical_tower: { color: 0x90a4ae, label: "tower" },
+  wicking_bed: { color: 0x795548, label: "wicking bed" },
+  dutch_bucket:{ color: 0xa1887f, label: "dutch bucket" },
+  degasser:    { color: 0x607d8b, label: "degasser" },
+  generic:     { color: 0x78909c, label: "component" },
+};
+const WATER = 0x2196c9, WATER_OP = 0.55;
+
+/* ---------- renderer / scene ---------- */
+const canvas = document.getElementById("c");
+let renderer = null;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+} catch (e) {
+  // Headless browsers and very old machines have no WebGL. The scene data still builds
+  // below (it is plain geometry), so tests can assert on it; only drawing is skipped.
+  const msg = document.createElement("div");
+  msg.id = "no-webgl";
+  msg.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;" +
+    "justify-content:center;color:#9db4aa;font-size:15px;text-align:center;padding:2em";
+  msg.textContent = "This browser cannot create a WebGL context, so the 3D view cannot draw. " +
+    "Open this file in a regular desktop browser (Chrome, Firefox, Safari, Edge).";
+  document.body.appendChild(msg);
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101a17);
+scene.fog = new THREE.Fog(0x101a17, 40, 120);
+
+const gw = (SCENE.greenhouse && SCENE.greenhouse.width) || 8;
+const gl = (SCENE.greenhouse && SCENE.greenhouse.length) || 12;
+const camera = new THREE.PerspectiveCamera(50, 2, 0.1, 500);
+camera.position.set(gw * 1.25, Math.max(gw, gl) * 0.75, gl * 1.15);
+
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.target.set(gw / 2, 0.6, gl / 2);
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xdfeeea, 0x22302a, 0.85));
+const sun = new THREE.DirectionalLight(0xfff3d6, 1.6);
+sun.position.set(gw * 1.5, 18, -6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const shadowSpan = Math.max(gw, gl) * 1.2;
+Object.assign(sun.shadow.camera, { left: -shadowSpan, right: shadowSpan, top: shadowSpan, bottom: -shadowSpan });
+scene.add(sun);
+
+/* ---------- ground ---------- */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(Math.max(gw, gl) * 4, 48),
+  new THREE.MeshStandardMaterial({ color: 0x24352c, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(gw / 2, -0.01, gl / 2);
+ground.receiveShadow = true;
+scene.add(ground);
+const grid = new THREE.GridHelper(Math.max(gw, gl) * 2, Math.max(gw, gl) * 2, 0x3a544a, 0x2c4038);
+grid.position.set(gw / 2, 0, gl / 2);
+scene.add(grid);
+
+/* ---------- greenhouse shell ---------- */
+const ghGroup = new THREE.Group();
+if (SCENE.greenhouse) {
+  const g = SCENE.greenhouse;
+  const W = g.width, L = g.length, hw = g.wall_h || 2.2, hr = g.ridge_h || hw + 1.2;
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x9aa8a2, metalness: 0.6, roughness: 0.4 });
+  const skinMat = new THREE.MeshPhysicalMaterial({
+    color: 0xcfe8ef, transparent: true, opacity: 0.16, roughness: 0.15,
+    transmission: 0.6, side: THREE.DoubleSide, depthWrite: false });
+
+  function post(x, z, h) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, h, 8), frameMat);
+    m.position.set(x, h / 2, z); ghGroup.add(m);
+  }
+  const nPost = Math.max(2, Math.round(L / 2));
+  for (let i = 0; i <= nPost; i++) {
+    const z = (L * i) / nPost;
+    post(0, z, hw); post(W, z, hw);
+  }
+  // gable profile as a shape extruded along length
+  const prof = new THREE.Shape();
+  prof.moveTo(0, 0); prof.lineTo(0, hw); prof.lineTo(W / 2, hr); prof.lineTo(W, hw); prof.lineTo(W, 0);
+  const skinGeo = new THREE.ExtrudeGeometry(prof, { depth: L, bevelEnabled: false });
+  skinGeo.rotateY(0);
+  const skin = new THREE.Mesh(skinGeo, skinMat);
+  skin.position.set(0, 0, 0);
+  ghGroup.add(skin);
+  // ridge beam
+  const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, L, 8), frameMat);
+  ridge.rotation.x = Math.PI / 2;
+  ridge.position.set(W / 2, hr, L / 2);
+  ghGroup.add(ridge);
+}
+scene.add(ghGroup);
+
+/* ---------- components ---------- */
+const pickables = [];
+const labelSprites = [];
+
+function makeLabel(text, x, y, z) {
+  const pad = 8, fs = 26;
+  const cv = document.createElement("canvas");
+  const ctx = cv.getContext("2d");
+  ctx.font = `600 ${fs}px -apple-system, Segoe UI, sans-serif`;
+  cv.width = ctx.measureText(text).width + pad * 2; cv.height = fs + pad * 2;
+  ctx.font = `600 ${fs}px -apple-system, Segoe UI, sans-serif`;
+  ctx.fillStyle = "rgba(14,22,19,0.78)";
+  ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 10); ctx.fill();
+  ctx.fillStyle = "#eaf6f0"; ctx.textBaseline = "top"; ctx.fillText(text, pad, pad);
+  const tex = new THREE.CanvasTexture(cv);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  const s = 0.006;
+  spr.scale.set(cv.width * s, cv.height * s, 1);
+  spr.position.set(x, y, z);
+  spr.visible = false;
+  labelSprites.push(spr);
+  scene.add(spr);
+}
+
+function addWaterCyl(x, z, d, top) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(d / 2 - 0.02, 32),
+    new THREE.MeshStandardMaterial({ color: WATER, transparent: true, opacity: WATER_OP, roughness: 0.1 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, top, z); scene.add(m);
+}
+function addWaterBox(x, z, w, l, top) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.04, l - 0.04),
+    new THREE.MeshStandardMaterial({ color: WATER, transparent: true, opacity: WATER_OP, roughness: 0.1 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, top, z); scene.add(m);
+}
+
+const plantMat = new THREE.MeshStandardMaterial({ color: 0x3f9b4f, roughness: 0.9 });
+const plantMat2 = new THREE.MeshStandardMaterial({ color: 0x63b45c, roughness: 0.9 });
+function addPlants(x0, z0, w, l, top, spacing) {
+  const sp = spacing || 0.25;
+  const nx = Math.max(1, Math.floor(w / sp)), nz = Math.max(1, Math.floor(l / sp));
+  const geo = new THREE.SphereGeometry(sp * 0.32, 7, 6);
+  const inst = new THREE.InstancedMesh(geo, Math.random() < 0.5 ? plantMat : plantMat2, nx * nz);
+  const M = new THREE.Matrix4();
+  let i = 0;
+  for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++) {
+    const jx = (Math.random() - 0.5) * sp * 0.2, jz = (Math.random() - 0.5) * sp * 0.2;
+    const s = 0.75 + Math.random() * 0.5;
+    M.makeScale(s, s * 0.8, s);
+    M.setPosition(x0 - w / 2 + sp / 2 + a * sp + jx, top + sp * 0.22, z0 - l / 2 + sp / 2 + b * sp + jz);
+    inst.setMatrixAt(i++, M);
+  }
+  inst.castShadow = true;
+  scene.add(inst);
+}
+
+const tanks = {};   // id -> {x, z, r, waterTop, h} for fish + pipe anchoring
+const boxes = {};
+
+for (const o of SCENE.objects || []) {
+  const st = ROLE_STYLE[o.role] || ROLE_STYLE.generic;
+  const mat = new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.75, metalness: 0.05 });
+  let mesh;
+  if (o.kind === "cyl") {
+    const geo = new THREE.CylinderGeometry(o.d / 2, o.d / 2, o.h, 40, 1, true);
+    mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: st.color, roughness: 0.75, side: THREE.DoubleSide }));
+    mesh.position.set(o.x, o.h / 2, o.y);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(o.d / 2, 0.025, 8, 40), mat);
+    rim.rotation.x = Math.PI / 2; rim.position.set(o.x, o.h, o.y); scene.add(rim);
+    const wf = o.water_frac == null ? 0.85 : o.water_frac;
+    if (wf > 0) addWaterCyl(o.x, o.y, o.d, o.h * wf);
+    tanks[o.id] = { x: o.x, z: o.y, r: o.d / 2, waterTop: o.h * wf, h: o.h, role: o.role };
+    makeLabel(o.label || st.label, o.x, o.h + 0.55, o.y);
+  } else {
+    const geo = new THREE.BoxGeometry(o.w, o.h, o.l);
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(o.x, (o.z || 0) + o.h / 2, o.y);
+    const wf = o.water_frac == null ? 0 : o.water_frac;
+    const topY = (o.z || 0) + o.h;
+    if (wf > 0) addWaterBox(o.x, o.y, o.w, o.l, (o.z || 0) + o.h * wf);
+    if (o.plants) addPlants(o.x, o.y, o.w, o.l, topY, o.plant_spacing);
+    boxes[o.id] = { x: o.x, z: o.y, w: o.w, l: o.l, topY, role: o.role };
+    makeLabel(o.label || st.label, o.x, topY + 0.55, o.y);
+  }
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.userData = { label: o.label || st.label, detail: o.detail || "" };
+  pickables.push(mesh);
+  scene.add(mesh);
+}
+
+/* ---------- pipes + flow particles ---------- */
+const flowGroup = new THREE.Group();
+scene.add(flowGroup);
+const flows = [];  // {curve, len, particles: InstancedMesh, n, speed}
+const pipeMat = new THREE.MeshStandardMaterial({ color: 0xd8dee2, roughness: 0.5 });
+const dropMat = new THREE.MeshBasicMaterial({ color: 0x8fd9ff });
+
+for (const p of SCENE.pipes || []) {
+  const pts = p.path.map(q => new THREE.Vector3(q[0], q[2], q[1]));
+  const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.08);
+  const len = curve.getLength();
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12, len * 6 | 0), (p.d || 0.04) / 2, 10), pipeMat);
+  tube.castShadow = true;
+  flowGroup.add(tube);
+  const n = Math.max(4, Math.min(40, len * 3 | 0));
+  const drops = new THREE.InstancedMesh(new THREE.SphereGeometry((p.d || 0.04) * 0.7, 6, 5), dropMat, n);
+  flowGroup.add(drops);
+  flows.push({ curve, len, drops, n, speed: 0.11 + 0.05 * Math.min(1, (p.flow_lpm || 30) / 60), off: Math.random() });
+}
+
+/* ---------- fish ---------- */
+const fishGroup = new THREE.Group();
+scene.add(fishGroup);
+const fishes = [];
+const fishGeo = new THREE.ConeGeometry(0.045, 0.16, 6);
+fishGeo.rotateX(Math.PI / 2);
+const fishMat = new THREE.MeshStandardMaterial({ color: 0xd8956b, roughness: 0.6 });
+for (const f of SCENE.fish || []) {
+  const t = tanks[f.tank]; if (!t) continue;
+  const n = Math.min(f.count || 10, 60);
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(fishGeo, fishMat);
+    const s = (f.length_m || 0.15) / 0.16;
+    m.scale.set(s, s, s);
+    fishGroup.add(m);
+    fishes.push({
+      m, t,
+      a: Math.random() * Math.PI * 2,               // angular position
+      rr: 0.25 + Math.random() * 0.6,               // radius fraction
+      y: 0.25 + Math.random() * 0.55,               // depth fraction
+      w: (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.5),  // angular speed
+      wob: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+/* ---------- HUD ---------- */
+document.getElementById("t-name").textContent = SCENE.name || "Aquaponic system";
+document.getElementById("t-sub").textContent = SCENE.subtitle || "";
+const list = document.getElementById("t-list");
+for (const o of SCENE.objects || []) {
+  const st = ROLE_STYLE[o.role] || ROLE_STYLE.generic;
+  const li = document.createElement("li");
+  const dot = document.createElement("span");
+  dot.className = "dot"; dot.style.background = "#" + st.color.toString(16).padStart(6, "0");
+  const tx = document.createElement("span"); tx.textContent = o.label || st.label;
+  li.append(dot, tx);
+  li.onclick = () => {
+    const target = o.kind === "cyl" ? new THREE.Vector3(o.x, o.h / 2, o.y)
+                                    : new THREE.Vector3(o.x, ((o.z || 0) + o.h) / 2, o.y);
+    controls.target.copy(target);
+  };
+  list.appendChild(li);
+}
+function bindToggle(id, group) {
+  const b = document.getElementById(id);
+  b.onclick = () => { group.visible = !group.visible; b.classList.toggle("on", group.visible); };
+}
+bindToggle("b-gh", ghGroup);
+bindToggle("b-flow", flowGroup);
+bindToggle("b-fish", fishGroup);
+document.getElementById("b-labels").onclick = function () {
+  const on = !labelSprites.length || !labelSprites[0].visible;
+  labelSprites.forEach(s => s.visible = on);
+  this.classList.toggle("on", on);
+};
+
+/* ---------- hover tooltip ---------- */
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+const tip = document.getElementById("tip");
+canvas.addEventListener("pointermove", e => {
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (hit) {
+    tip.style.display = "block";
+    tip.style.left = e.clientX + 14 + "px";
+    tip.style.top = e.clientY + 10 + "px";
+    tip.innerHTML = "<b>" + hit.object.userData.label + "</b>" +
+      (hit.object.userData.detail ? "<br>" + hit.object.userData.detail : "");
+  } else tip.style.display = "none";
+});
+
+/* ---------- animate ---------- */
+const M4 = new THREE.Matrix4();
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * renderer.getPixelRatio() | 0 || canvas.height !== h * renderer.getPixelRatio() | 0) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+// Testable summary of what was built — asserted headless, where WebGL may not exist.
+window.__SCENE_STATS__ = {
+  webgl: !!renderer,
+  objects: (SCENE.objects || []).length,
+  pipes: flows.length,
+  fish: fishes.length,
+  hudItems: list.children.length,
+  greenhouse: !!SCENE.greenhouse,
+};
+
+let last = 0;
+function tick(tms) {
+  const t = tms / 1000, dt = Math.min(0.05, t - last); last = t;
+  resize();
+  controls.update();
+
+  if (flowGroup.visible) for (const f of flows) {
+    for (let i = 0; i < f.n; i++) {
+      const u = (f.off + i / f.n + t * f.speed) % 1;
+      const pos = f.curve.getPointAt(u);
+      M4.makeTranslation(pos.x, pos.y, pos.z);
+      f.drops.setMatrixAt(i, M4);
+    }
+    f.drops.instanceMatrix.needsUpdate = true;
+  }
+
+  if (fishGroup.visible) for (const f of fishes) {
+    f.a += f.w * dt;
+    f.wob += dt * 6;
+    const r = f.t.r * f.rr * (1 + 0.06 * Math.sin(f.wob * 0.35));
+    const x = f.t.x + r * Math.cos(f.a);
+    const z = f.t.z + r * Math.sin(f.a);
+    const y = f.t.waterTop * f.y + 0.03 * Math.sin(f.wob * 0.5);
+    f.m.position.set(x, y, z);
+    // face direction of travel (tangent of the circle, sign of w)
+    const dirx = -Math.sin(f.a) * Math.sign(f.w), dirz = Math.cos(f.a) * Math.sign(f.w);
+    f.m.lookAt(x + dirx, y, z + dirz);
+    f.m.rotation.z = 0.15 * Math.sin(f.wob);
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+if (renderer) requestAnimationFrame(tick);
+</script>
+</body>
+</html>
