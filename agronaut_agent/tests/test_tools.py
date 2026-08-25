@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 20
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -166,7 +166,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 20
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -197,7 +197,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 20
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -241,7 +241,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 20
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -292,7 +292,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 20
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
@@ -442,3 +442,28 @@ def test_optimize_tool_labels_calibration():
         assert "calibrated from your" in out.lower()          # optimize now labels it
     finally:
         runtime.clear_current()
+def test_registry_includes_the_twin_tools():
+    """The twin is user-visible: season simulation, what-if forking, and the 3D design."""
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "simulate_season" in names
+    assert "what_if_nitrogen" in names
+    assert "design_system_3d" in names
+
+
+def test_simulate_season_teaches_when_the_site_is_missing():
+    """A missing climate file must return the fetch command, not a stack trace."""
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil",
+                                grow_area_m2=10.0, site="atlantis")
+    assert "fetch_climate.py" in text
+    assert "atlantis" in text
+
+
+def test_what_if_nitrogen_reports_relative_not_absolute():
+    from agronaut_agent.tools import what_if_nitrogen
+    text = what_if_nitrogen.func(fish_species="tilapia", volume_l=2000.0,
+                                 feed_g_per_day=150.0, temperature_c=27.0,
+                                 change="double feed", new_feed_g_per_day=300.0)
+    assert "x higher" in text or "x lower" in text or "No material change" in text
+    assert "unvalidated" in text
