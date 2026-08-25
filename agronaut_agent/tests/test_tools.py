@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 20
+    assert len(AGRONAUT_TOOLS) == 22
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -166,7 +166,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 20
+    assert len(AGRONAUT_TOOLS) == 22
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -197,7 +197,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 20
+    assert len(AGRONAUT_TOOLS) == 22
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -241,7 +241,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 20
+    assert len(AGRONAUT_TOOLS) == 22
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -292,7 +292,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(AGRONAUT_TOOLS) == 20
+    assert len(AGRONAUT_TOOLS) == 22
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
@@ -455,7 +455,8 @@ def test_simulate_season_teaches_when_the_site_is_missing():
     """A missing climate file must return the fetch command, not a stack trace."""
     from agronaut_agent.tools import simulate_season
     text = simulate_season.func(fish_species="tilapia", crop="basil",
-                                grow_area_m2=10.0, site="atlantis")
+                                grow_area_m2=10.0, site="atlantis",
+                                water_budget_lpd=300.0)
     assert "fetch_climate.py" in text
     assert "atlantis" in text
 
@@ -467,3 +468,66 @@ def test_what_if_nitrogen_reports_relative_not_absolute():
                                  change="double feed", new_feed_g_per_day=300.0)
     assert "x higher" in text or "x lower" in text or "No material change" in text
     assert "unvalidated" in text
+
+
+def test_simulate_season_design_mode_stocks_the_designed_system():
+    """Path 1 of the intake procedure: the agreed design flows into the twin without
+    anyone retyping numbers — the summary label carries the design's own fish count."""
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil", grow_area_m2=24.0,
+                                site="taichung_2025", water_budget_lpd=500.0,
+                                system_type="raft", days=60)
+    assert "designed:" in text and "fish" in text
+    assert "Season projection" in text
+
+
+def test_simulate_season_without_a_system_teaches_instead_of_guessing():
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil",
+                                grow_area_m2=10.0, site="taichung_2025")
+    assert "water_budget_lpd" in text
+
+
+def test_simulate_my_system_asks_for_what_the_mirror_is_missing():
+    """Path 2: an incomplete profile returns the exact list to collect, not a guess."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import simulate_my_system
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        mem.set_facts("cli:t", {"fish_species": "tilapia", "crop": "lettuce"},
+                      source="user_stated")
+        text = simulate_my_system.func()
+    finally:
+        runtime.clear_current()
+    assert "tank_volume_l" in text and "fish_count" in text and "climate_site" in text
+    assert "update_profile" in text
+
+
+def test_simulate_my_system_mirrors_a_complete_profile():
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import simulate_my_system
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        mem.set_facts("cli:t", {
+            "fish_species": "tilapia", "crop": "basil", "grow_area_m2": 15,
+            "tank_volume_l": 2000, "fish_count": 60, "fish_avg_weight_g": 200,
+            "climate_site": "taichung_2025"}, source="user_stated")
+        text = simulate_my_system.func(days=60)
+    finally:
+        runtime.clear_current()
+    assert "your system" in text
+    assert "Season projection" in text
+
+
+def test_estimate_system_cost_degrades_without_a_price_book_or_region():
+    from agronaut_agent.tools import estimate_system_cost
+    text = estimate_system_cost.func(fish_species="tilapia", crop="basil",
+                                     grow_area_m2=24.0, temperature_c=27.0,
+                                     water_budget_lpd=500.0, region="list")
+    assert "price book" in text.lower() or "region" in text.lower()

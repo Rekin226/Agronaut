@@ -16,6 +16,10 @@ PROFILE_KEYS: tuple[str, ...] = (
     "water_budget_lpd",
     "ph",
     "tank_volume_l",         # actual tank on a running system (input, not computed)
+    "fish_count",            # head currently stocked (running system)
+    "fish_avg_weight_g",     # mean weight of the stocked fish (running system)
+    "system_type",           # raft | nft | media_bed | vertical_tower
+    "climate_site",          # fetched climate slug for the twin (e.g. ouagadougou_2025)
     "dissolved_oxygen_mgl",
     "ammonia_mgl",
     "water_source",
@@ -52,6 +56,10 @@ _LABELS: dict[str, str] = {
     "crop": "crop",
     "grow_area_m2": "grow area",
     "tank_volume_l": "tank (L)",
+    "fish_count": "fish (head)",
+    "fish_avg_weight_g": "avg fish weight (g)",
+    "system_type": "growing method",
+    "climate_site": "climate site",
     "temperature_c": "temp (°C)",
     "ph": "pH",
     "dissolved_oxygen_mgl": "DO (mg/L)",
@@ -65,8 +73,9 @@ _LABELS: dict[str, str] = {
 }
 
 # Default display order: system spec first, then water params, then goal.
-_SYSTEM_ORDER = ("system_stage", "location", "fish_species", "crop", "grow_area_m2",
-                 "tank_volume_l", "water_budget_lpd", "water_source")
+_SYSTEM_ORDER = ("system_stage", "location", "fish_species", "crop", "system_type",
+                 "grow_area_m2", "tank_volume_l", "fish_count", "fish_avg_weight_g",
+                 "water_budget_lpd", "water_source", "climate_site")
 _WATER_ORDER = ("temperature_c", "ph", "dissolved_oxygen_mgl", "ammonia_mgl")
 _GOAL_ORDER = ("goal", "goal_detail", "objective", "experience_level")
 
@@ -97,9 +106,16 @@ _TOOL_PROFILE_ARGS: dict[str, tuple[str, ...]] = {
                              "water_budget_lpd"),
     "optimize_fish_crop_ratio": ("grow_area_m2", "temperature_c", "water_budget_lpd",
                                  "objective"),
+    "simulate_season": ("fish_species", "crop", "grow_area_m2", "system_type"),
+    "design_system_3d": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                         "water_budget_lpd", "system_type"),
+    "estimate_system_cost": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                             "water_budget_lpd", "system_type"),
 }
 # Substrings that mark a tool result as a non-success — never persist args from these.
-_TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool")
+_TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool",
+                         "Unknown species", "No climate file", "Unknown region",
+                         "No price book")
 
 
 def profile_updates_from_tool(name: str, args: dict, result: str) -> dict:

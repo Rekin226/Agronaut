@@ -137,3 +137,27 @@ def test_the_report_states_its_own_limits():
     assert "NOT modelled" in text
     assert "projection" in text
     assert "test site" in text
+
+
+def test_a_designed_system_flows_into_the_twin_unchanged():
+    """Path 1 of the intake procedure: the twin starts with the design's own numbers."""
+    from aqua_model.production import start_state_from_design
+    from aqua_model.sizing import size_system
+    from aqua_model.validate import validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "basil", 24.0, 27.0, 500.0))
+    state = start_state_from_design(out, TILAPIA, water_temp_c=26.0, start_weight_g=20.0)
+    assert state.fish.count == out.fish_count
+    assert state.nitrogen.volume_l == out.system_volume_l
+    assert state.fish.mean_weight_g == 20.0
+    # a new build starts uncycled — the seed capacity, not a mature biofilter
+    assert state.nitrogen.aob_capacity_g_day < 0.1
+
+
+def test_an_infeasible_design_cannot_seed_the_twin():
+    from aqua_model.production import start_state_from_design
+    from aqua_model.types import DesignOutput
+
+    empty = DesignOutput(feasible=False)
+    with pytest.raises(ValueError, match="feasible"):
+        start_state_from_design(empty, TILAPIA, water_temp_c=26.0)

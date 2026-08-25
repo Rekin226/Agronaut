@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Regional component prices for aquaponics cost estimation (aqua_model/costing.py). Every item carries value/low/high in the region's currency, a source, and a basis tag: official = government/utility/manufacturer list price; retail_snapshot = e-commerce or store listing at as_of date; guide = extension/cost-guide aggregate; derived = unit conversion or interpolation performed by us and flagged. These are researched estimates to be replaced by local quotes — never quotes themselves. Missing items are deliberately absent: the estimator shows them as UNPRICED rather than inventing a number.",
+  "fx_note": "As of 2026-08: 1 USD ~= 31.9 TWD; 1 USD ~= 562 XOF (XOF pegged to EUR at 655.957).",
+  "regions": {
+    "burkina_faso": {
+      "currency": "XOF",
+      "as_of": "2026-08",
+      "items": {
+        "tank_1000l": {"price": 110000, "low": 95000, "high": 185000, "unit": "per 1000 L vessel", "basis": "retail_snapshot", "source": "Ouagadougou: used food-grade IBC 96,875 XOF (ouagadougou.online, page read) to 150,000 (FB vendor); new Polytank-type 1000 L 181,250 XOF (vendor price table parsed)"},
+        "pump_small": {"price": 13000, "low": 8000, "high": 18000, "unit": "per unit (20-45 W class)", "basis": "retail_snapshot", "source": "Côte d'Ivoire proxy (Jumia CI, read): 20 W 7,700-7,800; 35 W high-flow 17,900; 45 W 9,030 XOF — expect a Ouagadougou import markup; no BF shelf price found"},
+        "air_pump": {"price": 9000, "low": 3500, "high": 50000, "unit": "per unit incl. stones", "basis": "retail_snapshot", "source": "Hobby-class w/ 2 stones 3,500-9,000 XOF (Jumia CI, read); pond-class blower/compressor 33,000-50,000 XOF (Nigeria proxy, snippets) — pick by system size"},
+        "pvc_pipe_m": {"price": 1400, "low": 800, "high": 2000, "unit": "per metre, 32-50 mm pressure", "basis": "derived", "source": "CI/Senegal per-bar prices interpolated (Maison BCS Abidjan read: PVC32 2,000/bar, PVC50 4,500/bar; Senegal guide read); BF small-diameter bars not publicly priced. BF fittings verified: coude 32 = 150, coude 50 = 275 XOF (songnabadistribution.com, read)"},
+        "gravel_m3": {"price": 10000, "low": 8000, "high": 15000, "unit": "per m3 delivered", "basis": "derived", "source": "Bobo-Dioulasso truckload prices 2021 (~5,000-8,500 XOF/m3, L'Express du Faso, read) inflated to 2026 (our extrapolation); Abidjan ~14,000-15,000 XOF/m3 at 1.5-1.6 t/m3"},
+        "raft_foam_m2": {"price": 8000, "low": 6500, "high": 10500, "unit": "per m2 EPS 20-40 mm", "basis": "retail_snapshot", "source": "Abidjan EPS sheets (produitbat.ci, snippet-only): 20 mm ~6,500, 40 mm ~10,425 XOF/m2; CYPE CI generator ~5,800 installed. No BF listing found — phone-check before contracting"},
+        "greenhouse_poly_m2": {"price": 12000, "low": 7000, "high": 14000, "unit": "per m2 floor, TURNKEY incl. structure+film+install", "basis": "guide", "source": "Agro Serre Innovation CI (read): 250 m2 = 14,000 XOF/m2, 500-1,000 m2 = 12,000; Senegal semi-tunnel ~7,000-10,000. No Burkina-specific quote found"},
+        "shade_net_m2": {"price": 1000, "low": 430, "high": 1300, "unit": "per m2 NET MATERIAL ONLY", "basis": "retail_snapshot", "source": "Abidjan (constructeurdeserre.com, Dec 2025, read): 40% = 900, 50% = 1,000, 70% = 1,300 XOF/m2; Senegal roll ~430. Support STRUCTURE unpriced by any verifiable source — budget posts + wire + labour on top"},
+        "fingerling_tilapia": {"price": 100, "low": 60, "high": 250, "unit": "per fingerling", "basis": "official", "source": "Bagré, Burkina: 60-250 XOF by size (Sidwaya, 28 May 2023, article read); ~100 XOF for 10 g commonly quoted"},
+        "fingerling_clarias": {"price": 90, "low": 80, "high": 100, "unit": "per fingerling", "basis": "retail_snapshot", "source": "ENESA hatchery sales, 80-100 XOF (Ministry MAERAH FB, snippet); Benin CoinAfrique corroborates 60-100 by size"},
+        "feed_kg": {"price": 800, "low": 500, "high": 1200, "unit": "per kg floating pellet ~30% CP", "basis": "retail_snapshot", "source": "Local Faso Guulgo plant 500-550 XOF/kg (africavet, snippet); imported Ghanaian ~850-1,200 (Sidwaya, read); 2026 ad 640-800 XOF/kg by volume. CP% rarely stated — verify"},
+        "electricity_kwh": {"price": 105, "low": 96, "high": 138, "unit": "per kWh", "basis": "official", "source": "SONABEL grid (plateformewattia.com mirror, read; sonabel.bf unreachable): B1 monophasé 96/102/109 XOF by tranche; social tariff to 138; GlobalPetrolPrices avg 123 XOF (read)"},
+        "water_m3": {"price": 439, "low": 188, "high": 1104, "unit": "per m3", "basis": "official", "source": "ONEA 2021 tariff PDF (read): households 188 (0-8 m3) to 1,104 XOF/m3 (>25 m3); sociétés flat 1,104; eau brute (raw water) 439 — the realistic farm rate where available. Tranche 1 harmonised at 188 nationwide Apr 2026 (minute.bf, read)"},
+        "labour_day": {"price": 2500, "low": 2000, "high": 3000, "unit": "per helper-day, Ouagadougou", "basis": "derived", "source": "Tradesmen-reported manoeuvre rate 2,000-2,500 XOF/day (anecdotal, FB); Senegal benchmark 1,500-3,000 (read); SMIG 45,000 XOF/month (Nov 2023 decree). Mason 5,000-7,500/day is a neighbour-anchored estimate"}
+      }
+    },
+    "taiwan": {
+      "currency": "TWD",
+      "as_of": "2026-08",
+      "items": {
+        "tank_1000l": {"price": 4000, "low": 1800, "high": 5500, "unit": "per 1000 L vessel", "basis": "retail_snapshot", "source": "PE round tank NT$3,300-5,500 (lvneng.com.tw list/online, Shopee, findprice); used food-grade IBC totes NT$1,500-1,900 set the low end"},
+        "pump_small": {"price": 900, "low": 600, "high": 2100, "unit": "per unit (~3000 L/h class)", "basis": "retail_snapshot", "source": "UP/ISTA 3000 L/h submersibles, momo/PChome Aug 2026"},
+        "air_pump": {"price": 2000, "low": 500, "high": 5900, "unit": "per unit", "basis": "retail_snapshot", "source": "small dual-outlet aquarium pump NT$460-990 (momo/feebee); pond-scale ALITA AL-60 blower NT$4,290-5,880 (BigGo) — pick by system size"},
+        "pvc_pipe_m": {"price": 25, "low": 22, "high": 34, "unit": "per metre, 32-38 mm PVC-U", "basis": "official", "source": "Nan Ya (nanya-pipe.com) list price: W25 NT$22.58/m, W30 NT$27.25/m; hardware retail slightly higher"},
+        "gravel_m3": {"price": 750, "low": 540, "high": 900, "unit": "per m3", "basis": "derived", "source": "GSMMA national aggregate stats Jun 2026: crushed stone NT$359-372/tonne ex-plant, converted at 1.5-1.6 t/m3 (our conversion); ~NT$900/m3 delivered per Tainan-area quotes"},
+        "biofilter_media_m3": {"price": 12000, "low": 9000, "high": 36000, "unit": "per m3 K1-style carriers", "basis": "retail_snapshot", "source": "Taiwan retail NT$200-210/kg (~5.5 L/kg => ~NT$36,000/m3, twaqua/Yahoo); Alibaba bulk US$280-300/m3 FOB (~NT$9,000-9,600) — buy bulk, add freight"},
+        "raft_foam_m2": {"price": 500, "low": 270, "high": 980, "unit": "per m2", "basis": "retail_snapshot", "source": "EPE foam board ~NT$270/m2; dedicated EPS hydroponic float boards NT$790-980/m2 (BigGo, Aug 2026)"},
+        "liner_m2": {"price": 30, "low": 22, "high": 61, "unit": "per m2 HDPE-type membrane", "basis": "retail_snapshot", "source": "BigGo pond-liner rolls NT$22-61/m2 by thickness; heavy PVC canvas ponds are custom-quoted"},
+        "nft_channel_m": {"price": 240, "low": 218, "high": 265, "unit": "per metre incl. holes", "basis": "retail_snapshot", "source": "jeida.com.tw 6 m/30-hole channel NT$1,400 (NT$233/m); 1212.com.tw NT$218-263/m"},
+        "greenhouse_poly_m2": {"price": 900, "low": 756, "high": 1059, "unit": "per m2 floor, materials + erection", "basis": "guide", "source": "Simple steel-pipe + poly-film house NT$2,500-3,500/ping (PRO360 2026 cost guide; MOA portal quoting builder; farmer build ~NT$929/m2)"},
+        "shade_net_m2": {"price": 18, "low": 17, "high": 20, "unit": "per m2 NET MATERIAL ONLY", "basis": "retail_snapshot", "source": "60% shade net rolls, Yahoo listings — support structure NOT priced in this book; expect the structure to dominate the cost"},
+        "fingerling_tilapia": {"price": 6, "low": 4, "high": 10, "unit": "per fingerling", "basis": "retail_snapshot", "source": "YiHua hatchery (FB): 2 cm+ NT$4, 4 cm+ NT$6; 50-fish.com 6-7 cm NT$10 at 300+ pcs"},
+        "feed_kg": {"price": 50, "low": 32, "high": 77, "unit": "per kg floating pellet", "basis": "derived", "source": "Fwusow anchors: 23% CP tilapia pellet ~NT$32/kg, 43% CP ~NT$71-77/kg (Shopee, Aug 2026); a 32% CP grade falls between — midpoint is our interpolation, not a listing"},
+        "electricity_kwh": {"price": 3.78, "low": 1.78, "high": 6.44, "unit": "per kWh residential", "basis": "official", "source": "Taipower tariff (taipower.com.tw): non-time-of-use tiers NT$1.78-8.86 summer / 1.78-7.03 non-summer; ~NT$3.78 average after Oct-2025 adjustment"},
+        "water_m3": {"price": 11.55, "low": 7.35, "high": 12.08, "unit": "per m3 incl. 5% tax", "basis": "official", "source": "Taiwan Water Corporation tiers: NT$7.35 (<=10 m3/mo) to NT$12.075 (>50 m3/mo), plus meter base fee"}
+      }
+    },
+    "global_us": {
+      "currency": "USD",
+      "as_of": "2026-08",
+      "items": {
+        "tank_1000l": {"price": 350, "low": 150, "high": 380, "unit": "per 275-gal (1040 L) IBC", "basis": "retail_snapshot", "source": "New food-grade IBC $349.99 (ibctanks.com); reconditioned ~$150"},
+        "pump_small": {"price": 26, "low": 20, "high": 50, "unit": "per unit (~3000 L/h class)", "basis": "retail_snapshot", "source": "VIVOSUN 800 GPH $23.99-25.99 (Walmart/vivosun.com); hobby 35-100 W class $20-50"},
+        "air_pump": {"price": 50, "low": 35, "high": 60, "unit": "per unit", "basis": "retail_snapshot", "source": "VIVOHOME 32 W 6-outlet commercial air pump COMBO incl. 2 air stones + 25 ft tubing, $49.99 (Home Depot)"},
+        "pvc_pipe_m": {"price": 5.5, "low": 4.2, "high": 9.0, "unit": "per metre, 1.5-2 in Sch 40", "basis": "retail_snapshot", "source": "Ace $12.99 / Tractor Supply $14.99 per 1.5 in x 10 ft ($4.3-4.9/m); 2 in solid-core $9/m (Home Depot)"},
+        "gravel_m3": {"price": 60, "low": 39, "high": 105, "unit": "per m3 delivered", "basis": "guide", "source": "LawnStarter/HomeGuide/Angi 2025-26 aggregates: $30-80/cu yd materials"},
+        "biofilter_media_m3": {"price": 300, "low": 280, "high": 330, "unit": "per m3 K1-style carriers, FOB China", "basis": "retail_snapshot", "source": "Alibaba MBBR carriers ~500 m2/m3: $300/m3 (1-9 m3), $280/m3 (10+); add freight"},
+        "raft_foam_m2": {"price": 15, "low": 10, "high": 21, "unit": "per m2 (1-2 in XPS)", "basis": "retail_snapshot", "source": "Owens Corning FOAMULAR NGX F-250 2 in 4x8 ft $60.96 => $20.5/m2 (Home Depot); 1 in ~half"},
+        "liner_m2": {"price": 16, "low": 8, "high": 25, "unit": "per m2 EPDM 45-mil", "basis": "guide", "source": "EPDM pond liner $0.75-2.30/sq ft (Moore Water Gardens, HomeGuide/HomeAdvisor)"},
+        "nft_channel_m": {"price": 27, "low": 19, "high": 37, "unit": "per metre", "basis": "retail_snapshot", "source": "CropKing 10 in channel $68 per 6-12 ft channel => $18.6-37.2/m; unit ambiguity on 4.5 in line flagged"},
+        "greenhouse_poly_m2": {"price": 25, "low": 11, "high": 43, "unit": "per m2 floor, DIY materials", "basis": "guide", "source": "UMass Extension high tunnels $1-2/sq ft; Sheridan/UWyo build $3.1-3.6/sq ft; U. Arkansas FSA-6147 itemized budget"},
+        "shade_net_m2": {"price": 1.6, "low": 1.4, "high": 2.5, "unit": "per m2 CLOTH ONLY", "basis": "retail_snapshot", "source": "AMGO 50% shade cloth 10x12 ft $17.45 (Home Depot) — support structure NOT priced"},
+        "fingerling_tilapia": {"price": 1.0, "low": 0.45, "high": 1.65, "unit": "per fingerling", "basis": "retail_snapshot", "source": "Wholesale $0.45-0.50/inch min 1,000 (Miami Aquaculture); retail $0.89-1.63 each (Mineral Springs, Lakeway)"},
+        "feed_kg": {"price": 2.9, "low": 2.4, "high": 3.3, "unit": "per kg 32% CP floating pellet", "basis": "retail_snapshot", "source": "Purina AquaMax Grower 400 (32% CP) $74.37/50 lb = $3.28/kg; AquaMax 500 (41%) $2.42/kg"},
+        "electricity_kwh": {"price": 0.184, "low": 0.135, "high": 0.184, "unit": "per kWh", "basis": "official", "source": "EIA Electricity Monthly Update May 2026: residential avg 18.44 c/kWh, commercial 13.54 c/kWh; state spread not captured"},
+        "water_m3": {"price": 1.6, "low": 1.59, "high": 1.8, "unit": "per m3 water only, excl. sewer", "basis": "derived", "source": "AWWA 2022 rate survey ~$1.59/m3 at 7,500 gal/mo; +6%/yr per Bluefield => ~$1.7-1.8 in 2025-26 (our extrapolation)"}
+      }
+    }
+  }
+}

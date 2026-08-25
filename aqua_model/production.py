@@ -92,6 +92,27 @@ def start_state(*, volume_l: float, fish_count: int, start_weight_g: float,
     return ProductionState(nitrogen=nitrogen, fish=cohort, water_temp_c=water_temp_c)
 
 
+def start_state_from_design(out, species: FishSpecies, *, water_temp_c: float,
+                            start_weight_g: float = 20.0,
+                            cycled: bool = False) -> ProductionState:
+    """The agreed design, stocked on day one — the bridge from "here is your system"
+    to "here is what it will do".
+
+    Numbers come from the DesignOutput, not from the operator retyping them: fish count
+    and system volume are the sizing model's own, so the twin simulates exactly the
+    system that was designed. Fish start at fingerling weight (a new build stocks
+    fingerlings, not the harvest-size standing crop sizing plans around), and the
+    biofilter starts UNCYCLED by default, because a new build's does — the cycling
+    transient, nitrite spike included, is part of an honest first season. Pass
+    `cycled=True` only for a design being applied to an already-running system."""
+    if out.fish_count <= 0 or out.system_volume_l <= 0:
+        raise ValueError("design has no stocked fish or no volume — was it feasible?")
+    return start_state(
+        volume_l=out.system_volume_l, fish_count=out.fish_count,
+        start_weight_g=start_weight_g, water_temp_c=water_temp_c,
+        species=species, cycled=cycled)
+
+
 def step_production(
     state: ProductionState,
     day_weather: C.DailyClimate,

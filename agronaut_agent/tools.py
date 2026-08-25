@@ -418,9 +418,11 @@ def update_profile(updates: dict) -> str:
     have learned, e.g. {"goal": "optimize", "objective": "protein", "grow_area_m2": 10,
     "tank_volume_l": 1000, "dissolved_oxygen_mgl": 5.5}. Canonical keys: system_stage,
     fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd, ph, tank_volume_l,
-    dissolved_oxygen_mgl, ammonia_mgl, water_source, location, goal, goal_detail,
-    objective, experience_level. Unknown keys are ignored. Call this whenever the user
-    reveals a durable fact — do not wait for the end of the conversation."""
+    fish_count, fish_avg_weight_g, system_type, climate_site, dissolved_oxygen_mgl,
+    ammonia_mgl, water_source, location, goal, goal_detail, objective, experience_level.
+    Unknown keys are ignored. Call this whenever the user reveals a durable fact — do not
+    wait for the end of the conversation. For a user with a RUNNING system, fish_count,
+    fish_avg_weight_g, tank_volume_l and climate_site are what simulate_my_system needs."""
     cur = runtime.get_current()
     if cur is None:
         return "Profile unavailable right now."
@@ -576,66 +578,186 @@ def _climate_days(site: str):
     return from_records(payload["days"]), payload.get("site", {})
 
 
+def _greenhouse_from(mode: str, heat_setpoint_c: float | None):
+    from aqua_model.climate import GreenhouseParams as _GH
+
+    mode = str(mode).strip().lower()
+    if mode == "shade":
+        return _GH(shade_to_ambient=True), "shade"
+    if mode == "heated" or heat_setpoint_c is not None:
+        return _GH(heat_setpoint_c=float(heat_setpoint_c or 26.0)), "heated"
+    return _GH(), "poly"
+
+
+def _run_season(*, species_key: str, crop_key: str, grow_area_m2: float, site: str,
+                init, days: int, greenhouse: str, heat_setpoint_c: float | None,
+                label_extra: str = "") -> str:
+    from aqua_model.production import ProductionParams as _PP, format_summary, simulate_production
+    from aqua_model.crops import get_crop
+    from aqua_model.species import get_species
+
+    weather, _meta = _climate_days(site)
+    gh, mode = _greenhouse_from(greenhouse, heat_setpoint_c)
+    n_days = max(1, min(int(days), len(weather)))
+    run = simulate_production(
+        init(weather[0].t_mean_c) if callable(init) else init,
+        weather[:n_days], get_species(species_key), species_key, get_crop(crop_key),
+        float(grow_area_m2), params=_PP(greenhouse=gh))
+    label = f"{site} · {mode}" + (f" @{gh.heat_setpoint_c:.0f}C" if gh.heat_setpoint_c else "")
+    return format_summary(run, site_label=label + label_extra)
+
+
 @tool
 def simulate_season(
     fish_species: str,
     crop: str,
     grow_area_m2: float,
     site: str,
-    fish_count: int = 80,
-    start_weight_g: float = 50.0,
-    volume_l: float = 3000.0,
+    fish_count: int | None = None,
+    start_weight_g: float = 20.0,
+    volume_l: float | None = None,
+    water_budget_lpd: float | None = None,
+    system_type: str = "raft",
     days: int = 365,
     greenhouse: str = "poly",
     heat_setpoint_c: float | None = None,
+    biofilter_cycled: bool | None = None,
 ) -> str:
     """SIMULATE a season of this system at a real site — the digital twin. Returns projected
     fish harvest (kg), crop harvest (kg), feed use and realized FCR, water-temperature range,
     nitrogen peaks, and WHICH factor limited the crop (light / temperature / nitrogen), with
     honest warnings (lethal-temperature days, suppressed feeding) and what is NOT modelled.
 
-    Use for any "how much will it produce", "will it work in <place>/<season>", "what if I
-    add a heater / use shade instead" question. Run it twice with one change to compare
-    scenarios — the relative difference is the trustworthy part.
+    TWO WAYS TO SET THE SYSTEM — prefer the first after a design conversation:
+    1. FROM THE AGREED DESIGN (leave fish_count and volume_l unset, give water_budget_lpd
+       and system_type): the tool sizes the design itself with the same deterministic
+       calculator and stocks it with the design's own fish count and volume — no retyping
+       numbers between tools, so the twin simulates exactly the system that was designed.
+    2. EXPLICIT (give fish_count and volume_l directly), for ad-hoc questions. For a
+       system the user already runs, prefer simulate_my_system, which reads their profile.
 
-    site: a fetched climate slug (e.g. 'ouagadougou_2025', 'taichung_2025'). If missing, the
-        error tells you the fetch command to give the user.
-    greenhouse: 'poly' (plastic tunnel, +3C and 70% light), 'shade' (shade net / outdoors,
-        ambient temperature and full light), or 'heated' (poly + water heater; set
-        heat_setpoint_c, e.g. 26).
-    days: how many days of the climate file to run (starts at its first day)."""
-    from aqua_model.climate import GreenhouseParams as _GH
-    from aqua_model.crops import get_crop
-    from aqua_model.production import (
-        ProductionParams as _PP, format_summary, simulate_production, start_state,
-    )
+    Run twice with one change to compare scenarios — the relative difference is the
+    trustworthy part.
+
+    site: a fetched climate slug (e.g. 'ouagadougou_2025'). If missing, the error tells
+        you the fetch command to give the user.
+    greenhouse: 'poly' (+3C, 70% light), 'shade' (ambient, full light — the realistic hot-
+        climate option), or 'heated' (poly + water heater at heat_setpoint_c, e.g. 26).
+    start_weight_g: stocking weight (default 20 g fingerlings).
+    biofilter_cycled: leave unset for the honest default — a designed NEW build starts
+        uncycled (the cycling transient, nitrite spike included, is part of a first
+        season), an explicit run assumes an established, cycled system."""
+    from aqua_model.production import start_state, start_state_from_design
     from aqua_model.species import get_species
 
+    species_key = str(fish_species).strip().lower()
+    crop_key = str(crop).strip().lower()
     try:
-        species = get_species(str(fish_species).strip().lower())
-        crop_obj = get_crop(str(crop).strip().lower())
+        species = get_species(species_key)
+        from aqua_model.crops import get_crop
+        get_crop(crop_key)
     except KeyError as err:
         return f"Unknown species or crop: {err}. Call list_supported_species_and_crops."
+
+    designed_note = ""
+    if fish_count is None or volume_l is None:
+        # Design mode: size the system the user agreed to, then stock it.
+        if water_budget_lpd is None:
+            return ("Give either (fish_count and volume_l) for an explicit run, or "
+                    "water_budget_lpd (+ system_type) so I can size the agreed design first.")
+        try:
+            design = validate_design_input(species_key, crop_key, float(grow_area_m2),
+                                           26.0, float(water_budget_lpd), None,
+                                           str(system_type).strip().lower())
+        except ValidationError as err:
+            return serialize.serialize_validation_error(err.errors)
+        out = size_system(design)
+        if not out.feasible:
+            return (f"The design is infeasible ({out.binding_constraint}) — fix the design "
+                    "before simulating it.")
+
+        cycled = False if biofilter_cycled is None else bool(biofilter_cycled)
+
+        def init(t0: float):
+            return start_state_from_design(out, species, water_temp_c=t0,
+                                           start_weight_g=float(start_weight_g),
+                                           cycled=cycled)
+        designed_note = (f" · designed: {out.fish_count} fish, "
+                         f"{out.system_volume_l:,.0f} L")
+    else:
+        cycled = True if biofilter_cycled is None else bool(biofilter_cycled)
+
+        def init(t0: float):
+            return start_state(volume_l=float(volume_l), fish_count=int(fish_count),
+                               start_weight_g=float(start_weight_g), water_temp_c=t0,
+                               species=species, cycled=cycled)
     try:
-        weather, site_meta = _climate_days(site)
+        return _run_season(species_key=species_key, crop_key=crop_key,
+                           grow_area_m2=float(grow_area_m2), site=site, init=init,
+                           days=days, greenhouse=greenhouse,
+                           heat_setpoint_c=heat_setpoint_c, label_extra=designed_note)
     except FileNotFoundError as err:
         return str(err)
-    mode = str(greenhouse).strip().lower()
-    if mode == "shade":
-        gh = _GH(shade_to_ambient=True)
-    elif mode == "heated" or heat_setpoint_c is not None:
-        gh = _GH(heat_setpoint_c=float(heat_setpoint_c or 26.0))
-    else:
-        gh = _GH()
-    n_days = max(1, min(int(days), len(weather)))
-    init = start_state(volume_l=float(volume_l), fish_count=int(fish_count),
-                       start_weight_g=float(start_weight_g),
-                       water_temp_c=weather[0].t_mean_c, species=species)
-    run = simulate_production(
-        init, weather[:n_days], species, str(fish_species).strip().lower(), crop_obj,
-        float(grow_area_m2), params=_PP(greenhouse=gh))
-    label = f"{site} · {mode}" + (f" @{gh.heat_setpoint_c:.0f}C" if gh.heat_setpoint_c else "")
-    return format_summary(run, site_label=label)
+
+
+@tool
+def simulate_my_system(
+    site: str | None = None,
+    days: int = 365,
+    greenhouse: str = "poly",
+    heat_setpoint_c: float | None = None,
+) -> str:
+    """SIMULATE the season ahead for the system THIS USER ALREADY RUNS, from their saved
+    profile — the digital-twin mirror of their real farm. Use whenever a user with an
+    existing system asks "what will MY system do", "should I add a heater", "is my winter
+    going to be a problem". Before calling, make sure the profile holds their real setup
+    (update_profile with: fish_species, crop, grow_area_m2, tank_volume_l, fish_count,
+    fish_avg_weight_g, and climate_site once their weather is fetched). If anything
+    essential is missing this returns the exact list to ask the user for — ask, save with
+    update_profile, then call again. The biofilter is assumed cycled (it is a running
+    system). Compare scenarios by calling twice with a different greenhouse mode."""
+    from aqua_model.production import start_state
+    from aqua_model.species import get_species
+
+    cur = runtime.get_current()
+    if cur is None:
+        return "Profile unavailable right now — use simulate_season with explicit numbers."
+    mem, user_id = cur
+    facts = mem.get_facts(user_id) or {}
+
+    needed = ("fish_species", "crop", "grow_area_m2", "tank_volume_l", "fish_count",
+              "fish_avg_weight_g")
+    missing = [k for k in needed if not str(facts.get(k, "")).strip()]
+    site = _clean_optional(site) or str(facts.get("climate_site", "")).strip()
+    if not site:
+        missing.append("climate_site (fetch their weather first: "
+                       "python scripts/fetch_climate.py --lat <LAT> --lon <LON> --name <site>)")
+    if missing:
+        return ("To mirror their system I still need: " + ", ".join(missing) +
+                ". Ask the user, save with update_profile, then call this again.")
+
+    species_key = str(facts["fish_species"]).strip().lower()
+    try:
+        species = get_species(species_key)
+    except KeyError:
+        return f"Unknown species in profile: {facts['fish_species']!r} — correct it first."
+
+    def init(t0: float):
+        return start_state(volume_l=float(facts["tank_volume_l"]),
+                           fish_count=int(float(facts["fish_count"])),
+                           start_weight_g=float(facts["fish_avg_weight_g"]),
+                           water_temp_c=t0, species=species, cycled=True)
+    try:
+        return _run_season(species_key=species_key,
+                           crop_key=str(facts["crop"]).strip().lower(),
+                           grow_area_m2=float(facts["grow_area_m2"]), site=site,
+                           init=init, days=days, greenhouse=greenhouse,
+                           heat_setpoint_c=heat_setpoint_c,
+                           label_extra=" · your system")
+    except FileNotFoundError as err:
+        return str(err)
+    except (KeyError, ValueError) as err:
+        return f"Profile value unusable: {err} — correct it with update_profile."
 
 
 @tool
@@ -740,6 +862,60 @@ def design_system_3d(
             f"simulate a season at their site next (simulate_season).")
 
 
+@tool
+def estimate_system_cost(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    region: str,
+    system_type: str = "raft",
+    greenhouse: str = "poly",
+) -> str:
+    """ESTIMATE what the designed system costs to BUILD (capex) and RUN (opex/year), from
+    researched regional prices with sources and dates. Quantities are taken off the same
+    deterministic design + layout the 3D view draws, so the estimate prices the system the
+    user saw. Output is RANGES, names any component the region's book cannot price (the
+    total excludes it, loudly), and lists what is not included (land, labour, delivery).
+
+    Use whenever a design conversation reaches budget: "what will it cost", "can I afford
+    this", "cost in my country". region: a key from the price book — call with an unknown
+    region (e.g. 'list') to get the available regions. greenhouse: 'poly' or 'shade'
+    (prices the envelope the user will actually build)."""
+    import json
+    from pathlib import Path
+
+    from aqua_model.costing import estimate_cost, format_estimate
+    from aqua_model.layout import plan_layout
+
+    book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
+    if not book_path.exists():
+        return ("No price book on disk yet (data/price_book.json). Tell the user cost "
+                "estimation is being set up and they should ask again soon.")
+    book = json.loads(book_path.read_text())
+    regions = sorted(book.get("regions", {}))
+    region_key = str(region).strip().lower()
+    if region_key not in book.get("regions", {}):
+        return ("Unknown region: choose one of " + ", ".join(regions) +
+                ". Pick the closest to the user's location and SAY which you used — "
+                "prices vary hugely between regions.")
+    try:
+        design = validate_design_input(fish_species, crop, grow_area_m2, temperature_c,
+                                       water_budget_lpd, None, system_type)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    out = size_system(design)
+    layout = plan_layout(out, crop_label=crop, species_label=fish_species)
+    est = estimate_cost(out, layout, book, region_key,
+                        species_key=str(fish_species).strip().lower(),
+                        greenhouse_mode=str(greenhouse).strip().lower())
+    header = ("" if out.feasible
+              else f"NOTE: this design is infeasible ({out.binding_constraint}) — "
+                   "the estimate prices it anyway, but fix the design first.\n\n")
+    return header + format_estimate(est)
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     size_mixed_bed_aquaponics,
@@ -751,6 +927,8 @@ AGRONAUT_TOOLS = [
     render_pilot_proposal,
     render_system_schematic,
     simulate_season,
+    simulate_my_system,
+    estimate_system_cost,
     what_if_nitrogen,
     design_system_3d,
     search_knowledge_base,
