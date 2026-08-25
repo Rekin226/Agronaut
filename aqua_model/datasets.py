@@ -27,6 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 from .logging_schema import SCHEMA_VERSION
+from . import sensor_qc
 
 _PKG_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _PKG_DIR.parent
@@ -89,23 +90,86 @@ def _saturation(s: pd.Series) -> tuple[float, float]:
     return at_floor, at_ceiling
 
 
-def empirical_envelope(df: pd.DataFrame | None = None) -> dict:
-    """Per-channel distribution (p5/p50/p95, range) with an honest trust flag.
+# Channels for which a physical-plausibility test exists. Anything not here is reported
+# `unassessed` rather than `reliable`, so an unchecked channel is visibly unchecked.
+_ASSESSED = {
+    "water_temp_c", "ph", "dissolved_oxygen_mg_l", "ammonia_mg_l",
+    "nitrite_mg_l", "nitrate_mg_l", "turbidity_ntu", "fish_length_cm", "fish_weight_g",
+}
 
-    Channels pinned at a sensor rail are marked low-trust so nobody mistakes a saturated
-    reading for a calibrated one.
+# Pairs that must be independent instruments. Nitrification runs ammonia -> nitrite -> nitrate in
+# sequence with a lag, so near-perfect correlation means one probe wired to two fields.
+_INDEPENDENT_PAIRS = [("ammonia_mg_l", "nitrite_mg_l"), ("nitrite_mg_l", "nitrate_mg_l")]
+
+_SENTINEL_THRESHOLD = 0.02      # 2% dead-sensor readings is already a broken channel
+_IMPLAUSIBLE_THRESHOLD = 0.02
+
+
+def _trust_verdict(col: str, s: pd.Series, temps: pd.Series | None) -> tuple[str, dict]:
+    """Judge one channel. Returns (verdict, evidence).
+
+    `reliable` is a conclusion reached by passing every applicable test — never a fallback for
+    "no test ran". A channel with no test defined reports `unassessed`, because silently promoting
+    the unchecked to trustworthy is how a dissolved-oxygen channel at 4.3x saturation ended up
+    calibrating coefficients.
+    """
+    evidence: dict = {}
+    at_floor, at_ceiling = _saturation(s)
+    evidence["frac_at_floor"] = round(at_floor, 3)
+    evidence["frac_at_ceiling"] = round(at_ceiling, 3)
+
+    sent_frac, sent_meaning = sensor_qc.sentinel_fraction(s.tolist())
+    if sent_frac > _SENTINEL_THRESHOLD:
+        evidence["sentinel"] = sent_meaning
+        evidence["frac_sentinel"] = round(sent_frac, 3)
+        return "low (dead-sensor sentinel)", evidence
+
+    if at_floor > _SATURATION_THRESHOLD or at_ceiling > _SATURATION_THRESHOLD:
+        return "low (sensor saturation)", evidence
+
+    if col not in _ASSESSED:
+        return "unassessed", evidence
+
+    bad = sum(1 for v in s if sensor_qc.implausible_value(col, float(v)) is not None)
+    if col == "dissolved_oxygen_mg_l" and temps is not None and not temps.empty:
+        t_med = float(temps.median())
+        if -2.0 <= t_med <= 60.0:
+            evidence["do_saturation_at_median_temp"] = round(
+                sensor_qc.do_saturation_mg_l(t_med), 2)
+            bad = max(bad, sum(1 for v in s if sensor_qc.implausible_do(float(v), t_med)))
+    frac_bad = bad / len(s) if len(s) else 0.0
+    evidence["frac_implausible"] = round(frac_bad, 3)
+    if frac_bad > _IMPLAUSIBLE_THRESHOLD:
+        return "low (physically implausible)", evidence
+    return "reliable", evidence
+
+
+def empirical_envelope(df: pd.DataFrame | None = None) -> dict:
+    """Per-channel distribution (p5/p50/p95, range) with an honest trust verdict.
+
+    Every channel is judged against every test that applies to it: rail saturation, dead-sensor
+    sentinels, physical impossibility, and — across channels — instrument independence. A channel
+    only earns `reliable` by passing them all.
     """
     if df is None:
         df = load_all()
+    temps = (pd.to_numeric(df["water_temp_c"], errors="coerce").dropna()
+             if "water_temp_c" in df.columns else None)
+    # Judge every channel we know how to judge that is actually present — not only the columns
+    # the IoTPond CSVs happen to have. Adopting a second dataset (or ingesting an operator's own
+    # log, which carries nitrite where IoTPond does not) must not silently skip its extra channels.
+    known = list(dict.fromkeys(
+        list(NUMERIC_CHANNELS)
+        + sorted(_ASSESSED)
+        + [c for pair in _INDEPENDENT_PAIRS for c in pair]))
     out: dict = {}
-    for col in NUMERIC_CHANNELS:
+    for col in known:
         if col not in df.columns:
             continue
         s = pd.to_numeric(df[col], errors="coerce").dropna()
         if s.empty:
             continue
-        at_floor, at_ceiling = _saturation(s)
-        saturated = at_floor > _SATURATION_THRESHOLD or at_ceiling > _SATURATION_THRESHOLD
+        verdict, evidence = _trust_verdict(col, s, temps)
         out[col] = {
             "n": int(s.size),
             "min": round(float(s.min()), 3),
@@ -113,10 +177,21 @@ def empirical_envelope(df: pd.DataFrame | None = None) -> dict:
             "p50": round(float(s.median()), 3),
             "p95": round(float(s.quantile(0.95)), 3),
             "max": round(float(s.max()), 3),
-            "frac_at_floor": round(at_floor, 3),
-            "frac_at_ceiling": round(at_ceiling, 3),
-            "trust": "low (sensor saturation)" if saturated else "reliable",
+            **evidence,
+            "trust": verdict,
         }
+
+    # Cross-channel: a pair that should be two instruments and behaves like one.
+    for a, b in _INDEPENDENT_PAIRS:
+        if a in out and b in out and a in df.columns and b in df.columns:
+            sa = pd.to_numeric(df[a], errors="coerce")
+            sb = pd.to_numeric(df[b], errors="coerce")
+            ok, r = sensor_qc.channels_are_independent(sa.tolist(), sb.tolist())
+            if not ok:
+                for ch in (a, b):
+                    out[ch]["trust"] = "low (not an independent instrument)"
+                    out[ch]["correlated_with"] = {"channel": b if ch == a else a,
+                                                  "r": round(float(r), 4)}
     return out
 
 
