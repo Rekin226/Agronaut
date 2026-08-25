@@ -16,7 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def _imports(pyfile: pathlib.Path):
-    tree = ast.parse(pyfile.read_text())
+    tree = ast.parse(pyfile.read_text(encoding="utf-8"))
     names = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

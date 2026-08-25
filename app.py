@@ -140,7 +140,7 @@ def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     try:
         with st.spinner(spinner):
             reply = _route_turn(agent, _web_user(), user_text, image_bytes)
-    except Exception:
+    except Exception as exc:
         reply = ("Something went wrong talking to the model — your message wasn't lost, "
                  "please try again.")
     _add_message("assistant", reply)
