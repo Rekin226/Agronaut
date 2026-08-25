@@ -115,3 +115,17 @@ def test_every_indexed_source_declares_a_label():
 def test_system_prompt_requires_naming_sources():
     from agronaut_agent.core import SYSTEM_PROMPT
     assert "[source:" in SYSTEM_PROMPT
+
+
+def test_system_prompt_requires_judging_passage_relevance():
+    """Retrieval returns the CLOSEST passages, which is not the same as passages that answer the
+    question. The relevance floor is a coarse filter and provably cannot separate every case:
+    "best way to remove red wine from a carpet" lands nearer the corpus than five genuine operator
+    queries, and distance, pool margin, score spread and BM25 were each measured and none of them
+    separate it. The model is the fine filter, so the prompt has to tell it to filter — otherwise
+    an irrelevant passage arrives wearing a source label, which makes it look verified."""
+    from agronaut_agent.core import SYSTEM_PROMPT
+    assert "JUDGE EACH RETRIEVED PASSAGE" in SYSTEM_PROMPT
+    lowered = SYSTEM_PROMPT.lower()
+    assert "ignore it" in lowered          # told what to DO with an irrelevant passage
+    assert "nothing specific" in lowered   # and what to say when none fit

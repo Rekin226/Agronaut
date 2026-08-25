@@ -119,6 +119,12 @@ UVI/Rakocy, literature) and an explicit list of what it does **not** model
 (pH/alkalinity, micronutrients, salinity, solids, pests, cohort logic, per-crop ET).
 A confidently-wrong design can't masquerade as complete.
 
+The same rule governs the advice layer. Citation is enforced **in code**, not asked for in a
+prompt: every retrieved passage is labelled with its source before the model ever sees it. And
+retrieval is allowed to say *no* — a question the corpus cannot answer returns "no matching
+passages" rather than the three closest paragraphs wearing source labels. Ask Agronaut the capital
+of Canada and it will decline, not cite an aquaponics paper at you.
+
 ---
 
 ## The engineering model (aquaponics core)
@@ -133,6 +139,51 @@ Parametric, not machine-learned — buildable today from published equations:
   water-budget feasibility check.
 - **Optimizer** is bounded enumeration over a small species×crop palette (no heavyweight
   solver), with the even-split baseline inside the search space so it can never do worse.
+
+---
+
+## The advice layer (retrieval), and how it was tuned
+
+Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 21 hand-written
+operator guides plus openly licensed publications — currently **1354 chunks**, led by FAO 589.
+
+Retrieval is measured, not assumed. `docs/dpg/retrieval_eval/golden_set.json` holds queries in
+real operator voice ("my tilapia are gasping at the surface", not "dissolved oxygen") plus
+off-topic controls that must be **refused**:
+
+```bash
+python -m scripts.retrieval_eval     # recall@k, precision@k, MRR, MAP@k + floor separation
+python -m scripts.corpus_report      # what each declared source actually contributes
+```
+
+Eight techniques were implemented and measured. **Four ship; four lose** — and the losses are
+recorded in `docs/dpg/retrieval_eval/techniques.json` with the conditions that would reverse them,
+which is how hybrid search went from rejected to shipped when the corpus grew:
+
+| | ships | why |
+|---|---|---|
+| Relevance floor | **on** | refuses 8/10 off-topic queries, silences 0/33 real ones |
+| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354: recall/MAP +0.091 |
+| Per-source cap | **on** (2) | one 992-chunk book was taking all 3 slots on 10 of 33 queries |
+| PDF cleaning | **on** | drops contents pages; running header removed from 111 chunks → 4 |
+| Header chunking · context prefix · PDF chapter labels · cross-encoder rerank | off | each measured *worse* on this corpus |
+
+Three of the four failures share one mechanism: they add topic words to chunks in a corpus where
+every document already shares a vocabulary domain, which dilutes rather than disambiguates. What
+worked was structural — refusing irrelevant passages, refusing error pages, refusing to let one
+source fill the whole answer.
+
+**Corpus licensing is mixed and deliberately explicit.** The code is MIT; FAO 589 is
+non-commercial-only. See [`docs/dpg/CORPUS.md`](docs/dpg/CORPUS.md) — commercial users should drop
+that entry from `urls.txt` and rebuild. Vet any source before adding it:
+
+```bash
+python -m scripts.corpus_report --candidate "<url>" --label "<expected topic>"
+```
+
+It checks four things, because a source can fail in four ways: unreachable, empty, **wrong
+subject** (a guessed publication ID once resolved to *"Sharks for the Aquarium"* — 28k characters
+that pass every check except being about aquaponics), or not openly licensed.
 
 ---
 
@@ -235,6 +286,11 @@ The consultative agent is reachable over Telegram. Set these (in `.env` or the e
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
+| `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.65, `off` disables). Calibrated against the golden set; **not portable** — re-read `python -m scripts.retrieval_eval` after any corpus or embedding-model change |
+| `AGRONAUT_HYBRID` / `AGRONAUT_HYBRID_BETA` | keyword+semantic fusion, on by default at β=0.90 (β is the semantic weight) |
+| `AGRONAUT_MAX_PER_SOURCE` | how many passages one source may contribute to a single answer (default 2; `1` favours breadth, `0` disables) |
+| `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
+| `AGRONAUT_RERANK` / `AGRONAUT_MD_HEADERS` / `AGRONAUT_PDF_SECTIONS` | techniques that measured *worse* on this corpus and ship disabled — kept because the verdict is corpus-dependent (see `docs/dpg/retrieval_eval/techniques.json`) |
 | `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
 | `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
 | `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model; `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
@@ -341,13 +397,17 @@ agronaut_agent/        # the channel-agnostic brain
   core.py              #   handle_message / handle_image / handle_voice — the three seams
   tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
   store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
-  rag.py semantic.py   #   citation-enforced retrieval and semantic recall
+  rag.py semantic.py   #   citation-enforced retrieval (floor, hybrid, per-source cap) + recall
   channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
 
 scripts/               # safety_eval.py (hermetic golden set, runs in CI), vision_eval.py
+                       # corpus_report.py (what each source contributes; --candidate vets one)
+                       # retrieval_eval.py (recall/precision/MRR/MAP over the retrieval golden set)
 skills/                # the deterministic core as a portable agentskills.io skill + CLI
-knowledge/ urls.txt    # the curated, cited knowledge base
+knowledge/ urls.txt    # the curated, cited knowledge base (urls.txt: CATEGORY|URL|LABEL|LICENCE)
 docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval
+  CORPUS.md            #   corpus provenance + the code(MIT)/content(mixed) licence split
+  retrieval_eval/      #   golden set, baselines, and every technique's measured verdict
 app.py                 # Streamlit app (chat | calculator | optimizer)
 pyproject.toml         # packaging + the `agronaut` console script (deps read from requirement.txt)
 srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (#25)
@@ -360,7 +420,9 @@ srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (
 - **M1 — design calculator** ✅ deterministic sizing, cited coefficients, report, logging standard
 - **M2 — ratio optimizer** ✅ fish/crop mix for max efficiency
 - **M3 — agent orchestrator** — 🟡 the tool-calling agent is built and is what every channel
-  now runs on; demoting RAG to a pure citation tool is still open ([#25](https://github.com/Rekin226/Agronaut/issues/25))
+  now runs on. Retrieval is now measured end to end (golden set, recall/MRR/MAP, a relevance
+  floor that refuses off-topic questions) and every technique's verdict is recorded; fully
+  demoting RAG to a pure citation tool is still open ([#25](https://github.com/Rekin226/Agronaut/issues/25))
 - **Field senses** ✅ photos and voice notes on Telegram, WhatsApp and the web, behind a
   code-enforced observation guard and a cited visual-triage table
 - **M4 — digital twin** — time-series simulator calibrated on real installed systems ([#26](https://github.com/Rekin226/Agronaut/issues/26))
@@ -369,11 +431,19 @@ srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (
   FAO-56? ([#78](https://github.com/Rekin226/Agronaut/issues/78))
 
 **Status, honestly.** The design, optimizer, and triage core is built, tested, and enforced in
-CI (541 tests; a hermetic advice-safety golden set that fails the build on a regression). What
+CI (700+ tests; a hermetic advice-safety golden set that fails the build on a regression). What
 is *not* done is **validation against reality**: the coefficients are literature seeds meant to
 be calibrated, and the vision path has never been scored against a real photograph because
 [the corpus is empty](https://github.com/Rekin226/Agronaut/issues/72). Calibrated ≠ validated,
 and the model says so in every result it produces.
+
+The advice layer has the same shape of honesty and the same gap. Retrieval is measured against a
+33-query golden set, but that set was written by one person against the corpus it already had —
+it cannot tell you about questions nobody thought to ask. And **corpus breadth is the live
+constraint**: 21 hand-written files still answer most queries, because open-access aquaponics
+*literature* is plentiful while open *operator guidance* barely exists. Widening it is
+[#77](https://github.com/Rekin226/Agronaut/issues/77), and `docs/dpg/CORPUS.md` records which
+sources were surveyed and why they were not added.
 
 ---
 

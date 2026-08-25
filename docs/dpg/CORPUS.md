@@ -84,6 +84,38 @@ when a declared source has gone dead or drifted:
 python -m scripts.corpus_report
 ```
 
+## Sources evaluated and not added
+
+Corpus breadth is the real weakness — 21 hand-written files still answer most queries. A survey
+for openly licensed prose to widen it produced this, and it is recorded so the search is not
+repeated from scratch:
+
+| candidate | result |
+|---|---|
+| MDPI *Water* 15/24/4310 | **REJECTED** — HTTP 403; the gate flagged both the status and topic drift (`title='Access Denied'`) |
+| CSIR/CGIAR tilapia **pond** farming manual | **REVIEW** — 84 chunks, on topic, but carries only "© First Edition 2020"; no licence in the PDF and none exposed by the CGSpace bitstream API |
+| CSIR/CGIAR tilapia **cage** farming manual | **REVIEW** — same, 64 chunks |
+| PMC12527044, AI-driven fish welfare monitoring | **ACCEPT by the gate, not added by judgement** — CC BY 4.0 and 123 chunks, but it is another IoT/ML paper, and IoT/ML prose is already what off-topic queries land on. Adding it would deepen a known weakness, not fix one |
+
+Two things this establishes:
+
+1. **An ACCEPT verdict is a licence-and-reachability check, not a usefulness check.** The gate
+   cannot tell whether a source fills a gap or deepens an existing imbalance. That judgement stays
+   human, and PMC12527044 is the worked example: it passes every automated test and was still the
+   wrong thing to add.
+
+2. **The bottleneck is not source discovery.** Open-access aquaponics literature is plentiful; open
+   *operator guidance* is not. What the corpus needs is practical husbandry prose — the kind in
+   `knowledge/*.md` — and that is mostly either paywalled, unlicensed, or has never been written
+   down. The hand-written files exist precisely because that gap is real, and measurement confirms
+   they carry the load: **23% of the corpus answering 94% of retrieved passages** before FAO 589
+   was added.
+
+The practical route to breadth is therefore writing it, not scraping it — which is what
+[issue #77](https://github.com/Rekin226/Agronaut/issues/77) asks for. Anyone with a licence
+confirmation for the two CSIR manuals should reopen that question: they are on topic, substantial,
+and fill exactly the husbandry gap.
+
 ## Known limitations
 
 - **Web drift is bounded, not detected.** A publisher can edit a source without `urls.txt`
