@@ -557,6 +557,189 @@ def record_measurement(metric: str, value: float) -> str:
     return f"Recorded — I'll use your measurements to calibrate future sizings ({coefficient})."
 
 
+def _climate_days(site: str):
+    """Resolve a site slug to a parsed climate series, or raise with a teaching message."""
+    import json
+    from pathlib import Path
+
+    from aqua_model.climate import from_records
+
+    clim_dir = Path(__file__).resolve().parent.parent / "data" / "climate"
+    path = clim_dir / f"{str(site).strip().lower()}.json"
+    if not path.exists():
+        have = sorted(p.stem for p in clim_dir.glob("*.json"))
+        raise FileNotFoundError(
+            f"No climate file for site '{site}'. Available: {', '.join(have) or 'none'}. "
+            f"Fetch one first (no API key needed): "
+            f"python scripts/fetch_climate.py --lat <LAT> --lon <LON> --name {site}")
+    payload = json.loads(path.read_text())
+    return from_records(payload["days"]), payload.get("site", {})
+
+
+@tool
+def simulate_season(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    site: str,
+    fish_count: int = 80,
+    start_weight_g: float = 50.0,
+    volume_l: float = 3000.0,
+    days: int = 365,
+    greenhouse: str = "poly",
+    heat_setpoint_c: float | None = None,
+) -> str:
+    """SIMULATE a season of this system at a real site — the digital twin. Returns projected
+    fish harvest (kg), crop harvest (kg), feed use and realized FCR, water-temperature range,
+    nitrogen peaks, and WHICH factor limited the crop (light / temperature / nitrogen), with
+    honest warnings (lethal-temperature days, suppressed feeding) and what is NOT modelled.
+
+    Use for any "how much will it produce", "will it work in <place>/<season>", "what if I
+    add a heater / use shade instead" question. Run it twice with one change to compare
+    scenarios — the relative difference is the trustworthy part.
+
+    site: a fetched climate slug (e.g. 'ouagadougou_2025', 'taichung_2025'). If missing, the
+        error tells you the fetch command to give the user.
+    greenhouse: 'poly' (plastic tunnel, +3C and 70% light), 'shade' (shade net / outdoors,
+        ambient temperature and full light), or 'heated' (poly + water heater; set
+        heat_setpoint_c, e.g. 26).
+    days: how many days of the climate file to run (starts at its first day)."""
+    from aqua_model.climate import GreenhouseParams as _GH
+    from aqua_model.crops import get_crop
+    from aqua_model.production import (
+        ProductionParams as _PP, format_summary, simulate_production, start_state,
+    )
+    from aqua_model.species import get_species
+
+    try:
+        species = get_species(str(fish_species).strip().lower())
+        crop_obj = get_crop(str(crop).strip().lower())
+    except KeyError as err:
+        return f"Unknown species or crop: {err}. Call list_supported_species_and_crops."
+    try:
+        weather, site_meta = _climate_days(site)
+    except FileNotFoundError as err:
+        return str(err)
+    mode = str(greenhouse).strip().lower()
+    if mode == "shade":
+        gh = _GH(shade_to_ambient=True)
+    elif mode == "heated" or heat_setpoint_c is not None:
+        gh = _GH(heat_setpoint_c=float(heat_setpoint_c or 26.0))
+    else:
+        gh = _GH()
+    n_days = max(1, min(int(days), len(weather)))
+    init = start_state(volume_l=float(volume_l), fish_count=int(fish_count),
+                       start_weight_g=float(start_weight_g),
+                       water_temp_c=weather[0].t_mean_c, species=species)
+    run = simulate_production(
+        init, weather[:n_days], species, str(fish_species).strip().lower(), crop_obj,
+        float(grow_area_m2), params=_PP(greenhouse=gh))
+    label = f"{site} · {mode}" + (f" @{gh.heat_setpoint_c:.0f}C" if gh.heat_setpoint_c else "")
+    return format_summary(run, site_label=label)
+
+
+@tool
+def what_if_nitrogen(
+    fish_species: str,
+    volume_l: float,
+    feed_g_per_day: float,
+    temperature_c: float,
+    change: str,
+    new_feed_g_per_day: float | None = None,
+    new_temperature_c: float | None = None,
+    add_fish_kg: float | None = None,
+    days: int = 30,
+) -> str:
+    """Fork the NITROGEN twin and ask "what if" before doing it to live fish. Compares an
+    intervention against leaving things alone: ammonia/nitrite/nitrate peak ratios, threshold
+    crossings and timing, with an uncertainty band. Use for operational questions on a
+    RUNNING system: "can I double the feed", "what if I stock 200 more fingerlings", "what
+    does a cold week do". The verdict is RELATIVE (3x higher), which survives model error;
+    absolute levels are not to be trusted.
+
+    change: a short human label for the intervention (e.g. 'double feed')."""
+    from aqua_model.scenario import Intervention, compare, format_comparison, run_scenario
+    from aqua_model.species import get_species
+    from aqua_model.twin import TwinState, mature_biofilter
+
+    try:
+        species = get_species(str(fish_species).strip().lower())
+    except KeyError as err:
+        return f"Unknown species: {err}. Call list_supported_species_and_crops."
+    aob, nob = mature_biofilter(species, float(feed_g_per_day))
+    state = TwinState(volume_l=float(volume_l), aob_capacity_g_day=aob, nob_capacity_g_day=nob)
+    base = Intervention(name="leave things alone")
+    change_iv = Intervention(
+        name=str(change),
+        feed_g_per_day=float(new_feed_g_per_day) if new_feed_g_per_day is not None else None,
+        temperature_c=float(new_temperature_c) if new_temperature_c is not None else None,
+        add_fish_kg=float(add_fish_kg) if add_fish_kg is not None else None,
+    )
+    kw = dict(days=max(7, min(int(days), 365)), feed_g_per_day=float(feed_g_per_day),
+              temperature_c=float(temperature_c))
+    baseline = run_scenario(state, species, base, **kw)
+    scenario = run_scenario(state, species, change_iv, **kw)
+    return format_comparison(compare(baseline, scenario))
+
+
+@tool
+def design_system_3d(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    system_type: str = "raft",
+) -> str:
+    """DESIGN the full system and send the user an interactive 3D model of it — greenhouse,
+    fish tanks, filtration, grow beds, plumbing with animated flow, and swimming fish. The
+    file is a self-contained HTML the user opens in any browser (works offline). Use when
+    the user wants to SEE the system in 3D, walk through the design, or asks what the build
+    looks like. The geometry is derived from the same deterministic sizing as
+    size_aquaponics_system — it is the sized design drawn, not an illustration.
+
+    system_type: 'raft', 'nft', 'media_bed', or 'vertical_tower' — the layout changes
+    accordingly (media beds skip the separate biofilter; towers raise the roof)."""
+    import os
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    from aqua_model.layout import plan_layout
+    from aqua_model.scene3d import to_scene
+
+    try:
+        design = validate_design_input(fish_species, crop, grow_area_m2, temperature_c,
+                                       water_budget_lpd, None, system_type)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    out = size_system(design)
+    layout = plan_layout(out, crop_label=crop, species_label=fish_species)
+    scene = to_scene(
+        layout, out,
+        name=f"{system_type.replace('_', ' ').title()} aquaponics — {fish_species} + {crop}",
+        subtitle=(f"{out.grow_area_m2:.0f} m² grow area · {out.fish_count} fish "
+                  f"({out.fish_biomass_kg:.0f} kg) · {out.system_volume_l:,.0f} L · greenhouse "
+                  f"{layout.greenhouse.width_m:.1f}×{layout.greenhouse.length_m:.1f} m"))
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    try:
+        from render_3d import build_html
+    finally:
+        sys.path.remove(str(scripts_dir))
+    html = build_html(scene, title=scene["name"])
+    fd, path = tempfile.mkstemp(prefix="agronaut_design3d_", suffix=".html")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(html)
+    runtime.add_attachment(path)
+    gh = layout.greenhouse
+    return (f"Rendered the 3D model (attached as an HTML file — opens in any browser, "
+            f"offline). Greenhouse {gh.width_m:.1f} x {gh.length_m:.1f} m, "
+            f"{len(layout.components)} components, {out.fish_count} fish. Tell the user to "
+            f"open the file, then orbit/zoom; toggles show flow, fish and labels. Offer to "
+            f"simulate a season at their site next (simulate_season).")
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     size_mixed_bed_aquaponics,
@@ -567,6 +750,9 @@ AGRONAUT_TOOLS = [
     render_design_report,
     render_pilot_proposal,
     render_system_schematic,
+    simulate_season,
+    what_if_nitrogen,
+    design_system_3d,
     search_knowledge_base,
     triage_visual_symptoms,
     remember_about_user,
