@@ -85,6 +85,39 @@ _K_DENITRIFICATION = _N_REMOVAL_PER_DAY * DENITRIFICATION_FRACTION / _SINK_RATIO
 
 
 @dataclass(frozen=True)
+class TwinParams:
+    """The twin's own uncertain parameters, gathered so they can be varied deliberately.
+
+    These are NOT sizing coefficients — those live in `coefficients.py` with their sources and the
+    twin reuses them unchanged, which is what makes it converge to the steady-state model. These
+    are the parameters the STEPPED model adds, and they are literature-typical rather than fitted
+    to any real system. Naming them here does two things: it stops them being magic numbers buried
+    in the step function, and it lets the scenario engine sweep them to produce an uncertainty band
+    that reflects what is genuinely not known, instead of a band invented for the plot.
+    """
+
+    aob_doubling_days: float = 1.0
+    nob_doubling_days: float = 1.5
+    n_removal_per_day: float = 0.10
+
+    def k_plant(self) -> float:
+        return self.n_removal_per_day * C.PLANT_N_UPTAKE_FRACTION.value / _SINK_RATIO_TOTAL
+
+    def k_exchange(self) -> float:
+        return self.n_removal_per_day * WATER_EXCHANGE_FRACTION / _SINK_RATIO_TOTAL
+
+    def k_denitrification(self) -> float:
+        return self.n_removal_per_day * DENITRIFICATION_FRACTION / _SINK_RATIO_TOTAL
+
+
+# Plausible spread on each, for uncertainty bands. Nitrifier doubling times vary with temperature,
+# pH and media; nitrate turnover varies with exchange rate and crop demand.
+PARAMS_FAST = TwinParams(aob_doubling_days=0.7, nob_doubling_days=1.0, n_removal_per_day=0.15)
+PARAMS_TYPICAL = TwinParams()
+PARAMS_SLOW = TwinParams(aob_doubling_days=1.5, nob_doubling_days=2.5, n_removal_per_day=0.06)
+
+
+@dataclass(frozen=True)
 class TwinState:
     """Everything the nitrogen twin carries forward. Concentrations are mg/L as N."""
 
@@ -157,6 +190,7 @@ def step(
     temperature_c: float,
     dt_days: float = 1.0,
     plant_uptake_capacity_g_day: float | None = None,
+    params: TwinParams | None = None,
 ) -> StepResult:
     """Advance the twin by `dt_days`.
 
@@ -170,6 +204,7 @@ def step(
     outlasts it. That lag is the classic new-system nitrite spike, and it falls out of the rates
     rather than being scripted.
     """
+    params = params or PARAMS_TYPICAL
     if dt_days <= 0:
         raise ValueError("dt_days must be positive")
     if state.volume_l <= 0:
@@ -214,7 +249,7 @@ def step(
     # after another lets the first sink shrink the pool the next one sees, which biases the split
     # toward whichever happens to be evaluated first (~3% toward plants, in practice).
     pool = no3_g
-    plant_demand = pool * _K_PLANT * dt_days
+    plant_demand = pool * params.k_plant() * dt_days
     if plant_uptake_capacity_g_day is not None:
         capped = min(plant_demand, plant_uptake_capacity_g_day * dt_days)
         if capped < plant_demand - 1e-9:
@@ -222,8 +257,8 @@ def step(
                 "plant uptake is capacity-limited — nitrate will accumulate until the crop, "
                 "water exchange or bed area changes")
         plant_demand = capped
-    exch_demand = pool * _K_EXCHANGE * dt_days
-    denit_demand = pool * _K_DENITRIFICATION * dt_days
+    exch_demand = pool * params.k_exchange() * dt_days
+    denit_demand = pool * params.k_denitrification() * dt_days
 
     total_demand = plant_demand + exch_demand + denit_demand
     if total_demand > pool > 0:                 # a long step cannot remove more than exists
@@ -235,8 +270,8 @@ def step(
     no3_g = max(0.0, pool - (n_plant + n_exchange + n_denit))
 
     # --- nitrifier populations respond to the load they just saw ---
-    aob_next = _grow(aob_cap, tan_demand_g_day, _AOB_DOUBLING_DAYS, dt_days)
-    nob_next = _grow(nob_cap, no2_demand_g_day, _NOB_DOUBLING_DAYS, dt_days)
+    aob_next = _grow(aob_cap, tan_demand_g_day, params.aob_doubling_days, dt_days)
+    nob_next = _grow(nob_cap, no2_demand_g_day, params.nob_doubling_days, dt_days)
 
     growth_kg = (effective_feed / species.fcr / 1000.0) if species.fcr > 0 else 0.0
 
@@ -280,6 +315,7 @@ def simulate(
     temperature_c: float,
     dt_days: float = 1.0,
     plant_uptake_capacity_g_day: float | None = None,
+    params: TwinParams | None = None,
 ) -> list[StepResult]:
     """Roll the twin forward and return every step, so the PATH is inspectable — not just where
     it ended up. The whole point is the transient."""
@@ -288,7 +324,8 @@ def simulate(
     cur = state
     for _ in range(steps):
         r = step(cur, species, feed_g_per_day=feed_g_per_day, temperature_c=temperature_c,
-                 dt_days=dt_days, plant_uptake_capacity_g_day=plant_uptake_capacity_g_day)
+                 dt_days=dt_days, plant_uptake_capacity_g_day=plant_uptake_capacity_g_day,
+                 params=params)
         out.append(r)
         cur = r.state
     return out
