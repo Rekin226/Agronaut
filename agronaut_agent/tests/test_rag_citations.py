@@ -52,9 +52,15 @@ def test_every_passage_carries_its_source(fake_index):
     assert "[source: knowledge/water_quality.md]" in out   # local file → repo-relative label
     assert "[source: https://doi.org/10.3390/w9030182]" in out
     assert "Nitrite above 1 mg/L" in out
-    # every passage block is labeled — no orphan passages without a source
-    blocks = [b for b in out.split("\n\n") if b.strip()]
-    assert all("[source:" in b for b in blocks)
+    # Every passage is preceded by ITS OWN label — asserted directly rather than by splitting
+    # the output on blank lines. Real knowledge passages are markdown and contain blank lines of
+    # their own, so a split-based check over-fragments and only passes because these fixtures
+    # happen not to; it would silently stop testing anything on production text.
+    from agronaut_agent import rag as _rag
+    for h in _rag.retrieve("nitrite stress", k=3):
+        assert f"[source: {h['source']}]\n{h['text']}" in out
+    assert out.startswith("[source:")
+    assert out.count("[source:") == len(_rag.retrieve("nitrite stress", k=3))
 
 
 def test_web_label_preferred_over_raw_url(fake_index):
