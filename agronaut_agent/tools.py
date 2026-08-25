@@ -862,6 +862,60 @@ def design_system_3d(
             f"simulate a season at their site next (simulate_season).")
 
 
+@tool
+def estimate_system_cost(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    region: str,
+    system_type: str = "raft",
+    greenhouse: str = "poly",
+) -> str:
+    """ESTIMATE what the designed system costs to BUILD (capex) and RUN (opex/year), from
+    researched regional prices with sources and dates. Quantities are taken off the same
+    deterministic design + layout the 3D view draws, so the estimate prices the system the
+    user saw. Output is RANGES, names any component the region's book cannot price (the
+    total excludes it, loudly), and lists what is not included (land, labour, delivery).
+
+    Use whenever a design conversation reaches budget: "what will it cost", "can I afford
+    this", "cost in my country". region: a key from the price book — call with an unknown
+    region (e.g. 'list') to get the available regions. greenhouse: 'poly' or 'shade'
+    (prices the envelope the user will actually build)."""
+    import json
+    from pathlib import Path
+
+    from aqua_model.costing import estimate_cost, format_estimate
+    from aqua_model.layout import plan_layout
+
+    book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
+    if not book_path.exists():
+        return ("No price book on disk yet (data/price_book.json). Tell the user cost "
+                "estimation is being set up and they should ask again soon.")
+    book = json.loads(book_path.read_text())
+    regions = sorted(book.get("regions", {}))
+    region_key = str(region).strip().lower()
+    if region_key not in book.get("regions", {}):
+        return ("Unknown region: choose one of " + ", ".join(regions) +
+                ". Pick the closest to the user's location and SAY which you used — "
+                "prices vary hugely between regions.")
+    try:
+        design = validate_design_input(fish_species, crop, grow_area_m2, temperature_c,
+                                       water_budget_lpd, None, system_type)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    out = size_system(design)
+    layout = plan_layout(out, crop_label=crop, species_label=fish_species)
+    est = estimate_cost(out, layout, book, region_key,
+                        species_key=str(fish_species).strip().lower(),
+                        greenhouse_mode=str(greenhouse).strip().lower())
+    header = ("" if out.feasible
+              else f"NOTE: this design is infeasible ({out.binding_constraint}) — "
+                   "the estimate prices it anyway, but fix the design first.\n\n")
+    return header + format_estimate(est)
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     size_mixed_bed_aquaponics,
@@ -874,6 +928,7 @@ AGRONAUT_TOOLS = [
     render_system_schematic,
     simulate_season,
     simulate_my_system,
+    estimate_system_cost,
     what_if_nitrogen,
     design_system_3d,
     search_knowledge_base,

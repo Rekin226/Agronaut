@@ -109,10 +109,13 @@ _TOOL_PROFILE_ARGS: dict[str, tuple[str, ...]] = {
     "simulate_season": ("fish_species", "crop", "grow_area_m2", "system_type"),
     "design_system_3d": ("fish_species", "crop", "grow_area_m2", "temperature_c",
                          "water_budget_lpd", "system_type"),
+    "estimate_system_cost": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                             "water_budget_lpd", "system_type"),
 }
 # Substrings that mark a tool result as a non-success — never persist args from these.
 _TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool",
-                         "Unknown species", "No climate file")
+                         "Unknown species", "No climate file", "Unknown region",
+                         "No price book")
 
 
 def profile_updates_from_tool(name: str, args: dict, result: str) -> dict:
