@@ -52,3 +52,6 @@ data/vision_corpus/
 .vscode/
 *.swp
 data/*.jsonl
+
+# Built knowledge index — derived from knowledge/ + urls.txt, rebuilt on demand
+data/.index_cache/

@@ -1,0 +1,299 @@
+{
+  "description": "Retrieval golden set for Agronaut's knowledge base. Queries are written in OPERATOR voice \u2014 symptom-first, messy, and deliberately NOT phrased in the vocabulary of the documents that should answer them. That vocabulary gap is the point: a retriever that only matches document titles scores well on keyword-shaped queries and fails real users. `relevant` lists the source files a correct retrieval should surface; a query may legitimately have more than one.",
+  "k": 3,
+  "queries": [
+    {
+      "id": "do-01",
+      "query": "my tilapia are all gasping at the surface early in the morning",
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ]
+    },
+    {
+      "id": "do-02",
+      "query": "fish crowding near the water inlet and breathing fast",
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "knowledge/fish_stress_diagnosis.md"
+      ]
+    },
+    {
+      "id": "stress-01",
+      "query": "fish are moving slowly and barely touching their food",
+      "relevant": [
+        "knowledge/fish_stress_diagnosis.md"
+      ]
+    },
+    {
+      "id": "n-01",
+      "query": "ammonia reading jumped to 4 ppm what do I do right now",
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ]
+    },
+    {
+      "id": "n-02",
+      "query": "brand new setup three weeks in and nitrite is climbing",
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "annotation_note": "returns nitrite-spike causes and remedies verbatim: 'immediate water exchange (20-50%), addition of zeolite ... add biofilter media, improve oxygenation'"
+    },
+    {
+      "id": "n-03",
+      "query": "how long before the bacteria establish themselves",
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "annotation_note": "answers the question directly: 'Normally, this is a 3-6 week process that involves introducing an ammonia source'"
+    },
+    {
+      "id": "ph-01",
+      "query": "the pH keeps sliding down every week no matter what I add",
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ]
+    },
+    {
+      "id": "ph-02",
+      "query": "how do I bring up the buffering capacity safely",
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ]
+    },
+    {
+      "id": "plant-01",
+      "query": "lettuce leaves going yellow between the veins but the veins stay green",
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md",
+        "knowledge/plant_deficiency_cheatsheet.md"
+      ]
+    },
+    {
+      "id": "plant-02",
+      "query": "the oldest leaves are turning pale first while new growth looks fine",
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md"
+      ]
+    },
+    {
+      "id": "algae-01",
+      "query": "my water has gone bright green and cloudy",
+      "relevant": [
+        "knowledge/algae_control.md"
+      ]
+    },
+    {
+      "id": "algae-02",
+      "query": "stringy green growth clogging the pipes and screens",
+      "relevant": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "annotation_note": "'FIGURE 3.9 Algae growing on plastic pipe ... Preventing algae is relatively easy. All water surfaces should be shaded.'"
+    },
+    {
+      "id": "fail-01",
+      "query": "we lost power for six hours overnight what should I check first",
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ]
+    },
+    {
+      "id": "fail-02",
+      "query": "I think I have been giving them too much food and now the water is murky",
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/feed_and_feeding.md"
+      ]
+    },
+    {
+      "id": "disease-01",
+      "query": "little white dots all over my fish like grains of salt",
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ]
+    },
+    {
+      "id": "disease-02",
+      "query": "can I use a copper based treatment with plants in the loop",
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ]
+    },
+    {
+      "id": "feed-01",
+      "query": "how much should I be giving them each day",
+      "relevant": [
+        "knowledge/feed_and_feeding.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "annotation_note": "gives the feeding rate directly: 'Juvenile fish can be fed about 3 percent of their body weight per day.'"
+    },
+    {
+      "id": "pump-01",
+      "query": "the pump is rated for plenty but barely trickles at the top of the tower",
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ]
+    },
+    {
+      "id": "pump-02",
+      "query": "how do I work out the flow I actually need",
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ]
+    },
+    {
+      "id": "type-01",
+      "query": "should I go with rafts or the thin channel setup",
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ]
+    },
+    {
+      "id": "type-02",
+      "query": "I have almost no floor space what layout works",
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ]
+    },
+    {
+      "id": "water-01",
+      "query": "our tap water smells strongly of chlorine can I top up with it",
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ]
+    },
+    {
+      "id": "water-02",
+      "query": "the well water here is extremely hard",
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ]
+    },
+    {
+      "id": "solids-01",
+      "query": "dark sludge piling up in the bottom of the tank",
+      "relevant": [
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "annotation_note": "its 'Solids accumulation / clogging' section names the exact symptom: 'foul smell, black sludge, possible H2S'"
+    },
+    {
+      "id": "reg-01",
+      "query": "do I need any kind of licence before I can sell the fish",
+      "relevant": [
+        "knowledge/regulations_and_permits.md"
+      ]
+    },
+    {
+      "id": "safety-01",
+      "query": "is produce grown on fish waste actually safe to eat",
+      "relevant": [
+        "knowledge/food_safety_and_hygiene.md"
+      ]
+    },
+    {
+      "id": "pest-01",
+      "query": "tiny green insects covering my basil what can I spray",
+      "relevant": [
+        "knowledge/plant_pests_and_ipm.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "annotation_note": "Appendix 2 plant pest control: natural soaps, garlic oil, named aphid treatments"
+    },
+    {
+      "id": "econ-01",
+      "query": "what are the running costs going to look like",
+      "relevant": [
+        "knowledge/economics_and_costs.md"
+      ]
+    },
+    {
+      "id": "econ-02",
+      "query": "is this ever going to break even",
+      "relevant": [
+        "knowledge/economics_and_costs.md",
+        "knowledge/feasibility_and_business_case.md"
+      ]
+    },
+    {
+      "id": "econ-03",
+      "query": "putting together a funding proposal what should it cover",
+      "relevant": [
+        "knowledge/feasibility_and_business_case.md"
+      ]
+    },
+    {
+      "id": "temp-01",
+      "query": "water hits 34 degrees in the afternoon here",
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ]
+    },
+    {
+      "id": "temp-02",
+      "query": "which species suits a cold winter",
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ]
+    },
+    {
+      "id": "range-01",
+      "query": "what levels should I be aiming for overall",
+      "relevant": [
+        "knowledge/water_quality_ranges.md"
+      ]
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "neg-01",
+      "query": "how do I fix a slipping bicycle chain"
+    },
+    {
+      "id": "neg-02",
+      "query": "what is the capital of Canada"
+    },
+    {
+      "id": "neg-03",
+      "query": "write me a python function to reverse a linked list"
+    },
+    {
+      "id": "neg-04",
+      "query": "what time does the pharmacy close today"
+    },
+    {
+      "id": "neg-05",
+      "query": "recommend a good science fiction novel"
+    },
+    {
+      "id": "neg-06",
+      "query": "how do I change a flat car tyre"
+    },
+    {
+      "id": "neg-07",
+      "query": "explain the offside rule in football"
+    },
+    {
+      "id": "neg-08",
+      "query": "best way to remove red wine from a carpet"
+    },
+    {
+      "id": "neg-09",
+      "query": "convert 500 euros to yen"
+    },
+    {
+      "id": "neg-10",
+      "query": "who won the world cup in 1998"
+    }
+  ],
+  "_negative_controls_note": "Off-topic queries that MUST NOT return a confident citation. Their score distribution is what calibrates the relevance floor: the floor is only trustworthy if the off-topic band separates cleanly from the worst on-topic score. More controls = a more honest margin.",
+  "_ground_truth_note": "Ground truth is a property of the CORPUS, not of the queries, so it must be re-established whenever the corpus changes. Adding FAO 589 dropped hit_rate from 0.970 to 0.667 \u2014 but reading the passages actually returned showed 6 of those 11 'misses' were the retriever finding a genuinely correct answer this file had not yet been told about (FAO answers 'how much should I feed them' with '3 percent of body weight per day'). Those 6 were relabelled, each with the quoted evidence in annotation_note. The other 5 (algae-01, fail-02, disease-02, type-02, safety-01) were left as misses because the returned passages genuinely do not answer them \u2014 relabelling those would be tuning the ruler to fit the result."
+}

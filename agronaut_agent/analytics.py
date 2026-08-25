@@ -20,7 +20,15 @@ from pathlib import Path
 
 # Only these metadata keys are ever persisted alongside an event — anything else (notably
 # anything that could carry message content) is dropped.
-_ALLOWED_FIELDS = {"tool", "goal", "channel", "ok"}
+#
+# The retrieval fields describe the SHAPE of a retrieval, never its subject: how many passages
+# came back, how far the closest one sat, how long it took, whether the relevance floor fired.
+# No query text and no passage text can be recorded, because neither has a key here and unknown
+# keys are dropped rather than stored. That is what keeps this consistent with docs/dpg/PRIVACY.md
+# while still answering the production question the golden set cannot: is the retriever, on real
+# traffic, still behaving the way it did when its threshold was calibrated?
+_ALLOWED_FIELDS = {"tool", "goal", "channel", "ok",
+                   "outcome", "n_results", "k", "latency_ms", "top_score", "hybrid"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
 

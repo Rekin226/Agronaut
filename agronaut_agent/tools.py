@@ -361,7 +361,14 @@ def search_knowledge_base(query: str) -> str:
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
     quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool)."""
-    return rag.search(query)
+    text, stats = rag.search_with_stats(query)
+    try:
+        from .analytics import Analytics
+        cur = runtime.get_current()
+        Analytics().record("retrieval", user_id=cur[1] if cur else None, **stats)
+    except Exception:  # noqa: BLE001 — telemetry must never break a live turn
+        pass
+    return text
 
 
 @tool
