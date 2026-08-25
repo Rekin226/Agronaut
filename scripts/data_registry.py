@@ -125,10 +125,13 @@ def vet_csv(path: Path) -> dict:
         if channel:
             channels[channel] = col
 
-        # normalised-units test: a real physical channel does not live inside [0, 1.1]
-        if -0.11 <= s.min() and s.max() <= 1.1 and s.std() > 0.01:
-            fatal.append(f"{col}: bounded to [{s.min():.2f}, {s.max():.2f}] — "
-                         "normalised, physical units are gone")
+        # normalised-units test: a real physical channel does not live inside [0, 1.1].
+        # EXCEPT the ones that physically do: ammonia and nitrite in a healthy pond sit
+        # under 1 mg/L — a sub-unit range there is good husbandry, not lost units.
+        if channel not in ("ammonia_mg_l", "nitrite_mg_l"):
+            if -0.11 <= s.min() and s.max() <= 1.1 and s.std() > 0.01:
+                fatal.append(f"{col}: bounded to [{s.min():.2f}, {s.max():.2f}] — "
+                             "normalised, physical units are gone")
         if channel == "dissolved_oxygen_mg_l" and s.median() < 0:
             fatal.append(f"{col}: negative median DO ({s.median():.2f}) — not physical")
 

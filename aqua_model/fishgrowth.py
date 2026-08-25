@@ -52,10 +52,12 @@ TGC = {
                "Nile tilapia studies: TGC = 0.611 + 0.01 x feeding rate (%BW/d), ~0.63-1.2 "
                "in practice; consistent with FAO 589 growth timelines (~0.8-1.1)"),
     "clarias": Coefficient(
-        name="clarias.tgc", value=1.5, low=1.0, high=2.2, unit="g^1/3/(C·d) x1000",
-        source="LIT: no published TGC found (dossier gap) — back-computed from farm "
-               "performance (5 g -> 1 kg in ~6 months at 28-30 C; temperature optimum ~30 C "
-               "per Kasihmuddin et al. 2021, Animals 11:3497); a calibration target"),
+        name="clarias.tgc", value=1.9, low=1.0, high=2.5, unit="g^1/3/(C·d) x1000",
+        source="CALIBRATED on real ponds: 10 usable Clarias gariepinus ponds (Ogbuokiri/"
+               "Udanor et al., Kaggle DOI 10.34740/kaggle/dsv/2681778, Nigeria 2021) — "
+               "median 1.91, IQR 1.82-2.22, r2 0.95-0.99 vs degree-days; one stunted pond "
+               "at 0.20 shows the floor real farms hit. Fit: scripts/calibrate_tgc.py -> "
+               "data/tgc_calibration.json. Feeding unrecorded, so this is realized growth"),
     "channel_catfish": Coefficient(
         name="channel_catfish.tgc", value=1.0, low=0.6, high=1.5, unit="g^1/3/(C·d) x1000",
         source="LIT: back-computed from pond culture reaching ~0.4-0.6 kg over one to two "
