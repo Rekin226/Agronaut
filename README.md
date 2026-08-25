@@ -254,7 +254,20 @@ work immediately (no model server). For **chat**, run Ollama locally or set a ho
 provider (see above).
 
 (`pip install -r requirement.txt` still works if you only want the libraries — `pip install -e .`
-installs the same list and adds the command below.)
+installs the same list and adds the command below. For a **deterministic-only** install with no
+chat stack, `requirements.txt` is a light manifest covering just the calculator and optimizer.)
+
+### Deploy a hosted demo (free, ~2 min)
+
+The deterministic modes deploy to [Streamlit Community Cloud](https://share.streamlit.io) with
+zero config — the light `requirements.txt` keeps the build fast and key-free:
+
+1. Fork this repo (or use your own).
+2. Streamlit Community Cloud → **New app** → pick the repo, branch `main`, main file `app.py`.
+3. Deploy. Chat mode shows a friendly "needs the chat stack" note; the calculator and
+   optimizer are fully live.
+
+See [`docs/demo.md`](docs/demo.md) for the deployment details and for recording a README GIF.
 
 ### The `agronaut` command
 

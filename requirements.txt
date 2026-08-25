@@ -1,0 +1,14 @@
+# Minimal dependencies for the HOSTED DEMO and the deterministic core.
+#
+# This is the file Streamlit Community Cloud auto-detects. It installs only what the
+# Design Calculator + Optimize Ratio modes need, so the demo boots in seconds and stays
+# well under the free-tier resource limit. Chat mode degrades to a friendly message.
+#
+# For the FULL stack (chat / RAG / pluggable LLM backends / Telegram / tests that import
+# langchain + faiss), use `requirement.txt` instead.
+
+streamlit
+pandas
+numpy
+openpyxl
+markdown
