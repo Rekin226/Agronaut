@@ -17,6 +17,9 @@ dist/
 .gstack/
 .claude/settings.local.json
 
+# Promotional / marketing working files (local only, never committed)
+promo/
+
 # Generated databases / caches
 chroma_db/
 srcs/chroma_db/
