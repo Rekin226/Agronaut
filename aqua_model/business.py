@@ -187,6 +187,27 @@ def build_case(
                            "labour_day rate — labour is still excluded")
             findings.append("labour could not be priced in this region")
 
+    # The single most decisive ratio in fish farming: what the feed to grow one kilogram
+    # of fish costs, against what that kilogram sells for. If feed alone approaches the
+    # farm-gate price, no amount of scale or efficiency elsewhere rescues the business —
+    # and this is exactly the squeeze that makes imported feed fatal in West Africa.
+    feed_item = cost_items.get("feed_kg")
+    if feed_item and fish_price and summary.realized_fcr > 0:
+        feed_per_kg_fish = summary.realized_fcr * float(feed_item["price"])
+        fish_per_kg = float(fish_price["price"])
+        share = feed_per_kg_fish / fish_per_kg if fish_per_kg > 0 else 0.0
+        if share >= 1.0:
+            findings.append(
+                f"FEED COSTS MORE THAN THE FISH SELLS FOR: {feed_per_kg_fish:,.0f} of feed "
+                f"per kg of fish (FCR {summary.realized_fcr:.1f} x {float(feed_item['price']):,.0f}"
+                f"/kg) against a farm-gate price of {fish_per_kg:,.0f} {cost.currency}/kg. "
+                "Cheaper or locally-made feed is the only fix that matters here")
+        elif share >= 0.6:
+            findings.append(
+                f"feed is {share:.0%} of the fish's farm-gate value "
+                f"({feed_per_kg_fish:,.0f} vs {fish_per_kg:,.0f} {cost.currency}/kg) — "
+                "the margin lives or dies on feed price")
+
     case = BusinessCase(
         region=region, currency=cost.currency, revenue=revenue,
         capex=cost.capex_total(), opex_per_year=cost.opex_total(),

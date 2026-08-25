@@ -23,6 +23,9 @@
         "labour_day": {"price": 2500, "low": 2000, "high": 3000, "unit": "per helper-day, Ouagadougou", "basis": "derived", "source": "Tradesmen-reported manoeuvre rate 2,000-2,500 XOF/day (anecdotal, FB); Senegal benchmark 1,500-3,000 (read); SMIG 45,000 XOF/month (Nov 2023 decree). Mason 5,000-7,500/day is a neighbour-anchored estimate"}
       },
       "revenue_items": {
+        "fish_tilapia": {"price": 2030, "low": 1950, "high": 2030, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAO FishStat Aquaculture 2024.1.0, Burkina Faso Nile tilapia: value/quantity = 3.47/3.61/3.61 USD/kg (2020/21/22), converted at 562 XOF/USD. Ex-farm value of national aquaculture production — the price a farmer receives, not retail"},
+        "fish_clarias": {"price": 1220, "low": 1120, "high": 1310, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAO FishStat, Burkina Faso North African catfish (C. gariepinus): 2.17/2.34/2.00 USD/kg (2020/21/22) at 562 XOF/USD. Ghana 2.66 and Nigeria 3.20 USD/kg corroborate the regional band"},
+        "fish_generic": {"price": 1600, "low": 1120, "high": 2030, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAO FishStat Burkina Faso span across farmed species (catfish 2.00 to tilapia 3.61 USD/kg, 2022)"},
         "crop_lettuce": {"price": 523, "low": 376, "high": 620, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT Producer Prices (PP), Mali 2024: lettuce and chicory 522,933 XOF/tonne (2022-2024 range 376-523). MALI PROXY: Burkina's own vegetable series stops in 2007 — same currency, neighbouring markets"},
         "crop_leafy": {"price": 450, "low": 340, "high": 620, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP Mali 2024 leafy band: cabbages 372, lettuce 523, green onions 621 XOF/kg (Mali proxy for Burkina, see crop_lettuce)"},
         "crop_tomato": {"price": 494, "low": 459, "high": 494, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP, Mali 2024: tomatoes 494,024 XOF/tonne (2022-2024: 459-494). Mali proxy; Burkina's own tomato series ends 2007 at 80 XOF/kg"},
@@ -49,6 +52,10 @@
         "feed_kg": {"price": 50, "low": 32, "high": 77, "unit": "per kg floating pellet", "basis": "derived", "source": "Fwusow anchors: 23% CP tilapia pellet ~NT$32/kg, 43% CP ~NT$71-77/kg (Shopee, Aug 2026); a 32% CP grade falls between — midpoint is our interpolation, not a listing"},
         "electricity_kwh": {"price": 3.78, "low": 1.78, "high": 6.44, "unit": "per kWh residential", "basis": "official", "source": "Taipower tariff (taipower.com.tw): non-time-of-use tiers NT$1.78-8.86 summer / 1.78-7.03 non-summer; ~NT$3.78 average after Oct-2025 adjustment"},
         "water_m3": {"price": 11.55, "low": 7.35, "high": 12.08, "unit": "per m3 incl. 5% tax", "basis": "official", "source": "Taiwan Water Corporation tiers: NT$7.35 (<=10 m3/mo) to NT$12.075 (>50 m3/mo), plus meter base fee"}
+      },
+      "revenue_items": {
+        "fish_tilapia": {"price": 62, "low": 48, "high": 62, "unit": "TWD/kg farm-gate", "basis": "official", "source": "FAO FishStat Aquaculture 2024.1.0, Taiwan tilapias: value/quantity = 1.50/1.85/1.95 USD/kg (2020/21/22) at 31.9 TWD/USD. Ex-farm value; Taiwan is a major tilapia producer (57,800 t in 2022) so this is a deep market"},
+        "fish_generic": {"price": 90, "low": 62, "high": 115, "unit": "TWD/kg farm-gate", "basis": "official", "source": "FAO FishStat Taiwan span across farmed finfish 2022: tilapia 1.95, milkfish 3.00, barramundi 3.60 USD/kg at 31.9 TWD/USD"}
       }
     },
     "global_us": {
@@ -70,6 +77,10 @@
         "feed_kg": {"price": 2.9, "low": 2.4, "high": 3.3, "unit": "per kg 32% CP floating pellet", "basis": "retail_snapshot", "source": "Purina AquaMax Grower 400 (32% CP) $74.37/50 lb = $3.28/kg; AquaMax 500 (41%) $2.42/kg"},
         "electricity_kwh": {"price": 0.184, "low": 0.135, "high": 0.184, "unit": "per kWh", "basis": "official", "source": "EIA Electricity Monthly Update May 2026: residential avg 18.44 c/kWh, commercial 13.54 c/kWh; state spread not captured"},
         "water_m3": {"price": 1.6, "low": 1.59, "high": 1.8, "unit": "per m3 water only, excl. sewer", "basis": "derived", "source": "AWWA 2022 rate survey ~$1.59/m3 at 7,500 gal/mo; +6%/yr per Bluefield => ~$1.7-1.8 in 2025-26 (our extrapolation)"}
+      },
+      "revenue_items": {
+        "fish_tilapia": {"price": 5.8, "low": 5.8, "high": 5.8, "unit": "USD/kg farm-gate", "basis": "official", "source": "FAO FishStat Aquaculture 2024.1.0, USA tilapias: value/quantity = 5.80 USD/kg flat 2020-2022. US farmed tilapia is a small high-price market, unlike Taiwan's"},
+        "fish_generic": {"price": 5.0, "low": 2.5, "high": 5.8, "unit": "USD/kg farm-gate", "basis": "official", "source": "FAO FishStat USA farmed finfish span 2022; wide because US aquaculture is dominated by catfish and salmonids at different price points"}
       }
     }
   }

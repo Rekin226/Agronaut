@@ -122,3 +122,29 @@ def test_the_report_states_what_it_is_not():
     assert "Not included" in text
     assert "not a forecast" in text
     assert "farm-gate" in text
+
+
+def test_feed_costing_more_than_the_fish_is_stated_outright():
+    """The decisive ratio in fish farming: feed per kg of fish vs the farm-gate price."""
+    book = {"regions": {"testland": {
+        **_BOOK["regions"]["testland"],
+        "items": {**_BOOK["regions"]["testland"]["items"],
+                  "feed_kg": {"price": 2.5, "source": "test"}},   # 1.6 x 2.5 = 4.0 > 3.0 fish
+    }}}
+    out, cost = _cost()
+    case = build_case(_summary(), cost, book, "testland", crop_key="basil",
+                      species_key="tilapia")
+    assert any("FEED COSTS MORE THAN THE FISH" in f for f in case.findings)
+
+
+def test_a_tight_but_survivable_feed_ratio_is_a_warning_not_an_alarm():
+    book = {"regions": {"testland": {
+        **_BOOK["regions"]["testland"],
+        "items": {**_BOOK["regions"]["testland"]["items"],
+                  "feed_kg": {"price": 1.4, "source": "test"}},   # 1.6 x 1.4 = 2.24 of 3.00
+    }}}
+    out, cost = _cost()
+    case = build_case(_summary(), cost, book, "testland", crop_key="basil",
+                      species_key="tilapia")
+    assert any("lives or dies on feed price" in f for f in case.findings)
+    assert not any("MORE THAN THE FISH" in f for f in case.findings)
