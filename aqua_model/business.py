@@ -46,6 +46,23 @@ NOT_INCLUDED = (
 # arithmetic theatre.
 _MATERIAL_MARGIN = 1e-6
 
+# Sales channel multipliers on the FARM-GATE price. The single biggest revenue lever a
+# small grower controls, and the one most often left out of a feasibility sum.
+#
+# Sources: UF/IFAS HS1252 documents a commodity -> restaurant -> retail/direct ladder of
+# roughly 3-5x for aquaponic produce; SARE GS13-125 compares real farms and finds growers
+# selling at farmers' markets realise about 1.9x on fish and 2.8x on produce versus
+# wholesale. The conservative end of both is used here, and fish is deliberately given a
+# smaller multiplier than produce because that is what the farm comparisons show.
+#
+# These are OPPORTUNITIES, not entitlements: a direct price requires stalls, transport,
+# customers and time, none of which this model can see. The case says so.
+CHANNELS: dict[str, tuple[float, float, str]] = {
+    "farm_gate": (1.0, 1.0, "sold at the farm gate / to a wholesaler"),
+    "restaurant": (1.4, 2.0, "sold to restaurants — fewer, larger, pickier customers"),
+    "direct": (1.9, 2.8, "sold direct at market — the highest price and the most work"),
+}
+
 
 @dataclass(frozen=True)
 class RevenueLine:
@@ -125,6 +142,7 @@ def build_case(
     crop_category: str = "leafy",
     labour_hours_per_week: float | None = None,
     hours_per_labour_day: float = 8.0,
+    channel: str = "farm_gate",
 ) -> BusinessCase:
     """Join a season's harvest to its cost, at one region's prices.
 
@@ -165,17 +183,31 @@ def build_case(
         findings.append(f"no {crop_key} price in this region's book — priced at the "
                         f"{crop_category} rate ({crop_used})")
 
+    ch = str(channel).strip().lower()
+    if ch not in CHANNELS:
+        raise KeyError(f"unknown sales channel {channel!r}; choose from {sorted(CHANNELS)}")
+    fish_mult, crop_mult, ch_label = CHANNELS[ch]
+    if ch != "farm_gate":
+        findings.append(
+            f"prices marked up for a {ch} channel (fish x{fish_mult:g}, produce "
+            f"x{crop_mult:g}, from UF/IFAS HS1252 and SARE GS13-125) — that price is an "
+            "OPPORTUNITY, not a given: it needs a stall, transport, customers and the "
+            "hours to serve them, none of which this model can see")
+
+    def _line(label, kg, item, mult):
+        if not item:
+            return RevenueLine(label, round(kg, 1), None, None, None, "")
+        p = float(item["price"]) * mult
+        return RevenueLine(
+            label, round(kg, 1), p,
+            float(item.get("low", item["price"])) * mult,
+            float(item.get("high", item["price"])) * mult,
+            item.get("source", ""))
+
+    suffix = "" if ch == "farm_gate" else f" [{ch}]"
     revenue = (
-        RevenueLine("fish (harvested + standing)", round(fish_kg, 1),
-                    fish_price and float(fish_price["price"]),
-                    fish_price and float(fish_price.get("low", fish_price["price"])),
-                    fish_price and float(fish_price.get("high", fish_price["price"])),
-                    fish_price.get("source", "") if fish_price else ""),
-        RevenueLine("crop", round(crop_kg, 1),
-                    crop_price and float(crop_price["price"]),
-                    crop_price and float(crop_price.get("low", crop_price["price"])),
-                    crop_price and float(crop_price.get("high", crop_price["price"])),
-                    crop_price.get("source", "") if crop_price else ""),
+        _line(f"fish (harvested + standing){suffix}", fish_kg, fish_price, fish_mult),
+        _line(f"crop{suffix}", crop_kg, crop_price, crop_mult),
     )
     unpriced_revenue = tuple(line.label for line in revenue if line.unit_price is None)
 

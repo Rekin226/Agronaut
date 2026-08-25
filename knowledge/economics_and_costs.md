@@ -55,6 +55,35 @@ global/US baseline. The `estimate_system_cost` tool prices a sized design agains
 a range, names anything the book cannot price, and always says: these are researched
 estimates to verify with local quotes, not quotes.
 
+## Four things the price data says that contradict common assumptions
+
+**The plants carry the profit, not the fish.** This is convergent across sources and
+regions: SRAC-5006 found the fish portion unprofitable in nearly every study it reviewed,
+and a SARE grower survey found **81% of revenue came from produce**. Design the fish side
+to feed the plants and to be sold, not as the profit centre.
+
+**Which market level you are quoting matters more than the number.** Farm-gate (what the
+farmer receives), wholesale, and retail are different prices for the same fish, and the
+ratio between them is not a constant: measured Taiwanese farm-gate to wholesale ratios run
+**0.90 to 1.62**, so applying a fixed margin to a retail price to "get" farm-gate is
+guesswork. Agronaut's price book labels every line with its market level for this reason.
+
+**Smoking fish is not a revenue multiplier.** In West Africa smoked catfish trades far
+above fresh per kilogram (roughly 2,800-3,500 XOF/kg wholesale), which looks like a large
+premium until you account for the **65-72% weight loss** in smoking: about 3.3 kg of fresh
+fish makes 1 kg of smoked. At those prices the smoked route returns roughly **1,050 XOF per
+kg of fresh input**, less than selling the same fish fresh at a 2,000 XOF/kg farm-gate
+price. The same pattern holds in Nigerian retail data, where smoked catfish fetches only
+~1.1x fresh tilapia per kilogram against a 0.3x yield. Smoke for **shelf life and market
+reach**, never as a price play.
+
+**Selling direct is the biggest single revenue lever available to a small grower.** The
+documented ladder for aquaponic produce runs commodity -> restaurant -> retail/direct at
+roughly **3-5x** (UF/IFAS HS1252). Real farm comparisons show the same: growers selling at
+farmers' markets realise roughly **1.9x on fish and 2.8x on produce** versus wholesale
+(SARE GS13-125). A system that loses money at farm-gate prices can clear at direct prices
+— and that is a marketing and logistics problem, not an engineering one.
+
 ## How to think about feasibility
 
 Before building, estimate: annual energy cost (pump + aeration + climate control), annual

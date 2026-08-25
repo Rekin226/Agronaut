@@ -148,3 +148,27 @@ def test_a_tight_but_survivable_feed_ratio_is_a_warning_not_an_alarm():
                       species_key="tilapia")
     assert any("lives or dies on feed price" in f for f in case.findings)
     assert not any("MORE THAN THE FISH" in f for f in case.findings)
+
+
+def test_selling_direct_raises_revenue_and_says_it_must_be_earned():
+    farm = _case()
+    direct = _case(channel="direct")
+    assert direct.revenue_total()[1] > farm.revenue_total()[1] * 1.5
+    assert any("OPPORTUNITY, not a given" in f for f in direct.findings)
+    assert any("[direct]" in line.label for line in direct.revenue)
+
+
+def test_produce_gets_a_bigger_direct_premium_than_fish():
+    """Both farm comparisons in the sources show produce benefits more from direct sales."""
+    from aqua_model.business import CHANNELS
+    fish_mult, crop_mult, _ = CHANNELS["direct"]
+    assert crop_mult > fish_mult
+
+
+def test_an_unknown_channel_fails_loudly():
+    with pytest.raises(KeyError, match="channel"):
+        _case(channel="teleportation")
+
+
+def test_the_farm_gate_channel_changes_nothing():
+    assert _case().revenue_total() == _case(channel="farm_gate").revenue_total()

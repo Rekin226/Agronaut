@@ -927,6 +927,7 @@ def business_case(
     system_type: str = "raft",
     greenhouse: str = "poly",
     labour_hours_per_week: float | None = None,
+    channel: str = "farm_gate",
 ) -> str:
     """Answer "will this MAKE money?" — the full case: build cost, running cost, a
     simulated year's harvest priced at researched farm-gate prices, margin, and simple
@@ -939,7 +940,13 @@ def business_case(
 
     labour_hours_per_week: pass the operator's realistic weekly hours to price labour —
     it usually decides whether the system is a business or a hobby, and the case reports
-    the verdict both with and without. region: a price-book region; site: a climate slug."""
+    the verdict both with and without.
+    channel: how they will SELL — 'farm_gate' (default, to a wholesaler), 'restaurant', or
+    'direct' (farmers' market). Direct roughly doubles produce revenue and is often the
+    difference between a losing and a working system, so run it both ways when a design
+    does not clear at farm-gate prices — but say plainly that the higher price has to be
+    earned with stalls, transport and hours.
+    region: a price-book region; site: a climate slug."""
     import json
     from pathlib import Path
 
@@ -996,7 +1003,7 @@ def business_case(
                          feed_kg_year=run.summary.feed_used_kg)
     case = build_case(run.summary, cost, book, region_key, crop_key=crop_key,
                       species_key=species_key, crop_category=crop_obj.category,
-                      labour_hours_per_week=labour_hours_per_week)
+                      labour_hours_per_week=labour_hours_per_week, channel=channel)
     return (f"[{site} · {mode} · {system_type}]\n\n" + format_case(case))
 
 
