@@ -289,6 +289,74 @@ def pdf_cleaning_enabled() -> bool:
     return os.getenv("AGRONAUT_PDF_CLEAN", "").lower() not in {"off", "0", "false"}
 
 
+_CHAPTER_HEADER = re.compile(r"^\d{1,3}\s*([A-Z][A-Za-z][A-Za-z \-,'&]{4,60})$")
+
+
+def pdf_sections_enabled() -> bool:
+    """PDF chapter labelling ships DISABLED — measured, like everything else here.
+
+        variant                          hit    recall  prec    MRR     MAP
+        off (chunks carry no chapter)    0.939  0.894   0.540   0.737   0.697
+        on  (chunks carry their chapter) 0.909  0.848   0.525   0.727   0.682
+
+    Every metric fell. This is the THIRD context-prefix technique to lose on this corpus, after the
+    markdown crumb at 1354 chunks and header chunking, and the pattern behind all three is the
+    same: when every document shares one vocabulary domain, a topic label adds words that appear
+    in every chunk about that topic. Words present everywhere carry no discriminating information
+    — they only dilute the distinctive content already in the vector. "Plants in aquaponics"
+    prefixed onto a passage about leaf yellowing makes it look more like every other plant
+    passage, not more like the answer.
+
+    The extraction itself is sound and worth keeping: chapter coverage goes from 29% of pages
+    (headers where they literally appear) to 95% by forward-filling each chapter across the pages
+    that follow it. That metadata is genuinely useful for FILTERING, which is a different
+    mechanism from prefixing and one this corpus has not yet needed. Enable with
+    AGRONAUT_PDF_SECTIONS=on.
+    """
+    import os
+    return os.getenv("AGRONAUT_PDF_SECTIONS", "").lower() in {"on", "1", "true"}
+
+
+def _label_pdf_chapters(docs):
+    """Give every page of a publication the chapter it belongs to, and prefix its text with it.
+
+    This is the PDF analogue of splitting markdown on its headings — but a PDF has no headings to
+    split on, only typography that extraction flattens away. What survives is the running header:
+    odd pages of FAO 589 open "51Design of aquaponic units", carrying the chapter name and the
+    page number as one string.
+
+    Detection alone reaches just 76 of 262 pages, because even pages carry the book title instead.
+    The chapter is FORWARD-FILLED from each header to the pages that follow it, which is simply
+    what a chapter is — it continues until the next one starts. That takes coverage to nearly
+    every page.
+
+    Why it matters: without this an FAO chunk arrives as anonymous prose. "Nitrate is generally
+    tolerated at higher concentrations" is ambiguous on its own; carrying "Water quality in
+    aquaponics" it is not. The markdown equivalent measurably helped precision on the small corpus
+    for exactly this reason.
+    """
+    current = ""
+    for d in docs:
+        lines = [l for l in d.page_content.splitlines()]
+        stripped = [l.strip() for l in lines if l.strip()]
+        if stripped:
+            m = _CHAPTER_HEADER.match(stripped[0])
+            if m:
+                current = m.group(1).strip()
+                # The header line is furniture once its content is captured as metadata.
+                for i, l in enumerate(lines):
+                    if l.strip() == stripped[0]:
+                        lines.pop(i)
+                        break
+        if current:
+            d.metadata["chapter"] = current
+            body = "\n".join(lines).strip()
+            d.page_content = f"{current}\n{body}" if body else current
+        else:
+            d.page_content = "\n".join(lines)
+    return docs
+
+
 def _clean_pdf_documents(docs):
     """Drop a publication's structural pages and its repeated furniture.
 
@@ -299,6 +367,10 @@ def _clean_pdf_documents(docs):
     if not docs or not pdf_cleaning_enabled():
         return docs
     before = len(docs)
+    # Chapters are read BEFORE furniture is stripped: the running header IS the chapter signal,
+    # so removing it first would discard the very thing being extracted.
+    if pdf_sections_enabled():
+        docs = _label_pdf_chapters(docs)
     docs = _strip_running_headers(docs)
     kept = [d for d in docs
             if d.page_content.strip() and not _looks_like_contents_page(d.page_content)]
@@ -1719,7 +1791,8 @@ def _corpus_fingerprint() -> str:
     h.update(f"{EMBEDDING_MODEL}|{CHUNK_SIZE}|{CHUNK_OVERLAP}"
              f"|md_headers={markdown_headers_enabled()}"
              f"|md_crumb={_crumb_enabled()}"
-             f"|pdf_clean={pdf_cleaning_enabled()}".encode())
+             f"|pdf_clean={pdf_cleaning_enabled()}"
+             f"|pdf_sections={pdf_sections_enabled()}".encode())
     kb = pathlib.Path(KNOWLEDGE_DIR)
     if kb.exists():
         for fp in sorted(kb.rglob("*")):

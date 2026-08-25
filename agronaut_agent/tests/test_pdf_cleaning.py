@@ -137,3 +137,55 @@ def test_cleaning_is_on_by_default(monkeypatch):
 
 def test_empty_input_is_safe():
     assert chatbot._clean_pdf_documents([]) == []
+
+
+# --- chapter labelling -------------------------------------------------------
+
+def test_chapter_is_read_from_the_running_header():
+    """A PDF has no headings to split on — extraction flattens the typography away. What survives
+    is the running header: "51Design of aquaponic units" carries the chapter and page as one
+    string."""
+    docs = [_Doc("51Design of aquaponic units\nProse about media beds.", page=51)]
+    out = chatbot._label_pdf_chapters(docs)
+    assert out[0].metadata["chapter"] == "Design of aquaponic units"
+
+
+def test_chapter_forward_fills_across_following_pages():
+    """Detection alone reached 76 of 262 pages, because even pages carry the book title instead.
+    A chapter continues until the next one starts — forward-filling took coverage to 95%."""
+    docs = [_Doc("51Design of aquaponic units\nFirst page.", page=51),
+            _Doc("Continuation prose with no header of its own.", page=52),
+            _Doc("More continuation prose.", page=53),
+            _Doc("75Plants in aquaponics\nA new chapter starts.", page=75),
+            _Doc("Prose belonging to the new chapter.", page=76)]
+    out = chatbot._label_pdf_chapters(docs)
+    assert [d.metadata["chapter"] for d in out] == [
+        "Design of aquaponic units", "Design of aquaponic units", "Design of aquaponic units",
+        "Plants in aquaponics", "Plants in aquaponics"]
+
+
+def test_header_line_is_removed_once_captured():
+    """The header is furniture once its content is metadata — leaving it would embed the page
+    number alongside the chapter name."""
+    docs = chatbot._label_pdf_chapters([_Doc("51Design of aquaponic units\nReal prose.", page=51)])
+    assert "51Design" not in docs[0].page_content
+
+
+def test_pages_before_any_chapter_are_left_alone():
+    docs = chatbot._label_pdf_chapters([_Doc("Front matter with no chapter yet.", page=1)])
+    assert "chapter" not in docs[0].metadata
+
+
+def test_prose_is_not_mistaken_for_a_chapter_header():
+    """A body line beginning with a number must not hijack the chapter for every page after it."""
+    docs = chatbot._label_pdf_chapters([_Doc("5 percent of body weight is a typical ration.", page=9)])
+    assert "chapter" not in docs[0].metadata
+
+
+def test_chapter_labelling_ships_disabled(monkeypatch):
+    """Measured worse on every metric: prefixing chunks with a generic chapter name adds words
+    that appear in every chunk about that topic, which dilutes rather than disambiguates."""
+    monkeypatch.delenv("AGRONAUT_PDF_SECTIONS", raising=False)
+    assert not chatbot.pdf_sections_enabled()
+    monkeypatch.setenv("AGRONAUT_PDF_SECTIONS", "on")
+    assert chatbot.pdf_sections_enabled()

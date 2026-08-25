@@ -7,7 +7,7 @@
     "recall@k": 0.8939393939393939,
     "MRR": 0.7373737373737373,
     "MAP@k": 0.696969696969697,
-    "latency_ms_mean": 244.0918610522975,
+    "latency_ms_mean": 1364.5086501703852,
     "floor_silenced_on_topic": 0,
     "floor_rejected_off_topic": 8,
     "negative_controls": 10

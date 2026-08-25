@@ -212,6 +212,14 @@ _POOL = 20      # candidates drawn from each retriever before fusion
 # Set AGRONAUT_MAX_PER_SOURCE=1 to prioritise coverage, or 0 to disable the cap entirely.
 _MAX_PER_SOURCE = 2
 
+# Cross-encoder reranker. A bi-encoder embeds query and passage SEPARATELY, so it can only
+# compare two summaries of meaning; a cross-encoder reads the pair together and scores their
+# actual interaction. Far better, far slower — usable only on a shortlist, which is exactly what
+# the fused pool is.
+_RERANK_MODEL = os.getenv("AGRONAUT_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+_RERANKER = None
+_RERANK_TRIED = False
+
 
 def retrieve(query: str, k: int = 3, max_dist: float | None = None,
              hybrid: bool | None = None) -> list[dict]:
@@ -294,7 +302,69 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
             sparse = []
 
     fused = rrf_fuse(dense, sparse) if sparse else dense
+    if rerank_enabled():
+        # Rerank the shortlist BEFORE the diversity cap: the cap should displace the least
+        # relevant duplicate, which requires relevance to already be correct.
+        fused = _rerank(query, fused[:_POOL], by_key)
     return [by_key[key] for key in _diversify(fused, by_key, k)]
+
+
+def rerank_enabled() -> bool:
+    """Cross-encoder reranking ships DISABLED — measured, and the reason is specific.
+
+        variant                  hit    recall  prec    MRR     MAP     latency
+        off (fused order)        0.939  0.894   0.540   0.737   0.697   274 ms
+        on  (cross-encoder)      0.879  0.813   0.515   0.727   0.682   761 ms
+
+    Worse on every metric and 2.8x slower. The default model, ms-marco-MiniLM-L-6-v2, is trained
+    on MS MARCO — short web-search queries against web passages. Operator phrasing ("my tilapia
+    are gasping at the surface") against agronomy prose is out of that distribution, and a
+    general-purpose reranker applied out of domain can and here does score worse than the
+    domain-appropriate bi-encoder it is reordering. It is being asked to improve a shortlist that
+    is already good (MRR 0.737), which is the hardest case for it to win.
+
+    This is a statement about THIS model on THIS domain, not about reranking. A cross-encoder
+    fine-tuned on agronomy text, or simply a stronger general one, could plausibly win — the
+    machinery is here and AGRONAUT_RERANK=on turns it on, with AGRONAUT_RERANK_MODEL selecting
+    the model. Re-measure before trusting it.
+    """
+    return os.getenv("AGRONAUT_RERANK", "").lower() in {"on", "1", "true"}
+
+
+def _get_reranker():
+    """A lazily loaded CrossEncoder, or None when unavailable.
+
+    Loaded on first use rather than at import, matching semantic.default_embedder(): a model
+    download must never be the reason the agent is slow to start or fails to start at all.
+    """
+    global _RERANKER, _RERANK_TRIED
+    if _RERANK_TRIED:
+        return _RERANKER
+    _RERANK_TRIED = True
+    try:
+        from sentence_transformers import CrossEncoder
+        _RERANKER = CrossEncoder(_RERANK_MODEL)
+    except Exception as exc:  # noqa: BLE001 — reranking is additive; never break retrieval
+        logging.warning("Reranker unavailable, keeping fused order: %s", exc)
+        _RERANKER = None
+    return _RERANKER
+
+
+def _rerank(query: str, keys: list, by_key: dict) -> list:
+    """Reorder a shortlist by cross-encoder relevance, most relevant first.
+
+    Returns the input order unchanged if the model is unavailable or scoring fails, so a missing
+    reranker costs ranking quality and nothing else.
+    """
+    model = _get_reranker()
+    if model is None or len(keys) < 2:
+        return keys
+    try:
+        scores = model.predict([(query, by_key[k]["text"][:2000]) for k in keys])
+        return [k for _s, k in sorted(zip(scores, keys), key=lambda p: p[0], reverse=True)]
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Reranking failed, keeping fused order: %s", exc)
+        return keys
 
 
 def max_source_cap() -> int:
