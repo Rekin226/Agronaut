@@ -40,8 +40,6 @@ NOT_INCLUDED = (
 
 # Fitting allowance on straight pipe: elbows, tees and glue typically add ~30% to a run.
 _PIPE_FITTING_FACTOR = 1.3
-# Air stones scale with tanks and beds (FAO 589: one per 2-4 m2 of raft canal).
-_RAFT_M2_PER_AIRSTONE = 3.0
 
 
 @dataclass(frozen=True)
@@ -143,10 +141,10 @@ def takeoff(out: DesignOutput, layout: Layout, *, species_key: str = "tilapia",
     lines.append(TakeoffLine("pump_small", "water pump",
                              max(1, len(tanks) // 3 + 1), "unit",
                              f"≥{out.pump_turnover_lph:.0f} L/h at ~{out.pump_head_m:.1f} m head"))
-    n_stones = len(tanks) + max(1, round(out.grow_area_m2 / _RAFT_M2_PER_AIRSTONE)) \
-        if system.key == "raft" else len(tanks) + 2
-    lines.append(TakeoffLine("air_pump", "air pump/blower", 1, "unit"))
-    lines.append(TakeoffLine("air_stone", "air stones + tubing", n_stones, "unit"))
+    # Air stones ship bundled with pumps in every surveyed market; FAO 589 wants one
+    # stone per 2-4 m2 of raft canal, which sets the pump class, not a separate line.
+    lines.append(TakeoffLine("air_pump", "air pump/blower (incl. stones + tubing)", 1,
+                             "unit", "size for ~1 stone per 3 m² of raft area + 1 per tank"))
 
     pipe_m = sum(
         math.dist(a, b)

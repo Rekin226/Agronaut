@@ -45,6 +45,16 @@ an engineering one.
 - **Calibration** — matching stocking, feed, and grow area to what the system actually
   sustains avoids wasted feed, water, and materials.
 
+## Priced numbers live in the price book, not here
+
+Agronaut carries a **regional price book** (`data/price_book.json`) with researched
+prices — value, range, currency, source, and an as-of date — for the components its
+designs call for (tanks, pumps, aeration, pipe, media, rafts, envelope, fingerlings,
+feed, electricity, water), currently for Burkina Faso / West Africa, Taiwan, and a
+global/US baseline. The `estimate_system_cost` tool prices a sized design against it as
+a range, names anything the book cannot price, and always says: these are researched
+estimates to verify with local quotes, not quotes.
+
 ## How to think about feasibility
 
 Before building, estimate: annual energy cost (pump + aeration + climate control), annual

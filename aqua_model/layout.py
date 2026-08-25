@@ -185,7 +185,10 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
 
     # --- grow zone ---
     role, bw, bl, bh, n_units, unit_label = _bed_units(out, system)
-    n_cols = max(1, math.ceil(math.sqrt(n_units * bw / max(bl, 1e-9))))
+    # Squarish envelope: columns span x at (bw + aisle) each, rows span y at (bl + aisle).
+    # Equal spans want n_cols ~ sqrt(n * (bl+aisle)/(bw+aisle)) — long beds need MORE
+    # columns, not fewer, or four 6 m raft beds stack into one 27 m tunnel.
+    n_cols = max(1, math.ceil(math.sqrt(n_units * (bl + AISLE_M) / (bw + AISLE_M))))
     n_cols = min(n_cols, n_units)
     n_rows = math.ceil(n_units / n_cols)
     beds_span_x = n_cols * bw + (n_cols - 1) * AISLE_M
