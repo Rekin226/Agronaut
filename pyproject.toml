@@ -28,6 +28,20 @@ dependencies = { file = ["requirement.txt"] }
 # bot.py and app.py sit at the project root as scripts, not inside a package; `agronaut bot`
 # and `agronaut web` need them installed alongside the packages.
 py-modules = ["bot", "app"]
+# Explicitly off. Left on, it combines with a stale agronaut.egg-info/SOURCES.txt in the
+# working tree to sweep everything under a package dir into the wheel — that is how 54 test
+# files ended up shipped to site-packages.
+include-package-data = false
 
 [tool.setuptools.packages.find]
 include = ["agronaut_agent*", "agent*", "aqua_model*", "srcs*", "skills*", "scripts*"]
+# Tests are for the checkout, not for site-packages.
+exclude = ["*.tests", "*.tests.*"]
+
+# The cited knowledge base is not optional decoration — without it every answer comes back
+# KNOWLEDGE_UNAVAILABLE while the assistant still sounds confident. It lives at the repo
+# root rather than inside a package, so it ships as data files and agronaut_agent/paths.py
+# looks for it under sys.prefix when the source tree is not there.
+[tool.setuptools.data-files]
+"share/agronaut" = ["urls.txt"]
+"share/agronaut/knowledge" = ["knowledge/*.md"]

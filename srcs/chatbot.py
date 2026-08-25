@@ -34,13 +34,15 @@ from langchain_community.vectorstores import FAISS
 # Configuration
 # =============================================================================
 
-# Anchored to the project root, not the current directory: `agronaut` is an installed
-# command that can be run from anywhere, and a cwd-relative corpus would silently degrade
-# RAG to KNOWLEDGE_UNAVAILABLE instead of failing loudly.
-_PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Resolved, never cwd-relative: `agronaut` is an installed command run from anywhere, and a
+# cwd-relative corpus degrades RAG to KNOWLEDGE_UNAVAILABLE without ever raising. See
+# agronaut_agent/paths.py for why the answer depends on how Agronaut was installed.
+from agronaut_agent import paths as _paths
 
-URL_FILE = str(_PROJECT_ROOT / "urls.txt")
-KNOWLEDGE_DIR = str(_PROJECT_ROOT / "knowledge")
+_CORPUS_ROOT = _paths.corpus_root()
+
+URL_FILE = str(_CORPUS_ROOT / "urls.txt")
+KNOWLEDGE_DIR = str(_CORPUS_ROOT / "knowledge")
 WEB_LOAD_TIMEOUT = 20
 
 
@@ -50,7 +52,7 @@ CHUNK_OVERLAP = 100
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 3
 
-CACHE_NAME = str(_PROJECT_ROOT / "web_cache")   # absolute: see _PROJECT_ROOT above
+CACHE_NAME = str(_paths.cache_dir() / "web_cache")   # never the install root; see paths.py
 CACHE_EXPIRE = 86_400  # 1 day
 
 LOG_LEVEL = logging.INFO
@@ -1770,7 +1772,11 @@ def handle_turn(user: str) -> None:
 # =============================================================================
 
 
-INDEX_CACHE_DIR = _PROJECT_ROOT / "data" / ".index_cache"
+# cache_dir(), not the corpus root: the built index is regenerable from knowledge/ + urls.txt,
+# so it belongs with the other caches. In a checkout that resolves to the project root, keeping
+# the existing data/.index_cache/ path (and its .gitignore entry); once installed it lands in a
+# per-user cache directory instead of trying to write inside site-packages.
+INDEX_CACHE_DIR = _paths.cache_dir() / "data" / ".index_cache"
 INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
 
 
