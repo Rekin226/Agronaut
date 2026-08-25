@@ -136,6 +136,15 @@ def build_case(
     cost_items = reg.get("items", {})
     findings: list[str] = []
 
+    # Year one is not steady state: fish stocked as fingerlings eat and yield less than the
+    # design's nameplate rate, so a first-year case flatters the running cost AND
+    # understates the harvest. Say so wherever the cost side was built on simulated feed.
+    if any("simulated year" in (line.takeoff.note or "") for line in cost.opex_per_year):
+        findings.append(
+            "this is a FIRST-YEAR case: fish stocked as fingerlings both eat less and "
+            "yield less than a system running at its designed standing crop — a steady "
+            "state with staggered cohorts moves both sides up")
+
     scale = 365.0 / summary.days if summary.days else 1.0
     if abs(scale - 1.0) > 0.02:
         findings.append(

@@ -985,12 +985,15 @@ def business_case(
                 "asking whether it pays.")
     layout = plan_layout(out, crop_label=crop_key, species_label=species_key)
     gh, mode = _greenhouse_from(greenhouse, None)
-    cost = estimate_cost(out, layout, book, region_key, species_key=species_key,
-                         greenhouse_mode=mode if mode == "shade" else "poly")
+    # Simulate FIRST, then cost the feed the fish actually ate — pricing the design's
+    # steady-state feed rate against a simulated first year's harvest is not like-for-like.
     init = start_state_from_design(out, species, water_temp_c=weather[0].t_mean_c,
                                    start_weight_g=20.0, cycled=False)
     run = simulate_production(init, weather[:365], species, species_key, crop_obj,
                               float(grow_area_m2), params=_PP(greenhouse=gh))
+    cost = estimate_cost(out, layout, book, region_key, species_key=species_key,
+                         greenhouse_mode=mode if mode == "shade" else "poly",
+                         feed_kg_year=run.summary.feed_used_kg)
     case = build_case(run.summary, cost, book, region_key, crop_key=crop_key,
                       species_key=species_key, crop_category=crop_obj.category,
                       labour_hours_per_week=labour_hours_per_week)
