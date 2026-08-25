@@ -16,8 +16,13 @@ langchain-huggingface             # hf (hosted, needs HUGGINGFACEHUB_API_TOKEN) 
 langchain-nvidia-ai-endpoints     # nvidia (hosted NIM, needs NVIDIA_API_KEY) — tool-calling brain for the bot
 
 # Messaging channels (the personal-assistant gateway)
-python-telegram-bot>=21           # Telegram bot (agronaut_agent/channels/telegram_adapter.py)
+python-telegram-bot[job-queue]>=21  # Telegram bot (agronaut_agent/channels/telegram_adapter.py); job-queue extra powers the follow-up poller
+# faster-whisper                    # OPTIONAL: local speech-to-text for voice notes (ASR_PROVIDER=local). Install only for voice; offline after first model download.
+# langchain-openai                  # OPTIONAL: self-hosted OpenAI-compatible tool-calling backend (LLM_PROVIDER=openai_compat, e.g. vLLM/llama.cpp). Zero-proprietary-API path.
 faiss-cpu
+rank_bm25                           # keyword half of hybrid retrieval (agronaut_agent/rag.py). Imported lazily and shipped disabled by default (see hybrid_enabled()), but REQUIRED: without it hybrid silently degrades to dense-only instead of failing.
+pypdf                               # extracts text from PDF knowledge sources — FAO/extension publications are PDFs (srcs/chatbot.py _pdf_documents). Without it every PDF source silently contributes zero chunks.
+Pillow                              # renders the PNG system schematic (aqua_model/schematic.py to_png)
 openpyxl
 streamlit
 markdown

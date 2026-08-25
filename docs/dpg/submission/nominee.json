@@ -1,0 +1,57 @@
+{
+  "name": "Agronaut",
+  "aliases": [],
+  "description": "An open-source conversational agronomy agent for aquaponics and hydroponics. A deterministic, unit-tested engineering core sizes and optimizes soil-less food systems and produces cited designs; a pluggable open-weights language model collects facts, routes to the right tool, and explains results. Reachable on Telegram, WhatsApp, and the web, in text, photo, or voice.",
+  "website": "https://github.com/Rekin226/Agronaut",
+  "license": [
+    { "spdx": "MIT", "licenseURL": "https://github.com/Rekin226/Agronaut/blob/main/LICENSE" }
+  ],
+  "SDGs": [
+    { "SDGNumber": 2, "evidenceText": "Sizes and optimizes productive aquaponic/hydroponic food systems for smallholders (targets 2.3, 2.4).", "evidenceURL": "https://github.com/Rekin226/Agronaut/blob/main/docs/dpg/SDG_MAPPING.md" },
+    { "SDGNumber": 6, "evidenceText": "Optimizes water-use efficiency and checks designs against a fixed daily water budget (target 6.4).", "evidenceURL": "https://github.com/Rekin226/Agronaut/blob/main/docs/dpg/SDG_MAPPING.md" },
+    { "SDGNumber": 12, "evidenceText": "An independent nitrogen consistency check flags over-sizing, reducing wasted feed/water/materials (target 12.2).", "evidenceURL": "https://github.com/Rekin226/Agronaut/blob/main/docs/dpg/SDG_MAPPING.md" }
+  ],
+  "sectors": ["Agriculture"],
+  "type": ["software"],
+  "repositoryURL": "https://github.com/Rekin226/Agronaut",
+  "organizations": [
+    { "name": "[CONFIRM — maintainer or organization name]", "website": "https://github.com/Rekin226/Agronaut", "org_type": "owner", "contact_name": "[CONFIRM]", "contact_email": "[CONFIRM]" }
+  ],
+  "stage": "nominee",
+  "clearOwnership": {
+    "isOwnershipExplicit": "Yes",
+    "copyrightURL": "https://github.com/Rekin226/Agronaut/blob/main/LICENSE"
+  },
+  "platformIndependence": {
+    "mandatoryDepsCreatePlatformDependency": "No",
+    "isSupportingIndependence": "Yes",
+    "evidenceText": "Tool-calling assistant runs on self-hosted open-weights via LLM_PROVIDER=openai_compat; deterministic design/optimizer modes need no LLM; channels are abstracted (Telegram/WhatsApp/REPL), enforced by test.",
+    "evidenceURL": "https://github.com/Rekin226/Agronaut/blob/main/agronaut_agent/tests/test_channels.py"
+  },
+  "documentation": {
+    "isDocumentationAvailable": "Yes",
+    "documentationURL": "https://github.com/Rekin226/Agronaut/tree/main/docs"
+  },
+  "extractingData": {
+    "isDataExtractable": "Yes",
+    "dataExtractableText": "Users export all their data as open JSON in-chat via /export; erase it via /delete_me. Storage is SQLite.",
+    "dataExtractableURL": "https://github.com/Rekin226/Agronaut/blob/main/agronaut_agent/tests/test_data_rights.py"
+  },
+  "adherenceToPrivacyLaws": {
+    "isForNAPrivacyPolicy": "No",
+    "privacyPolicyURL": "https://github.com/Rekin226/Agronaut/blob/main/docs/dpg/PRIVACY.md",
+    "evidenceText": "Documented policy: collection, purpose limitation, retention, access control, consent, right to erasure; data minimization; no training on user data; content-free analytics."
+  },
+  "adherenceToStandards": {
+    "evidenceText": "OpenAI-compatible API, WhatsApp Cloud API, sentence-transformers, agentskills.io; TDD with a 344-test suite; cited coefficients (FAO 589, UVI/Rakocy); a per-release advice-safety golden set.",
+    "evidenceURL": "https://github.com/Rekin226/Agronaut/tree/main/docs/dpg/safety_eval"
+  },
+  "doNoHarm": {
+    "harmMitigationText": "A validation gate rejects unvalidated input; every quantitative answer cites its source coefficients and lists what is NOT modeled; the LLM is forbidden from inventing numbers; cross-operator sharing is human-gated and PII-stripped; a 191-probe advice-safety golden set is scored each release.",
+    "PIICollected": "Yes",
+    "PIICollectedText": "Only user-provided system facts and conversation; stored locally; user-erasable via /delete_me. No training on user data.",
+    "aiEthicsText": "Trains no models. Retrieval draws only from cited public sources, each surfaced with its [source:] label. See docs/dpg/AI_TRANSPARENCY.md.",
+    "evidenceURL": "https://github.com/Rekin226/Agronaut/blob/main/docs/dpg/AI_TRANSPARENCY.md"
+  },
+  "_note": "Field names follow the DPG Standard indicators; reconcile exact keys with the current DPGAlliance/publicgoods-candidates JSON schema at submission time. [CONFIRM] values require the owner."
+}

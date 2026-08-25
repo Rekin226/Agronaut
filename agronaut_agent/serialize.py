@@ -8,7 +8,7 @@ a reviewer can trace every number back to a cited coefficient.
 
 from __future__ import annotations
 
-from aqua_model.types import DesignOutput
+from aqua_model.types import DesignOutput, HydroponicOutput
 from aqua_model.optimizer import OptimizeResult, Candidate
 
 
@@ -27,16 +27,27 @@ def serialize_validation_error(errors: list[str]) -> str:
 def serialize_design_output(out: DesignOutput) -> str:
     lines: list[str] = []
     if out.feasible:
-        lines.append("FEASIBLE design.")
+        lines.append(f"FEASIBLE design ({out.grow_bed_label}).")
     else:
         lines.append(f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
+
+    if out.crop_plan:
+        mix = ", ".join(f"{p['crop']} {_g(p['area_m2'])} m2" for p in out.crop_plan)
+        lines.append(f"Mixed beds (crops sharing the water): {mix}")
+
+    if out.footprint_ratio != 1.0:
+        lines.append(
+            f"Floor footprint: ~{_g(out.footprint_m2)} m2 of floor for {_g(out.grow_area_m2)} m2 "
+            f"of growing area (vertical towers pack ~{_g(out.footprint_ratio)}x)."
+        )
 
     lines.append(
         "Sizing: "
         f"feed={_g(out.feed_g_per_day)} g/day, fish={out.fish_count} head, "
         f"biomass={_g(out.fish_biomass_kg)} kg, system_volume={_g(out.system_volume_l)} L, "
-        f"rearing_tank={_g(out.rearing_tank_volume_l)} L, pump={_g(out.pump_turnover_lph)} L/h, "
-        f"makeup_water={_g(out.makeup_water_lpd)} L/day"
+        f"rearing_tank={_g(out.rearing_tank_volume_l)} L, "
+        f"pump={_g(out.pump_turnover_lph)} L/h against {_g(out.pump_head_m)} m head "
+        f"(~{_g(out.pump_power_w)} W), makeup_water={_g(out.makeup_water_lpd)} L/day"
     )
     if out.biofilter_media_m2 is not None:
         lines.append(f"Biofilter media: ~{_g(out.biofilter_media_m2)} m2 surface")
@@ -72,6 +83,50 @@ def serialize_design_output(out: DesignOutput) -> str:
         lines.append("NOT modeled (surface these caveats to the user):")
         lines += [f"  - {n}" for n in out.not_modeled]
 
+    return "\n".join(lines)
+
+
+def serialize_hydroponic_output(out: HydroponicOutput) -> str:
+    lines: list[str] = []
+    lines.append(f"FEASIBLE hydroponic design ({out.grow_bed_label})." if out.feasible
+                 else f"NOT FEASIBLE — binding constraint: {out.binding_constraint}.")
+    if out.footprint_ratio != 1.0:
+        lines.append(
+            f"Floor footprint: ~{_g(out.footprint_m2)} m2 of floor for {_g(out.grow_area_m2)} m2 "
+            f"of growing area (vertical towers pack ~{_g(out.footprint_ratio)}x)."
+        )
+    lines.append(
+        "Sizing (no fish — nutrient solution): "
+        f"grow_area={_g(out.grow_area_m2)} m2, reservoir={_g(out.reservoir_volume_l)} L, "
+        f"daily_water_use={_g(out.daily_water_use_lpd)} L/day, "
+        f"makeup_water={_g(out.makeup_water_lpd)} L/day, "
+        f"pump={_g(out.pump_turnover_lph)} L/h against {_g(out.pump_head_m)} m head "
+        f"(~{_g(out.pump_power_w)} W)"
+    )
+    nt = out.nutrient_target
+    if nt:
+        ec = nt.get("ec_mS_cm", {})
+        lines.append(
+            f"Nutrient target: EC {_g(ec.get('low', 0))}-{_g(ec.get('high', 0))} mS/cm "
+            f"(aim {_g(ec.get('target', 0))}), elemental N {_g(nt.get('elemental_n_g_per_day', 0))} "
+            f"g/day, pH {nt.get('ph_target')}. {nt.get('note', '')}"
+        )
+    if out.bill_of_materials:
+        lines.append("Bill of materials:")
+        for item in out.bill_of_materials:
+            lines.append("  - " + ", ".join(f"{k}={v}" for k, v in item.items()))
+    if out.operating_envelope:
+        lines.append(f"Operating envelope: {out.operating_envelope}")
+    if out.coefficients_used:
+        lines.append("Coefficients used (cite these — every number traces here):")
+        for c in out.coefficients_used:
+            lines.append(f"  - {c.name} = {_g(c.value)} {c.unit} "
+                         f"(range {_g(c.low)}-{_g(c.high)}; source: {c.source})")
+    if out.warnings:
+        lines.append("Warnings: " + " | ".join(out.warnings))
+    if out.not_modeled:
+        lines.append("NOT modeled (surface these caveats to the user):")
+        lines += [f"  - {n}" for n in out.not_modeled]
     return "\n".join(lines)
 
 

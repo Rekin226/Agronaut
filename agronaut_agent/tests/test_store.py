@@ -94,3 +94,148 @@ def test_forget_wipes_memory_and_summary(stores):
     assert mem.memory_count(uid) == 0
     assert mem.get_summary(uid) is None
     assert mem.get_facts(uid) == {}
+
+
+from agronaut_agent.store import _Db, FollowupStore, _now
+
+
+def _fs():
+    return FollowupStore(_Db(":memory:"))
+
+
+def test_schedule_one_open_per_user():
+    fs = _fs()
+    assert fs.schedule("telegram:1", "telegram", "1", "did it work?", "ammonia", "2000-01-01T00:00:00+00:00")
+    # a second while one is still open is refused
+    assert fs.schedule("telegram:1", "telegram", "1", "again?", "ph", "2000-01-01T00:00:00+00:00") is False
+
+
+def test_due_returns_only_past_due_pending_for_channel():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q1", "a", "2000-01-01T00:00:00+00:00")  # past
+    fs.schedule("telegram:2", "telegram", "2", "q2", "a", "2999-01-01T00:00:00+00:00")  # future
+    due = fs.due("telegram", _now())
+    assert [d["question"] for d in due] == ["q1"]
+
+
+def test_sent_is_not_returned_by_due_no_nagging():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q1", "a", "2000-01-01T00:00:00+00:00")
+    row = fs.due("telegram", _now())[0]
+    fs.mark_sent(row["id"])
+    assert fs.due("telegram", _now()) == []          # never resent
+    assert fs.open_for("telegram:1")["status"] == "sent"
+
+
+def test_bump_attempt_and_fail():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.bump_attempt(fid) == 1 and fs.bump_attempt(fid) == 2 and fs.bump_attempt(fid) == 3
+    fs.mark_failed(fid)
+    assert fs.open_for("telegram:1") is None          # failed is not "open"
+
+
+def test_answer_and_cancel_free_the_slot():
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fs.mark_answered(fs.open_for("telegram:1")["id"])
+    # answered frees the slot -> a new one can be scheduled
+    assert fs.schedule("telegram:1", "telegram", "1", "q2", "a", "2999-01-01T00:00:00+00:00")
+    fs.cancel(fs.open_for("telegram:1")["id"])
+    assert fs.open_for("telegram:1") is None
+
+
+from agronaut_agent.store import CommunityStore
+
+
+def _cs():
+    return CommunityStore(_Db(":memory:"))
+
+
+def test_nominate_dedups_and_rejects_blank():
+    cs = _cs()
+    assert cs.nominate("telegram:1", "raw ctx", "a partial water change clears an ammonia spike", "ammonia")
+    # normalized-equal (case-insensitive) duplicate is refused
+    assert cs.nominate("telegram:2", "x", "A PARTIAL water change clears an ammonia spike", "ammonia") is False
+    # blank insight refused
+    assert cs.nominate("telegram:3", "x", "   ", "ammonia") is False
+
+
+def test_pending_lists_only_pending_oldest_first():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "insight one", "a")
+    cs.nominate("telegram:1", "x", "insight two", "b")
+    pend = cs.pending()
+    assert [p["insight"] for p in pend] == ["insight one", "insight two"]
+
+
+def test_approve_makes_it_searchable_reject_does_not():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "raise KH to stabilize pH swings", "ph")
+    cid = cs.pending()[0]["id"]
+    cs.approve(cid)
+    assert cs.pending() == []
+    hits = cs.search_approved("pH")
+    assert len(hits) == 1 and hits[0]["insight"] == "raise KH to stabilize pH swings"
+
+    cs.nominate("telegram:2", "x", "add shade cloth in summer heat", "temperature")
+    cs.reject(cs.pending()[0]["id"])
+    assert cs.search_approved("shade") == []          # rejected never surfaces
+
+
+def test_search_approved_never_leaks_identity_or_original():
+    cs = _cs()
+    cs.nominate("telegram:secret", "private: 3000L IBC in Burkina", "aerate at dawn to prevent DO crashes", "do")
+    cs.approve(cs.pending()[0]["id"])
+    hit = cs.search_approved("DO")[0]
+    assert set(hit.keys()) == {"insight", "topic"}     # no source_user_id, no original
+    assert "Burkina" not in str(hit)
+
+
+def test_approve_only_acts_on_pending():
+    cs = _cs()
+    cs.nominate("telegram:1", "x", "some insight", "t")
+    cid = cs.pending()[0]["id"]
+    cs.approve(cid)
+    cs.reject(cid)                                      # already approved -> no-op
+    assert len(cs.search_approved("some")) == 1         # still approved, not rejected
+
+
+from agronaut_agent.store import CalibrationStore
+
+
+def _cal():
+    return CalibrationStore(_Db(":memory:"))
+
+
+def test_overrides_need_two_in_range_measurements():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 1.4)
+    assert cs.overrides_for("telegram:1") == {}          # only one measurement
+    cs.record("telegram:1", "tilapia.fcr", 1.6)
+    assert cs.overrides_for("telegram:1") == {"tilapia.fcr": 1.5}  # mean 1.5, in range 0.9-1.8
+
+
+def test_out_of_range_mean_is_not_applied():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 3.0)
+    cs.record("telegram:1", "tilapia.fcr", 3.0)          # mean 3.0 > 1.8
+    assert "tilapia.fcr" not in cs.overrides_for("telegram:1")
+
+
+def test_unranged_coefficient_is_skipped():
+    cs = _cal()
+    cs.record("telegram:1", "clarias.harvest_weight", 0.6)
+    cs.record("telegram:1", "clarias.harvest_weight", 0.6)  # no calibration range exists
+    assert cs.overrides_for("telegram:1") == {}
+
+
+def test_calibration_report_reflects_status():
+    cs = _cal()
+    cs.record("telegram:1", "tilapia.fcr", 1.4)
+    cs.record("telegram:1", "tilapia.fcr", 1.6)
+    rep = {r["coefficient"]: r for r in cs.calibration_report("telegram:1")}
+    assert rep["tilapia.fcr"]["n"] == 2
+    assert rep["tilapia.fcr"]["applied"] is True
+    assert rep["tilapia.fcr"]["mean"] == 1.5

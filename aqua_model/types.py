@@ -21,10 +21,64 @@ class DesignInput:
 
     fish_species: str          # must exist in species.SPECIES
     crop: str                  # must exist in crops.CROPS
-    grow_area_m2: float        # the anchor; effective raft/DWC planted area
+    grow_area_m2: float        # the anchor; effective planted area
     temperature_c: float       # mean water temperature
     water_budget_lpd: float    # makeup water available per day (sanity-checked)
     source_water_note: str | None = None  # salinity/quality caveat
+    system_type: str = "raft"  # growing method: raft | nft | media_bed (system_types.py)
+    # Mixed beds: an optional ((crop_key, area_m2), ...) allocation. When set, it drives feed
+    # and total area (crop/grow_area_m2 above hold the dominant crop and the summed area). Empty
+    # => single-crop design, byte-identical to before. Built only by the validation gate.
+    crop_plan: tuple = ()
+
+
+@dataclass(frozen=True)
+class HydroponicInput:
+    """Fixed inputs for ONE hydroponic system (nutrient solution, no fish). Built only by
+    validate_hydroponic_input — the trust gate — never from raw LLM output."""
+
+    crop: str                  # must exist in crops.CROPS
+    grow_area_m2: float        # the anchor; planted area
+    temperature_c: float       # mean ambient/solution temperature
+    water_budget_lpd: float    # makeup water available per day
+    source_water_note: str | None = None
+    system_type: str = "raft"  # growing method: raft | nft | media_bed (system_types.py)
+
+
+@dataclass
+class HydroponicOutput:
+    feasible: bool
+    binding_constraint: str | None = None
+    system_type: str = "raft"
+    grow_bed_label: str = "DWC raft / NFT channel grow bed"
+    footprint_ratio: float = 1.0             # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0                # floor space the system actually occupies
+
+    footprint_ratio: float = 1.0        # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0           # floor space the system actually occupies
+
+    # --- sizing numbers ---
+    grow_area_m2: float = 0.0
+    reservoir_volume_l: float = 0.0     # nutrient-solution reservoir (no fish tank)
+    daily_water_use_lpd: float = 0.0    # ET-driven solution consumption
+    makeup_water_lpd: float = 0.0
+    pump_turnover_lph: float = 0.0
+    pump_head_m: float = 0.0            # total dynamic head the pump works against
+    pump_power_w: float = 0.0           # estimated electrical power at that flow + head
+
+    # --- nutrient solution (the hydroponics-specific part) ---
+    nutrient_target: dict = field(default_factory=dict)  # EC band + elemental-N/day
+
+    # --- build artifacts ---
+    bill_of_materials: list[dict] = field(default_factory=list)
+    operating_envelope: dict = field(default_factory=dict)
+    maintenance_checklist: list[str] = field(default_factory=list)
+
+    # --- honesty layer ---
+    coefficients_used: list["CoefficientUse"] = field(default_factory=list)
+    not_modeled: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -43,6 +97,13 @@ class CoefficientUse:
 class DesignOutput:
     feasible: bool
     binding_constraint: str | None = None   # set when infeasible -> nearest-feasible hint
+    system_type: str = "raft"               # growing method used (for labels/schematic)
+    grow_bed_label: str = "raft / DWC grow beds"
+    # Populated only for mixed beds (>1 crop): [{"crop": name, "area_m2": a}, ...]. Empty for a
+    # single-crop design, so single-crop output/serialization is unchanged.
+    crop_plan: list = field(default_factory=list)
+    footprint_ratio: float = 1.0             # grow area per m² of floor (>1 for towers)
+    footprint_m2: float = 0.0                # floor space the system actually occupies
 
     # --- sizing numbers ---
     system_volume_l: float = 0.0
@@ -52,6 +113,8 @@ class DesignOutput:
     feed_g_per_day: float = 0.0
     grow_area_m2: float = 0.0
     pump_turnover_lph: float = 0.0
+    pump_head_m: float = 0.0                 # total dynamic head the pump works against
+    pump_power_w: float = 0.0                # estimated electrical power at that flow + head
     biofilter_media_m2: float | None = None
     makeup_water_lpd: float = 0.0
 

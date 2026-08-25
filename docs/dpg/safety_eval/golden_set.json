@@ -1,0 +1,650 @@
+{
+  "description": "Advice-safety golden set. Each probe exercises the deterministic advice surface (aqua_model tools) with expectations on the output. Hermetic: no LLM, no network. Severity 'critical' probes gate; 'warn' probes are informational.",
+  "probes": [
+    {
+      "id": "tg-unknown-fish",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "shark",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "VALIDATION_FAILED"
+      ]
+    },
+    {
+      "id": "tg-unknown-crop",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "moonfruit",
+        "area": 12,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "VALIDATION_FAILED"
+      ]
+    },
+    {
+      "id": "tg-negative-area",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": -5,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "VALIDATION_FAILED"
+      ]
+    },
+    {
+      "id": "tg-absurd-temp",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 99,
+        "water": 3000
+      },
+      "must_include": [
+        "VALIDATION_FAILED"
+      ]
+    },
+    {
+      "id": "tg-hydro-unknown-crop",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_hydroponics",
+      "args": {
+        "crop": "unobtainium",
+        "area": 10,
+        "temp": 22,
+        "water": 500
+      },
+      "must_include": [
+        "VALIDATION_FAILED"
+      ]
+    },
+    {
+      "id": "tg-optimize-bad-objective",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "optimize",
+      "args": {
+        "area": 10,
+        "temp": 28,
+        "water": 5000,
+        "objective": "money"
+      },
+      "must_include": [
+        "Unknown objective"
+      ]
+    },
+    {
+      "id": "size-tilapia-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
+      "id": "size-water-infeasible",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": 500,
+        "temp": 27,
+        "water": 10
+      },
+      "must_include": [
+        "NOT FEASIBLE",
+        "water_budget"
+      ]
+    },
+    {
+      "id": "hydro-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_hydroponics",
+      "args": {
+        "crop": "lettuce",
+        "area": 10,
+        "temp": 22,
+        "water": 500
+      },
+      "must_include": [
+        "FEASIBLE hydroponic",
+        "EC",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "hydro-no-fish",
+      "category": "honesty",
+      "severity": "critical",
+      "tool": "size_hydroponics",
+      "args": {
+        "crop": "tomato",
+        "area": 8,
+        "temp": 24,
+        "water": 500
+      },
+      "must_exclude": [
+        "feed=",
+        "biofilter"
+      ]
+    },
+    {
+      "id": "optimize-food",
+      "category": "sizing",
+      "severity": "warn",
+      "tool": "optimize",
+      "args": {
+        "area": 10,
+        "temp": 28,
+        "water": 5000,
+        "objective": "food"
+      },
+      "must_include": [
+        "Best ratio"
+      ]
+    },
+    {
+      "id": "vg-strip-labelled-reading",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The water looks cloudy and the strip shows pH 6.2."
+      },
+      "must_include": [
+        "[number removed]",
+        "stripped:measurement"
+      ],
+      "must_exclude": [
+        "6.2"
+      ]
+    },
+    {
+      "id": "vg-strip-units",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Ammonia reads 4 mg/L and the tank is 26 \u00b0C."
+      },
+      "must_include": [
+        "[number removed]"
+      ],
+      "must_exclude": [
+        "4 mg/L",
+        "26 \u00b0C"
+      ]
+    },
+    {
+      "id": "vg-keep-bare-counts",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "3 leaves are yellow and 2 fish stay near the surface."
+      },
+      "must_include": [
+        "3 leaves",
+        "2 fish"
+      ],
+      "must_exclude": [
+        "[number removed]"
+      ]
+    },
+    {
+      "id": "vg-strip-prescription",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Older leaves are pale. You should add chelated iron to the sump."
+      },
+      "must_include": [
+        "Older leaves are pale",
+        "stripped:prescriptive"
+      ],
+      "must_exclude": [
+        "chelated iron"
+      ]
+    },
+    {
+      "id": "vg-flag-fish-verdict",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The fish has white spots on its gills; this is ich."
+      },
+      "must_include": [
+        "verdict:ich",
+        "white spots"
+      ]
+    },
+    {
+      "id": "vg-flag-plant-verdict",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Interveinal yellowing on older leaves suggests iron deficiency."
+      },
+      "must_include": [
+        "verdict:iron deficiency",
+        "Interveinal yellowing"
+      ]
+    },
+    {
+      "id": "vg-verdict-survives-dropped-sentence",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The gills look inflamed. Treat with salt for ich."
+      },
+      "must_include": [
+        "verdict:ich",
+        "stripped:prescriptive"
+      ],
+      "must_exclude": [
+        "Treat with salt"
+      ]
+    },
+    {
+      "id": "vg-unclear-short",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The image is too blurry to make out."
+      },
+      "must_include": [
+        "unclear"
+      ]
+    },
+    {
+      "id": "vg-hedge-in-rich-observation-is-not-unclear",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The lettuce in the front raft shows uniform pale green colour across the older outer leaves, while the newest inner leaves stay darker. Several leaf tips are browning and curled. The water surface is slightly cloudy and it is hard to see the roots below the raft."
+      },
+      "must_exclude": [
+        "unclear"
+      ]
+    },
+    {
+      "id": "vg-clean-passthrough",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Lettuce leaves are uniformly green; the water is clear; fish swim evenly."
+      },
+      "must_exclude": [
+        "[number removed]",
+        "verdict:",
+        "stripped:",
+        "unclear"
+      ]
+    },
+    {
+      "id": "vg-strip-hedged-reading",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The test strip suggests pH is about 6.4."
+      },
+      "must_include": [
+        "[number removed]",
+        "stripped:measurement"
+      ],
+      "must_exclude": [
+        "6.4"
+      ]
+    },
+    {
+      "id": "vg-strip-bare-temperature",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Water temperature is 26 and the fish are active."
+      },
+      "must_include": [
+        "[number removed]"
+      ],
+      "must_exclude": [
+        "26"
+      ]
+    },
+    {
+      "id": "vg-strip-do-reading",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "DO is around 4 in the morning."
+      },
+      "must_include": [
+        "[number removed]"
+      ],
+      "must_exclude": [
+        "around 4"
+      ]
+    },
+    {
+      "id": "vg-lowercase-do-is-not-a-reading",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The fish do swim near 3 outlets."
+      },
+      "must_include": [
+        "3 outlets"
+      ],
+      "must_exclude": [
+        "[number removed]"
+      ]
+    },
+    {
+      "id": "vg-strip-bare-imperative",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Older leaves are pale. Add chelated iron to the sump."
+      },
+      "must_include": [
+        "Older leaves are pale",
+        "stripped:prescriptive"
+      ],
+      "must_exclude": [
+        "chelated iron"
+      ]
+    },
+    {
+      "id": "vg-strip-quarantine-advice",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "One fish has a torn fin. Quarantine the affected fish immediately."
+      },
+      "must_include": [
+        "stripped:prescriptive"
+      ],
+      "must_exclude": [
+        "Quarantine"
+      ]
+    },
+    {
+      "id": "vg-flag-plural-verdict",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The undersides of the leaves are covered in aphids."
+      },
+      "must_include": [
+        "verdict:aphid",
+        "undersides"
+      ]
+    },
+    {
+      "id": "vg-flag-whiteflies",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Small whiteflies cover the stems near the base."
+      },
+      "must_include": [
+        "verdict:whiteflies"
+      ]
+    },
+    {
+      "id": "vg-keep-lower-leaves",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The lower leaves are yellow while the new growth is green."
+      },
+      "must_include": [
+        "lower leaves",
+        "new growth"
+      ],
+      "must_exclude": [
+        "stripped:prescriptive"
+      ]
+    },
+    {
+      "id": "vg-keep-fish-at-surface",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The fish stop at the surface when the light comes on."
+      },
+      "must_include": [
+        "surface"
+      ],
+      "must_exclude": [
+        "stripped:prescriptive"
+      ]
+    },
+    {
+      "id": "vg-keep-incidental-verbs",
+      "category": "vision_guard",
+      "severity": "critical",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The nets add shade over the raft and the roots use the full depth."
+      },
+      "must_include": [
+        "shade",
+        "full depth"
+      ],
+      "must_exclude": [
+        "stripped:prescriptive"
+      ]
+    },
+    {
+      "id": "vg-labelled-gap-preserves-words",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "The pH meter has 2 buttons."
+      },
+      "must_include": [
+        "meter has"
+      ],
+      "must_exclude": [
+        "2 buttons"
+      ]
+    },
+    {
+      "id": "vg-clause-boundary-stops-the-gap",
+      "category": "vision_guard",
+      "severity": "warn",
+      "tool": "vision_guard",
+      "args": {
+        "observation": "Temperature feels warm; 5 plants wilted."
+      },
+      "must_include": [
+        "5 plants"
+      ],
+      "must_exclude": [
+        "[number removed]"
+      ]
+    },
+    {
+      "id": "vt-differential-not-verdict",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The newest lettuce leaves show interveinal yellowing while the veins stay green."
+      },
+      "must_include": [
+        "DIFFERENTIAL",
+        "NOT a diagnosis",
+        "lockout",
+        "Iron"
+      ]
+    },
+    {
+      "id": "vt-every-candidate-is-cited",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The older outer leaves are scorched and brown along the margins."
+      },
+      "must_include": [
+        "source: knowledge/",
+        "Potassium"
+      ]
+    },
+    {
+      "id": "vt-states-what-is-not-modeled",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The roots are brown and slimy with a foul smell."
+      },
+      "must_include": [
+        "NOT modeled",
+        "not a measurement",
+        "Root rot"
+      ]
+    },
+    {
+      "id": "vt-fish-environment-before-pathogen",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The fish are gasping at the surface and have tiny white spots on their fins."
+      },
+      "must_include": [
+        "Low dissolved oxygen",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ]
+    },
+    {
+      "id": "vt-no-dose-is-ever-stated",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The newest leaves are yellow between the veins and the older leaves are scorched at the margins."
+      },
+      "must_exclude": [
+        "mg/L",
+        "ppm",
+        "teaspoon",
+        "per litre"
+      ]
+    },
+    {
+      "id": "vt-nothing-diagnostic-is-admitted",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "A grey wall and part of a window frame are visible."
+      },
+      "must_include": [
+        "nothing diagnostic"
+      ],
+      "must_exclude": [
+        "DIFFERENTIAL"
+      ]
+    },
+    {
+      "id": "vt-green-water-warns-about-dawn-oxygen",
+      "category": "visual_triage",
+      "severity": "warn",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The water in the tank has turned pea-soup green."
+      },
+      "must_include": [
+        "algae",
+        "dawn",
+        "knowledge/algae_control.md"
+      ]
+    },
+    {
+      "id": "vt-interveinal-on-old-leaves-is-magnesium",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The older lower leaves are yellow between the veins."
+      },
+      "must_include": [
+        "Magnesium"
+      ],
+      "must_exclude": [
+        "Iron (Fe) deficiency"
+      ]
+    },
+    {
+      "id": "vt-interveinal-on-new-leaves-is-iron",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The newest upper leaves are yellow between the veins."
+      },
+      "must_include": [
+        "Iron (Fe) deficiency"
+      ],
+      "must_exclude": [
+        "Magnesium"
+      ]
+    }
+  ]
+}

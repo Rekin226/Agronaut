@@ -1,13 +1,16 @@
 # TODOS
 
+> **Active plan:** the phased gap-closure plan (vs hermes-agent + DPG funding ladder) lives in
+> [`docs/PLAN.md`](docs/PLAN.md) — work it top-to-bottom, one task per PR.
+
 ## Product (deferred from CEO review 2026-06-16)
-- [ ] **Pilot-proposal generator.** A funder-ready document: proposed system for a site + the
-  ask, projected food/water outcomes, cost, and the data the install will produce.
+- [x] **Pilot-proposal generator.** A funder-ready document: proposed system for a site + the
+  ask, projected food/water outcomes, and the data the install will produce.
   - **Why:** the artifact that moves a B2G deal.
-  - **Context:** thin wrapper over the M1 PDF report export. Build at sequencing step 3 — after
-    the Taiwan-system validation exists and a real in-region partner / program officer can shape
-    the framing. Do NOT build speculatively.
-  - **Depends on:** M1 report export; one live funding/partner conversation. Priority P2.
+  - **DONE (2026-07-25):** `aqua_model/pilot.py` (`PilotInfo`, `projected_outcomes`,
+    `to_pilot_proposal`) + agent tool `render_pilot_proposal`. Deterministic, cited, honesty
+    layer preserved. Built ahead of a partner conversation as evidence/outreach scaffolding
+    (the go-to-market pivot), with the framing designed to be tuned once a partner engages.
 - [ ] **Report sensitivity table.** Show outcome deltas when water budget or crop mix vary
   (e.g. +20% water → +X kg/yr). Persuasive for funders.
   - **Why:** makes a design feel analyzed, not asserted.

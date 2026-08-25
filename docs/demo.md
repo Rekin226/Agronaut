@@ -14,9 +14,17 @@ Community Cloud's free tier, because the demo installs the light **`requirements
    - Branch: `main`
    - Main file path: `app.py`
 3. **Advanced settings → Custom subdomain:** enter `agronaut` so the URL becomes
-   **`https://agronaut.streamlit.app`** (the link already wired into the README). If that
-   subdomain is taken, pick another and update the two links at the top of `README.md`.
-4. **Deploy.** First build takes ~1–2 min. The Calculator and Optimizer are fully
+   **`https://agronaut.streamlit.app`**, or pick another if that is taken.
+4. **Once it is actually live, add the badge to `README.md`** — it is deliberately not there
+   yet. A "Try the live demo" link that lands on a Streamlit login wall is worse than no link,
+   because a reader spends their first click discovering the project overpromises:
+
+   ```markdown
+   ### [▶ Try the live demo](https://YOUR-SUBDOMAIN.streamlit.app)
+
+   [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://YOUR-SUBDOMAIN.streamlit.app)
+   ```
+5. **Deploy.** First build takes ~1–2 min. The Calculator and Optimizer are fully
    interactive; "Assistant (chat)" shows a friendly note that the optional chat stack
    isn't installed — expected and intentional for the demo.
 

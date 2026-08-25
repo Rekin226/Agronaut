@@ -49,7 +49,8 @@ def test_tool_loop_calls_tool_and_returns_numbers(tmp_path):
 
     roles = [m["role"] for m in agent._conv.recent_messages("cli:tester", limit=10)]
     assert roles == ["user", "tool", "assistant"]  # audit trail persisted
-    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27.0"
+    # temperature_c now comes from validated tool args (27) instead of parsed text (27.0)
+    assert agent._mem.get_facts("cli:tester")["temperature_c"] == "27"
 
 
 def test_no_tool_path_returns_plain_reply(tmp_path):
@@ -119,3 +120,284 @@ def test_reset_keeps_memory_forget_wipes_it(tmp_path):
     assert agent._mem.memory_count("telegram:9") == 1   # memory survives a conversation reset
     agent.forget_everything("telegram", "9")
     assert agent._mem.memory_count("telegram:9") == 0   # forget wipes it
+
+
+def test_recall_renders_profile_and_missing_essentials(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    uid = agent._conv.get_or_create_user("cli", "recall")
+    agent._mem.set_facts(uid, {"goal": "design", "fish_species": "tilapia"})
+
+    block = agent._recall_block(uid)
+    assert "YOUR SYSTEM" in block
+    assert "tilapia" in block
+    # the deterministic nudge lists exactly the still-blank design essentials
+    assert "Still need for design:" in block
+    for key in ("crop", "grow_area_m2", "temperature_c", "water_budget_lpd"):
+        assert key in block
+
+
+class _ConsultFake:
+    """Turn 1 -> call update_profile with what the user revealed; then -> a question."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Got it. What's your daily water budget?")
+        return AIMessage(content="", tool_calls=[{
+            "name": "update_profile", "id": "u1",
+            "args": {"updates": {"goal": "design", "fish_species": "tilapia",
+                                 "crop": "lettuce"}}}])
+
+
+def test_consultation_persists_profile_via_tool(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ConsultFake())
+    reply = agent.handle_message("telegram", "c1", "I want to set up tilapia and lettuce")
+    assert "water budget" in reply
+    facts = agent._mem.get_facts("telegram:c1")
+    assert facts["goal"] == "design"
+    assert facts["fish_species"] == "tilapia"
+    assert facts["crop"] == "lettuce"
+
+
+def test_system_prompt_is_consultative():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    lowered = SYSTEM_PROMPT.lower()
+    assert "goal" in lowered
+    assert "update_profile" in lowered
+    assert "essential" in lowered
+    # the old answer-dump instruction is gone
+    assert "answer directly" not in lowered
+
+
+def test_tool_args_persist_to_profile_without_update_profile(tmp_path):
+    # _FakeChat sizes a system but never calls update_profile; the profile must still fill.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_FakeChat())
+    agent.handle_message("cli", "cap", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    facts = agent._mem.get_facts("cli:cap")
+    assert facts["crop"] == "lettuce"
+    assert facts["grow_area_m2"] == "12"
+    assert facts["water_budget_lpd"] == "300"
+
+
+class _BoomChat:
+    """A primary model that always fails — exercises the resilience fallback."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        raise RuntimeError("primary model is down (timeout/starved)")
+
+
+def test_falls_back_when_primary_errors(tmp_path):
+    # primary raises on every call; the injected fallback (_ChattyFake) answers instead.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3",
+                          chat_model=_BoomChat(), fallback_model=_ChattyFake())
+    reply = agent.handle_message("cli", "fb", "hi there")
+    assert "Hello" in reply  # the fallback produced the answer; the turn was not lost
+
+
+def test_primary_error_propagates_without_a_fallback(tmp_path):
+    import pytest
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_BoomChat())
+    with pytest.raises(RuntimeError):
+        agent.handle_message("cli", "nofb", "hi")
+
+
+def test_set_goal_persists_and_confirms(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    msg = agent.set_goal("cli", "mode", "design")
+    assert "Design mode" in msg
+    assert agent._mem.get_facts("cli:mode")["goal"] == "design"
+
+
+def test_set_goal_does_not_reset_conversation(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent.handle_message("cli", "mode2", "hi")          # one turn of history
+    agent.set_goal("cli", "mode2", "troubleshoot")
+    # history survives a mode switch (mode only refocuses the goal)
+    assert len(agent._conv.recent_messages("cli:mode2")) >= 1
+
+
+def test_set_goal_rejects_unknown_goal(tmp_path):
+    import pytest
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    with pytest.raises(ValueError):
+        agent.set_goal("cli", "mode3", "frobnicate")
+
+
+def test_agent_exposes_followup_delivery_api(tmp_path):
+    from agronaut_agent.store import _now
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    # schedule a past-due follow-up directly via the agent's store
+    agent._followups.schedule("telegram:5", "telegram", "5", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    due = agent.due_followups("telegram")
+    assert len(due) == 1 and due[0]["question"] == "did it work?"
+    fid = due[0]["id"]
+    agent.mark_followup_sent(fid)
+    assert agent.due_followups("telegram") == []          # sent -> not due again
+
+    # send-failure path: 3 strikes -> failed
+    agent._followups.schedule("telegram:6", "telegram", "6", "q", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid2 = agent.due_followups("telegram")[0]["id"]
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    agent.followup_send_failed(fid2)
+    assert agent._followups.open_for("telegram:6") is None  # failed after 3 attempts
+
+
+class _LearningFake:
+    """Turn 1 -> save a learning memory; then -> final text. Mimics the model capturing
+    an outcome when it sees the capture note."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Glad it worked!")
+        return AIMessage(content="", tool_calls=[{
+            "name": "remember_about_user", "id": "c1",
+            "args": {"note": "30% water change fixed the ammonia spike", "category": "learning"}}])
+
+
+def test_sent_followup_is_answered_on_next_reply(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_LearningFake())
+    # a follow-up was delivered and is awaiting the user's answer
+    agent._followups.schedule("telegram:9", "telegram", "9", "did it work?", "ammonia",
+                              "2000-01-01T00:00:00+00:00")
+    agent._followups.mark_sent(agent._followups.open_for("telegram:9")["id"])
+    agent.handle_message("telegram", "9", "yes it worked great")
+    assert agent._followups.open_for("telegram:9") is None        # answered -> slot freed
+    assert agent._mem.memory_count("telegram:9") == 1             # outcome saved as learning
+
+
+def test_pending_followup_cancelled_when_user_messages_first(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("telegram:10", "telegram", "10", "did it work?", "x",
+                              "2999-01-01T00:00:00+00:00")  # not yet due/sent
+    agent.handle_message("telegram", "10", "hey, new question")
+    assert agent._followups.open_for("telegram:10") is None       # cancelled, not asked
+
+
+def test_system_prompt_mentions_followups_and_outcomes():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "schedule_followup" in low
+    assert "worked" in low  # capture outcomes as learnings
+
+
+class _NominateFake:
+    """Turn 1 -> nominate a shared insight; then -> final text."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Shared for review.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "nominate_shared_insight", "id": "n1",
+            "args": {"insight": "a partial water change commonly clears an acute ammonia spike",
+                     "topic": "ammonia"}}])
+
+
+def test_nomination_reaches_the_community_store(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_NominateFake())
+    agent.handle_message("telegram", "1", "the 30% water change fixed my ammonia")
+    pend = agent._community.pending()
+    assert len(pend) == 1
+    assert pend[0]["insight"].startswith("a partial water change")
+
+
+def test_system_prompt_mentions_community_sharing():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "nominate_shared_insight" in low
+    assert "search_community_knowledge" in low
+
+
+class _MeasureFake:
+    """Turn 1 -> record a measurement; then -> final text."""
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Logged your harvest weight.")
+        return AIMessage(content="", tool_calls=[{
+            "name": "record_measurement", "id": "m1",
+            "args": {"metric": "harvest_weight", "value": 0.45}}])
+
+
+def test_measurement_reaches_calibration_store(tmp_path):
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_MeasureFake())
+    agent._mem.set_facts("telegram:1", {"fish_species": "tilapia", "crop": "lettuce"})
+    agent.handle_message("telegram", "1", "my tilapia harvested at 0.45 kg")
+    assert agent._calibration._by_coefficient("telegram:1") == {"tilapia.harvest_weight": [0.45]}
+
+
+def test_system_prompt_mentions_record_measurement():
+    from agronaut_agent.core import SYSTEM_PROMPT
+    assert "record_measurement" in SYSTEM_PROMPT.lower()
+
+
+class _ContextProbe:
+    """Sizes a system on the first invoke, then only replies — and records every message
+    list it is invoked with, so tests can assert what the model actually sees."""
+
+    def __init__(self):
+        self.seen = []
+        self._sized = False
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        self.seen.append(list(messages))
+        if any(isinstance(m, ToolMessage) for m in messages):
+            return AIMessage(content="Sized it — details above.")
+        if not self._sized:
+            self._sized = True
+            return AIMessage(content="", tool_calls=[{
+                "name": "size_aquaponics_system", "id": "call_1",
+                "args": {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 12,
+                         "temperature_c": 27, "water_budget_lpd": 300},
+            }])
+        return AIMessage(content="Answering from what I have.")
+
+
+def test_prior_tool_results_survive_into_next_turn_context(tmp_path):
+    # Turn 1 runs the sizing tool. On turn 2 the numbers it computed must be visible in the
+    # model's context, so follow-ups are answerable without re-running tools or guessing.
+    probe = _ContextProbe()
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=probe)
+    agent.handle_message("cli", "ctx", "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
+    agent.handle_message("cli", "ctx", "what tank volume did you give me?")
+
+    turn2_context = probe.seen[-1]
+    blob = "\n".join(str(getattr(m, "content", "")) for m in turn2_context)
+    assert "fish=" in blob  # the sizing tool's output, not just prose about it
+    assert "size_aquaponics_system" in blob  # labeled with its origin
+
+
+def test_tool_rows_do_not_shrink_conversation_window(tmp_path):
+    # A tool-heavy turn must not evict real conversation from the context window: the
+    # history limit counts user/assistant rows only.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    uid = agent._conv.get_or_create_user("cli", "win")
+    agent._conv.append_message(uid, "user", "FIRST_QUESTION")
+    for i in range(18):
+        agent._conv.append_message(uid, "tool", f"noise {i}", tool_name="list_supported_species_and_crops")
+    agent._conv.append_message(uid, "assistant", "first answer")
+    for i in range(3):
+        agent._conv.append_message(uid, "user", f"q{i}")
+        agent._conv.append_message(uid, "assistant", f"a{i}")
+
+    blob = "\n".join(str(getattr(m, "content", "")) for m in agent._build_context(uid))
+    assert "FIRST_QUESTION" in blob  # 18 tool rows must not push it out of a 20-row window

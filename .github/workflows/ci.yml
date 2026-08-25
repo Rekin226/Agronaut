@@ -1,0 +1,103 @@
+name: CI
+
+# Two jobs on purpose. `trust-zone` proves the claim the whole project rests on: the
+# deterministic engineering core is testable with almost no dependencies and no model server.
+# If that job ever needs an LLM library to pass, the trust boundary has leaked and CI says so.
+# `full-suite` then covers the agent, channels and UI layers.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  trust-zone:
+    name: Trust zone (no LLM stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # This repo's file is requirement.txt (singular) — setup-python's default glob
+          # looks for requirements.txt/pyproject.toml and hard-fails when it matches nothing.
+          cache-dependency-path: requirement.txt
+
+      # Deliberately NOT requirement.txt. aqua_model is pure Python; these three are all it
+      # needs (pandas for the empirical dataset loader, Pillow for the PNG schematic).
+      - name: Install minimal deps
+        run: python -m pip install --upgrade pip pytest pandas Pillow
+
+      - name: Deterministic core tests
+        run: python -m pytest aqua_model/tests -q
+
+      - name: Assert the core imports without any LLM library
+        run: |
+          python - <<'PY'
+          import sys, importlib
+          importlib.import_module("aqua_model")
+          leaked = sorted(m for m in sys.modules
+                          if m.split(".")[0] in {"langchain", "langchain_core", "transformers",
+                                                 "torch", "streamlit", "telegram", "faiss"})
+          if leaked:
+              sys.exit(f"trust boundary leaked — aqua_model pulled in: {leaked}")
+          print("aqua_model imports clean: no LLM/UI library required")
+          PY
+
+  full-suite:
+    name: Full suite + advice-safety golden set
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirement.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirement.txt
+          python -m pip install pytest
+
+      - name: Test suite
+        run: python -m pytest -q
+
+      # The honesty gate. Hermetic by charter — no LLM, no network — and it exits non-zero if
+      # any CRITICAL probe fails: a trust-gate bypass, a design that stops citing its
+      # coefficients, a vision guard that stops stripping a fabricated reading.
+      - name: Advice-safety golden set
+        run: python -m scripts.safety_eval
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # This repo's file is requirement.txt (singular) — setup-python's default glob
+          # looks for requirements.txt/pyproject.toml and hard-fails when it matches nothing.
+          cache-dependency-path: requirement.txt
+      - run: python -m pip install --upgrade pip ruff
+      # Advisory for now: report style, fail only on real errors (undefined names, syntax).
+      - name: Errors only (blocking)
+        run: ruff check --select E9,F63,F7,F82 --output-format=github .
+      - name: Full style report (non-blocking)
+        run: ruff check --output-format=github . || true

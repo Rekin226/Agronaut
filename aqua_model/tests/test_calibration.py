@@ -45,3 +45,16 @@ def test_reference_system_is_feasible_or_flags_why_not(system):
     # explain why (a signal our coefficients need calibration).
     result = rs.check(system)
     assert result["feasible"] or result["warnings"]
+
+
+def test_new_coefficients_present_and_within_range():
+    from aqua_model import calibration
+    keys = {c.key for c in calibration.all_calibrations()}
+    for k in ("carp.fcr", "kale.frr", "swiss_chard.frr", "spinach.frr",
+              "cucumber.frr", "pepper.frr"):
+        assert k in keys
+    # every new seed sits inside its own cited range -> not flagged as a discrepancy
+    disc = {c.key for c in calibration.discrepancies()}
+    for k in ("carp.fcr", "kale.frr", "swiss_chard.frr", "spinach.frr",
+              "cucumber.frr", "pepper.frr"):
+        assert k not in disc

@@ -23,6 +23,7 @@ from itertools import combinations_with_replacement
 from . import coefficients as C
 from . import massbalance as mb
 from .crops import CROPS, get_crop
+from .overrides import validate_overrides, apply_overrides
 from .species import SPECIES, get_species, temperature_feed_factor
 
 OBJECTIVES = ("food", "protein", "water_efficiency")
@@ -93,24 +94,26 @@ def _allocations(crops: tuple[str, ...], steps: int = _ALLOC_STEPS):
             yield alloc
 
 
-def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput) -> Candidate:
-    species = get_species(fish_name)
+def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
+              overrides: dict | None = None) -> Candidate:
+    species, _ = apply_overrides(species=get_species(fish_name), overrides=overrides)
+    crops = {c: apply_overrides(crop=get_crop(c), overrides=overrides)[1] for c in alloc}
     area = inp.grow_area_m2
 
     # Feed from the area-weighted FRR of the mix (FRR is the sizing rule).
-    feed_g_day = sum(area * frac * get_crop(c).frr_g_per_m2_day for c, frac in alloc.items())
+    feed_g_day = sum(area * frac * crops[c].frr_g_per_m2_day for c, frac in alloc.items())
 
     temp_factor = temperature_feed_factor(species, inp.temperature_c)
     eff_pct = species.feeding_rate_pct_bw * temp_factor
     fish_biomass_kg = feed_g_day / (eff_pct / 100.0) / 1000.0 if eff_pct > 0 else 0.0
 
     # Annual food: crop yield (per allocated area) + fish growth (= feed / FCR).
-    crop_food_kg_yr = sum(area * frac * get_crop(c).yield_kg_per_m2_year for c, frac in alloc.items())
+    crop_food_kg_yr = sum(area * frac * crops[c].yield_kg_per_m2_year for c, frac in alloc.items())
     fish_growth_kg_yr = (feed_g_day / species.fcr) / 1000.0 * 365.0
     food_kg_yr = crop_food_kg_yr + fish_growth_kg_yr
 
     crop_protein_kg_yr = sum(
-        area * frac * get_crop(c).yield_kg_per_m2_year * (get_crop(c).edible_protein_pct / 100.0)
+        area * frac * crops[c].yield_kg_per_m2_year * (crops[c].edible_protein_pct / 100.0)
         for c, frac in alloc.items()
     )
     fish_protein_kg_yr = fish_growth_kg_yr * (species.body_protein_pct / 100.0)
@@ -143,11 +146,13 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput) -> Ca
     )
 
 
-def optimize(inp: OptimizeInput) -> OptimizeResult:
+def optimize(inp: OptimizeInput, overrides: dict | None = None) -> OptimizeResult:
     if inp.objective not in OBJECTIVES:
         raise ValueError(f"Unknown objective {inp.objective!r}. Supported: {OBJECTIVES}.")
     if not inp.fish_palette or not inp.crop_palette:
         raise ValueError("fish_palette and crop_palette must be non-empty.")
+    if overrides:
+        validate_overrides(overrides)
 
     # Search the quarter-grid PLUS the exact even-split, so the optimizer provably can
     # never score below the naive baseline (best >= baseline by construction).
@@ -159,7 +164,7 @@ def optimize(inp: OptimizeInput) -> OptimizeResult:
     candidates: list[Candidate] = []
     for fish in inp.fish_palette:
         for alloc in allocs:
-            candidates.append(_evaluate(fish, alloc, inp))
+            candidates.append(_evaluate(fish, alloc, inp, overrides))
 
     feasible = [c for c in candidates if c.feasible]
     ranked = sorted(feasible, key=lambda c: c.score, reverse=True)
@@ -168,7 +173,7 @@ def optimize(inp: OptimizeInput) -> OptimizeResult:
     # Naive baseline: even split across the whole crop palette, using the best design's fish
     # (or the first species if nothing is feasible). This is what the optimizer must beat.
     baseline_fish = best.fish_species if best else inp.fish_palette[0]
-    baseline = _evaluate(baseline_fish, even, inp)
+    baseline = _evaluate(baseline_fish, even, inp, overrides)
 
     improvement = None
     if best and baseline.score > 0:

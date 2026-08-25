@@ -1,8 +1,15 @@
-"""Streamlit UI for the aquaponics diagnostic chatbot."""
+"""Streamlit UI: deterministic Design Calculator / Optimizer + the consultative agent chat.
+
+The "Assistant (chat)" mode drives the same tool-calling brain as the Telegram bot
+(agronaut_agent) — per-browser-session identity, System Profile memory, calibration, and
+the validation-gated deterministic tools. The legacy srcs/chatbot state machine is no
+longer wired to the UI.
+"""
 
 from __future__ import annotations
 
-from typing import List
+import inspect
+from uuid import uuid4
 
 import streamlit as st
 
@@ -11,63 +18,47 @@ from agent.optimizer_ui import render_optimizer
 
 
 APP_TITLE = "🌱 Agronaut"
+_PHOTO_TYPES = ["png", "jpg", "jpeg", "webp"]
+
+# Attaching a file to the chat box needs Streamlit's `accept_file` (1.43+). requirement.txt
+# does not pin a version, so detect rather than assume — an older install falls back to a
+# separate uploader instead of raising on first render.
+_CHAT_INPUT_ACCEPTS_FILES = "accept_file" in inspect.signature(st.chat_input).parameters
 
 
-def _core():
-    """Lazy-import the chat/RAG core so the Design Calculator mode runs without the
-    chat stack (langchain, faiss, Ollama, requests_cache) installed."""
-    import srcs.chatbot as core
-    return core
-
-
-def _chat_available() -> bool:
-    """True when the optional chat/RAG stack is importable.
-
-    Lets the deterministic Calculator/Optimizer modes run — and the chat mode
-    degrade with a friendly message instead of a traceback — when langchain,
-    faiss, requests_cache, or an LLM backend isn't installed."""
+def _agent_error() -> str | None:
+    """Build the per-session agent if needed. Returns a user-facing reason when chat is
+    unavailable (missing chat stack or no tool-calling LLM provider configured)."""
+    if "agent" in st.session_state:
+        return None
+    if "agent_error" in st.session_state:
+        return st.session_state.agent_error
     try:
-        import srcs.chatbot  # noqa: F401
-    except ModuleNotFoundError:
-        return False
-    return True
+        from agronaut_agent.core import AgronautAgent
+        st.session_state.agent = AgronautAgent()
+        return None
+    except ModuleNotFoundError as exc:
+        reason = (f"Chat mode needs the optional chat stack (`{exc.name}` isn't installed). "
+                  "The **Design Calculator** and **Optimize Ratio** modes work without it — "
+                  "to enable chat: `pip install -r requirement.txt`.")
+    except Exception as exc:
+        reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` with "
+                  f"`NVIDIA_API_KEY`) — couldn't start one: {exc}. The **Design Calculator** "
+                  "and **Optimize Ratio** modes are fully deterministic and keep working.")
+    st.session_state.agent_error = reason
+    return reason
 
 
-def _init_cache() -> None:
-    # Cache HTTP fetches for RAG content.
-    import requests_cache
-    core = _core()
-    requests_cache.install_cache(core.CACHE_NAME, expire_after=core.CACHE_EXPIRE)
-
-
-@st.cache_resource(show_spinner=False)
-def _build_vectorstore() -> object | None:
-    _init_cache()
-    return _core().build_rag_index_from_urls()
-
-
-def _reset_session_state() -> None:
-    st.session_state.messages = []
-    st.session_state.last_bot = ""
-    core = _core()
-    core.state.reset()
-    core.last_bot = ""
+def _web_user() -> str:
+    """Stable per-browser-session identity — concurrent web users never share memory."""
+    if "web_user" not in st.session_state:
+        st.session_state.web_user = uuid4().hex[:12]
+    return st.session_state.web_user
 
 
 def _ensure_session_state() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    if "last_bot" not in st.session_state:
-        st.session_state.last_bot = ""
-
-
-def _set_rag(use_rag: bool) -> None:
-    core = _core()
-    if use_rag:
-        with st.spinner("Building knowledge index..."):
-            core.VECTORSTORE = _build_vectorstore()
-    else:
-        core.VECTORSTORE = None
 
 
 def _rerun() -> None:
@@ -82,63 +73,77 @@ def _render_header() -> None:
     st.write("Your agronomy agent: design, optimize, and troubleshoot aquaponics systems.")
 
 
-def _render_sidebar() -> None:
+def _render_chat_sidebar() -> None:
     st.sidebar.header("Controls")
-
-    use_rag = st.sidebar.checkbox(
-        "Use web knowledge (RAG)",
-        value=True,
-        help="Disable to use general aquaponics knowledge only.",
+    if st.sidebar.button("Reset conversation", use_container_width=True):
+        agent = st.session_state.get("agent")
+        if agent is not None:
+            agent.reset("web", _web_user())
+        st.session_state.messages = []
+        _rerun()
+    st.sidebar.caption(
+        "Memory lasts for this browser session. The bot remembers your system as you talk "
+        "(same brain as the Telegram bot)."
     )
 
-    if st.sidebar.button("Reset conversation", use_container_width=True):
-        _reset_session_state()
-        _rerun()
 
-    _set_rag(use_rag)
-    if use_rag:
-        if _core().VECTORSTORE is None:
-            st.sidebar.caption("RAG unavailable; using general knowledge.")
-        else:
-            st.sidebar.caption("RAG ready.")
-
-
-def _format_questions(questions: List[str]) -> str:
-    if not questions:
-        return ""
-    lines = ["I need a bit more info:"]
-    lines.extend([f"- {q}" for q in questions])
-    return "\n".join(lines)
-
-
-def _add_message(role: str, content: str) -> None:
-    st.session_state.messages.append({"role": role, "content": content})
+def _add_message(role: str, content: str, image: bytes | None = None) -> None:
+    # The image lives only in this browser session's state so the user can see what they
+    # sent. It is never written to disk — PRIVACY.md promises photos are not retained.
+    st.session_state.messages.append({"role": role, "content": content, "image": image})
 
 
 def _render_messages() -> None:
     for msg in st.session_state.messages:
         avatar = "🧑" if msg["role"] == "user" else "🤖"
         with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+            if msg.get("image"):
+                st.image(msg["image"], width=280)
+            if msg.get("content"):
+                st.markdown(msg["content"])
 
 
-def _handle_user_input(user_text: str) -> None:
-    core = _core()
-    _add_message("user", user_text)
+def _route_turn(agent, user_id: str, text: str, image_bytes: bytes | None) -> str:
+    """Send the turn to the right agent seam. A photo goes to handle_image with the typed
+    text as its caption — the same seam Telegram and WhatsApp use, so the observation guard
+    and cited tools apply here too. Extracted from the widget code to be testable without a
+    Streamlit script run."""
+    if image_bytes:
+        return agent.handle_image("web", user_id, image_bytes, caption=(text or None))
+    return agent.handle_message("web", user_id, text)
 
-    prev_pending = list(core.state.pending_questions)
-    prev_answer = core.state.last_answer
 
-    core.handle_turn(user_text)
-    core.last_bot = core.state.last_answer
+def _read_chat_input() -> tuple[str, bytes | None]:
+    """Collect this run's turn as (text, image_bytes). Empty text with no image means the
+    user has not submitted anything yet."""
+    if _CHAT_INPUT_ACCEPTS_FILES:
+        value = st.chat_input("Describe your system, or attach a photo...",
+                              accept_file=True, file_type=_PHOTO_TYPES)
+        if not value:
+            return "", None
+        if isinstance(value, str):            # some versions return a plain string
+            return value.strip(), None
+        files = list(getattr(value, "files", None) or [])
+        return (getattr(value, "text", "") or "").strip(), (files[0].getvalue() if files else None)
 
-    # If the model asked follow-up questions, surface them as assistant message.
-    if core.state.pending_questions and core.state.pending_questions != prev_pending:
-        assistant_text = _format_questions(core.state.pending_questions)
-    else:
-        assistant_text = core.state.last_answer or prev_answer or "I'm here to help."
+    upload = st.file_uploader("Attach a photo (optional)", type=_PHOTO_TYPES, key="chat_photo")
+    text = st.chat_input("Describe your system, goal, or problem...")
+    if not text:
+        return "", None
+    return text.strip(), (upload.getvalue() if upload is not None else None)
 
-    _add_message("assistant", assistant_text)
+
+def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
+    _add_message("user", user_text, image=image_bytes)
+    agent = st.session_state.agent
+    spinner = "Looking at your photo..." if image_bytes else "Thinking (running the numbers)..."
+    try:
+        with st.spinner(spinner):
+            reply = _route_turn(agent, _web_user(), user_text, image_bytes)
+    except Exception:
+        reply = ("Something went wrong talking to the model — your message wasn't lost, "
+                 "please try again.")
+    _add_message("assistant", reply)
 
 
 def main() -> None:
@@ -152,12 +157,12 @@ def main() -> None:
     _render_header()
 
     # Design Calculator is the default: deterministic, no heavy deps, never crashes
-    # on a fresh install. Chat is the legacy mode and needs the optional chat stack.
+    # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
         ("Design Calculator", "Optimize Ratio", "Assistant (chat)"),
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. Chat troubleshoots a running system (needs the chat stack).",
+             "your constraint. Chat runs a consultation with the full agent (needs an LLM).",
     )
 
     if mode == "Design Calculator":
@@ -167,27 +172,24 @@ def main() -> None:
         render_optimizer()
         return
 
-    # Assistant (chat) — legacy. Degrade gracefully if the optional chat stack is
-    # absent, so a missing dependency never takes down the whole app.
-    if not _chat_available():
-        st.warning(
-            "Chat mode needs the optional chat stack (langchain, faiss, requests_cache, "
-            "and an LLM backend), which isn't installed. The **Design Calculator** and "
-            "**Optimize Ratio** modes work without it."
-        )
-        st.caption("To enable chat: `pip install -r requirement.txt`")
+    # Assistant (chat) — the real consultative agent, degrading gracefully when the
+    # chat stack or an LLM provider is missing (never a traceback in the UI).
+    reason = _agent_error()
+    if reason:
+        st.warning(reason)
         return
 
-    _render_sidebar()
-
+    _render_chat_sidebar()
     _render_messages()
 
     if not st.session_state.messages:
-        st.info("Start with your fish behavior, water temperature, and pH.")
+        st.info("Tell me what you're trying to do — design a system, optimize a ratio, "
+                "or troubleshoot a problem. You can attach a photo of the plants, fish, "
+                "or water and I'll take a look.")
 
-    prompt = st.chat_input("Describe your system issue or question...")
-    if prompt:
-        _handle_user_input(prompt)
+    text, image_bytes = _read_chat_input()
+    if text or image_bytes:
+        _handle_turn(text, image_bytes)
         _rerun()
 
 

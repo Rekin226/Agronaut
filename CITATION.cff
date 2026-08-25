@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+title: "Agronaut: a cited, deterministic engineering core for aquaponics design with a conversational agent"
+message: "If you use Agronaut in research or programme work, please cite it."
+type: software
+authors:
+  - family-names: Ouédraogo
+    given-names: Abdoul Rachid
+    email: abdoulrachid03@gmail.com
+repository-code: "https://github.com/Rekin226/Agronaut"
+license: MIT
+abstract: >-
+  Agronaut sizes and optimises aquaponic and hydroponic systems from a deterministic,
+  unit-tested engineering model whose every coefficient carries a value, a plausible range, a
+  unit, and a published source. A tool-calling language model collects facts, routes to the
+  right calculation, and explains the result, but never produces a number itself: proposed
+  values pass a validation gate before reaching the model, and every output states what it
+  does not model. The same discipline extends to photographs — a deterministic guard strips
+  fabricated readings from a vision model's description, and a fixed, cited table maps visible
+  symptoms to a ranked differential rather than a single diagnosis. Design and optimisation run
+  with no language model at all.
+keywords:
+  - aquaponics
+  - hydroponics
+  - agriculture
+  - food security
+  - digital public good
+  - deterministic modelling
+  - large language models
+  - agricultural extension

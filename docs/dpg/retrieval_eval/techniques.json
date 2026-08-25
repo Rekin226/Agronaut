@@ -1,0 +1,72 @@
+{
+  "description": "Every retrieval technique implemented in this work, what it measured, and whether it ships. Recorded so each decision is reproducible and so a decision can EXPIRE \u2014 hybrid search was rejected, then adopted when the corpus grew.",
+  "corpus_at_final_measurement": {
+    "chunks": 1354,
+    "local_files": 21,
+    "web_sources": 3
+  },
+  "final": {
+    "hit_rate": 0.939,
+    "recall@k": 0.894,
+    "precision@k": 0.54,
+    "MRR": 0.737,
+    "MAP@k": 0.697,
+    "latency_ms": 244
+  },
+  "techniques": [
+    {
+      "name": "Relevance floor",
+      "ships": "ON",
+      "evidence": "rejects 8/10 off-topic, silences 0/33 real",
+      "note": "Bands overlap (on-topic worst 1.548, off-topic best 1.426) so it cannot be tightened."
+    },
+    {
+      "name": "Hybrid BM25 + RRF",
+      "ships": "ON (beta=0.90)",
+      "evidence": "362 chunks: lost at every beta. 1354 chunks: recall +0.091, MAP +0.091",
+      "note": "REVERSED. The technique did not change; the corpus did. Only 10% keyword weight is correct."
+    },
+    {
+      "name": "Per-source cap",
+      "ships": "ON (2)",
+      "evidence": "hit 0.848->0.939, recall 0.788->0.894, precision 0.495->0.540",
+      "note": "Largest single gain. FAO 589 was taking all 3 slots on 10 of 33 queries."
+    },
+    {
+      "name": "PDF cleaning",
+      "ships": "ON",
+      "evidence": "13 structural pages dropped; running header in 4/992 chunks instead of 111/1034",
+      "note": "A table of contents is not knowledge under any corpus conditions."
+    },
+    {
+      "name": "Header chunking (markdown)",
+      "ships": "OFF",
+      "evidence": "362: hit 0.970->0.909. 1354: hit 0.848->0.758",
+      "note": "95% of sections are smaller than the chunk window, so splitting fragments rather than aligns."
+    },
+    {
+      "name": "Context prefix (markdown)",
+      "ships": "OFF",
+      "evidence": "362: precision +0.116. 1354: MAP -0.093",
+      "note": "REVERSED SIGN between corpora."
+    },
+    {
+      "name": "PDF chapter labelling",
+      "ships": "OFF",
+      "evidence": "hit 0.939->0.909, recall 0.894->0.848",
+      "note": "Extraction works (29%->95% coverage by forward-fill); it is the PREFIXING that loses."
+    },
+    {
+      "name": "Cross-encoder reranking",
+      "ships": "OFF",
+      "evidence": "hit 0.939->0.879, latency 274->761 ms",
+      "note": "ms-marco model is out of domain for operator phrasing against agronomy prose."
+    },
+    {
+      "name": "Query rewriting",
+      "ships": "NOT BUILT",
+      "note": "Three prefix/expansion techniques already lost for the same reason; adding vocabulary to a corpus that shares one vocabulary domain dilutes rather than disambiguates."
+    }
+  ],
+  "the_pattern": "Four of the eight measured techniques LOST, and three of those four share one mechanism: they add topic words (a section crumb, a chapter name, a heading) to chunks in a corpus where every document already shares a vocabulary domain. Words that appear in every chunk about a topic carry no discriminating information \u2014 they only dilute the distinctive content already in the vector. What DID work was structural instead of lexical: refusing irrelevant passages, refusing error pages, and refusing to let one source occupy every slot."
+}

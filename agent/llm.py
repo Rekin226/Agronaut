@@ -11,6 +11,9 @@ Select with the LLM_PROVIDER env var (or pass `provider=`):
     hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
                  after the first download). The simplest way to test the assistant with no
                  hosted backend or Ollama install — just `pip install -r requirement.txt`.
+    openai_compat -> any self-hosted OpenAI-compatible server (vLLM, llama.cpp --server,
+                 LM Studio, TGI). The zero-proprietary-API path for the tool-calling agent:
+                 set OPENAI_COMPAT_BASE_URL (and OPENAI_COMPAT_API_KEY if your server needs one).
 
 Override the model with LLM_MODEL (or pass `model=`).
 
@@ -20,7 +23,10 @@ this module (or the chat layer) never requires any of them to be installed.
 
 from __future__ import annotations
 
+import logging
 import os
+
+log = logging.getLogger(__name__)
 
 # Sensible default open model per provider.
 # HF default: Qwen2.5-7B-Instruct — Apache-2.0 (clean license for a commercial/B2G venture),
@@ -36,6 +42,11 @@ DEFAULT_MODELS = {
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
     "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
+    # Self-hostable OpenAI-compatible server (vLLM, llama.cpp --server, LM Studio, TGI...).
+    # The zero-proprietary-API tool-calling path: point OPENAI_COMPAT_BASE_URL at your own
+    # box and the agent runs with no hosted vendor. Tool-calling works (ChatOpenAI.bind_tools)
+    # as long as the served model supports it (Qwen2.5, Llama-3.1, Hermes, etc.).
+    "openai_compat": "Qwen/Qwen2.5-7B-Instruct",
 }
 
 SUPPORTED = tuple(DEFAULT_MODELS)
@@ -90,6 +101,16 @@ def _build_backend(provider: str, model: str, temperature: float):
             task="text-generation",
         )
         return ChatHuggingFace(llm=endpoint)
+    if provider == "openai_compat":
+        # Any OpenAI-compatible endpoint. base_url + api_key from env; a non-empty api_key
+        # is sent even for keyless local servers (many 401 on a blank Authorization header).
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model,
+            base_url=os.getenv("OPENAI_COMPAT_BASE_URL", "http://localhost:8000/v1"),
+            api_key=os.getenv("OPENAI_COMPAT_API_KEY") or "not-needed",
+            temperature=temperature,
+        )
     if provider == "hf_local":
         # Local transformers pipeline. No API token; downloads the model on first use
         # (cached in ~/.cache/huggingface) then runs offline. ChatHuggingFace applies the
@@ -122,6 +143,50 @@ def get_llm(provider: str | None = None, model: str | None = None, temperature: 
 
 class ToolCallingUnsupported(RuntimeError):
     """Raised when the resolved backend cannot bind tools (no .bind_tools())."""
+
+
+# A fast, widely-available model per provider to fall back to when the primary errors or
+# times out — so a starved/slow primary (as llama-3.3-70b was) never leaves the user with
+# nothing. The fallback is weaker but responsive; a real answer beats a dead turn.
+FALLBACK_MODELS: dict[str, str] = {
+    "nvidia": "meta/llama-3.1-8b-instruct",
+}
+
+
+class ResilientChat:
+    """Wrap a primary chat model with a fallback: invoke the primary, and on ANY error
+    invoke the fallback instead. Works with anything exposing .invoke()/.bind_tools() —
+    real LangChain chat models and test fakes alike — so it stays provider-agnostic and
+    unit-testable without the network."""
+
+    def __init__(self, primary, fallback):
+        self.primary = primary
+        self.fallback = fallback
+
+    def bind_tools(self, tools):
+        return ResilientChat(self.primary.bind_tools(tools), self.fallback.bind_tools(tools))
+
+    def invoke(self, messages):
+        try:
+            return self.primary.invoke(messages)
+        except Exception:  # timeout, 5xx, starved model — anything: don't kill the turn
+            log.warning("primary LLM failed; using fallback model", exc_info=True)
+            return self.fallback.invoke(messages)
+
+
+def build_fallback_chat(provider: str | None = None, model: str | None = None):
+    """Build the fallback chat model for a provider, or None when there's no distinct
+    fallback (unknown provider, or the primary already IS the fallback). Never raises —
+    resilience must not break agent construction."""
+    try:
+        provider, primary_model = resolve(provider, model)
+        fb_model = FALLBACK_MODELS.get(provider)
+        if not fb_model or fb_model == primary_model:
+            return None
+        return get_chat_model(provider=provider, model=fb_model)
+    except Exception:
+        log.debug("fallback model unavailable", exc_info=True)
+        return None
 
 
 def get_chat_model(provider: str | None = None, model: str | None = None, temperature: float = 0.0):

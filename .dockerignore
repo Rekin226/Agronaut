@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+*.sqlite3
+*.sqlite
+web_cache.sqlite
+data/
+.superpowers/
+.pytest_cache/
+docs/
+# keep the advice-safety golden-set data — scripts/safety_eval.py loads it at runtime
+!docs/dpg/safety_eval/
+*.md
+!README.md

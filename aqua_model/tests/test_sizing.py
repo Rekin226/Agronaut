@@ -67,3 +67,57 @@ def test_never_raises_on_valid_input_extremes():
     big = size_system(_design(grow_area_m2=1000.0, water_budget_lpd=10_000_000.0))
     assert small.fish_count >= 1
     assert big.feasible in (True, False)
+
+
+def test_size_system_harvest_weight_override_changes_fish_count():
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input, ValidationError
+    design = validate_design_input("tilapia", "lettuce", 20, 27, 500)
+    base = size_system(design)
+    # a smaller harvest weight -> more fish for the same biomass
+    lighter = size_system(design, overrides={"tilapia.harvest_weight": 0.4})
+    assert lighter.fish_count > base.fish_count
+
+
+def test_size_system_no_override_is_unchanged():
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input
+    design = validate_design_input("tilapia", "lettuce", 20, 27, 500)
+    assert size_system(design, overrides=None).fish_count == size_system(design).fish_count
+
+
+def test_size_system_rejects_out_of_range_override():
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input, ValidationError
+    design = validate_design_input("tilapia", "lettuce", 20, 27, 500)
+    import pytest
+    with pytest.raises(ValidationError):
+        size_system(design, overrides={"tilapia.harvest_weight": 5.0})  # far above range
+
+
+import pytest
+from aqua_model.species import SPECIES
+from aqua_model.crops import CROPS
+
+
+@pytest.mark.parametrize("fish", ["tilapia", "clarias", "channel_catfish", "trout", "carp"])
+def test_every_species_sizes(fish):
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input
+    out = size_system(validate_design_input(fish, "lettuce", 20, 24, 5000))
+    assert out.fish_count >= 1 and out.feed_g_per_day > 0
+
+
+@pytest.mark.parametrize("crop", ["lettuce", "basil", "tomato", "kale", "swiss_chard",
+                                  "spinach", "cucumber", "pepper"])
+def test_every_crop_sizes(crop):
+    from aqua_model import size_system
+    from aqua_model.validate import validate_design_input
+    out = size_system(validate_design_input("tilapia", crop, 20, 24, 5000))
+    assert out.fish_count >= 1 and out.feed_g_per_day > 0
+
+
+def test_new_keys_registered():
+    assert "carp" in SPECIES
+    for c in ("kale", "swiss_chard", "spinach", "cucumber", "pepper"):
+        assert c in CROPS
