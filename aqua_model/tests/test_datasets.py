@@ -73,3 +73,71 @@ def test_loader_uses_canonical_schema_names():
     df = D.load_all()
     assert {"water_temp_c", "ph", "ammonia_mg_l", "nitrate_mg_l", "pond"} <= set(df.columns)
     assert df["pond"].nunique() == 4
+
+
+# --- trust is a verdict, not a fallback --------------------------------------
+
+def test_dissolved_oxygen_is_no_longer_flagged_reliable():
+    """The bug this fixes. The shipped envelope marked DO `reliable` while its p95 sat at 4.3x
+    oxygen saturation, making it eligible to calibrate coefficients against."""
+    from aqua_model import datasets
+    env = datasets.load_artifact()["channels"]
+    assert env["dissolved_oxygen_mg_l"]["trust"] == "low (physically implausible)"
+    assert env["dissolved_oxygen_mg_l"]["do_saturation_at_median_temp"] < 10
+
+
+def test_saturated_channels_still_caught():
+    """The check that already existed must not regress: turbidity and ammonia sit on their rails."""
+    from aqua_model import datasets
+    env = datasets.load_artifact()["channels"]
+    assert env["turbidity_ntu"]["trust"].startswith("low")
+    assert env["ammonia_mg_l"]["trust"].startswith("low")
+
+
+def test_clean_channels_still_earn_reliable():
+    """The verdict has to stay usable — over-flagging would be its own failure."""
+    from aqua_model import datasets
+    env = datasets.load_artifact()["channels"]
+    assert env["water_temp_c"]["trust"] == "reliable"
+    assert env["ph"]["trust"] == "reliable"
+
+
+def test_unknown_channel_reports_unassessed_not_reliable():
+    """The heart of the bug: `reliable` used to be the else-branch, so any channel nobody wrote a
+    check for was silently promoted. An unchecked channel must say so."""
+    import pandas as pd
+    from aqua_model import datasets
+    # Varied values on purpose: a fixture with few distinct values trips the saturation check
+    # first and never reaches the question being asked.
+    s = pd.Series([i * 0.37 for i in range(200)])
+    verdict, _ = datasets._trust_verdict("a_channel_with_no_check", s, None)
+    assert verdict == "unassessed"
+
+
+def test_dead_sensor_sentinels_outrank_other_verdicts():
+    """A channel whose median is -127 is a disconnected probe, and that is the useful thing to
+    report — not that it happens to also look saturated."""
+    import pandas as pd
+    from aqua_model import datasets
+    s = pd.Series([-127.0] * 60 + [24.0] * 40)
+    verdict, evidence = datasets._trust_verdict("water_temp_c", s, None)
+    assert verdict == "low (dead-sensor sentinel)"
+    assert "DS18B20" in evidence["sentinel"]
+
+
+def test_non_independent_channels_are_demoted():
+    """Two channels that are one instrument must both lose their `reliable` verdict, even though
+    each looks fine measured alone."""
+    import pandas as pd
+    from aqua_model import datasets
+    n = 400
+    a = [0.11 + i * 0.001 for i in range(n)]
+    df = pd.DataFrame({
+        "water_temp_c": [24.5] * n,
+        "ammonia_mg_l": a,
+        "nitrite_mg_l": [x + 0.0001 for x in a],
+    })
+    env = datasets.empirical_envelope(df)
+    assert env["ammonia_mg_l"]["trust"] == "low (not an independent instrument)"
+    assert env["nitrite_mg_l"]["trust"] == "low (not an independent instrument)"
+    assert env["ammonia_mg_l"]["correlated_with"]["r"] > 0.99

@@ -53,6 +53,20 @@ SAFETY_FACTOR = Coefficient(
     note="Headroom for losses, peaks, clogging, and coefficient uncertainty.",
 )
 
+# How far above saturation a dissolved-oxygen reading may sit before it is a broken probe rather
+# than a bloom. Photosynthesis genuinely supersaturates a densely planted system during the day —
+# 110-130% of saturation is routinely reported, and short excursions higher do occur. Sustained
+# multiples are not physical: public aquaponics data has been observed at 4.3x saturation while
+# flagged "reliable", which is a dead probe, not a planted tank.
+DO_SUPERSATURATION_TOLERANCE = Coefficient(
+    name="do_supersaturation_tolerance",
+    value=1.5, low=1.3, high=2.0, unit="dimensionless", source="LIT",
+    note="Multiple of Benson-Krause saturation above which a DO reading is treated as "
+         "instrument failure. Generous by design: rejecting a real afternoon oxygen peak is "
+         "worse than admitting a mildly wrong one, because the peak is real information.",
+)
+
+
 # Nitrogen chemistry — well established.
 N_FRACTION_OF_PROTEIN = Coefficient(
     name="n_fraction_of_protein",

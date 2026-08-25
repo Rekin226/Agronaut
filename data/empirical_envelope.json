@@ -18,6 +18,7 @@
       "max": 27.812,
       "frac_at_floor": 0.0,
       "frac_at_ceiling": 0.0,
+      "frac_implausible": 0.0,
       "trust": "reliable"
     },
     "turbidity_ntu": {
@@ -40,7 +41,9 @@
       "max": 41.118,
       "frac_at_floor": 0.0,
       "frac_at_ceiling": 0.0,
-      "trust": "reliable"
+      "do_saturation_at_median_temp": 8.34,
+      "frac_implausible": 0.217,
+      "trust": "low (physically implausible)"
     },
     "ph": {
       "n": 232745,
@@ -51,6 +54,7 @@
       "max": 11.44,
       "frac_at_floor": 0.148,
       "frac_at_ceiling": 0.0,
+      "frac_implausible": 0.0,
       "trust": "reliable"
     },
     "ammonia_mg_l": {
@@ -73,6 +77,7 @@
       "max": 2000.0,
       "frac_at_floor": 0.0,
       "frac_at_ceiling": 0.005,
+      "frac_implausible": 0.0,
       "trust": "reliable"
     },
     "fish_length_cm": {
@@ -84,6 +89,7 @@
       "max": 35.39,
       "frac_at_floor": 0.006,
       "frac_at_ceiling": 0.001,
+      "frac_implausible": 0.0,
       "trust": "reliable"
     },
     "fish_weight_g": {
@@ -95,6 +101,7 @@
       "max": 394.66,
       "frac_at_floor": 0.006,
       "frac_at_ceiling": 0.001,
+      "frac_implausible": 0.0,
       "trust": "reliable"
     }
   }
