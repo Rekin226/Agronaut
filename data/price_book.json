@@ -21,6 +21,13 @@
         "electricity_kwh": {"price": 105, "low": 96, "high": 138, "unit": "per kWh", "basis": "official", "source": "SONABEL grid (plateformewattia.com mirror, read; sonabel.bf unreachable): B1 monophasé 96/102/109 XOF by tranche; social tariff to 138; GlobalPetrolPrices avg 123 XOF (read)"},
         "water_m3": {"price": 439, "low": 188, "high": 1104, "unit": "per m3", "basis": "official", "source": "ONEA 2021 tariff PDF (read): households 188 (0-8 m3) to 1,104 XOF/m3 (>25 m3); sociétés flat 1,104; eau brute (raw water) 439 — the realistic farm rate where available. Tranche 1 harmonised at 188 nationwide Apr 2026 (minute.bf, read)"},
         "labour_day": {"price": 2500, "low": 2000, "high": 3000, "unit": "per helper-day, Ouagadougou", "basis": "derived", "source": "Tradesmen-reported manoeuvre rate 2,000-2,500 XOF/day (anecdotal, FB); Senegal benchmark 1,500-3,000 (read); SMIG 45,000 XOF/month (Nov 2023 decree). Mason 5,000-7,500/day is a neighbour-anchored estimate"}
+      },
+      "revenue_items": {
+        "crop_lettuce": {"price": 523, "low": 376, "high": 620, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT Producer Prices (PP), Mali 2024: lettuce and chicory 522,933 XOF/tonne (2022-2024 range 376-523). MALI PROXY: Burkina's own vegetable series stops in 2007 — same currency, neighbouring markets"},
+        "crop_leafy": {"price": 450, "low": 340, "high": 620, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP Mali 2024 leafy band: cabbages 372, lettuce 523, green onions 621 XOF/kg (Mali proxy for Burkina, see crop_lettuce)"},
+        "crop_tomato": {"price": 494, "low": 459, "high": 494, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP, Mali 2024: tomatoes 494,024 XOF/tonne (2022-2024: 459-494). Mali proxy; Burkina's own tomato series ends 2007 at 80 XOF/kg"},
+        "crop_okra": {"price": 518, "low": 466, "high": 548, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP, Mali 2022-2024: okra 466-548 XOF/kg (Mali proxy)"},
+        "crop_fruiting": {"price": 400, "low": 269, "high": 518, "unit": "XOF/kg farm-gate", "basis": "official", "source": "FAOSTAT PP Mali 2024 fruiting band: cucumbers 269, eggplant 300, tomato 494, okra 518 XOF/kg (Mali proxy)"}
       }
     },
     "taiwan": {

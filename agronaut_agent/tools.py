@@ -916,6 +916,87 @@ def estimate_system_cost(
     return header + format_estimate(est)
 
 
+@tool
+def business_case(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    water_budget_lpd: float,
+    region: str,
+    site: str,
+    system_type: str = "raft",
+    greenhouse: str = "poly",
+    labour_hours_per_week: float | None = None,
+) -> str:
+    """Answer "will this MAKE money?" — the full case: build cost, running cost, a
+    simulated year's harvest priced at researched farm-gate prices, margin, and simple
+    payback. Use when a design conversation reaches viability: "is this worth building",
+    "when do I get my money back", "can I live off this".
+
+    This runs the whole chain itself (size -> layout -> cost -> simulate a year at the
+    site's real climate -> price the harvest), so call it directly rather than stitching
+    the other tools together. A losing system is reported as losing, plainly.
+
+    labour_hours_per_week: pass the operator's realistic weekly hours to price labour —
+    it usually decides whether the system is a business or a hobby, and the case reports
+    the verdict both with and without. region: a price-book region; site: a climate slug."""
+    import json
+    from pathlib import Path
+
+    from aqua_model.business import build_case, format_case
+    from aqua_model.costing import estimate_cost
+    from aqua_model.crops import get_crop
+    from aqua_model.layout import plan_layout
+    from aqua_model.production import (
+        ProductionParams as _PP, simulate_production, start_state_from_design,
+    )
+    from aqua_model.species import get_species
+
+    book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
+    if not book_path.exists():
+        return "No price book on disk yet (data/price_book.json)."
+    book = json.loads(book_path.read_text())
+    region_key = str(region).strip().lower()
+    if region_key not in book.get("regions", {}):
+        return ("Unknown region: choose one of " + ", ".join(sorted(book["regions"])) +
+                ". Say which you used — prices vary hugely between regions.")
+
+    species_key = str(fish_species).strip().lower()
+    crop_key = str(crop).strip().lower()
+    try:
+        species = get_species(species_key)
+        crop_obj = get_crop(crop_key)
+    except KeyError as err:
+        return f"Unknown species or crop: {err}. Call list_supported_species_and_crops."
+    try:
+        weather, _meta = _climate_days(site)
+    except FileNotFoundError as err:
+        return str(err)
+    try:
+        design = validate_design_input(species_key, crop_key, float(grow_area_m2), 26.0,
+                                       float(water_budget_lpd), None,
+                                       str(system_type).strip().lower())
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+
+    out = size_system(design)
+    if not out.feasible:
+        return (f"The design is infeasible ({out.binding_constraint}) — fix it before "
+                "asking whether it pays.")
+    layout = plan_layout(out, crop_label=crop_key, species_label=species_key)
+    gh, mode = _greenhouse_from(greenhouse, None)
+    cost = estimate_cost(out, layout, book, region_key, species_key=species_key,
+                         greenhouse_mode=mode if mode == "shade" else "poly")
+    init = start_state_from_design(out, species, water_temp_c=weather[0].t_mean_c,
+                                   start_weight_g=20.0, cycled=False)
+    run = simulate_production(init, weather[:365], species, species_key, crop_obj,
+                              float(grow_area_m2), params=_PP(greenhouse=gh))
+    case = build_case(run.summary, cost, book, region_key, crop_key=crop_key,
+                      species_key=species_key, crop_category=crop_obj.category,
+                      labour_hours_per_week=labour_hours_per_week)
+    return (f"[{site} · {mode} · {system_type}]\n\n" + format_case(case))
+
+
 AGRONAUT_TOOLS = [
     size_aquaponics_system,
     size_mixed_bed_aquaponics,
@@ -929,6 +1010,7 @@ AGRONAUT_TOOLS = [
     simulate_season,
     simulate_my_system,
     estimate_system_cost,
+    business_case,
     what_if_nitrogen,
     design_system_3d,
     search_knowledge_base,
