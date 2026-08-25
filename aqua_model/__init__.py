@@ -33,6 +33,15 @@ from .triage import (
 from .types import (
     DesignInput, DesignOutput, CoefficientUse, HydroponicInput, HydroponicOutput,
 )
+from .twin import TwinParams, TwinState, mature_biofilter, simulate
+from .scenario import Intervention, compare, format_comparison, run_scenario
+from .climate import DailyClimate, GreenhouseParams, from_records
+from .fishgrowth import Cohort, days_to_weight
+from .production import (
+    ProductionParams, ProductionState, format_summary, simulate_production, start_state,
+)
+from .layout import Layout, plan_layout
+from .scene3d import to_scene
 
 __all__ = [
     "size_system",
@@ -60,6 +69,29 @@ __all__ = [
     "CoefficientUse",
     "HydroponicInput",
     "HydroponicOutput",
+    # the time dimension: nitrogen twin, scenarios, and the production twin
+    "TwinParams",
+    "TwinState",
+    "simulate",
+    "mature_biofilter",
+    "Intervention",
+    "run_scenario",
+    "compare",
+    "format_comparison",
+    "DailyClimate",
+    "GreenhouseParams",
+    "from_records",
+    "Cohort",
+    "days_to_weight",
+    "ProductionParams",
+    "ProductionState",
+    "simulate_production",
+    "start_state",
+    "format_summary",
+    # space: layout and the 3D scene
+    "Layout",
+    "plan_layout",
+    "to_scene",
 ]
 
 __version__ = "0.1.0"
