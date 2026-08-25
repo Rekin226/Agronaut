@@ -1772,7 +1772,11 @@ def handle_turn(user: str) -> None:
 # =============================================================================
 
 
-INDEX_CACHE_DIR = _PROJECT_ROOT / "data" / ".index_cache"
+# cache_dir(), not the corpus root: the built index is regenerable from knowledge/ + urls.txt,
+# so it belongs with the other caches. In a checkout that resolves to the project root, keeping
+# the existing data/.index_cache/ path (and its .gitignore entry); once installed it lands in a
+# per-user cache directory instead of trying to write inside site-packages.
+INDEX_CACHE_DIR = _paths.cache_dir() / "data" / ".index_cache"
 INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
 
 
