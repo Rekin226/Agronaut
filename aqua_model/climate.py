@@ -70,9 +70,10 @@ def from_records(records: list[dict]) -> tuple[DailyClimate, ...]:
 class GreenhouseParams:
     """The envelope, as the twin sees it. Defaults describe a single-poly tunnel.
 
-    transmissivity: fraction of outside light reaching the crop. New single PE film passes
-      ~0.85-0.90 of PAR; structure, dirt and condensation take it to ~0.60-0.75 in practice
-      (FAO plasticulture guidance; Giacomelli & Roberts 1993). Default 0.70.
+    transmissivity: fraction of outside light reaching the crop. Single polyethylene film
+      transmits ~85% new (U. Arkansas greenhouse glazing tables; double poly ~77%, glass
+      ~90%); structure, dirt and condensation take a real house to ~0.60-0.75. Default 0.70.
+      (Full glazing table with U-values: docs/twin_parameter_dossier.md §6.)
     unheated_lift_c: how much warmer the DAILY MEAN inside air runs than outside in a closed,
       unheated tunnel. Measured passive tunnels run ~1-5 C on the daily mean (much higher at
       midday, near zero at night); ventilation eats most of the midday gain. Default 3.0.

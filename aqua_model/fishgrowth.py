@@ -6,7 +6,9 @@ grams of fish, at any temperature, at any size. That is the right simplification
 around: "when do my fish reach harvest weight, HERE, with MY water temperature?"
 
 This module answers with the Thermal-unit Growth Coefficient (TGC) model
-(Iwama & Tautz 1981; Cho 1992; reviewed critically by Jobling 2003):
+(Cho & Bureau 1998, Aquat. Living Resour. 11; cautioned by Jobling 2003, Aquac. Res. 34 —
+valid only where growth rises roughly linearly with temperature, which the appetite gate
+approximates by suppressing intake outside the species' band):
 
     W2^(1/3) = W1^(1/3) + (TGC / 1000) * sum(T_c * dt)
 
@@ -40,36 +42,39 @@ NOT_MODELLED = (
 # TGC seeds by species key, in the x1000 convention above (g^1/3 per degC-day).
 # Values are literature-typical for the rearing systems named in the source; calibrate
 # against your own harvest records before trusting a date.
-# Sanity anchor for the warm-water values: growing Nile tilapia from 1 g to 500 g in ~7
-# months at ~28 C is a good outcome, and back-computes to TGC ~= (500^(1/3)-1)/(28*210)*1000
-# ~= 1.2. Numbers far above that imply harvests measured in weeks, which nobody achieves.
+# Seeds against the published envelope: across cultured juveniles TGC spans 0.1-3.2
+# (Marquez et al. 2024, Front. Mar. Sci. 9:1332912). Full citations and verification levels
+# live in docs/twin_parameter_dossier.md; each entry is a CALIBRATION TARGET, not a constant.
 TGC = {
     "tilapia": Coefficient(
-        name="tilapia.tgc", value=1.3, low=0.8, high=1.9, unit="g^1/3/(C·d) x1000",
-        source="LIT: back-computed from typical Nile tilapia culture durations "
-               "(1 g -> 500 g in 6-9 months at 26-30 C, pond to good RAS; cf. FAO 589 "
-               "production timelines); calibrate to your harvest records"),
+        name="tilapia.tgc", value=0.9, low=0.6, high=1.3, unit="g^1/3/(C·d) x1000",
+        source="Mengistu et al. (2019), Rev. Aquac. 12:524-541 — meta-regression over 32 "
+               "Nile tilapia studies: TGC = 0.611 + 0.01 x feeding rate (%BW/d), ~0.63-1.2 "
+               "in practice; consistent with FAO 589 growth timelines (~0.8-1.1)"),
     "clarias": Coefficient(
-        name="clarias.tgc", value=1.7, low=1.1, high=2.3, unit="g^1/3/(C·d) x1000",
-        source="LIT: back-computed from African catfish farm performance "
-               "(5 g -> 1 kg in ~6 months at 27-30 C; cf. Hogendoorn 1983 growth trials)"),
+        name="clarias.tgc", value=1.5, low=1.0, high=2.2, unit="g^1/3/(C·d) x1000",
+        source="LIT: no published TGC found (dossier gap) — back-computed from farm "
+               "performance (5 g -> 1 kg in ~6 months at 28-30 C; temperature optimum ~30 C "
+               "per Kasihmuddin et al. 2021, Animals 11:3497); a calibration target"),
     "channel_catfish": Coefficient(
         name="channel_catfish.tgc", value=1.0, low=0.6, high=1.5, unit="g^1/3/(C·d) x1000",
-        source="LIT: back-computed from pond culture reaching ~0.6 kg over one to two warm "
-               "seasons (Tucker & Hargreaves 2004, Biology and Culture of Channel Catfish)"),
+        source="LIT: back-computed from pond culture reaching ~0.4-0.6 kg over one to two "
+               "warm seasons (FAO 589: 400 g in 9-10 months; Tucker & Hargreaves 2004)"),
     "trout": Coefficient(
-        name="trout.tgc", value=1.8, low=1.4, high=2.2, unit="g^1/3/(C·d) x1000",
-        source="Cho (1992), Aquaculture 100: rainbow trout TGC 1.4-2.2 in well-run culture "
-               "at 8-15 C"),
+        name="trout.tgc", value=1.8, low=1.4, high=2.4, unit="g^1/3/(C·d) x1000",
+        source="LIT: salmonid anchors — Atlantic salmon industry ~2.4-2.7, RAS 2.18-2.45; "
+               "rainbow trout below salmon, with stanza structure <20/20-500/>500 g "
+               "(Dumas et al. 2007, Aquaculture); per-stanza values unverified — calibrate"),
     "carp": Coefficient(
-        name="carp.tgc", value=1.0, low=0.6, high=1.6, unit="g^1/3/(C·d) x1000",
-        source="LIT: back-computed from common carp reaching 1-1.5 kg over two pond "
-               "seasons; wide range reflects pond productivity"),
+        name="carp.tgc", value=0.8, low=0.4, high=1.4, unit="g^1/3/(C·d) x1000",
+        source="ALkhafaji et al. (2023), Egypt. J. Aquat. Biol. Fish. 27(4): juvenile TGC "
+               "0.37 at 20 C lab; upper range back-computed from FAO 589 pond timelines "
+               "(600 g in 9-11 months at 25-30 C)"),
 }
 _TGC_DEFAULT = Coefficient(
-    name="generic.tgc", value=1.2, low=0.7, high=1.9, unit="g^1/3/(C·d) x1000",
-    source="LIT: mid-range warm-water default for species without a published TGC; "
-           "calibrate before trusting")
+    name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",
+    source="LIT: mid-range warm-water default inside the published 0.1-3.2 envelope "
+           "(Marquez et al. 2024) for species without their own entry; calibrate")
 
 
 def tgc_for(species_key: str) -> Coefficient:
