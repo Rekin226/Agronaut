@@ -100,12 +100,18 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
     New format (recommended):
       CATEGORY|URL
       CATEGORY|URL|LABEL
+      CATEGORY|URL|LABEL|LICENCE
+
+    LICENCE records the terms the text is published under (e.g. "CC BY 4.0", "CC BY-NC-SA 3.0").
+    Agronaut is a Digital Public Good, so what it indexes has to be openly licensed — and in
+    practice the paywalled sources are also the ones that return no text, so recording the licence
+    and keeping the corpus retrievable turn out to be the same discipline.
 
     Legacy format (backward compatible):
       URL
 
     Returns list of dicts:
-      {"category": "...", "url": "...", "label": "..."}
+      {"category": "...", "url": "...", "label": "...", "licence": "..."}
     """
     p = pathlib.Path(file_path)
     if not p.exists():
@@ -122,6 +128,7 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
 
         category = "UNCATEGORIZED"
         label = ""
+        licence = ""
 
         if "|" in line:
             parts = [x.strip() for x in line.split("|")]
@@ -130,6 +137,8 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
                 url = parts[1]
                 if len(parts) >= 3:
                     label = parts[2]
+                if len(parts) >= 4:
+                    licence = parts[3]
             else:
                 # Fallback to legacy if the split is malformed
                 url = line
@@ -144,7 +153,8 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
             continue
         seen.add(key)
 
-        entries.append({"category": category, "url": url, "label": label})
+        entries.append({"category": category, "url": url, "label": label,
+                        "licence": licence})
 
     return entries
 
@@ -179,8 +189,226 @@ def load_local_knowledge_documents(knowledge_dir: str = KNOWLEDGE_DIR):
     return docs
 
 
-def load_web_page(url: str):
+def _probe_url(url: str) -> dict | None:
+    """Fetch `url` ONCE and report what it is: status, content type, and body bytes.
 
+    Two things depend on this and both were previously getting their own request — the HTTP
+    status (WebBaseLoader never surfaces it, so an error page would otherwise be indexed as
+    content) and the PDF sniff. Downloading a 12 MB FAO publication three times to answer three
+    questions about it made vetting a source slower than it needs to be, and hammers the
+    publisher for no reason.
+
+    Returns None when the source must not be indexed (non-2xx). Returns a dict on success.
+    On a transport error it returns a dict with no content, letting WebBaseLoader try and apply
+    its own error handling rather than silently dropping a healthy source on one flaky request.
+    """
+    try:
+        import requests
+        r = requests.get(url, timeout=WEB_LOAD_TIMEOUT, allow_redirects=True,
+                         headers={"User-Agent": "Mozilla/5.0 (compatible; Agronaut/1.0)"})
+    except Exception as err:  # noqa: BLE001 — a probe failure must not cost us the source
+        logging.debug("Probe failed for %s (%s); deferring to the loader", url, err)
+        return {"status": 0, "content": b"", "content_type": "", "is_pdf": False}
+
+    if not (200 <= r.status_code < 300):
+        logging.warning("Skipping %s — HTTP %s, not indexing an error page", url, r.status_code)
+        return None
+
+    ctype = r.headers.get("Content-Type", "").lower()
+    content = r.content
+    return {
+        "status": r.status_code,
+        "content": content,
+        "content_type": ctype.split(";")[0],
+        # Detected by type/magic bytes, not a .pdf suffix: publication PDFs are routinely served
+        # from extension-less download endpoints (FAO's bitstream API is exactly this).
+        "is_pdf": "pdf" in ctype or content[:5].startswith(b"%PDF"),
+    }
+
+
+def _normalise_for_repetition(line: str) -> str:
+    """A line with its PAGE NUMBER removed, for detecting text that repeats across pages.
+
+    Only leading and trailing digits are stripped, because that is where page numbers sit —
+    "...plant farming62" and "61Design of aquaponic units". Stripping digits everywhere would
+    make lines that differ ONLY by an interior number collapse into one string, so a genuine
+    sequence like "Step 1: check the pH" / "Step 2: check the pH" across pages would look like
+    repeated furniture and be deleted as such. That is content loss disguised as cleaning.
+    """
+    return re.sub(r"^\d+|\d+$", "", line.strip()).strip().lower()
+
+
+def _strip_running_headers(docs, min_fraction: float = 0.15):
+    """Remove the running header/footer that repeats on nearly every page of a publication.
+
+    Every even page of FAO 589 opens "Small-scale aquaponic food production - Integrated fish and
+    plant farming62" and every odd page "61Design of aquaponic units". Left in, that text lands in
+    EVERY chunk the document produces — roughly 70 characters of the book's own title repeated
+    across a thousand vectors, pulling each one toward the title and away from the specific thing
+    the chunk is actually about. It is the highest-volume noise in a PDF corpus and the easiest to
+    remove.
+
+    Page numbers are stripped before counting, since the header differs by exactly that on each
+    page. A line has to appear on at least `min_fraction` of pages (and at least 3) to qualify, so
+    a phrase that genuinely recurs in the prose is not mistaken for furniture.
+    """
+    from collections import Counter
+    counts: Counter = Counter()
+    for d in docs:
+        seen = {_normalise_for_repetition(l) for l in d.page_content.splitlines() if l.strip()}
+        for line in seen:
+            if line:
+                counts[line] += 1
+    threshold = max(3, int(len(docs) * min_fraction))
+    furniture = {l for l, c in counts.items() if c >= threshold and len(l) > 8}
+    if not furniture:
+        return docs
+    for d in docs:
+        d.page_content = "\n".join(
+            l for l in d.page_content.splitlines()
+            if _normalise_for_repetition(l) not in furniture)
+    logging.info("Stripped %d running header/footer line(s) from %d pages",
+                 len(furniture), len(docs))
+    return docs
+
+
+def _looks_like_contents_page(text: str) -> bool:
+    """A table of contents, list of figures, or index — structure, not knowledge.
+
+    Such a page is mostly lines that end in a page number ("3.3.1 Photosynthetic activity of algae
+    28"). It embeds as a dense bag of the document's own section titles, so it matches almost any
+    query about the document's subject while answering none of them.
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) < 6:
+        return False
+    numbered = sum(1 for l in lines if re.search(r"\s\d{1,4}\s*$", l))
+    return numbered / len(lines) >= 0.6
+
+
+def pdf_cleaning_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_PDF_CLEAN", "").lower() not in {"off", "0", "false"}
+
+
+_CHAPTER_HEADER = re.compile(r"^\d{1,3}\s*([A-Z][A-Za-z][A-Za-z \-,'&]{4,60})$")
+
+
+def pdf_sections_enabled() -> bool:
+    """PDF chapter labelling ships DISABLED — measured, like everything else here.
+
+        variant                          hit    recall  prec    MRR     MAP
+        off (chunks carry no chapter)    0.939  0.894   0.540   0.737   0.697
+        on  (chunks carry their chapter) 0.909  0.848   0.525   0.727   0.682
+
+    Every metric fell. This is the THIRD context-prefix technique to lose on this corpus, after the
+    markdown crumb at 1354 chunks and header chunking, and the pattern behind all three is the
+    same: when every document shares one vocabulary domain, a topic label adds words that appear
+    in every chunk about that topic. Words present everywhere carry no discriminating information
+    — they only dilute the distinctive content already in the vector. "Plants in aquaponics"
+    prefixed onto a passage about leaf yellowing makes it look more like every other plant
+    passage, not more like the answer.
+
+    The extraction itself is sound and worth keeping: chapter coverage goes from 29% of pages
+    (headers where they literally appear) to 95% by forward-filling each chapter across the pages
+    that follow it. That metadata is genuinely useful for FILTERING, which is a different
+    mechanism from prefixing and one this corpus has not yet needed. Enable with
+    AGRONAUT_PDF_SECTIONS=on.
+    """
+    import os
+    return os.getenv("AGRONAUT_PDF_SECTIONS", "").lower() in {"on", "1", "true"}
+
+
+def _label_pdf_chapters(docs):
+    """Give every page of a publication the chapter it belongs to, and prefix its text with it.
+
+    This is the PDF analogue of splitting markdown on its headings — but a PDF has no headings to
+    split on, only typography that extraction flattens away. What survives is the running header:
+    odd pages of FAO 589 open "51Design of aquaponic units", carrying the chapter name and the
+    page number as one string.
+
+    Detection alone reaches just 76 of 262 pages, because even pages carry the book title instead.
+    The chapter is FORWARD-FILLED from each header to the pages that follow it, which is simply
+    what a chapter is — it continues until the next one starts. That takes coverage to nearly
+    every page.
+
+    Why it matters: without this an FAO chunk arrives as anonymous prose. "Nitrate is generally
+    tolerated at higher concentrations" is ambiguous on its own; carrying "Water quality in
+    aquaponics" it is not. The markdown equivalent measurably helped precision on the small corpus
+    for exactly this reason.
+    """
+    current = ""
+    for d in docs:
+        lines = [l for l in d.page_content.splitlines()]
+        stripped = [l.strip() for l in lines if l.strip()]
+        if stripped:
+            m = _CHAPTER_HEADER.match(stripped[0])
+            if m:
+                current = m.group(1).strip()
+                # The header line is furniture once its content is captured as metadata.
+                for i, l in enumerate(lines):
+                    if l.strip() == stripped[0]:
+                        lines.pop(i)
+                        break
+        if current:
+            d.metadata["chapter"] = current
+            body = "\n".join(lines).strip()
+            d.page_content = f"{current}\n{body}" if body else current
+        else:
+            d.page_content = "\n".join(lines)
+    return docs
+
+
+def _clean_pdf_documents(docs):
+    """Drop a publication's structural pages and its repeated furniture.
+
+    Applied at extraction so both the index and `corpus_report` see the same cleaned text — a
+    chunk count that includes 40 pages of table of contents is not a useful measure of what a
+    source contributes.
+    """
+    if not docs or not pdf_cleaning_enabled():
+        return docs
+    before = len(docs)
+    # Chapters are read BEFORE furniture is stripped: the running header IS the chapter signal,
+    # so removing it first would discard the very thing being extracted.
+    if pdf_sections_enabled():
+        docs = _label_pdf_chapters(docs)
+    docs = _strip_running_headers(docs)
+    kept = [d for d in docs
+            if d.page_content.strip() and not _looks_like_contents_page(d.page_content)]
+    if len(kept) < before:
+        logging.info("Dropped %d structural page(s) (contents/index/blank)", before - len(kept))
+    return kept
+
+
+def _pdf_documents(content: bytes, url: str):
+    """Text from already-downloaded PDF bytes, one Document per page so a retrieved passage
+    can be cited back to a page number."""
+    try:
+        import io
+        from langchain_core.documents import Document
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        docs = []
+        for n, page in enumerate(reader.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                docs.append(Document(page_content=text, metadata={"source": url, "page": n}))
+        docs = _clean_pdf_documents(docs)
+        logging.info("Loaded %d PDF pages from %s", len(docs), url)
+        return docs
+    except Exception as err:  # noqa: BLE001
+        logging.warning("Failed to read PDF %s — %s", url, err)
+        return []
+
+
+def load_web_page(url: str):
+    probe = _probe_url(url)
+    if probe is None:
+        return []
+    if probe["is_pdf"]:
+        return _pdf_documents(probe["content"], url)
     try:
         logging.info("Loading %s", url)
         loader = WebBaseLoader(url)
@@ -201,11 +429,100 @@ def load_web_page(url: str):
         return []
 
 
+def _markdown_header_chunks(doc):
+    """Split one knowledge document on its own headings, and give each chunk its context back.
+
+    The corpus is hand-authored markdown: 21 files carrying 21 `#` titles and 102 `##` sections.
+    Those headings are boundaries a human already chose, and a blind 800-character window ignores
+    them — it runs the tail of "Ammonia spike - safe actions" into the head of "Nitrite spike",
+    producing a chunk that belongs to neither.
+
+    Each chunk is also prefixed with "TITLE - Section". A bullet reading "keep it below 0.5 mg/L"
+    is nearly meaningless embedded on its own; prefixed with "Nitrogen Cycle - Target readings" it
+    carries its subject. This is context-aware chunking, and it improves the text the model reads
+    as well as the vector it is found by.
+
+    Falls back to returning the document unchanged when it has no headings to split on.
+    """
+    from langchain_text_splitters import MarkdownHeaderTextSplitter
+
+    text = getattr(doc, "page_content", "") or ""
+    try:
+        pieces = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[("#", "h1"), ("##", "h2")],
+            strip_headers=False,
+        ).split_text(text)
+    except Exception:  # noqa: BLE001 — malformed markdown must not lose the document
+        return [doc]
+    if not pieces:
+        return [doc]
+
+    out = []
+    for piece in pieces:
+        md = dict(doc.metadata)
+        h1 = piece.metadata.get("h1", "")
+        h2 = piece.metadata.get("h2", "")
+        md.update({k: v for k, v in (("h1", h1), ("h2", h2)) if v})
+        crumb = " — ".join(x for x in (h1, h2) if x) if _crumb_enabled() else ""
+        body = piece.page_content.strip()
+        if crumb and not body.startswith(crumb):
+            body = f"{crumb}\n{body}"
+        piece.page_content = body
+        piece.metadata = md
+        out.append(piece)
+    return out
+
+
+def _crumb_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_MD_CRUMB", "").lower() not in {"off", "0", "false"}
+
+
+def markdown_headers_enabled() -> bool:
+    """Header-aware chunking ships DISABLED — docs/dpg/retrieval_eval/chunking_ablation.json.
+
+    Ablated on two corpora. Baseline wins both times:
+
+        corpus        variant                       hit    recall  prec    MRR     MAP
+        362 chunks    A baseline                    0.970  0.919   0.626   0.909   0.869
+                      C header split + prefix       0.909  0.879   0.722   0.848   0.818
+        1354 chunks   A baseline                    0.848  0.788   0.495   0.692   0.636
+                      C header split + prefix       0.758  0.667   0.444   0.621   0.538
+
+    95% of the hand-authored corpus's 123 sections are SMALLER than the 800-character chunk window
+    (mean 381), so the recursive splitter already packs about two related sections per chunk and
+    splitting on headings fragments that useful co-occurrence.
+
+    The CONTEXT PREFIX reversed sign between the two runs, which is worth knowing before reaching
+    for it elsewhere: on the small uniform corpus it gained 0.116 precision by disambiguating a
+    chunk among 21 similar files; once a 992-chunk book joined the index the same added words made
+    curated chunks read as generic aquaponics prose and compete WORSE against it. The value of a
+    preprocessing step is a property of the corpus it runs on.
+
+    Note this splits MARKDOWN only — FAO 589 reaches the character splitter either way, so the
+    ablation does not test structural chunking of the PDF itself. That is unimplemented and is the
+    more promising direction for book-length sources. Enable with AGRONAUT_MD_HEADERS=on.
+    """
+    import os
+    return os.getenv("AGRONAUT_MD_HEADERS", "").lower() in {"on", "1", "true"}
+
+
 def build_vector_store(documents) -> FAISS:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
     )
+    if markdown_headers_enabled():
+        # Header-split the hand-authored corpus first, then let the character splitter handle any
+        # section that is still oversized. Web and PDF documents have no reliable heading
+        # structure, so they go straight to the character splitter as before.
+        prepared = []
+        for d in documents:
+            if d.metadata.get("source_type") == "local_file":
+                prepared.extend(_markdown_header_chunks(d))
+            else:
+                prepared.append(d)
+        documents = prepared
     docs = splitter.split_documents(documents)
 
     filtered = [d for d in docs if not _is_boilerplate_text(getattr(d, "page_content", ""))]
@@ -1455,7 +1772,96 @@ def handle_turn(user: str) -> None:
 # =============================================================================
 
 
+INDEX_CACHE_DIR = _PROJECT_ROOT / "data" / ".index_cache"
+INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
+
+
+def _corpus_fingerprint() -> str:
+    """Identity of the corpus AND the parameters that shape it.
+
+    Covers the local knowledge files, urls.txt, the embedding model and the chunk geometry, so
+    changing any of them invalidates the cache automatically. It cannot see a WEB source being
+    silently edited by its publisher — detecting that would mean fetching, which is the cost the
+    cache exists to avoid — so a TTL bounds how stale web content may get.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    # The chunking FLAGS belong here as much as the chunk size does: they change what text ends up
+    # in each vector, so an index built with one setting is simply wrong for another. Omitting
+    # them meant toggling AGRONAUT_MD_HEADERS or AGRONAUT_PDF_CLEAN silently reused a stale index
+    # — an ablation that appears to measure a setting while actually re-reading the previous one.
+    h.update(f"{EMBEDDING_MODEL}|{CHUNK_SIZE}|{CHUNK_OVERLAP}"
+             f"|md_headers={markdown_headers_enabled()}"
+             f"|md_crumb={_crumb_enabled()}"
+             f"|pdf_clean={pdf_cleaning_enabled()}"
+             f"|pdf_sections={pdf_sections_enabled()}".encode())
+    kb = pathlib.Path(KNOWLEDGE_DIR)
+    if kb.exists():
+        for fp in sorted(kb.rglob("*")):
+            if fp.suffix.lower() in {".md", ".txt"}:
+                h.update(fp.name.encode())
+                h.update(fp.read_bytes())
+    urls = pathlib.Path(URL_FILE)
+    if urls.exists():
+        h.update(urls.read_bytes())
+    return h.hexdigest()[:16]
+
+
+def _index_cache_enabled() -> bool:
+    import os
+    return os.getenv("AGRONAUT_INDEX_CACHE", "").lower() not in {"off", "0", "false"}
+
+
+def _load_cached_index(fingerprint: str):
+    """A previously built index for this exact corpus, or None.
+
+    Rebuilding costs a network fetch per source plus embedding every chunk. That was tolerable at
+    365 chunks of HTML; it is not once a corpus includes a 56 MB, 275-page publication that takes
+    47 s just to download.
+    """
+    import os
+    import time
+    if not _index_cache_enabled():
+        return None
+    path = INDEX_CACHE_DIR / fingerprint
+    if not (path / "index.faiss").exists():
+        return None
+    age = time.time() - (path / "index.faiss").stat().st_mtime
+    if age > INDEX_CACHE_TTL:
+        logging.info("Knowledge index cache is %.1f days old; rebuilding", age / 86_400)
+        return None
+    try:
+        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+        # allow_dangerous_deserialization: this pickle is one WE wrote, under the project's own
+        # data directory, keyed by a hash of our own corpus — not third-party input.
+        index = FAISS.load_local(str(path), embeddings,
+                                 allow_dangerous_deserialization=True)
+        logging.info("Loaded knowledge index from cache (%s, %.1f h old)",
+                     fingerprint, age / 3600)
+        return index
+    except Exception as err:  # noqa: BLE001 — a bad cache must never block a rebuild
+        logging.warning("Ignoring unreadable index cache %s — %s", fingerprint, err)
+        return None
+
+
+def _save_cached_index(index, fingerprint: str) -> None:
+    if not _index_cache_enabled():
+        return
+    try:
+        path = INDEX_CACHE_DIR / fingerprint
+        path.mkdir(parents=True, exist_ok=True)
+        index.save_local(str(path))
+        logging.info("Cached knowledge index -> %s", path)
+    except Exception as err:  # noqa: BLE001 — caching is an optimisation, never a hard failure
+        logging.warning("Could not cache knowledge index — %s", err)
+
+
 def build_rag_index_from_urls() -> Optional[FAISS]:
+    fingerprint = _corpus_fingerprint()
+    cached = _load_cached_index(fingerprint)
+    if cached is not None:
+        return cached
+
     url_entries = parse_urls_file(URL_FILE)
     urls = [e["url"] for e in url_entries]
     if not urls:
@@ -1483,10 +1889,12 @@ def build_rag_index_from_urls() -> Optional[FAISS]:
         return None
 
     try:
-        return build_vector_store(documents)
+        index = build_vector_store(documents)
     except Exception as err:  # noqa: BLE001
         logging.warning("Failed to build FAISS index – %s", err)
         return None
+    _save_cached_index(index, fingerprint)
+    return index
 
 
 def chat() -> None:
