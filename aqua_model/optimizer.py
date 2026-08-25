@@ -25,6 +25,7 @@ from . import massbalance as mb
 from .crops import CROPS, get_crop
 from .overrides import validate_overrides, apply_overrides
 from .species import SPECIES, get_species, temperature_feed_factor
+from .validate import ValidationError, validate_optimize_input
 
 OBJECTIVES = ("food", "protein", "water_efficiency")
 _ALLOC_STEPS = 4  # area is split into quarters across crops (bounded enumeration granularity)
@@ -147,10 +148,15 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
 
 
 def optimize(inp: OptimizeInput, overrides: dict | None = None) -> OptimizeResult:
+    # The trust gate applies here too. This enumerates thousands of designs and names a
+    # winner, so an unchecked number comes back as a confident, cited-looking "best ratio":
+    # a negative area used to report negative yields, and a NaN temperature scored the same
+    # as an optimal one. Reject first, enumerate second.
+    validate_optimize_input(inp.grow_area_m2, inp.temperature_c, inp.water_budget_lpd)
     if inp.objective not in OBJECTIVES:
-        raise ValueError(f"Unknown objective {inp.objective!r}. Supported: {OBJECTIVES}.")
+        raise ValidationError([f"unknown objective {inp.objective!r}; known: {list(OBJECTIVES)}"])
     if not inp.fish_palette or not inp.crop_palette:
-        raise ValueError("fish_palette and crop_palette must be non-empty.")
+        raise ValidationError(["fish_palette and crop_palette must be non-empty"])
     if overrides:
         validate_overrides(overrides)
 

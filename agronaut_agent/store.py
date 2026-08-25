@@ -16,7 +16,9 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-_DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "agronaut.sqlite3"
+from . import paths as _paths
+
+_DEFAULT_DB = _paths.data_dir() / "agronaut.sqlite3"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (

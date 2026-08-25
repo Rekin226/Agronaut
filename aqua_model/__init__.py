@@ -20,7 +20,12 @@ from .sizing import size_system
 from .hydroponics import size_hydroponic_system
 from .pilot import PilotInfo, to_pilot_proposal, projected_outcomes
 from .optimizer import optimize, OptimizeInput, OptimizeResult, Candidate, OBJECTIVES
-from .validate import validate_design_input, validate_hydroponic_input, ValidationError
+from .validate import (
+    validate_design_input,
+    validate_hydroponic_input,
+    validate_optimize_input,
+    ValidationError,
+)
 from .triage import (
     ObservationFeatures, TriageCandidate, TriageResult, format_triage, triage_symptoms,
     validate_observation_features,
@@ -42,6 +47,7 @@ __all__ = [
     "OBJECTIVES",
     "validate_design_input",
     "validate_hydroponic_input",
+    "validate_optimize_input",
     "validate_observation_features",
     "triage_symptoms",
     "format_triage",

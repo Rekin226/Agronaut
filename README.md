@@ -274,6 +274,30 @@ See [`docs/demo.md`](docs/demo.md) for the deployment details and for recording 
 One front door over everything the project ships. It works from any directory once
 installed; bare `agronaut` is the chat REPL, because that is what most people want.
 
+```bash
+agronaut                         # chat with the agent in the terminal
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+agronaut size-hydro --crop lettuce --area 10 --temp 22 --water 500
+agronaut optimize --area 10 --temp 28 --water 5000 --objective food
+agronaut list                    # supported species, crops, objectives
+agronaut web                     # the Streamlit app (trailing flags go to streamlit,
+                                 #   e.g. agronaut web --server.port=9000)
+agronaut bot                     # the Telegram bot
+agronaut review                  # approve/reject pending community insights
+agronaut analytics               # usage summary
+```
+
+**Where it keeps things.** In a checkout, the knowledge base, the fetched-page cache and the
+SQLite memory DB all sit beside the source, as before. Installed non-editably, the cited
+corpus is read from `<prefix>/share/agronaut` and state goes to your XDG directories rather
+than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
+`AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
+
+| Command | Needs an LLM? |
+|---|---|
+| `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |
+| `chat` (the default) / `bot` | Yes — a tool-calling provider (see above). |
+| `web` | Only for the app's chat mode; the calculator and optimizer run without one. |
 
 ### Run the tests
 ```bash

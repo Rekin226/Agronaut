@@ -1,6 +1,6 @@
 {
-  "n_coefficients": 9,
-  "n_within_range": 9,
+  "n_coefficients": 20,
+  "n_within_range": 20,
   "discrepancies": [],
   "coefficients": [
     {
@@ -65,6 +65,100 @@
       "note": "Cold-water, efficient. Seed 1.2 is mid-range."
     },
     {
+      "key": "carp.fcr",
+      "label": "Common carp feed conversion ratio",
+      "seed": 2.0,
+      "empirical_range": [
+        1.5,
+        2.5
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Common carp (Cyprinus carpio) pond/RAS grow-out FCR ~1.5\u20132.5"
+      ],
+      "note": "One of the most-farmed fish worldwide; seed 2.0 is mid-range."
+    },
+    {
+      "key": "barramundi.fcr",
+      "label": "Barramundi (Asian seabass) feed conversion ratio",
+      "seed": 1.6,
+      "empirical_range": [
+        1.2,
+        1.8
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "FAO Lates calcarifer aquaculture species card: commercial FCR ~1.6\u20131.8, experimental pellet FCR 1.0\u20131.2",
+        "Barlow, C.G. et al. (1996) barramundi feeding/nutrition (lab FCR ~1.1\u20131.4)"
+      ],
+      "note": "Fast, efficient warm-water grower; seed 1.6 is mid-band."
+    },
+    {
+      "key": "silver_perch.fcr",
+      "label": "Silver perch feed conversion ratio",
+      "seed": 1.6,
+      "empirical_range": [
+        1.2,
+        2.0
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "NSW DPI silver perch species note: FCR ~1.3\u20132.0, fingerling 1.2 to grow-out 1.5",
+        "Adebayo et al. (2005), Aquaculture Research 36:441\u2013452 (cage feeding strategy)"
+      ],
+      "note": "Australian aquaponics staple; seed 1.6 is near mid-band."
+    },
+    {
+      "key": "tambaqui.fcr",
+      "label": "Tambaqui (black pacu) feed conversion ratio",
+      "seed": 1.5,
+      "empirical_range": [
+        1.2,
+        1.9
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Rodrigues, A.P.O. et al. (2024), 'Feeding rate and feeding frequency during the grow-out phase of tambaqui (Colossoma macropomum) in earthen ponds', Aquaculture Reports \u2014 pond grow-out FCR ~1.5\u20131.8",
+        "Tambaqui cage trials report FCR ~0.9\u20131.2 (cage vs pond natural-food intake)"
+      ],
+      "note": "Amazonian flagship (FAO 589); seed 1.5 is mid-band."
+    },
+    {
+      "key": "freshwater_prawn.fcr",
+      "label": "Giant freshwater prawn feed conversion ratio",
+      "seed": 2.2,
+      "empirical_range": [
+        1.8,
+        2.8
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "Macrobrachium rosenbergii grow-out FCR ~2.0\u20132.5 (decapods convert feed less efficiently than finfish; D'Abramo, Daniels et al. 2000, MSU Bull. B1030)"
+      ],
+      "note": "The shrimp/prawn entry; seed 2.2 is mid-band."
+    },
+    {
+      "key": "pangasius.fcr",
+      "label": "Striped/pangasius catfish feed conversion ratio",
+      "seed": 1.8,
+      "empirical_range": [
+        1.4,
+        2.0
+      ],
+      "unit": "g feed / g gain",
+      "verdict": "within empirical range",
+      "sources": [
+        "MRC Mekong tech. symposium (2005): cage grow-out FCR averaged ~1.84 across three feeds (Pangasius hypophthalmus)",
+        "Water-temperature trial (2025), SVU Int. J. Vet. Sci.: juvenile FCR 1.22\u20131.28 at 24 \u00b0C up to 1.60\u20132.00 at 34 \u00b0C"
+      ],
+      "note": "Among the most-farmed fish in SE Asia; seed 1.8 is high-but-valid."
+    },
+    {
       "key": "lettuce.frr",
       "label": "Lettuce feeding-rate ratio",
       "seed": 60.0,
@@ -109,6 +203,81 @@
         "Somerville et al. (2014), FAO 589: fruiting raft ~100+ g/m\u00b2/day"
       ],
       "note": "Fruiting crops carry a higher feed load than leafy. Seed 110 is mid-band."
+    },
+    {
+      "key": "kale.frr",
+      "label": "Kale feeding-rate ratio",
+      "seed": 65.0,
+      "empirical_range": [
+        45.0,
+        90.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40\u2013100 g/m\u00b2/day"
+      ],
+      "note": "Leafy band; seed 65 sits just below mid (range 45\u201390)."
+    },
+    {
+      "key": "swiss_chard.frr",
+      "label": "Swiss chard feeding-rate ratio",
+      "seed": 60.0,
+      "empirical_range": [
+        40.0,
+        85.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40\u2013100 g/m\u00b2/day"
+      ],
+      "note": "Leafy band; seed 60 is near mid (range 40\u201385)."
+    },
+    {
+      "key": "spinach.frr",
+      "label": "Spinach feeding-rate ratio",
+      "seed": 55.0,
+      "empirical_range": [
+        40.0,
+        80.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589; UVI leafy feeding-rate band ~40\u2013100 g/m\u00b2/day"
+      ],
+      "note": "Cool-season leafy; seed 55 is toward the low end (range 40\u201380)."
+    },
+    {
+      "key": "cucumber.frr",
+      "label": "Cucumber feeding-rate ratio",
+      "seed": 100.0,
+      "empirical_range": [
+        80.0,
+        130.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589: fruiting raft ~80\u2013140 g/m\u00b2/day"
+      ],
+      "note": "Fruiting band; seed 100 is near mid (range 80\u2013130)."
+    },
+    {
+      "key": "pepper.frr",
+      "label": "Pepper feeding-rate ratio",
+      "seed": 100.0,
+      "empirical_range": [
+        80.0,
+        130.0
+      ],
+      "unit": "g feed / m\u00b2 / day",
+      "verdict": "within empirical range",
+      "sources": [
+        "Somerville et al. (2014), FAO 589: fruiting raft ~80\u2013140 g/m\u00b2/day"
+      ],
+      "note": "Fruiting band; seed 100 is near mid (range 80\u2013130)."
     },
     {
       "key": "lettuce.yield",
