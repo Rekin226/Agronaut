@@ -63,6 +63,7 @@ class ProductionState:
     water_temp_c: float
     day: int = 0
     harvested_fish_kg: float = 0.0
+    restocked_fish_kg: float = 0.0       # fingerlings BOUGHT, not grown — see realized FCR
     harvested_crop_kg: float = 0.0
     feed_used_kg: float = 0.0
     heat_deficit_c_days: float = 0.0     # what a heater had to supply; 0 when unheated
@@ -157,11 +158,13 @@ def step_production(
     crop_kg = CG.harvest_rate_kg_m2_day(crop, fac) * grow_area_m2
     fish = growth.cohort
     fish_harvested = 0.0
+    restocked_kg = 0.0
     target = harvest_at_g if harvest_at_g is not None else species.harvest_weight_kg * 1000.0
     warnings = list(nstep.warnings)
     if fish.mean_weight_g >= target > 0:
         fish_harvested = fish.biomass_kg()
         fish = FG.Cohort(count=fish.count, mean_weight_g=restock_weight_g)
+        restocked_kg = fish.biomass_kg()
         warnings.append(
             f"day {state.day + 1}: cohort harvested at {target:.0f} g and restocked at "
             f"{restock_weight_g:.0f} g — batch culture; staggered cohorts are not modelled")
@@ -175,6 +178,7 @@ def step_production(
         water_temp_c=water_c,
         day=state.day + 1,
         harvested_fish_kg=state.harvested_fish_kg + fish_harvested,
+        restocked_fish_kg=state.restocked_fish_kg + restocked_kg,
         harvested_crop_kg=state.harvested_crop_kg + crop_kg,
         feed_used_kg=state.feed_used_kg + growth.feed_eaten_g / 1000.0,
         heat_deficit_c_days=state.heat_deficit_c_days + deficit,
@@ -239,8 +243,11 @@ def simulate_production(
         cur = d.state
 
     n = len(traj)
+    # Growth is what the FEED produced. Restocked fingerlings are bought biomass sitting in
+    # the standing crop, so counting them as growth flatters the realized FCR — and the
+    # business case reads that FCR to price feed per kilogram of fish.
     fish_growth_kg = (cur.harvested_fish_kg + cur.fish.biomass_kg()
-                      - initial.fish.biomass_kg())
+                      - initial.fish.biomass_kg() - cur.restocked_fish_kg)
     means = {
         "light": sum(d.crop_factors.f_light for d in traj) / n,
         "temperature": sum(d.crop_factors.f_temp for d in traj) / n,

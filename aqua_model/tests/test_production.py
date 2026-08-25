@@ -161,3 +161,13 @@ def test_an_infeasible_design_cannot_seed_the_twin():
     empty = DesignOutput(feasible=False)
     with pytest.raises(ValueError, match="feasible"):
         start_state_from_design(empty, TILAPIA, water_temp_c=26.0)
+
+
+def test_restocked_fingerlings_are_not_counted_as_growth():
+    """Bought biomass is not feed-driven growth. Counting it flatters the realized FCR,
+    which the business case reads to price feed per kilogram of fish."""
+    run = _run([GOOD_DAY] * 365, harvest_at_g=200.0, restock_weight_g=20.0)
+    s = run.summary
+    assert run.trajectory[-1].state.restocked_fish_kg > 0, "this run should restock"
+    assert s.realized_fcr >= TILAPIA.fcr * 0.95, (
+        "realized FCR cannot beat the species FCR — feed is the only source of growth")

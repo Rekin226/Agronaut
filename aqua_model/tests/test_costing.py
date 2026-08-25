@@ -118,3 +118,17 @@ def test_every_priced_line_carries_its_source():
     for line in est.capex + est.opex_per_year:
         if line.unit_price is not None:
             assert line.source, f"{line.takeoff.label} has a price but no source"
+
+
+def test_feed_can_be_costed_on_what_was_actually_fed():
+    """Pricing the design's steady-state feed against a simulated first year's harvest is
+    not like-for-like: fingerlings eat their way up to the nameplate rate."""
+    out, layout = _design()
+    nameplate = estimate_cost(out, layout, _BOOK, "testland")
+    actual = estimate_cost(out, layout, _BOOK, "testland", feed_kg_year=100.0)
+    assert actual.opex_total()[1] < nameplate.opex_total()[1]
+    feed_line = next(line for line in actual.opex_per_year
+                     if line.takeoff.key == "feed_kg")
+    assert feed_line.takeoff.qty == 100.0
+    assert "simulated year" in feed_line.takeoff.note
+    assert "steady-state rate" in feed_line.takeoff.note

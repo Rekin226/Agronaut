@@ -134,6 +134,19 @@
       "verdict_reason": "behaviourally correct feed record (ration climbs with biomass at constant count) but licence undeclared; asking the channel owner is the small concrete task recorded in #87"
     },
     {
+      "id": "faostat_producer_prices",
+      "title": "FAOSTAT Producer Prices (PP domain), bulk CSV",
+      "source": "FAO, https://bulks-faostat.fao.org/production/Prices_E_<Region>.zip",
+      "license": "CC BY 4.0 (FAO open data)",
+      "fetch": {"method": "script", "ref": "scripts/fetch_faostat_prices.py"},
+      "units": "physical",
+      "channels": ["producer_price_lcu_tonne", "producer_price_usd_tonne", "price_index"],
+      "pairs_feed_with_nitrogen": false,
+      "role": "revenue (farm-gate crop prices for the business case)",
+      "verdict": "REVIEW",
+      "verdict_reason": "the only free official series of what farmers are PAID, but coverage is uneven and often stale: Burkina Faso's vegetable prices stop in 2007 (tomatoes 80 XOF/kg, no lettuce at all) while MALI publishes lettuce/tomato/okra/cabbage through 2024 in the same currency — the price book uses Mali as a labelled proxy. TAIWAN IS ABSENT ENTIRELY (Asia file carries only China mainland and Hong Kong SAR). The REST API now requires an authorization header; the bulk ZIPs remain public. Carries no aquaculture prices — fish is FishStat, a separate domain"
+    },
+    {
       "id": "nasa_power",
       "title": "NASA POWER daily agro-climate API",
       "source": "NASA LaRC POWER v2, https://power.larc.nasa.gov",

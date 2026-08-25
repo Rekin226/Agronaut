@@ -168,14 +168,23 @@ def takeoff(out: DesignOutput, layout: Layout, *, species_key: str = "tilapia",
     return lines
 
 
-def opex_takeoff(out: DesignOutput) -> list[TakeoffLine]:
-    """Running quantities per year, from the same design numbers."""
-    feed_kg_yr = out.feed_g_per_day * 365.0 / 1000.0
+def opex_takeoff(out: DesignOutput, *, feed_kg_year: float | None = None) -> list[TakeoffLine]:
+    """Running quantities per year, from the same design numbers.
+
+    `feed_kg_year` overrides the design's NAMEPLATE feed rate with what a simulation
+    actually fed. The two differ a lot in year one — the design rate assumes the full
+    standing crop, while a new system stocks fingerlings that eat their way up to it — and
+    pricing nameplate feed against a simulated year's harvest is not a like-for-like
+    comparison. The line says which basis it used."""
+    nameplate_kg_yr = out.feed_g_per_day * 365.0 / 1000.0
+    feed_kg_yr = nameplate_kg_yr if feed_kg_year is None else feed_kg_year
+    feed_note = ("at the design feed rate (full standing crop)" if feed_kg_year is None
+                 else f"as actually fed in the simulated year; the design's steady-state "
+                      f"rate is {nameplate_kg_yr:,.0f} kg/yr")
     kwh_yr = out.pump_power_w * 24.0 * 365.0 / 1000.0
     water_m3_yr = out.makeup_water_lpd * 365.0 / 1000.0
     return [
-        TakeoffLine("feed_kg", "fish feed", round(feed_kg_yr, 1), "kg/yr",
-                    "at the design feed rate; a growing cohort averages less in year one"),
+        TakeoffLine("feed_kg", "fish feed", round(feed_kg_yr, 1), "kg/yr", feed_note),
         TakeoffLine("electricity_kwh", "electricity (pump, continuous)",
                     round(kwh_yr, 1), "kWh/yr", "aeration adds ~30-60% on top"),
         TakeoffLine("water_m3", "make-up water", round(water_m3_yr, 1), "m³/yr"),
@@ -193,14 +202,15 @@ def _price(book_items: dict, line: TakeoffLine) -> CostLine:
 
 
 def estimate_cost(out: DesignOutput, layout: Layout, price_book: dict, region: str, *,
-                  species_key: str = "tilapia", greenhouse_mode: str = "poly") -> CostEstimate:
+                  species_key: str = "tilapia", greenhouse_mode: str = "poly",
+                  feed_kg_year: float | None = None) -> CostEstimate:
     """Price the takeoff with one region's book. Raises KeyError for an unknown region —
     a wrong region must fail loudly, not price Ouagadougou in Taiwan dollars."""
     reg = price_book["regions"][region]
     items = reg.get("items", {})
     capex = tuple(_price(items, t) for t in takeoff(
         out, layout, species_key=species_key, greenhouse_mode=greenhouse_mode))
-    opex = tuple(_price(items, t) for t in opex_takeoff(out))
+    opex = tuple(_price(items, t) for t in opex_takeoff(out, feed_kg_year=feed_kg_year))
     unpriced = tuple(line.takeoff.label for line in capex + opex if line.unit_price is None)
     return CostEstimate(region=region, currency=str(reg.get("currency", "?")),
                         as_of=str(reg.get("as_of", "?")), capex=capex,
