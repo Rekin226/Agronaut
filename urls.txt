@@ -12,6 +12,17 @@
 # Audit everything currently declared:
 #     python -m scripts.corpus_report
 
+# The canonical open-access book of the field: 619 pages, 24 chapters, the source behind
+# many of aqua_model's cited coefficients (docs/twin_parameter_dossier.md reads it directly).
+# CC BY 4.0 CONFIRMED from the book's own copyright page (ISBN 978-3-030-15943-6,
+# DOI 10.1007/978-3-030-15943-6, "Open Access ... Creative Commons Attribution 4.0").
+# Indexed via the OAPEN mirror because link.springer.com serves a bot-challenge page to
+# automated fetchers; OAPEN serves the identical PDF cleanly (gate: 2576 chunks).
+# NOTE: this roughly triples the corpus (1354 -> ~3900 chunks). rag.py's own doctrine says
+# the hybrid-retrieval weighting sweep must be RE-RUN after substantial corpus growth —
+# see docs/dpg/retrieval_eval — before trusting hybrid to still beat dense-only.
+BOOK|https://library.oapen.org/rest/bitstreams/99f9a68d-8f14-4a9b-a2c7-156480324d71/retrieve|Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open|CC BY 4.0
+
 REVIEW|https://doi.org/10.1007/S10462-024-11003-X|Applications, technologies, and evaluation methods in smart aquaponics: a systematic literature review (Artif Intell Rev, 2024)|CC BY 4.0
 SURVEY|https://doi.org/10.1371/journal.pone.0102662|Love et al. (2014), An International Survey of Aquaponics Practitioners, PLOS ONE|CC BY 4.0
 

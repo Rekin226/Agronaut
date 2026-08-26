@@ -75,8 +75,24 @@ reports coverage against `logging_schema` v1. Adopted so far: the in-repo IoTPon
 Wageningen greenhouse-climate sets (AGC editions 1–2), and the two climate APIs.
 
 The decisive gap stands: **no public dataset pairs feeding records with nitrogen species**
-(#87). Until an operator logs through `logging_schema.py`, the twin's absolute numbers are
-literature-seeded projections, and every report states that.
+(#87). Two routes around it are now on the record:
+
+- **Inference, tried honestly** (`scripts/validate_twin.py`): feed inferred from fish
+  GROWTH (measured fortnightly) via literature FCR, and the twin scored against NITRATE
+  on held-out days — different observables, so not circular. Verdict, computed not
+  asserted: MIXED. The twin tracks the direction of held-out nitrate on 5 of 7 QC-passing
+  ponds (shape r median +0.30, best +0.98) but does not beat a linear-trend null on
+  level, because the pond sensors are uncalibrated (nitrate in the thousands of "mg/L").
+  Full method, caveats and per-pond results: `data/twin_validation.json`; the inferred
+  paired series, provenance in every row: `data/inferred_feed_nitrogen.csv`.
+- **Creation** (`docs/feed_response_protocol.md`): a 21-day feed step-response experiment
+  on a real system with titration kits that read true mg/L — one operator produces a more
+  decisive record than everything surveyed, because it contains a KNOWN change in the
+  forcing function. This is the route the inference result points to: the bottleneck is
+  sensor quality, not missing feed records.
+
+Until such a record exists, the twin's absolute numbers are literature-seeded projections,
+and every report states that.
 
 ## Honesty contract
 
