@@ -401,3 +401,50 @@ def test_tool_rows_do_not_shrink_conversation_window(tmp_path):
 
     blob = "\n".join(str(getattr(m, "content", "")) for m in agent._build_context(uid))
     assert "FIRST_QUESTION" in blob  # 18 tool rows must not push it out of a 20-row window
+
+
+class _FabricatingFake:
+    """A model that fabricates a tool result on the first ask, then complies when nudged."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="[earlier result from estimate_system_cost] It costs 1,200,000 XOF.")
+        return AIMessage(content="Let me actually compute that for you — one moment.")
+
+
+class _StubbornFabricator:
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        return AIMessage(content="[earlier result from business_case] You will profit greatly.")
+
+
+def test_a_fabricated_tool_result_is_caught_and_retried(tmp_path):
+    """Measured live failure: the model prefixed invented numbers with '[earlier result
+    from X]' without calling anything. The tripwire forces one corrective iteration."""
+    from agronaut_agent.core import AgronautAgent
+
+    agent_ = AgronautAgent(db_path=str(tmp_path / "a.sqlite3"), chat_model=_FabricatingFake())
+    reply = agent_.handle_message("cli", "u1", "what will it cost?")
+    assert "[earlier result" not in reply
+    assert "compute" in reply.lower()
+
+
+def test_a_stubborn_fabricator_is_refused_not_delivered(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    agent_ = AgronautAgent(db_path=str(tmp_path / "b.sqlite3"), chat_model=_StubbornFabricator())
+    reply = agent_.handle_message("cli", "u2", "will it make money?")
+    assert "profit greatly" not in reply
+    assert "[earlier result" not in reply
+    assert "without computing" in reply
