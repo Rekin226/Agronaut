@@ -36,6 +36,7 @@ smaller. Nothing in the code depends on that source existing.
 |---|---|---|
 | 21 × `knowledge/*.md` | First-party | **The answer layer.** Hand-written operator guidance |
 | FAO 589 (Somerville et al., 2014) | FAO permissive (NC) | **The depth layer.** 275-page canonical reference |
+| Goddek, Joyce, Kotzen & Burnell eds. (2019), *Aquaponics Food Production Systems*, Springer Open | CC BY 4.0 (confirmed from the book's own copyright page) | **The research layer.** 619-page, 24-chapter open-access book; the source behind many of `aqua_model`'s cited coefficients (see `docs/twin_parameter_dossier.md`). Indexed via the OAPEN mirror because link.springer.com serves a bot challenge; ~2,576 chunks, which roughly triples the corpus — the hybrid-retrieval weighting sweep must be re-run before trusting hybrid over dense-only (see `agronaut_agent/rag.py`) |
 | Applications, technologies and evaluation methods in smart aquaponics (Artif Intell Rev, 2024) | CC BY 4.0 | Systematic review; IoT/ML framing |
 | Love et al. (2014), An International Survey of Aquaponics Practitioners (PLOS ONE) | CC BY 4.0 | Practitioner survey data |
 

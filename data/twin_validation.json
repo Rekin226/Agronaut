@@ -1,0 +1,171 @@
+{
+ "dataset": "Ogbuokiri/Udanor et al., Kaggle DOI 10.34740/kaggle/dsv/2681778",
+ "method": "feed inferred from fortnightly weight via FCR(T) (Kasihmuddin 2021); one scale per pond fitted on the first half; nitrate trajectory scored on the held-out second half against flat and linear-trend nulls",
+ "why_not_circular": "feed is inferred from WEIGHT; the model is scored on NITRATE \u2014 the two are linked only through the model under test",
+ "caveats": [
+  "sensors are uncalibrated: nitrate treated as sensor units, not mg/L",
+  "one fitted scalar per pond absorbs volume, fish count and sensor gain",
+  "FCR is literature-typical, not measured for these ponds",
+  "this validates dynamics/shape only \u2014 never absolute concentrations"
+ ],
+ "generated_utc": "2026-08-26T02:41:34+00:00",
+ "ponds": [
+  {
+   "pond": "IoTPond10.csv",
+   "usable": false,
+   "reason": "only 12 QC-clean days with nitrate + temperature"
+  },
+  {
+   "pond": "IoTPond11.csv",
+   "usable": false,
+   "reason": "only 3 QC-clean days with nitrate + temperature"
+  },
+  {
+   "pond": "IoTPond12.csv",
+   "usable": false,
+   "reason": "only 1 QC-clean days with nitrate + temperature"
+  },
+  {
+   "pond": "IoTPond2.csv",
+   "usable": true,
+   "days_total": 135,
+   "days_validated": 48,
+   "scale_fitted": 379.907,
+   "n_removal_per_day_fitted": 0.005,
+   "pearson_r_holdout": -0.027,
+   "rmse_twin": 2361.9,
+   "rmse_null_flat": 628.0,
+   "rmse_null_trend": 594.9,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    3.4,
+    394.7
+   ]
+  },
+  {
+   "pond": "IoTPond3.csv",
+   "usable": true,
+   "days_total": 116,
+   "days_validated": 21,
+   "scale_fitted": 413.85,
+   "n_removal_per_day_fitted": 0.005,
+   "pearson_r_holdout": 0.297,
+   "rmse_twin": 1307.4,
+   "rmse_null_flat": 788.2,
+   "rmse_null_trend": 631.9,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    3.2,
+    294.9
+   ]
+  },
+  {
+   "pond": "IoTPond4.csv",
+   "usable": true,
+   "days_total": 79,
+   "days_validated": 33,
+   "scale_fitted": 1264.178,
+   "n_removal_per_day_fitted": 0.12,
+   "pearson_r_holdout": 0.257,
+   "rmse_twin": 1090.7,
+   "rmse_null_flat": 1110.3,
+   "rmse_null_trend": 397.6,
+   "beats_flat": true,
+   "beats_trend": false,
+   "weight_g": [
+    3.1,
+    223.7
+   ]
+  },
+  {
+   "pond": "IoTPond6.csv",
+   "usable": true,
+   "days_total": 117,
+   "days_validated": 38,
+   "scale_fitted": 558.646,
+   "n_removal_per_day_fitted": 0.005,
+   "pearson_r_holdout": 0.565,
+   "rmse_twin": 1835.7,
+   "rmse_null_flat": 1090.1,
+   "rmse_null_trend": 965.0,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    3.2,
+    304.8
+   ]
+  },
+  {
+   "pond": "IoTPond7.csv",
+   "usable": true,
+   "days_total": 67,
+   "days_validated": 33,
+   "scale_fitted": 1115.267,
+   "n_removal_per_day_fitted": 0.12,
+   "pearson_r_holdout": 0.977,
+   "rmse_twin": 1293.7,
+   "rmse_null_flat": 325.4,
+   "rmse_null_trend": 849.7,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    3.0,
+    179.7
+   ]
+  },
+  {
+   "pond": "IoTPond8.csv",
+   "usable": false,
+   "reason": "only 16 QC-clean days with nitrate + temperature"
+  },
+  {
+   "pond": "IoTPond9.csv",
+   "usable": true,
+   "days_total": 118,
+   "days_validated": 45,
+   "scale_fitted": 218.077,
+   "n_removal_per_day_fitted": 0.005,
+   "pearson_r_holdout": 0.089,
+   "rmse_twin": 939.4,
+   "rmse_null_flat": 872.4,
+   "rmse_null_trend": 290.2,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    4.4,
+    431.2
+   ]
+  },
+  {
+   "pond": "IoTpond1.csv",
+   "usable": true,
+   "days_total": 117,
+   "days_validated": 32,
+   "scale_fitted": 307.727,
+   "n_removal_per_day_fitted": 0.005,
+   "pearson_r_holdout": 0.327,
+   "rmse_twin": 1032.2,
+   "rmse_null_flat": 659.3,
+   "rmse_null_trend": 275.3,
+   "beats_flat": false,
+   "beats_trend": false,
+   "weight_g": [
+    2.9,
+    318.6
+   ]
+  }
+ ],
+ "summary": {
+  "claim": "MIXED: the twin tracks the DIRECTION of held-out nitrate on 5 of 7 ponds (shape correlation), but does NOT beat a linear-trend null on level \u2014 on uncalibrated pond sensors, level-prediction skill is not demonstrated. The bottleneck is sensor quality, not the absence of feed records: the create-your-own-data path (docs/feed_response_protocol.md) is what moves this.",
+  "n_scored": 7,
+  "n_beats_both_nulls": 0,
+  "n_positive_shape_correlation": 5,
+  "holdout_r_median": 0.297,
+  "holdout_r_range": [
+   -0.027,
+   0.977
+  ]
+ }
+}
