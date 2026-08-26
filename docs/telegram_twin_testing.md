@@ -40,6 +40,14 @@ LLM_MODEL=mistralai/mistral-nemotron
 Set it in the server's `.env` and restart. (Any tool-capable hosted model works; this one
 measured 20x faster with correct tool choice on the twin flows.)
 
+## The automated check, before the phone
+
+`python scripts/validate_telegram_flows.py` runs the six-step conversation below through
+the bot's exact brain against the real configured LLM and reports which tools actually
+fired. Run it on the server after any pull: 6/6 means the conversational path works right
+now; misses name exactly which flow the current model is fumbling. `/log` and `/forecast`
+work regardless — they never touch the LLM.
+
 ## The test script — six messages, in order
 
 Each step names the tool that should fire and what arriving proof looks like. Watch the
