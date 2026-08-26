@@ -308,6 +308,50 @@ class AgronautAgent:
             parts.append("PAST SUMMARY: " + summary)
         return "\n\n".join(parts)
 
+    def _rescue_leaked_tool_call(self, text: str) -> dict | None:
+        """Parse a tool call leaked as plain text into a structured call, or None when the
+        text is not a leak (or names no known tool, or carries an unparseable payload —
+        those fall through to the normal no-tool path rather than guessing).
+
+        Two dialects, both measured live on NVIDIA NIM under load (validation runs,
+        2026-08), in both of which the model had chosen the RIGHT tool with the RIGHT
+        arguments and the adapter delivered it as gibberish text:
+          1. mistral-native:  [TOOL_CALLS]update_profile{"updates": {...}}
+          2. bare JSON-ish:   {"name": "log_my_readings", "parameters": {... True, None}}
+             — with Python literals, so json.loads alone cannot read it."""
+        import ast
+        import json as _json
+        import re
+
+        def _payload(raw: str):
+            try:
+                obj, _end = _json.JSONDecoder().raw_decode(raw)
+                return obj
+            except ValueError:
+                try:
+                    return ast.literal_eval(raw.strip())
+                except (ValueError, SyntaxError):
+                    return None
+
+        m = re.search(r"\[TOOL_CALLS\]\s*(\w+)\s*\{", text)
+        if m and m.group(1) in self._tools_by_name:
+            args = _payload(text[m.end() - 1:])
+            if isinstance(args, dict):
+                return {"name": m.group(1), "args": args, "id": "rescued-leaked-call"}
+            return None
+
+        brace = text.find("{")
+        if brace >= 0:
+            obj = _payload(text[brace:])
+            if (isinstance(obj, dict) and obj.get("name") in self._tools_by_name):
+                args = obj.get("parameters") or obj.get("arguments") or obj.get("args") or {}
+                if isinstance(args, dict):
+                    # None-valued optionals mean "not given" — drop them so tool defaults
+                    # apply instead of exploding on float(None).
+                    args = {k: v for k, v in args.items() if v is not None}
+                    return {"name": obj["name"], "args": args, "id": "rescued-leaked-call"}
+        return None
+
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
         fabrication_nudged = False
@@ -315,6 +359,19 @@ class AgronautAgent:
             ai = self._bound.invoke(messages)
             messages.append(ai)
             tool_calls = getattr(ai, "tool_calls", None)
+            if not tool_calls:
+                # Rescue leaked tool calls. Measured (validation run, 2026-08): mistral on
+                # NVIDIA NIM sometimes emits its NATIVE tool-call syntax as plain text —
+                # `[TOOL_CALLS]update_profile{"updates": {...}}` — which the adapter fails
+                # to parse into structured tool_calls, so a correct decision by the model
+                # dies as gibberish text. Parse it ourselves and run the call: the leaked
+                # AIMessage is replaced with a well-formed one so the transcript stays
+                # valid for strict OpenAI-compatible templates.
+                rescued = self._rescue_leaked_tool_call(ai.content or "")
+                if rescued is not None:
+                    messages.pop()
+                    messages.append(AIMessage(content="", tool_calls=[rescued]))
+                    tool_calls = [rescued]
             if not tool_calls:
                 text = (ai.content or "").strip()
                 # Tripwire: a reply that cites an "earlier result" is only honest if this

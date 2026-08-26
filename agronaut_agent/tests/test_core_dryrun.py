@@ -448,3 +448,61 @@ def test_a_stubborn_fabricator_is_refused_not_delivered(tmp_path):
     assert "profit greatly" not in reply
     assert "[earlier result" not in reply
     assert "without computing" in reply
+
+
+class _LeakyFake:
+    """Emits a tool call as mistral's native text syntax (the measured NIM leak), then
+    answers normally once the rescued tool result arrives."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content='[TOOL_CALLS]list_supported_species_and_crops{}')
+        return AIMessage(content="We support tilapia and lettuce, among others.")
+
+
+def test_a_leaked_text_tool_call_is_rescued_and_executed(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _LeakyFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "c.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u3", "what species do you support?")
+    assert "[TOOL_CALLS]" not in reply
+    assert fake.calls == 2, "the loop must continue after the rescued call, not end on the leak"
+    assert "tilapia" in reply
+
+
+class _BareJsonLeakFake:
+    """The second measured NIM leak dialect: a bare JSON-ish call with Python literals."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content=(
+                '{"name": "list_supported_species_and_crops", "parameters": '
+                '{"unused": None, "flag": True}}'))
+        return AIMessage(content="Tilapia is supported.")
+
+
+def test_the_bare_json_leak_dialect_is_rescued_too(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _BareJsonLeakFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "d.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u4", "what fish do you support?")
+    assert fake.calls == 2
+    assert "Tilapia" in reply and "{" not in reply
