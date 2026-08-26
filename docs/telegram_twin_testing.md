@@ -29,16 +29,31 @@ NVIDIA free tier (2026-08, this repo's own benchmark) decide the experience:
 A turn uses 2-6 round-trips, so the old default produced **3-5 minute replies**, and under
 free-tier congestion (503s are routine) every failed call silently fell back to the 8B
 model — which answers in text instead of calling tools. That combination reads exactly as
-"the twin doesn't work, I only get text." Two fixes shipped with this doc: the primary is
-retried once before falling back, and the recommended config is now:
+"the twin doesn't work, I only get text." The recommended config:
 
 ```
 LLM_PROVIDER=nvidia
 LLM_MODEL=mistralai/mistral-nemotron
 ```
 
-Set it in the server's `.env` and restart. (Any tool-capable hosted model works; this one
-measured 20x faster with correct tool choice on the twin flows.)
+Set it in the server's `.env` (it is NOT in git — pulling does not change it) and restart.
+
+**What five full validation runs taught about the free tier, so nobody relearns it:**
+model behavior is weather. The same model, same prompt, hours apart, produced: correct
+structured tool calls; tool calls leaked as plain text (two dialects); "I'll log that
+now" narration with no call; and once, plain confident fabrication of a cost figure.
+The agent now carries guards for every *marked* failure (a fabrication tripwire, a
+leaked-call rescue parser, a promise-without-action nudge — each born from a measured
+incident and unit-tested), and the primary is retried before any fallback. But no guard
+catches unmarked confident fiction from a small model, and no free tier promises a
+response window. Hence the two-layer design:
+
+- **Conversational layer** — best-effort, guarded, and self-auditable:
+  `python scripts/validate_telegram_flows.py` runs the six flows against the live model
+  and names exactly which ones it fumbles today.
+- **Command layer — the guarantee.** `/log` and `/forecast` drive the live twin by
+  direct tool invocation with NO LLM in the path. They work identically in every model
+  weather, including a fully dead endpoint.
 
 ## The automated check, before the phone
 
