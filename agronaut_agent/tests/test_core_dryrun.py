@@ -506,3 +506,35 @@ def test_the_bare_json_leak_dialect_is_rescued_too(tmp_path):
     reply = agent_.handle_message("cli", "u4", "what fish do you support?")
     assert fake.calls == 2
     assert "Tilapia" in reply and "{" not in reply
+
+
+class _PromisingFake:
+    """Announces an action without calling a tool, then complies when nudged."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="I'll check the supported species for you now.")
+        if self.calls == 2:
+            return AIMessage(content="", tool_calls=[{
+                "name": "list_supported_species_and_crops", "args": {}, "id": "c1"}])
+        return AIMessage(content="We support tilapia and more.")
+
+
+def test_a_promise_without_action_is_nudged_into_the_call(tmp_path):
+    """Measured: 'I'll log your readings' as a final reply, with nothing logged. The
+    nudge converts the narration into the actual tool call."""
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _PromisingFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "e.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u5", "what species do you support?")
+    assert fake.calls >= 2, "the promise must trigger a corrective iteration"
+    assert "tilapia" in reply.lower() or "species" in reply.lower()

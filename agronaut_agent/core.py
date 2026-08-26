@@ -175,6 +175,14 @@ _VERDICT_INSTRUCTION = (
 _MAX_ITERS = 6
 _TOOL_REPLAY_MAX_CHARS = 2000
 
+# A reply that ANNOUNCES an action — "I'll log your readings", "Let me check your
+# forecast" — and then stops, the promise substituting for the tool call. Measured on the
+# six-step live validation: three consecutive turns of narration with no effect. The
+# corrective nudge is safe for the ask-a-question case (see the nudge text).
+import re as _re
+
+_PROMISE = _re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\b", _re.I)
+
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
@@ -355,6 +363,7 @@ class AgronautAgent:
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
         fabrication_nudged = False
+        promise_nudged = False
         for _ in range(_MAX_ITERS):
             ai = self._bound.invoke(messages)
             messages.append(ai)
@@ -393,6 +402,15 @@ class AgronautAgent:
                     return ("I almost gave you numbers without computing them — caught it. "
                             "Ask me that again in one message and I'll run the real "
                             "calculation.")
+                if _PROMISE.search(text) and not promise_nudged:
+                    promise_nudged = True
+                    messages.append(SystemMessage(content=(
+                        "You ANNOUNCED an action but called no tool in that reply, so "
+                        "nothing actually happened. If the action needs a tool (logging "
+                        "readings, a forecast, saving the profile, sizing, costing), CALL "
+                        "the tool NOW and answer from its real output. If you were only "
+                        "asking the user a question, return your question unchanged.")))
+                    continue
                 return text or "I'm not sure how to help with that yet."
             for call in tool_calls:
                 tool = self._tools_by_name.get(call["name"])
@@ -584,6 +602,38 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         block = self._recall_block(user_id)
         return block or "I don't know anything about your system yet. Tell me about it!"
+
+    def _run_tool_direct(self, channel: str, channel_user: str, tool_name: str,
+                         args: dict) -> str:
+        """Run one tool deterministically for a user, NO LLM in the path — backs the
+        /log and /forecast commands. The point is a guarantee: free-tier LLM weather
+        (congestion, leaked tool calls, narration instead of action — all measured) must
+        never stand between an operator and their own live twin. The result is recorded
+        in the conversation like any tool turn, so the LLM sees it as context later."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        tool = {t.name: t for t in AGRONAUT_TOOLS}[tool_name]
+        runtime.set_current(self._mem, user_id, self._followups, self._community,
+                            self._calibration)
+        try:
+            result = tool.invoke(args)
+        except Exception as exc:  # noqa: BLE001 — a command must answer, not stack-trace
+            result = f"That didn't work: {exc}"
+        finally:
+            runtime.clear_current()
+        self._conv.append_message(user_id, "tool", result, tool_name=tool_name)
+        self._analytics.record("tool_call", user_id=user_id, tool=tool_name,
+                               ok=not str(result).startswith("TOOL_ERROR"))
+        return result
+
+    def log_readings_direct(self, channel: str, channel_user: str, args: dict) -> str:
+        """Deterministic /log: readings straight into the live twin."""
+        return self._run_tool_direct(channel, channel_user, "log_my_readings", args)
+
+    def forecast_direct(self, channel: str, channel_user: str, days: int = 7,
+                        greenhouse: str = "poly") -> str:
+        """Deterministic /forecast: the live twin, advanced and projected."""
+        return self._run_tool_direct(channel, channel_user, "my_system_forecast",
+                                     {"days_ahead": days, "greenhouse": greenhouse})
 
     def reset(self, channel: str, channel_user: str) -> None:
         """Clear the conversation thread. Long-term memory (facts/memories) is kept."""
