@@ -170,8 +170,18 @@ class ResilientChat:
         try:
             return self.primary.invoke(messages)
         except Exception:  # timeout, 5xx, starved model — anything: don't kill the turn
-            log.warning("primary LLM failed; using fallback model", exc_info=True)
-            return self.fallback.invoke(messages)
+            # Retry the PRIMARY once before falling back. Free-tier 503s are transient
+            # (measured: NVIDIA's worker-limit errors clear in seconds), and the fallback
+            # is a much smaller model — silently dropping every congested turn to it is
+            # how "the bot only gives text answers" happens without anyone seeing an error.
+            log.warning("primary LLM failed; retrying once before fallback", exc_info=True)
+            import time as _time
+            _time.sleep(2.0)
+            try:
+                return self.primary.invoke(messages)
+            except Exception:
+                log.warning("primary LLM failed twice; using fallback model", exc_info=True)
+                return self.fallback.invoke(messages)
 
 
 def build_fallback_chat(provider: str | None = None, model: str | None = None):
