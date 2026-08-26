@@ -563,3 +563,32 @@ def test_the_live_mirror_asks_for_what_it_needs():
     finally:
         runtime.clear_current()
     assert "fetch_site_climate" in text and "tank_volume_l" in text
+
+
+def test_log_command_parsing_is_forgiving_and_exact():
+    """The /log deterministic path: a farmer's data entry must not surprise anyone."""
+    from agronaut_agent.channels.telegram_adapter import parse_log_args
+
+    a = parse_log_args("ammonia 0.5 nitrate 40 temp 27")
+    assert a == {"ammonia_mg_l": 0.5, "nitrate_mg_l": 40.0, "water_temp_c": 27.0}
+    b = parse_log_args("no2: 0.3, weight=210, count 58, shade")
+    assert b == {"nitrite_mg_l": 0.3, "fish_avg_weight_g": 210.0,
+                 "fish_count": 58, "greenhouse": "shade"}
+    assert parse_log_args("hello there") == {}
+
+
+def test_direct_tool_path_needs_no_llm(tmp_path):
+    """/log and /forecast back onto _run_tool_direct — a dead or drunk LLM must not
+    stand between an operator and their twin."""
+    from agronaut_agent.core import AgronautAgent
+
+    class _DeadModel:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages):
+            raise RuntimeError("LLM is down")
+
+    b = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=_DeadModel())
+    reply = b.log_readings_direct("telegram", "42", {"ammonia_mg_l": 0.5})
+    assert "live twin needs" in reply.lower() or "logged" in reply.lower()

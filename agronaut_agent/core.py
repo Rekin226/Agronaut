@@ -92,11 +92,18 @@ the twin says WHAT HAPPENS: harvests, seasons, money. Offer it, don't wait to be
 - "Can I double the feed / add fish / what does a cold week do?" on a live system ->
   what_if_nitrogen. Its verdicts are ratios, not absolutes, on purpose.
 - THE LIVE MIRROR, for a user with a running system and a fetched site: their twin
-  persists between chats and advances through their site's REAL weather. When they report
-  a reading (test kit, fish weighing, a death) -> log_my_readings; share the drift notes
-  it returns ("model was 30% low on nitrate") — that honesty builds trust. For "how's my
-  system / what will this week do" -> my_system_forecast. Pass the envelope they actually
-  run (greenhouse='shade'/'poly'/'heated') to both.
+  persists between chats and advances through their site's REAL weather. THREE MUSTS —
+  these are not answerable from memory, because the answer lives in stored state your
+  context cannot see:
+  * the user states their running system's facts (tank litres, fish count, weights) ->
+    you MUST call update_profile before replying, or the facts are lost when this chat ends;
+  * the user reports a MEASUREMENT (ammonia/nitrite/nitrate/pH/temperature values, a fish
+    weighing, deaths) -> you MUST call log_my_readings BEFORE replying — an unlogged
+    reading never reaches the twin, and a reply without the call is a guess dressed as an
+    update. Share the drift notes it returns ("model was 30% low on nitrate");
+  * "how's my system / what will this week/heatwave do" -> you MUST call
+    my_system_forecast — only it knows the persisted state and the real forecast.
+  Pass the envelope they actually run (greenhouse='shade'/'poly'/'heated') to both.
 - For the COMPLETE component design — which tanks, settling, biofilter, degasser,
   mineralization, coupled or decoupled, each with its reason — design_full_system is the
   design conversation's closing move (it also sends the 3D). It adapts to needs: ask about
@@ -147,10 +154,13 @@ HARD RULES (these are your credibility):
   Also check search_community_knowledge for real-world operator tips, and present anything it
   returns as "reported by other operators", never as verified fact or a number.
 
-ANSWERING FOLLOW-UPS: use the conversation, YOUR SYSTEM, and earlier tool results first. If a
-number was already computed or a fact already known, answer from it directly — don't re-run a
-tool. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope from
-the prior sizing result; don't search the knowledge base for it."""
+ANSWERING FOLLOW-UPS: reuse earlier tool results ONLY when the result literally appears
+earlier in this conversation — reread it there. If the number the user needs was never
+computed in this conversation, CALL the tool now. NEVER write "[earlier result from ...]",
+never reconstruct, paraphrase-from-memory, or imagine what a tool would have returned:
+a fabricated tool result is the worst failure this assistant can produce, worse than no
+answer. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope
+from the prior sizing result — if there is no prior sizing result, run the sizing tool."""
 
 # Attached when the vision model names a condition. Its observation enters the turn as a
 # user-provided fact, which the agent has no reason to distrust — so the doubt has to be
@@ -164,6 +174,14 @@ _VERDICT_INSTRUCTION = (
 
 _MAX_ITERS = 6
 _TOOL_REPLAY_MAX_CHARS = 2000
+
+# A reply that ANNOUNCES an action — "I'll log your readings", "Let me check your
+# forecast" — and then stops, the promise substituting for the tool call. Measured on the
+# six-step live validation: three consecutive turns of narration with no effect. The
+# corrective nudge is safe for the ask-a-question case (see the nudge text).
+import re as _re
+
+_PROMISE = _re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\b", _re.I)
 
 
 class AgronautAgent:
@@ -228,21 +246,38 @@ class AgronautAgent:
         if recall:
             messages.append(SystemMessage(content=recall))
 
-        for m in self._conv.recent_context_messages(user_id, limit=20):
+        # Two passes over history. Past tool results go into ONE leading system-side
+        # reference block; the visible transcript stays strictly user/assistant.
+        #
+        # Both halves of that sentence were paid for with a measured failure each:
+        # - Tool results were once replayed as AIMessages prefixed "[earlier result from
+        #   X]", and a validation run caught the model IMITATING that apparent house
+        #   style — minting fabricated "[earlier result …]" answers for tools that never
+        #   ran. The scaffold was teaching the fabrication. (A bare tool role without a
+        #   matching tool_call is rejected by OpenAI-compatible APIs, so real
+        #   ToolMessages cannot carry history either.)
+        # - Moved to SystemMessages interleaved in the transcript, the strict chat
+        #   templates of some hosted models (mistral on NVIDIA NIM) returned EMPTY
+        #   replies. Mid-conversation system messages are not portable.
+        history = self._conv.recent_context_messages(user_id, limit=20)
+        replayed = []
+        for m in history:
+            if m["role"] == "tool":
+                content = m["content"] or ""
+                if len(content) > _TOOL_REPLAY_MAX_CHARS:
+                    content = content[:_TOOL_REPLAY_MAX_CHARS] + " …[truncated]"
+                replayed.append(f"--- {m['tool_name']} (earlier turn) ---\n{content}")
+        if replayed:
+            messages.append(SystemMessage(content=(
+                "REFERENCE — tool outputs computed in earlier turns of this conversation. "
+                "Reuse these numbers plainly when they answer a follow-up; anything not "
+                "here has NOT been computed, so call the tool.\n\n" + "\n\n".join(replayed))))
+
+        for m in history:
             if m["role"] == "user":
                 messages.append(HumanMessage(content=m["content"]))
             elif m["role"] == "assistant":
                 messages.append(AIMessage(content=m["content"]))
-            elif m["role"] == "tool":
-                # Replay past tool results as assistant-side context (a bare tool role with
-                # no matching tool_call is rejected by OpenAI-compatible APIs). Without this,
-                # every computed number vanishes on the next turn and follow-ups re-run
-                # tools or guess.
-                content = m["content"] or ""
-                if len(content) > _TOOL_REPLAY_MAX_CHARS:
-                    content = content[:_TOOL_REPLAY_MAX_CHARS] + " …[truncated]"
-                messages.append(AIMessage(
-                    content=f"[earlier result from {m['tool_name']}]\n{content}"))
         return messages
 
     def _recall_block(self, user_id: str, query: str | None = None) -> str:
@@ -281,14 +316,102 @@ class AgronautAgent:
             parts.append("PAST SUMMARY: " + summary)
         return "\n\n".join(parts)
 
+    def _rescue_leaked_tool_call(self, text: str) -> dict | None:
+        """Parse a tool call leaked as plain text into a structured call, or None when the
+        text is not a leak (or names no known tool, or carries an unparseable payload —
+        those fall through to the normal no-tool path rather than guessing).
+
+        Two dialects, both measured live on NVIDIA NIM under load (validation runs,
+        2026-08), in both of which the model had chosen the RIGHT tool with the RIGHT
+        arguments and the adapter delivered it as gibberish text:
+          1. mistral-native:  [TOOL_CALLS]update_profile{"updates": {...}}
+          2. bare JSON-ish:   {"name": "log_my_readings", "parameters": {... True, None}}
+             — with Python literals, so json.loads alone cannot read it."""
+        import ast
+        import json as _json
+        import re
+
+        def _payload(raw: str):
+            try:
+                obj, _end = _json.JSONDecoder().raw_decode(raw)
+                return obj
+            except ValueError:
+                try:
+                    return ast.literal_eval(raw.strip())
+                except (ValueError, SyntaxError):
+                    return None
+
+        m = re.search(r"\[TOOL_CALLS\]\s*(\w+)\s*\{", text)
+        if m and m.group(1) in self._tools_by_name:
+            args = _payload(text[m.end() - 1:])
+            if isinstance(args, dict):
+                return {"name": m.group(1), "args": args, "id": "rescued-leaked-call"}
+            return None
+
+        brace = text.find("{")
+        if brace >= 0:
+            obj = _payload(text[brace:])
+            if (isinstance(obj, dict) and obj.get("name") in self._tools_by_name):
+                args = obj.get("parameters") or obj.get("arguments") or obj.get("args") or {}
+                if isinstance(args, dict):
+                    # None-valued optionals mean "not given" — drop them so tool defaults
+                    # apply instead of exploding on float(None).
+                    args = {k: v for k, v in args.items() if v is not None}
+                    return {"name": obj["name"], "args": args, "id": "rescued-leaked-call"}
+        return None
+
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
+        fabrication_nudged = False
+        promise_nudged = False
         for _ in range(_MAX_ITERS):
             ai = self._bound.invoke(messages)
             messages.append(ai)
             tool_calls = getattr(ai, "tool_calls", None)
             if not tool_calls:
-                return (ai.content or "").strip() or "I'm not sure how to help with that yet."
+                # Rescue leaked tool calls. Measured (validation run, 2026-08): mistral on
+                # NVIDIA NIM sometimes emits its NATIVE tool-call syntax as plain text —
+                # `[TOOL_CALLS]update_profile{"updates": {...}}` — which the adapter fails
+                # to parse into structured tool_calls, so a correct decision by the model
+                # dies as gibberish text. Parse it ourselves and run the call: the leaked
+                # AIMessage is replaced with a well-formed one so the transcript stays
+                # valid for strict OpenAI-compatible templates.
+                rescued = self._rescue_leaked_tool_call(ai.content or "")
+                if rescued is not None:
+                    messages.pop()
+                    messages.append(AIMessage(content="", tool_calls=[rescued]))
+                    tool_calls = [rescued]
+            if not tool_calls:
+                text = (ai.content or "").strip()
+                # Tripwire: a reply that cites an "earlier result" is only honest if this
+                # conversation actually ran a tool. Measured failure (validation run,
+                # 2026-08): a model told to reuse earlier results started PREFIXING
+                # fabricated tool output with "[earlier result from X]" — invented costs,
+                # invented forecasts — without calling anything. One corrective iteration,
+                # once; if the model insists, the fabrication is refused outright rather
+                # than delivered as truth.
+                if "[earlier result" in text.lower():
+                    if not fabrication_nudged:
+                        fabrication_nudged = True
+                        messages.append(SystemMessage(content=(
+                            "STOP: '[earlier result from ...]' is a fabrication marker. If "
+                            "that result truly appears earlier in this conversation, restate "
+                            "its actual numbers plainly with no stage directions. If it does "
+                            "not, CALL the tool now and answer only from its real output.")))
+                        continue
+                    return ("I almost gave you numbers without computing them — caught it. "
+                            "Ask me that again in one message and I'll run the real "
+                            "calculation.")
+                if _PROMISE.search(text) and not promise_nudged:
+                    promise_nudged = True
+                    messages.append(SystemMessage(content=(
+                        "You ANNOUNCED an action but called no tool in that reply, so "
+                        "nothing actually happened. If the action needs a tool (logging "
+                        "readings, a forecast, saving the profile, sizing, costing), CALL "
+                        "the tool NOW and answer from its real output. If you were only "
+                        "asking the user a question, return your question unchanged.")))
+                    continue
+                return text or "I'm not sure how to help with that yet."
             for call in tool_calls:
                 tool = self._tools_by_name.get(call["name"])
                 if tool is None:
@@ -479,6 +602,38 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         block = self._recall_block(user_id)
         return block or "I don't know anything about your system yet. Tell me about it!"
+
+    def _run_tool_direct(self, channel: str, channel_user: str, tool_name: str,
+                         args: dict) -> str:
+        """Run one tool deterministically for a user, NO LLM in the path — backs the
+        /log and /forecast commands. The point is a guarantee: free-tier LLM weather
+        (congestion, leaked tool calls, narration instead of action — all measured) must
+        never stand between an operator and their own live twin. The result is recorded
+        in the conversation like any tool turn, so the LLM sees it as context later."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        tool = {t.name: t for t in AGRONAUT_TOOLS}[tool_name]
+        runtime.set_current(self._mem, user_id, self._followups, self._community,
+                            self._calibration)
+        try:
+            result = tool.invoke(args)
+        except Exception as exc:  # noqa: BLE001 — a command must answer, not stack-trace
+            result = f"That didn't work: {exc}"
+        finally:
+            runtime.clear_current()
+        self._conv.append_message(user_id, "tool", result, tool_name=tool_name)
+        self._analytics.record("tool_call", user_id=user_id, tool=tool_name,
+                               ok=not str(result).startswith("TOOL_ERROR"))
+        return result
+
+    def log_readings_direct(self, channel: str, channel_user: str, args: dict) -> str:
+        """Deterministic /log: readings straight into the live twin."""
+        return self._run_tool_direct(channel, channel_user, "log_my_readings", args)
+
+    def forecast_direct(self, channel: str, channel_user: str, days: int = 7,
+                        greenhouse: str = "poly") -> str:
+        """Deterministic /forecast: the live twin, advanced and projected."""
+        return self._run_tool_direct(channel, channel_user, "my_system_forecast",
+                                     {"days_ahead": days, "greenhouse": greenhouse})
 
     def reset(self, channel: str, channel_user: str) -> None:
         """Clear the conversation thread. Long-term memory (facts/memories) is kept."""
