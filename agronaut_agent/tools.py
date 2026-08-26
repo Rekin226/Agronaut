@@ -917,6 +917,362 @@ def estimate_system_cost(
 
 
 @tool
+def design_full_system(
+    fish_species: str,
+    crop: str,
+    grow_area_m2: float,
+    temperature_c: float,
+    water_budget_lpd: float,
+    system_type: str = "raft",
+    reliable_power: bool = True,
+    wants_max_nutrient_reuse: bool = False,
+    operator_experience: str = "beginner",
+    architecture: str | None = None,
+) -> str:
+    """DESIGN the COMPLETE system — not just sizes, but WHICH components this user's needs
+    call for, each with its reason: coupled or decoupled loops, settling tank vs radial-flow
+    separator (or none — small media beds filter themselves), dedicated biofilter, degassing,
+    mineralization, sump vs hydroponic reservoir. Sends the full 3D model as a file. Use
+    this as the design conversation's MAIN closing move, in place of separately calling
+    sizing + 3D, whenever the user wants "the whole system" or asks what components they
+    need. The component set ADAPTS: a backyard media-bed unit comes back as four
+    components, a trout+basil farm comes back decoupled with the full treatment train —
+    and every choice says why, with its source.
+
+    reliable_power: False adds resilience warnings and steers away from NFT/towers.
+    wants_max_nutrient_reuse: True adds a mineralization loop even when coupled.
+    operator_experience: beginner | intermediate | expert (beginners pushed to decoupled
+        get a workload warning, never a silent block).
+    architecture: force 'coupled' or 'decoupled'; leave unset to let the rules decide."""
+    import os
+    import sys as _sys
+    import tempfile
+    from pathlib import Path
+
+    from aqua_model.crops import get_crop
+    from aqua_model.flowsheet import Needs, format_flowsheet, plan_flowsheet
+    from aqua_model.layout import plan_layout
+    from aqua_model.scene3d import to_scene
+    from aqua_model.species import get_species
+
+    try:
+        design = validate_design_input(fish_species, crop, grow_area_m2, temperature_c,
+                                       water_budget_lpd, None, system_type)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    out = size_system(design)
+    species = get_species(str(fish_species).strip().lower())
+    crop_obj = get_crop(str(crop).strip().lower())
+    arch = _clean_optional(architecture)
+    fs = plan_flowsheet(out, species, crop_obj, Needs(
+        reliable_power=bool(reliable_power),
+        wants_max_nutrient_reuse=bool(wants_max_nutrient_reuse),
+        operator_experience=str(operator_experience).strip().lower(),
+        force_architecture=arch if arch in ("coupled", "decoupled") else None))
+    layout = plan_layout(out, crop_label=crop, species_label=fish_species, flowsheet=fs)
+    scene = to_scene(
+        layout, out,
+        name=f"{fs.architecture.title()} {system_type.replace('_', ' ')} — "
+             f"{fish_species} + {crop}",
+        subtitle=(f"{out.grow_area_m2:.0f} m² · {out.fish_count} fish · "
+                  f"{len(layout.components)} components · greenhouse "
+                  f"{layout.greenhouse.width_m:.1f}×{layout.greenhouse.length_m:.1f} m"))
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    _sys.path.insert(0, str(scripts_dir))
+    try:
+        from render_3d import build_html
+    finally:
+        _sys.path.remove(str(scripts_dir))
+    fd, path = tempfile.mkstemp(prefix="agronaut_fullsystem_", suffix=".html")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(build_html(scene, title=scene["name"]))
+    runtime.add_attachment(path)
+    header = ("" if out.feasible else
+              f"NOTE: infeasible as sized ({out.binding_constraint}) — resolve before building.\n\n")
+    return (header + format_flowsheet(fs)
+            + f"\n\nSized: {out.fish_count} fish ({out.fish_biomass_kg:.0f} kg), "
+              f"{out.system_volume_l:,.0f} L total, feed {out.feed_g_per_day:.0f} g/day, "
+              f"greenhouse {layout.greenhouse.width_m:.1f}×{layout.greenhouse.length_m:.1f} m."
+              "\n(3D model attached — opens in any browser, offline.) Offer next: "
+              "simulate_season at their site, then estimate_system_cost / business_case.")
+
+
+@tool
+def fetch_site_climate(place: str) -> str:
+    """FETCH a site's real weather so the twin can simulate there — call this FIRST when a
+    simulation, business case, or heater question needs a site that is not yet in the list
+    of climate slugs. Give the town/city name (e.g. 'Bobo-Dioulasso', 'Taichung'); it is
+    geocoded, last calendar year's daily temperature and sunlight are pulled from NASA
+    POWER (no key), and the resulting slug is saved to the user's profile as climate_site.
+    Takes a few seconds. Then call simulate_season / simulate_my_system / business_case
+    with the returned slug. If the place is ambiguous, the reply lists candidates — ask
+    the user which one they mean."""
+    import json as _json
+    import re
+    import sys as _sys
+    import urllib.parse
+    import urllib.request
+    from datetime import date
+    from pathlib import Path
+
+    q = _clean_optional(place)
+    if not q:
+        return "Give me the town or city name to fetch weather for."
+    try:
+        url = ("https://geocoding-api.open-meteo.com/v1/search?name="
+               + urllib.parse.quote(q) + "&count=5&language=en&format=json")
+        with urllib.request.urlopen(url, timeout=30) as r:
+            hits = _json.load(r).get("results") or []
+    except Exception as err:  # noqa: BLE001 — a network failure must become words, not a crash
+        return f"Geocoding failed ({err}) — ask the user for latitude/longitude instead."
+    if not hits:
+        return (f"No place called {q!r} found. Ask the user to spell it differently or "
+                "give latitude/longitude.")
+    # Several distinct countries under one name => genuinely ambiguous; ask.
+    countries = {h.get("country") for h in hits}
+    if len(countries) > 1 and len(hits) > 1:
+        opts = "; ".join(f"{h['name']}, {h.get('admin1', '?')}, {h.get('country', '?')}"
+                         for h in hits[:4])
+        return f"Ambiguous — which one? {opts}"
+    h = hits[0]
+    slug = re.sub(r"[^a-z0-9]+", "_", h["name"].lower()).strip("_")
+    year = date.today().year - 1
+    slug = f"{slug}_{year}"
+
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    _sys.path.insert(0, str(scripts_dir))
+    try:
+        from fetch_climate import fetch_and_write
+    finally:
+        _sys.path.remove(str(scripts_dir))
+    try:
+        r = fetch_and_write(float(h["latitude"]), float(h["longitude"]), slug,
+                            f"{year}-01-01", f"{year}-12-31")
+    except Exception as err:  # noqa: BLE001
+        return f"Weather fetch failed ({err}) — try again in a moment."
+
+    cur = runtime.get_current()
+    if cur is not None:
+        mem, user_id = cur
+        mem.set_facts(user_id, {"climate_site": slug,
+                                "site_lat": str(h["latitude"]), "site_lon": str(h["longitude"]),
+                                "location": f"{h['name']}, {h.get('country', '')}".strip(", ")},
+                      source="user_stated")
+    return (f"Fetched {r['n_days']} days of {year} weather for {h['name']}, "
+            f"{h.get('country', '?')} (air {r['t_min']:.0f}-{r['t_max']:.0f} C). "
+            f"Site slug: {slug} — saved to the profile; use it as `site` in "
+            f"simulate_season / simulate_my_system / business_case.")
+
+
+_TWIN_STATE_KEY = "twin_state_json"
+
+
+def _live_weather(lat: float, lon: float, past_days: int, forecast_days: int):
+    """Past + forecast daily weather in one keyless Open-Meteo call, as DailyClimate.
+
+    Returns (dates, days). past_days is capped at 92 (the API's window)."""
+    import json as _json
+    import urllib.request
+
+    from aqua_model.climate import from_records
+
+    url = ("https://api.open-meteo.com/v1/forecast"
+           f"?latitude={lat}&longitude={lon}"
+           f"&past_days={min(92, max(0, past_days))}"
+           f"&forecast_days={min(16, max(1, forecast_days))}"
+           "&daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,"
+           "shortwave_radiation_sum&timezone=auto")
+    with urllib.request.urlopen(url, timeout=45) as r:
+        d = _json.load(r)["daily"]
+    recs, dates = [], []
+    for i, day in enumerate(d["time"]):
+        vals = (d["temperature_2m_mean"][i], d["temperature_2m_min"][i],
+                d["temperature_2m_max"][i], d["shortwave_radiation_sum"][i])
+        if any(v is None for v in vals):
+            continue
+        recs.append({"t_mean_c": vals[0], "t_min_c": vals[1], "t_max_c": vals[2],
+                     "solar_mj_m2": vals[3]})
+        dates.append(day)
+    return dates, from_records(recs)
+
+
+def _load_mirror(mem, user_id):
+    import json as _json
+
+    from aqua_model import mirror
+
+    raw = (mem.get_facts(user_id) or {}).get(_TWIN_STATE_KEY)
+    if not raw:
+        return None, None
+    return mirror.from_dict(_json.loads(raw))
+
+
+def _save_mirror(mem, user_id, state, as_of: str) -> None:
+    import json as _json
+
+    from aqua_model import mirror
+
+    mem.set_facts(user_id, {_TWIN_STATE_KEY: _json.dumps(mirror.to_dict(state, as_of=as_of))},
+                  source="user_stated")
+
+
+def _mirror_context(facts: dict):
+    """The profile facts the live mirror needs; returns (missing, parsed) — ask for missing."""
+    needed = ("fish_species", "crop", "grow_area_m2", "tank_volume_l", "fish_count",
+              "fish_avg_weight_g")
+    missing = [k for k in needed if not str(facts.get(k, "")).strip()]
+    if not str(facts.get("site_lat", "")).strip():
+        missing.append("site location (call fetch_site_climate with their town first)")
+    return missing
+
+
+def _advance_mirror(mem, user_id, facts: dict, forecast_days: int = 1,
+                    greenhouse: str = "poly"):
+    """Advance the stored twin to TODAY through real weather; create it if absent.
+
+    Returns (state_today, run_forecast_or_None, notes). The forecast run, when asked for,
+    continues from today's state through the coming days."""
+    from datetime import date, datetime
+
+    from aqua_model.crops import get_crop
+    from aqua_model.production import ProductionParams, simulate_production, start_state
+    from aqua_model.species import get_species
+
+    gh, _mode = _greenhouse_from(greenhouse, None)
+    params = ProductionParams(greenhouse=gh)
+    species = get_species(str(facts["fish_species"]).strip().lower())
+    crop = get_crop(str(facts["crop"]).strip().lower())
+    lat, lon = float(facts["site_lat"]), float(facts["site_lon"])
+    area = float(facts["grow_area_m2"])
+    notes: list[str] = []
+
+    stored, as_of = _load_mirror(mem, user_id)
+    today = date.today()
+    if stored is None:
+        stored = start_state(volume_l=float(facts["tank_volume_l"]),
+                             fish_count=int(float(facts["fish_count"])),
+                             start_weight_g=float(facts["fish_avg_weight_g"]),
+                             water_temp_c=25.0, species=species, cycled=True)
+        as_of = today.isoformat()
+        notes.append("started your live twin today from the profile")
+    behind = (today - datetime.strptime(as_of, "%Y-%m-%d").date()).days
+    if behind > 92:
+        notes.append(f"the mirror was {behind} days behind — advanced only the last 92 "
+                     "(the weather API's window); its state before that is stale")
+        behind = 92
+
+    dates, weather = _live_weather(lat, lon, past_days=behind + 1,
+                                   forecast_days=max(1, forecast_days))
+    today_iso = today.isoformat()
+    idx_today = dates.index(today_iso) if today_iso in dates else len(dates) - 1
+
+    if behind > 0 and idx_today > 0:
+        past = weather[max(0, idx_today - behind):idx_today]
+        if past:
+            run = simulate_production(stored, past, species,
+                                      str(facts["fish_species"]).strip().lower(), crop, area,
+                                      params=params)
+            stored = run.trajectory[-1].state
+            notes.append(f"advanced {len(past)} day(s) through your site's real weather")
+    _save_mirror(mem, user_id, stored, today_iso)
+
+    fc_run = None
+    if forecast_days > 1 and idx_today < len(weather):
+        from aqua_model.production import simulate_production as _sim
+        fc_run = _sim(stored, weather[idx_today:], species,
+                      str(facts["fish_species"]).strip().lower(), crop, area, params=params)
+    return stored, fc_run, notes
+
+
+@tool
+def log_my_readings(
+    greenhouse: str = "poly",
+    water_temp_c: float | None = None,
+    ammonia_mg_l: float | None = None,
+    nitrite_mg_l: float | None = None,
+    nitrate_mg_l: float | None = None,
+    fish_avg_weight_g: float | None = None,
+    fish_count: int | None = None,
+) -> str:
+    """LOG the user's real measurements into their LIVE twin — the mirror of their actual
+    system. Call whenever a user with a running system reports a reading (test-kit ammonia/
+    nitrite/nitrate, water temperature, a fish weighing, a mortality). The twin first
+    advances to today through the site's real weather, then is pulled toward the readings,
+    and the reply says HOW FAR OFF the model was (the innovation) — that drift report is
+    valuable, share it. Requires the profile facts simulate_my_system needs plus a fetched
+    site (fetch_site_climate); if something is missing the reply lists exactly what.
+    greenhouse: the envelope they actually run — 'poly', 'shade', or 'heated'."""
+    from aqua_model import mirror
+
+    cur = runtime.get_current()
+    if cur is None:
+        return "No session — cannot keep a live twin here."
+    mem, user_id = cur
+    facts = mem.get_facts(user_id) or {}
+    missing = _mirror_context(facts)
+    if missing:
+        return ("The live twin needs: " + ", ".join(missing) +
+                ". Ask, save with update_profile (and fetch_site_climate for the site), "
+                "then log again.")
+    try:
+        state, _fc, notes = _advance_mirror(mem, user_id, facts, greenhouse=greenhouse)
+    except Exception as err:  # noqa: BLE001 — a weather hiccup must become words
+        return f"Could not advance the twin ({err}) — try again shortly."
+    state, innovation = mirror.nudge(state, {
+        "water_temp_c": water_temp_c, "tan_mg_l": ammonia_mg_l,
+        "no2_mg_l": nitrite_mg_l, "no3_mg_l": nitrate_mg_l,
+        "fish_avg_weight_g": fish_avg_weight_g, "fish_count": fish_count})
+    from datetime import date
+    _save_mirror(mem, user_id, state, date.today().isoformat())
+    if fish_count is not None or fish_avg_weight_g is not None:
+        upd = {}
+        if fish_count is not None:
+            upd["fish_count"] = fish_count
+        if fish_avg_weight_g is not None:
+            upd["fish_avg_weight_g"] = fish_avg_weight_g
+        mem.set_facts(user_id, upd, source="user_stated")
+    return ("Logged. " + " ".join(notes) + "\n"
+            + "\n".join("  - " + n for n in innovation)
+            + "\nNow: " + mirror.snapshot_line(state))
+
+
+@tool
+def my_system_forecast(days_ahead: int = 7, greenhouse: str = "poly") -> str:
+    """The LIVE twin's answer to "how is my system doing, and what happens next?" —
+    advances the user's persistent twin to TODAY through their site's real weather, then
+    runs it forward through the actual forecast (up to 15 days). Reports where the system
+    stands now and what the coming days do to it (nitrogen peaks, temperature stress,
+    harvest progress), with the model's honesty lines. Use for "how's my pond", "what will
+    this heatwave do", "check my system". The state persists between conversations —
+    logged readings (log_my_readings) keep it honest.
+    greenhouse: the envelope they actually run — 'poly', 'shade', or 'heated'."""
+    from aqua_model import mirror
+    from aqua_model.production import format_summary
+
+    cur = runtime.get_current()
+    if cur is None:
+        return "No session — cannot keep a live twin here."
+    mem, user_id = cur
+    facts = mem.get_facts(user_id) or {}
+    missing = _mirror_context(facts)
+    if missing:
+        return ("The live twin needs: " + ", ".join(missing) +
+                ". Ask, save with update_profile (and fetch_site_climate), then call again.")
+    try:
+        state, fc_run, notes = _advance_mirror(mem, user_id, facts, greenhouse=greenhouse,
+                                               forecast_days=max(2, min(int(days_ahead), 15)))
+    except Exception as err:  # noqa: BLE001
+        return f"Could not advance the twin ({err}) — try again shortly."
+    out = ["LIVE twin — " + " ".join(notes) if notes else "LIVE twin",
+           "Now: " + mirror.snapshot_line(state)]
+    if fc_run is not None:
+        out.append("")
+        out.append(format_summary(fc_run,
+                                  site_label=f"next {fc_run.summary.days} days (forecast)"))
+    return "\n".join(out)
+
+
+@tool
 def business_case(
     fish_species: str,
     crop: str,
@@ -1021,8 +1377,12 @@ AGRONAUT_TOOLS = [
     simulate_my_system,
     estimate_system_cost,
     business_case,
+    fetch_site_climate,
+    log_my_readings,
+    my_system_forecast,
     what_if_nitrogen,
     design_system_3d,
+    design_full_system,
     search_knowledge_base,
     triage_visual_symptoms,
     remember_about_user,

@@ -78,6 +78,31 @@ def fetch_open_meteo(lat: float, lon: float, start: str, end: str) -> list[dict]
     return days
 
 
+def fetch_and_write(lat: float, lon: float, name: str, start: str, end: str,
+                    provider: str = "nasa-power") -> dict:
+    """Fetch one site's series and write data/climate/<name>.json. Returns a summary dict.
+
+    Shared by the CLI below and by the agent's `fetch_site_climate` tool, so a farmer on
+    Telegram gets the same file an operator gets from the command line."""
+    fetch = fetch_nasa_power if provider == "nasa-power" else fetch_open_meteo
+    days = fetch(lat, lon, start, end)
+    if not days:
+        raise ValueError("provider returned no usable days — check the date range")
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    dest = OUT_DIR / f"{name}.json"
+    dest.write_text(json.dumps({
+        "site": {"name": name, "lat": lat, "lon": lon},
+        "provider": provider,
+        "fetched_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        "units": {"t_*_c": "degC air at 2 m", "solar_mj_m2": "MJ/m2/day, all-sky shortwave"},
+        "days": days,
+    }, indent=1))
+    t = [d["t_mean_c"] for d in days]
+    return {"path": str(dest), "n_days": len(days),
+            "t_min": min(t), "t_max": max(t),
+            "first": days[0]["date"], "last": days[-1]["date"]}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--lat", type=float, required=True)
@@ -88,24 +113,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--provider", choices=["nasa-power", "open-meteo"], default="nasa-power")
     args = ap.parse_args(argv)
 
-    fetch = fetch_nasa_power if args.provider == "nasa-power" else fetch_open_meteo
-    days = fetch(args.lat, args.lon, args.start, args.end)
-    if not days:
-        print("provider returned no usable days — check the date range", file=sys.stderr)
+    try:
+        r = fetch_and_write(args.lat, args.lon, args.name, args.start, args.end,
+                            provider=args.provider)
+    except ValueError as err:
+        print(str(err), file=sys.stderr)
         return 1
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    dest = OUT_DIR / f"{args.name}.json"
-    dest.write_text(json.dumps({
-        "site": {"name": args.name, "lat": args.lat, "lon": args.lon},
-        "provider": args.provider,
-        "fetched_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "units": {"t_*_c": "degC air at 2 m", "solar_mj_m2": "MJ/m2/day, all-sky shortwave"},
-        "days": days,
-    }, indent=1))
-    t = [d["t_mean_c"] for d in days]
-    print(f"wrote {dest.relative_to(REPO_ROOT)}: {len(days)} days, "
-          f"T2M {min(t):.1f}..{max(t):.1f} °C")
+    print(f"wrote data/climate/{args.name}.json: {r['n_days']} days, "
+          f"T2M {r['t_min']:.1f}..{r['t_max']:.1f} °C")
     return 0
 
 

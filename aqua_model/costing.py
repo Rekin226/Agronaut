@@ -107,7 +107,9 @@ def takeoff(out: DesignOutput, layout: Layout, *, species_key: str = "tilapia",
     lines.append(TakeoffLine("tank_1000l", "fish/rearing tanks", round(tank_units, 1),
                              "x 1000 L equivalent", f"{len(tanks)} tank(s) + sump/clarifier below"))
     # clarifier + sump volumes also hold water and cost roughly like tanks per litre
-    aux = layout.by_role("clarifier") + layout.by_role("biofilter") + layout.by_role("sump")
+    aux = (layout.by_role("clarifier") + layout.by_role("settling")
+           + layout.by_role("biofilter") + layout.by_role("degasser")
+           + layout.by_role("mineraliser") + layout.by_role("sump"))
     aux_m3 = 0.0
     for c in aux:
         aux_m3 += (math.pi * (c.d / 2) ** 2 * c.h) if c.kind == "cyl" else c.w * c.l * c.h

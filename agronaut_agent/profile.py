@@ -111,6 +111,8 @@ _TOOL_PROFILE_ARGS: dict[str, tuple[str, ...]] = {
                          "water_budget_lpd", "system_type"),
     "estimate_system_cost": ("fish_species", "crop", "grow_area_m2", "temperature_c",
                              "water_budget_lpd", "system_type"),
+    "design_full_system": ("fish_species", "crop", "grow_area_m2", "temperature_c",
+                           "water_budget_lpd", "system_type"),
 }
 # Substrings that mark a tool result as a non-success — never persist args from these.
 _TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool",
