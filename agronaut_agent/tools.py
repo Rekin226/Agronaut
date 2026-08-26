@@ -917,6 +917,72 @@ def estimate_system_cost(
 
 
 @tool
+def fetch_site_climate(place: str) -> str:
+    """FETCH a site's real weather so the twin can simulate there — call this FIRST when a
+    simulation, business case, or heater question needs a site that is not yet in the list
+    of climate slugs. Give the town/city name (e.g. 'Bobo-Dioulasso', 'Taichung'); it is
+    geocoded, last calendar year's daily temperature and sunlight are pulled from NASA
+    POWER (no key), and the resulting slug is saved to the user's profile as climate_site.
+    Takes a few seconds. Then call simulate_season / simulate_my_system / business_case
+    with the returned slug. If the place is ambiguous, the reply lists candidates — ask
+    the user which one they mean."""
+    import json as _json
+    import re
+    import sys as _sys
+    import urllib.parse
+    import urllib.request
+    from datetime import date
+    from pathlib import Path
+
+    q = _clean_optional(place)
+    if not q:
+        return "Give me the town or city name to fetch weather for."
+    try:
+        url = ("https://geocoding-api.open-meteo.com/v1/search?name="
+               + urllib.parse.quote(q) + "&count=5&language=en&format=json")
+        with urllib.request.urlopen(url, timeout=30) as r:
+            hits = _json.load(r).get("results") or []
+    except Exception as err:  # noqa: BLE001 — a network failure must become words, not a crash
+        return f"Geocoding failed ({err}) — ask the user for latitude/longitude instead."
+    if not hits:
+        return (f"No place called {q!r} found. Ask the user to spell it differently or "
+                "give latitude/longitude.")
+    # Several distinct countries under one name => genuinely ambiguous; ask.
+    countries = {h.get("country") for h in hits}
+    if len(countries) > 1 and len(hits) > 1:
+        opts = "; ".join(f"{h['name']}, {h.get('admin1', '?')}, {h.get('country', '?')}"
+                         for h in hits[:4])
+        return f"Ambiguous — which one? {opts}"
+    h = hits[0]
+    slug = re.sub(r"[^a-z0-9]+", "_", h["name"].lower()).strip("_")
+    year = date.today().year - 1
+    slug = f"{slug}_{year}"
+
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    _sys.path.insert(0, str(scripts_dir))
+    try:
+        from fetch_climate import fetch_and_write
+    finally:
+        _sys.path.remove(str(scripts_dir))
+    try:
+        r = fetch_and_write(float(h["latitude"]), float(h["longitude"]), slug,
+                            f"{year}-01-01", f"{year}-12-31")
+    except Exception as err:  # noqa: BLE001
+        return f"Weather fetch failed ({err}) — try again in a moment."
+
+    cur = runtime.get_current()
+    if cur is not None:
+        mem, user_id = cur
+        mem.set_facts(user_id, {"climate_site": slug,
+                                "location": f"{h['name']}, {h.get('country', '')}".strip(", ")},
+                      source="user_stated")
+    return (f"Fetched {r['n_days']} days of {year} weather for {h['name']}, "
+            f"{h.get('country', '?')} (air {r['t_min']:.0f}-{r['t_max']:.0f} C). "
+            f"Site slug: {slug} — saved to the profile; use it as `site` in "
+            f"simulate_season / simulate_my_system / business_case.")
+
+
+@tool
 def business_case(
     fish_species: str,
     crop: str,
@@ -1021,6 +1087,7 @@ AGRONAUT_TOOLS = [
     simulate_my_system,
     estimate_system_cost,
     business_case,
+    fetch_site_climate,
     what_if_nitrogen,
     design_system_3d,
     search_knowledge_base,
