@@ -146,13 +146,19 @@ def _bed_units(out: DesignOutput, system: SystemType) -> tuple[str, float, float
     return ("dwc_bed", BED_WIDTH_M, unit_l, system.water_depth_m + 0.1, n, "DWC raft bed")
 
 
-def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str = "") -> Layout:
+def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str = "",
+                flowsheet=None) -> Layout:
     """Arrange the sized system on a floor and size the greenhouse around it.
 
     Flow order fixes the zones: fish tanks at one end, filtration between, grow beds filling
     the rest, sump beside the filters. The greenhouse is the bounding envelope plus margins —
     which means its size is DERIVED from the design, and changing the crop area visibly
-    changes the building. That coupling is the point of drawing it."""
+    changes the building. That coupling is the point of drawing it.
+
+    `flowsheet` (a `flowsheet.Flowsheet`) overrides the default filtration row with the
+    component set the needs actually selected — settling vs radial-flow, dedicated
+    biofilter, degasser, mineralization tank, hydroponic reservoir — so the drawing shows
+    the machine that was chosen, not a template."""
     system = get_system_type(out.system_type)
     assumptions: list[str] = []
 
@@ -162,23 +168,38 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
     fish_span = sum(tank_ds) + AISLE_M * (len(tank_ds) - 1)
 
     # --- filtration zone ---
-    # Clarifier sized as a settling cone ~15% of rearing volume; biofilter vessel from media
-    # area at ~200 m2/m3 specific surface, 60% packing. Media-bed systems carry their
-    # biofiltration in the beds (system_types.provides_biofiltration) and skip the vessel.
-    clar_v = max(0.15, out.rearing_tank_volume_l * 0.15 / 1000.0)
-    clar_d = _tank_diameter(clar_v) * 0.9
-    filters: list[tuple[str, str, float, str]] = [("clarifier", "clarifier", clar_d,
-                                                   "settles solids before the biofilter")]
-    if not system.provides_biofiltration and out.biofilter_media_m2:
-        media_m3 = out.biofilter_media_m2 / 200.0
-        bf_v = max(0.1, media_m3 / 0.6)
-        bf_d = _tank_diameter(bf_v)
-        filters.append(("biofilter", "biofilter", bf_d,
-                        f"{out.biofilter_media_m2:.0f} m² media surface"))
-    elif system.provides_biofiltration:
-        assumptions.append("media beds provide biofiltration; no separate biofilter vessel")
-
+    filters: list[tuple[str, str, float, str]] = []
     sump_v = max(0.2, out.system_volume_l * 0.10 / 1000.0)
+    sump_label = "Sump"
+    if flowsheet is not None:
+        _VESSELS = ("settling", "biofilter", "degasser", "mineraliser")
+        for i, c in enumerate(v for v in flowsheet.components if v.role in _VESSELS):
+            v_m3 = max(0.1, (c.volume_l or 150.0) / 1000.0)
+            filters.append((c.role, f"{c.role}{i + 1}" if c.role != "biofilter" else "biofilter",
+                            _tank_diameter(v_m3) * 0.9, c.name))
+        fs_sump = next((c for c in flowsheet.components if c.role == "sump"), None)
+        if fs_sump is not None:
+            sump_v = max(0.2, (fs_sump.volume_l or sump_v * 1000.0) / 1000.0)
+            sump_label = fs_sump.name.split("(")[0].strip().title()
+        assumptions.append(f"architecture: {flowsheet.architecture} "
+                           f"({len(filters)} treatment vessel(s) from the flowsheet)")
+        if not filters:
+            assumptions.append("flowsheet: media beds handle solids and biofiltration — "
+                               "no separate treatment vessels")
+    else:
+        # Default chain: clarifier ~15% of rearing volume; biofilter vessel from media area
+        # at ~200 m2/m3, 60% packing. Media-bed systems biofilter in the beds and skip it.
+        clar_v = max(0.15, out.rearing_tank_volume_l * 0.15 / 1000.0)
+        filters.append(("clarifier", "clarifier", _tank_diameter(clar_v) * 0.9,
+                        "settles solids before the biofilter"))
+        if not system.provides_biofiltration and out.biofilter_media_m2:
+            media_m3 = out.biofilter_media_m2 / 200.0
+            bf_v = max(0.1, media_m3 / 0.6)
+            filters.append(("biofilter", "biofilter", _tank_diameter(bf_v),
+                            f"{out.biofilter_media_m2:.0f} m² media surface"))
+        elif system.provides_biofiltration:
+            assumptions.append("media beds provide biofiltration; no separate biofilter vessel")
+
     sump_w = max(0.8, math.sqrt(sump_v / 0.8))
     filters.append(("sump", "sump", sump_w, "low point; pump lives here"))
     filter_span = sum(d for _r, _i, d, _n in filters) + AISLE_M * (len(filters) - 1)
@@ -226,13 +247,16 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
     for role_f, cid, d, note in filters:
         cx = x + d / 2.0
         if role_f == "sump":
-            comps.append(Placed(id=cid, kind="box", role="sump", label=f"Sump ({sump_v:.1f} m³)",
+            comps.append(Placed(id=cid, kind="box", role="sump",
+                                label=f"{sump_label} ({sump_v:.1f} m³)",
                                 x=round(cx, 2), y=round(y_f, 2), w=round(d, 2), l=round(d, 2),
                                 h=0.8, water_frac=0.6, detail=note))
         else:
             comps.append(Placed(id=cid, kind="cyl", role=role_f,
-                                label=role_f.capitalize(), x=round(cx, 2), y=round(y_f, 2),
-                                d=round(d, 2), h=1.0, water_frac=0.8, detail=note))
+                                label=note if flowsheet is not None else role_f.capitalize(),
+                                x=round(cx, 2), y=round(y_f, 2),
+                                d=round(d, 2), h=1.0, water_frac=0.8,
+                                detail=note if flowsheet is None else role_f))
         x += d + AISLE_M
 
     # grow units, gridded
@@ -259,9 +283,12 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             idx += 1
 
     # --- plumbing: one loop, in flow order ---
+    # Main flow order: fish -> solids removal -> biofilter -> degasser -> beds -> sump.
+    # The mineraliser is a SPUR off the solids stream (sludge goes there, not the main flow).
     order = ([c for c in comps if c.role == "fish_tank"]
-             + [c for c in comps if c.role == "clarifier"]
-             + [c for c in comps if c.role == "biofilter"])
+             + [c for c in comps if c.role in ("clarifier", "settling")]
+             + [c for c in comps if c.role == "biofilter"]
+             + [c for c in comps if c.role == "degasser"])
     first_bed = next((c for c in comps if c.role == role), None)
     sump = next((c for c in comps if c.role == "sump"), None)
     flow_lpm = out.pump_turnover_lph / 60.0 if out.pump_turnover_lph else 30.0
@@ -288,6 +315,10 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
         chain.append(sump)
     for a, b in zip(chain, chain[1:]):
         run(a, b)
+    mineraliser = next((c for c in comps if c.role == "mineraliser"), None)
+    solids = next((c for c in comps if c.role in ("settling", "clarifier")), None)
+    if mineraliser is not None and solids is not None:
+        run(solids, mineraliser)          # sludge spur, off the main loop
     if sump is not None and order:
         run(sump, order[0])  # the pump's return line closes the loop
 

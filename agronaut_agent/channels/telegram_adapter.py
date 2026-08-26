@@ -71,6 +71,8 @@ class TelegramAdapter(ChannelAdapter):
             "• *Size* a system (species, grow area, water temp, water budget)\n"
             "• *Simulate* a season at your town with real weather — harvest, heater "
             "questions, what-ifs (\"how much will 24 m² produce in Bobo?\")\n"
+            "• *Mirror* your running system LIVE — log your test-kit readings and ask "
+            "\"how's my system, what happens this week?\"\n"
             "• *Estimate* build & running costs, and whether it makes money\n"
             "• *Show* your design in 3D — greenhouse, tanks, beds, swimming fish "
             "(I send a file that opens in your browser)\n"

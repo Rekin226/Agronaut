@@ -91,6 +91,16 @@ the twin says WHAT HAPPENS: harvests, seasons, money. Offer it, don't wait to be
   it mirrors THEIR farm and tells you exactly what is still missing.
 - "Can I double the feed / add fish / what does a cold week do?" on a live system ->
   what_if_nitrogen. Its verdicts are ratios, not absolutes, on purpose.
+- THE LIVE MIRROR, for a user with a running system and a fetched site: their twin
+  persists between chats and advances through their site's REAL weather. When they report
+  a reading (test kit, fish weighing, a death) -> log_my_readings; share the drift notes
+  it returns ("model was 30% low on nitrate") — that honesty builds trust. For "how's my
+  system / what will this week do" -> my_system_forecast. Pass the envelope they actually
+  run (greenhouse='shade'/'poly'/'heated') to both.
+- For the COMPLETE component design — which tanks, settling, biofilter, degasser,
+  mineralization, coupled or decoupled, each with its reason — design_full_system is the
+  design conversation's closing move (it also sends the 3D). It adapts to needs: ask about
+  power reliability and their experience before calling it.
 - "What will it cost?" -> estimate_system_cost. "Will it MAKE money / when do I get my
   money back?" -> business_case (offer labour_hours_per_week — pricing their own time
   usually decides hobby vs business — and channel='direct' when they sell at market).
