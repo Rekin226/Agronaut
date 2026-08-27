@@ -153,3 +153,15 @@ def test_chat_mode_still_renders_with_the_file_accepting_input(fake_agent_backen
     at = _open_chat(AppTest.from_file(_APP))
     assert not at.exception
     assert at.chat_input
+
+
+def test_my_twin_mode_is_reachable_and_needs_no_llm(monkeypatch):
+    """The twin tab must appear beside the other modes and render without a chat model —
+    the whole point of the deterministic layer is that model weather cannot take it down."""
+    at = AppTest.from_file(_APP).run(timeout=60)
+    assert "My Twin" in at.sidebar.radio[0].options
+
+    at.sidebar.radio[0].set_value("My Twin").run(timeout=60)
+
+    assert not at.exception
+    assert "My Twin" in [s.value for s in at.subheader]

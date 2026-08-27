@@ -592,3 +592,73 @@ def test_direct_tool_path_needs_no_llm(tmp_path):
     b = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=_DeadModel())
     reply = b.log_readings_direct("telegram", "42", {"ammonia_mg_l": 0.5})
     assert "live twin needs" in reply.lower() or "logged" in reply.lower()
+
+
+def _twin_profile(mem, uid):
+    """A complete live-twin profile, sited so the mirror has coordinates."""
+    mem.set_facts(uid, {
+        "fish_species": "tilapia", "crop": "basil", "grow_area_m2": 15,
+        "tank_volume_l": 2000, "fish_count": 60, "fish_avg_weight_g": 200,
+        "climate_site": "taichung_2025", "site_lat": 24.15, "site_lon": 120.68},
+        source="user_stated")
+
+
+def _offline_weather(monkeypatch):
+    """Stub the one network boundary the mirror crosses (Open-Meteo), so twin tests are
+    deterministic. Everything downstream — the model, the nudge, the drift — stays real."""
+    from datetime import date, timedelta
+
+    from aqua_model.climate import DailyClimate
+    from agronaut_agent import tools as T
+
+    def fake(lat, lon, past_days, forecast_days):
+        n = min(92, max(0, past_days)) + min(16, max(1, forecast_days))
+        start = date.today() - timedelta(days=min(92, max(0, past_days)))
+        dates = [(start + timedelta(days=i)).isoformat() for i in range(n)]
+        days = tuple(DailyClimate(t_mean_c=26.0, t_min_c=22.0, t_max_c=30.0,
+                                  solar_mj_m2=18.0) for _ in range(n))
+        return dates, days
+
+    monkeypatch.setattr(T, "_live_weather", fake)
+
+
+def test_logging_a_reading_persists_it_beside_the_models_value(monkeypatch):
+    """The drift report is the twin's whole claim to being a twin. Speaking it once and
+    dropping it makes "is the model getting closer to MY pond?" unanswerable."""
+    from agronaut_agent.store import _Db, MemoryStore, ReadingStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import log_my_readings
+
+    _offline_weather(monkeypatch)
+    db = _Db(":memory:")
+    mem, readings = MemoryStore(db), ReadingStore(db)
+    runtime.set_current(mem, "cli:t", readings=readings)
+    try:
+        _twin_profile(mem, "cli:t")
+        log_my_readings.func(nitrate_mg_l=40.0, water_temp_c=27.0, greenhouse="shade")
+    finally:
+        runtime.clear_current()
+
+    hist = readings.history("cli:t")
+    assert len(hist) == 1, "the logged reading was not persisted"
+    assert hist[0]["observed"] == {"nitrate_mg_l": 40.0, "water_temp_c": 27.0}
+    assert "nitrate_mg_l" in hist[0]["modelled"], "the model's own value was not kept"
+    assert hist[0]["greenhouse"] == "shade"
+
+
+def test_logging_without_a_reading_store_still_works(monkeypatch):
+    """Telegram and the CLI construct the agent differently; a missing store must not
+    turn a farmer's log into a traceback."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import log_my_readings
+
+    _offline_weather(monkeypatch)
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        _twin_profile(mem, "cli:t")
+        text = log_my_readings.func(nitrate_mg_l=40.0)
+    finally:
+        runtime.clear_current()
+    assert "Logged." in text

@@ -16,8 +16,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
 from agent.vision import sanitize_observation
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
-from . import memory_extract, runtime, profile, semantic
+from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now, ReadingStore
+from . import memory_extract, runtime, profile, semantic, twin_view
 
 log = logging.getLogger(__name__)
 
@@ -206,6 +206,7 @@ class AgronautAgent:
         self._followups = FollowupStore(db)
         self._community = CommunityStore(db)
         self._calibration = CalibrationStore(db)
+        self._readings = ReadingStore(db)
         # Semantic recall over memories — injectable for tests; lazily built for the real
         # path (model loads on first search). None -> recency fallback, the old behaviour.
         if embed_fn is None and chat_model is None:
@@ -474,7 +475,8 @@ class AgronautAgent:
         elif open_fu and open_fu["status"] == "pending":
             self._followups.cancel(open_fu["id"])
 
-        runtime.set_current(self._mem, user_id, self._followups, self._community, self._calibration)  # tools reach this user
+        runtime.set_current(self._mem, user_id, self._followups, self._community,
+                            self._calibration, self._readings)  # tools reach this user
         try:
             messages = self._build_context(user_id, query=text)
             if capture_note:
@@ -613,7 +615,7 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         tool = {t.name: t for t in AGRONAUT_TOOLS}[tool_name]
         runtime.set_current(self._mem, user_id, self._followups, self._community,
-                            self._calibration)
+                            self._calibration, self._readings)
         try:
             result = tool.invoke(args)
         except Exception as exc:  # noqa: BLE001 — a command must answer, not stack-trace
@@ -634,6 +636,16 @@ class AgronautAgent:
         """Deterministic /forecast: the live twin, advanced and projected."""
         return self._run_tool_direct(channel, channel_user, "my_system_forecast",
                                      {"days_ahead": days, "greenhouse": greenhouse})
+
+    def twin_snapshot(self, channel: str, channel_user: str, days: int = 7,
+                      greenhouse: str = "poly"):
+        """The live twin as STRUCTURE, for a dashboard — no LLM, no prose.
+
+        Backs the same computation `/forecast` renders as words, so the two surfaces can
+        never disagree about the pond."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        return twin_view.compute(self._mem, user_id, days=days, greenhouse=greenhouse,
+                                 readings=self._readings)
 
     def reset(self, channel: str, channel_user: str) -> None:
         """Clear the conversation thread. Long-term memory (facts/memories) is kept."""
@@ -658,6 +670,7 @@ class AgronautAgent:
             "summary": self._mem.get_summary(user_id),
             "messages": self._conv.recent_messages(user_id, limit=100000),
             "measurements": self._calibration.export(user_id),
+            "twin_readings": self._readings.history(user_id),
             "exported_at": _now(),
         }
 
@@ -668,6 +681,7 @@ class AgronautAgent:
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
         self._calibration.purge(user_id)
+        self._readings.purge(user_id)
 
     # --- follow-up delivery API (called by a channel poller) ----------------
     def due_followups(self, channel: str) -> list:

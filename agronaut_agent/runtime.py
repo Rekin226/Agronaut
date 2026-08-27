@@ -13,14 +13,17 @@ _current = contextvars.ContextVar("agronaut_current", default=None)
 _followups = contextvars.ContextVar("agronaut_followups", default=None)
 _community = contextvars.ContextVar("agronaut_community", default=None)
 _calibration = contextvars.ContextVar("agronaut_calibration", default=None)
+_readings = contextvars.ContextVar("agronaut_readings", default=None)
 _attachments = contextvars.ContextVar("agronaut_attachments", default=None)
 
 
-def set_current(memory_store, user_id: str, followups=None, community=None, calibration=None) -> None:
+def set_current(memory_store, user_id: str, followups=None, community=None,
+                calibration=None, readings=None) -> None:
     _current.set((memory_store, user_id))
     _followups.set(followups)
     _community.set(community)
     _calibration.set(calibration)
+    _readings.set(readings)
     _attachments.set([])   # fresh per-turn sink for files a tool wants to send back
 
 
@@ -29,6 +32,7 @@ def clear_current() -> None:
     _followups.set(None)
     _community.set(None)
     _calibration.set(None)
+    _readings.set(None)
     _attachments.set(None)
 
 
@@ -62,3 +66,8 @@ def get_community():
 def get_calibration():
     """Return the CalibrationStore for the in-flight message, or None if unset."""
     return _calibration.get()
+
+
+def get_readings():
+    """Return the ReadingStore for the in-flight message, or None if unset."""
+    return _readings.get()

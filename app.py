@@ -15,6 +15,7 @@ import streamlit as st
 
 from agent.calculator_ui import render_calculator
 from agent.optimizer_ui import render_optimizer
+from agent.twin_ui import render_twin
 
 
 APP_TITLE = "🌱 Agronaut"
@@ -160,9 +161,10 @@ def main() -> None:
     # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
-        ("Design Calculator", "Optimize Ratio", "Assistant (chat)"),
+        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)"),
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. Chat runs a consultation with the full agent (needs an LLM).",
+             "your constraint. My Twin mirrors the system you actually run (deterministic, "
+             "no LLM). Chat runs a consultation with the full agent (needs an LLM).",
     )
 
     if mode == "Design Calculator":
@@ -170,6 +172,16 @@ def main() -> None:
         return
     if mode == "Optimize Ratio":
         render_optimizer()
+        return
+
+    # My Twin is deterministic — it must render even when no LLM is configured, because
+    # surviving model weather is the entire promise of the twin's command layer.
+    if mode == "My Twin":
+        reason = _agent_error()
+        if reason and "agent" not in st.session_state:
+            st.warning(reason)
+            return
+        render_twin(brain=st.session_state.agent, user=_web_user())
         return
 
     # Assistant (chat) — the real consultative agent, degrading gracefully when the
