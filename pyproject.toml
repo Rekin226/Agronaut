@@ -45,3 +45,5 @@ exclude = ["*.tests", "*.tests.*"]
 [tool.setuptools.data-files]
 "share/agronaut" = ["urls.txt"]
 "share/agronaut/knowledge" = ["knowledge/*.md"]
+[tool.ruff]
+line-length = 95
