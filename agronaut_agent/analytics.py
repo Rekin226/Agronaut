@@ -18,6 +18,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import paths as _paths
+
 # Only these metadata keys are ever persisted alongside an event — anything else (notably
 # anything that could carry message content) is dropped.
 #
@@ -31,8 +33,6 @@ _ALLOWED_FIELDS = {"tool", "goal", "channel", "ok",
                    "outcome", "n_results", "k", "latency_ms", "top_score", "hybrid"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
-
-from . import paths as _paths
 
 _DEFAULT_PATH = _paths.data_dir() / "analytics.jsonl"
 

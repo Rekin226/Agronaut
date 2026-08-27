@@ -6,8 +6,10 @@ numbers on the diagram match the design's numbers.
 import xml.dom.minidom as minidom
 
 from aqua_model import (
-    size_system, validate_design_input,
-    size_hydroponic_system, validate_hydroponic_input,
+    size_hydroponic_system,
+    size_system,
+    validate_design_input,
+    validate_hydroponic_input,
 )
 from aqua_model.schematic import to_svg
 
@@ -67,7 +69,9 @@ def test_svg_has_no_external_references():
 
 def test_to_png_returns_a_valid_png_image():
     import io
+
     from PIL import Image
+
     from aqua_model.schematic import to_png
 
     for out in (_aqua(), _hydro()):

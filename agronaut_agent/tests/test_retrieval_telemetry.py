@@ -23,7 +23,7 @@ def sink(tmp_path):
 
 
 def _rows(a):
-    return [json.loads(l) for l in a.path.read_text().splitlines()]
+    return [json.loads(line) for line in a.path.read_text().splitlines()]
 
 
 def test_query_text_cannot_be_recorded(sink):

@@ -106,6 +106,7 @@ def test_unknown_channel_reports_unassessed_not_reliable():
     """The heart of the bug: `reliable` used to be the else-branch, so any channel nobody wrote a
     check for was silently promoted. An unchecked channel must say so."""
     import pandas as pd
+
     from aqua_model import datasets
     # Varied values on purpose: a fixture with few distinct values trips the saturation check
     # first and never reaches the question being asked.
@@ -118,6 +119,7 @@ def test_dead_sensor_sentinels_outrank_other_verdicts():
     """A channel whose median is -127 is a disconnected probe, and that is the useful thing to
     report — not that it happens to also look saturated."""
     import pandas as pd
+
     from aqua_model import datasets
     s = pd.Series([-127.0] * 60 + [24.0] * 40)
     verdict, evidence = datasets._trust_verdict("water_temp_c", s, None)
@@ -129,6 +131,7 @@ def test_non_independent_channels_are_demoted():
     """Two channels that are one instrument must both lose their `reliable` verdict, even though
     each looks fine measured alone."""
     import pandas as pd
+
     from aqua_model import datasets
     n = 400
     a = [0.11 + i * 0.001 for i in range(n)]

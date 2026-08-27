@@ -11,12 +11,12 @@ import asyncio
 import logging
 import os
 
-from telegram import Update, BotCommand
+from telegram import BotCommand, Update
 from telegram.constants import ChatAction
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from ..core import AgronautAgent
-from .base import ChannelAdapter, chunk, room_identity, delivery_chat_id
+from .base import ChannelAdapter, chunk, delivery_chat_id, room_identity
 
 log = logging.getLogger(__name__)
 

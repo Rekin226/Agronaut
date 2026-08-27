@@ -10,9 +10,8 @@ import pathlib
 import pytest
 
 pytest.importorskip("streamlit.testing.v1")
-from streamlit.testing.v1 import AppTest  # noqa: E402
-
 from langchain_core.messages import AIMessage, ToolMessage  # noqa: E402
+from streamlit.testing.v1 import AppTest  # noqa: E402
 
 # AppTest.from_file resolves a RELATIVE path against the file that calls it — so "app.py"
 # looks for agent/tests/app.py, not the repo root. That happened to work on some Streamlit
@@ -64,7 +63,7 @@ def test_web_chat_routes_through_the_tool_calling_agent(fake_agent_backend):
     assert "numbers_from_tool=True" in (blob + all_md)
 
     # the consultation persisted: a web-channel user exists with tool-captured facts
-    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent.store import MemoryStore, _Db
     db = _Db(fake_agent_backend)
     users = db.query("SELECT user_id FROM users WHERE channel='web'")
     assert len(users) == 1

@@ -14,7 +14,6 @@ owns it, so this module stays a dispatcher and only a dispatcher.
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -36,7 +35,8 @@ def _cmd_chat(args) -> int:
 
 def _cmd_design(args) -> int:
     from agent.facts import design_from_form
-    from aqua_model import size_system, ValidationError
+    from aqua_model import ValidationError, size_system
+
     from . import serialize
 
     try:

@@ -9,7 +9,6 @@ this module's contract. What IS the contract is that reranking reorders, that it
 diversity cap, and that its absence costs ranking quality and nothing else.
 """
 
-import pytest
 
 from agronaut_agent import rag
 

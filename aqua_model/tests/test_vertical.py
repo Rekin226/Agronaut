@@ -8,8 +8,12 @@ about. Flat methods (raft/NFT/media bed) have footprint == growing area, byte-id
 
 import pytest
 
-from aqua_model import size_system, size_hydroponic_system, validate_design_input, \
-    validate_hydroponic_input
+from aqua_model import (
+    size_hydroponic_system,
+    size_system,
+    validate_design_input,
+    validate_hydroponic_input,
+)
 from aqua_model.system_types import SYSTEM_TYPES, get_system_type
 
 
@@ -53,8 +57,8 @@ def test_hydroponic_tower_reports_footprint():
 
 
 def test_tower_footprint_appears_in_schematic_and_serialization():
-    from aqua_model.schematic import to_svg
     from agronaut_agent.serialize import serialize_design_output
+    from aqua_model.schematic import to_svg
     out = size_system(validate_design_input(
         "tilapia", "lettuce", 12, 27, 3000, system_type="vertical_tower"))
     assert "floor" in to_svg(out).lower() or "footprint" in to_svg(out).lower()

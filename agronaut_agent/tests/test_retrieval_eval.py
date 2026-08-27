@@ -11,8 +11,14 @@ from pathlib import Path
 import pytest
 
 from scripts.retrieval_eval import (
-    aggregate, average_precision, dedupe, precision_at_k, recall_at_k,
-    reciprocal_rank, run, score_query,
+    aggregate,
+    average_precision,
+    dedupe,
+    precision_at_k,
+    recall_at_k,
+    reciprocal_rank,
+    run,
+    score_query,
 )
 
 A, B, C, D = "knowledge/a.md", "knowledge/b.md", "knowledge/c.md", "knowledge/d.md"

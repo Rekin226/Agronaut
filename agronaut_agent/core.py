@@ -11,13 +11,22 @@ from __future__ import annotations
 import logging
 import threading
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
+from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm
 from agent.vision import sanitize_observation
+
+from . import memory_extract, profile, runtime, semantic
+from .store import (
+    CalibrationStore,
+    CommunityStore,
+    ConversationStore,
+    FollowupStore,
+    MemoryStore,
+    _Db,
+    _now,
+)
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now
-from . import memory_extract, runtime, profile, semantic
 
 log = logging.getLogger(__name__)
 
@@ -534,7 +543,6 @@ class AgronautAgent:
 def _repl() -> None:
     """Local dry-run: talk to the agent from the terminal, no Telegram. Needs a configured
     tool-calling provider (e.g. LLM_PROVIDER=nvidia NVIDIA_API_KEY=...)."""
-    import agent  # loads .env
     from .channels.repl import ReplChannel
     ReplChannel(AgronautAgent()).run()
 

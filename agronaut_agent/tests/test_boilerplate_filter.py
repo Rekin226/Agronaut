@@ -108,6 +108,7 @@ def test_the_index_builder_and_the_retriever_share_one_implementation():
     """#19 was two copies of this logic that had already drifted. If a second copy reappears,
     this catches it: the filter must be defined once at module level and used everywhere."""
     import inspect
+
     import srcs.chatbot as chatbot
 
     source = inspect.getsource(chatbot)

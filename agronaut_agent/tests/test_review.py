@@ -1,7 +1,7 @@
 """The community-insight review CLI — the local, off-chat approval gate."""
 
-from agronaut_agent.store import _Db, CommunityStore
 from agronaut_agent.review import apply_command, format_candidate
+from agronaut_agent.store import CommunityStore, _Db
 
 
 def _store_with_one():

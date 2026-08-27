@@ -2,8 +2,17 @@
 
 import pytest
 
-from agronaut_agent.store import _Db, ConversationStore, MemoryStore, user_id_for
 from agronaut_agent import memory_extract
+from agronaut_agent.store import (
+    CalibrationStore,
+    CommunityStore,
+    ConversationStore,
+    FollowupStore,
+    MemoryStore,
+    _Db,
+    _now,
+    user_id_for,
+)
 
 
 @pytest.fixture
@@ -95,10 +104,6 @@ def test_forget_wipes_memory_and_summary(stores):
     assert mem.get_summary(uid) is None
     assert mem.get_facts(uid) == {}
 
-
-from agronaut_agent.store import _Db, FollowupStore, _now
-
-
 def _fs():
     return FollowupStore(_Db(":memory:"))
 
@@ -144,10 +149,6 @@ def test_answer_and_cancel_free_the_slot():
     assert fs.schedule("telegram:1", "telegram", "1", "q2", "a", "2999-01-01T00:00:00+00:00")
     fs.cancel(fs.open_for("telegram:1")["id"])
     assert fs.open_for("telegram:1") is None
-
-
-from agronaut_agent.store import CommunityStore
-
 
 def _cs():
     return CommunityStore(_Db(":memory:"))
@@ -200,10 +201,6 @@ def test_approve_only_acts_on_pending():
     cs.approve(cid)
     cs.reject(cid)                                      # already approved -> no-op
     assert len(cs.search_approved("some")) == 1         # still approved, not rejected
-
-
-from agronaut_agent.store import CalibrationStore
-
 
 def _cal():
     return CalibrationStore(_Db(":memory:"))

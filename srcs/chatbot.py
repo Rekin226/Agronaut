@@ -21,19 +21,17 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 import requests_cache
+from langchain_community.document_loaders import TextLoader, WebBaseLoader
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 
 # --- RAG deps (FAISS) ---
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import WebBaseLoader, TextLoader
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-
 
 # =============================================================================
 # Configuration
 # =============================================================================
-
 # Resolved, never cwd-relative: `agronaut` is an installed command run from anywhere, and a
 # cwd-relative corpus degrades RAG to KNOWLEDGE_UNAVAILABLE without ever raising. See
 # agronaut_agent/paths.py for why the answer depends on how Agronaut was installed.
@@ -255,18 +253,18 @@ def _strip_running_headers(docs, min_fraction: float = 0.15):
     from collections import Counter
     counts: Counter = Counter()
     for d in docs:
-        seen = {_normalise_for_repetition(l) for l in d.page_content.splitlines() if l.strip()}
+        seen = {_normalise_for_repetition(line) for line in d.page_content.splitlines() if line.strip()}
         for line in seen:
             if line:
                 counts[line] += 1
     threshold = max(3, int(len(docs) * min_fraction))
-    furniture = {l for l, c in counts.items() if c >= threshold and len(l) > 8}
+    furniture = {line for line, c in counts.items() if c >= threshold and len(line) > 8}
     if not furniture:
         return docs
     for d in docs:
         d.page_content = "\n".join(
-            l for l in d.page_content.splitlines()
-            if _normalise_for_repetition(l) not in furniture)
+            line for line in d.page_content.splitlines()
+            if _normalise_for_repetition(line) not in furniture)
     logging.info("Stripped %d running header/footer line(s) from %d pages",
                  len(furniture), len(docs))
     return docs
@@ -279,10 +277,10 @@ def _looks_like_contents_page(text: str) -> bool:
     28"). It embeds as a dense bag of the document's own section titles, so it matches almost any
     query about the document's subject while answering none of them.
     """
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) < 6:
         return False
-    numbered = sum(1 for l in lines if re.search(r"\s\d{1,4}\s*$", l))
+    numbered = sum(1 for line in lines if re.search(r"\s\d{1,4}\s*$", line))
     return numbered / len(lines) >= 0.6
 
 
@@ -339,15 +337,15 @@ def _label_pdf_chapters(docs):
     """
     current = ""
     for d in docs:
-        lines = [l for l in d.page_content.splitlines()]
-        stripped = [l.strip() for l in lines if l.strip()]
+        lines = [line for line in d.page_content.splitlines()]
+        stripped = [line.strip() for line in lines if line.strip()]
         if stripped:
             m = _CHAPTER_HEADER.match(stripped[0])
             if m:
                 current = m.group(1).strip()
                 # The header line is furniture once its content is captured as metadata.
-                for i, l in enumerate(lines):
-                    if l.strip() == stripped[0]:
+                for i, line in enumerate(lines):
+                    if line.strip() == stripped[0]:
                         lines.pop(i)
                         break
         if current:
@@ -386,6 +384,7 @@ def _pdf_documents(content: bytes, url: str):
     can be cited back to a page number."""
     try:
         import io
+
         from langchain_core.documents import Document
         from pypdf import PdfReader
 
@@ -1823,7 +1822,6 @@ def _load_cached_index(fingerprint: str):
     365 chunks of HTML; it is not once a corpus includes a 56 MB, 275-page publication that takes
     47 s just to download.
     """
-    import os
     import time
     if not _index_cache_enabled():
         return None

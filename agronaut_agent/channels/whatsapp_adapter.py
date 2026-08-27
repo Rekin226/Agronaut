@@ -304,7 +304,7 @@ class WhatsAppAdapter(ChannelAdapter):
     # --- server ----------------------------------------------------------
     def run(self) -> None:  # pragma: no cover - exercised in a live deployment, not unit tests
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
 
         adapter = self
 

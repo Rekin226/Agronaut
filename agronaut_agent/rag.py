@@ -71,6 +71,7 @@ def _get_index():
     _TRIED = True
     try:
         import requests_cache
+
         import srcs.chatbot as core
 
         requests_cache.install_cache(core.CACHE_NAME, expire_after=core.CACHE_EXPIRE)

@@ -229,7 +229,6 @@ def test_set_goal_rejects_unknown_goal(tmp_path):
 
 
 def test_agent_exposes_followup_delivery_api(tmp_path):
-    from agronaut_agent.store import _now
     agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
     # schedule a past-due follow-up directly via the agent's store
     agent._followups.schedule("telegram:5", "telegram", "5", "did it work?", "x",

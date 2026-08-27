@@ -7,13 +7,16 @@ Physics anchor: electrical power = ρ g Q H / efficiency. Same flow at 5× the h
 the pump power — which is exactly why towers are not a free lunch, now shown numerically.
 """
 
-import math
 
 import pytest
 
-from aqua_model import size_system, size_hydroponic_system, validate_design_input, \
-    validate_hydroponic_input
 from aqua_model import coefficients as C
+from aqua_model import (
+    size_hydroponic_system,
+    size_system,
+    validate_design_input,
+    validate_hydroponic_input,
+)
 
 
 def test_every_design_reports_head_and_power():

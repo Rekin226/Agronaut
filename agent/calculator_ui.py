@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+from agent import facts
 from aqua_model import size_system
 from aqua_model.report import to_markdown
-from agent import facts
 
 
 def _render_channel_verdict(label: str, c: dict, mode: str) -> None:
@@ -169,6 +169,7 @@ def render_calculator() -> None:
                        f"(~{out.footprint_ratio:g}× via vertical towers).")
 
     import base64
+
     from aqua_model.schematic import to_svg
     svg = to_svg(out)
     st.subheader("System schematic")

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from aqua_model import optimize, OptimizeInput, OBJECTIVES
+from aqua_model import OBJECTIVES, OptimizeInput, optimize
 from aqua_model.crops import CROPS
 from aqua_model.species import SPECIES
 

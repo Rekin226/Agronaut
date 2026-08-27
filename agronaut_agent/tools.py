@@ -14,20 +14,22 @@ import logging
 from langchain_core.tools import tool
 
 from aqua_model import (
-    size_system,
-    size_hydroponic_system,
-    optimize,
+    OBJECTIVES,
     OptimizeInput,
+    ValidationError,
+    datasets,
+    optimize,
+    report,
+    size_hydroponic_system,
+    size_system,
     validate_design_input,
     validate_hydroponic_input,
-    ValidationError,
-    OBJECTIVES,
 )
-from aqua_model.species import SPECIES, get_species
 from aqua_model.crops import CROPS
-from aqua_model import datasets, report
+from aqua_model.species import SPECIES
 
-from . import profile as profile_mod, rag, runtime, serialize
+from . import profile as profile_mod
+from . import rag, runtime, serialize
 
 log = logging.getLogger(__name__)
 
@@ -334,6 +336,7 @@ def render_system_schematic(
     deterministically from the sized design — you do not describe it, just call this."""
     import os
     import tempfile
+
     from aqua_model.schematic import to_png
     fish = _clean_optional(fish_species)
     try:

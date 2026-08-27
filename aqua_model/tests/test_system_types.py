@@ -5,7 +5,7 @@ default (raft) is byte-identical to the pre-flexibility behavior, so nothing reg
 
 import pytest
 
-from aqua_model import size_system, validate_design_input, ValidationError
+from aqua_model import ValidationError, size_system, validate_design_input
 from aqua_model.system_types import SYSTEM_TYPES, get_system_type
 
 

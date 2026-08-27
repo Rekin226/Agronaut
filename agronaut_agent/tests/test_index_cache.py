@@ -99,7 +99,8 @@ def test_missing_cache_returns_none_rather_than_raising(monkeypatch, tmp_path):
 def test_expired_cache_is_ignored(monkeypatch, tmp_path):
     """A TTL bounds staleness the fingerprint cannot see: a web publisher can edit a source
     without urls.txt changing, and detecting that would require the very fetch the cache avoids."""
-    import os, time
+    import os
+    import time
     monkeypatch.delenv("AGRONAUT_INDEX_CACHE", raising=False)
     monkeypatch.setattr(chatbot, "INDEX_CACHE_DIR", tmp_path)
     d = tmp_path / "abc"
