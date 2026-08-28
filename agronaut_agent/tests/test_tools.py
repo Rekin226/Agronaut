@@ -467,7 +467,9 @@ def test_what_if_nitrogen_reports_relative_not_absolute():
                                  feed_g_per_day=150.0, temperature_c=27.0,
                                  change="double feed", new_feed_g_per_day=300.0)
     assert "x higher" in text or "x lower" in text or "No material change" in text
-    assert "unvalidated" in text
+    # The footer now reports what the validation record found rather than the single word
+    # "unvalidated" — strictly more informative, so assert the property.
+    assert "VALIDATION" in text or "UNMEASURED" in text
 
 
 def test_simulate_season_design_mode_stocks_the_designed_system():

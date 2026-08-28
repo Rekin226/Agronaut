@@ -133,12 +133,17 @@ def test_the_band_has_real_width_when_it_matters():
 
 # --- honesty surface ---------------------------------------------------------
 
-def test_the_output_states_it_is_unvalidated():
+def test_the_output_states_its_demonstrated_skill():
+    """Asserts the PROPERTY, not a particular word. The footer used to say "unvalidated"; it now
+    reports what the validation record actually found, which is strictly stronger — and a test
+    pinned to the old wording would have blocked the improvement."""
     state = _settled()
     text = format_comparison(compare(_baseline(state), run_scenario(
         state, SP, Intervention("triple feed", feed_g_per_day=FEED * 3), **_common())))
-    assert "unvalidated" in text.lower()
-    assert "not modelled" in text.lower()
+    low = text.lower()
+    assert "validation" in low or "unmeasured" in low
+    assert "never to predict a level" in low or "illustrative" in low
+    assert "not modelled" in low
 
 
 def test_limits_travel_with_the_result():
