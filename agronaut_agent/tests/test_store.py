@@ -239,3 +239,49 @@ def test_calibration_report_reflects_status():
     assert rep["tilapia.fcr"]["n"] == 2
     assert rep["tilapia.fcr"]["applied"] is True
     assert rep["tilapia.fcr"]["mean"] == 1.5
+
+
+# --- twin reading history -------------------------------------------------
+# The live twin keeps only "today": each /log overwrites the snapshot and the drift
+# report is printed, then discarded. These readings are what makes the twin auditable
+# over time — "was the model getting closer?" — so they are stored append-only.
+
+from agronaut_agent.store import ReadingStore
+
+
+@pytest.fixture
+def readings():
+    return ReadingStore(_Db(":memory:"))
+
+
+def test_readings_round_trip_in_order(readings):
+    readings.record("telegram:1", {"nitrate_mg_l": 40.0}, {"nitrate_mg_l": 12.0},
+                    greenhouse="shade", recorded_at="2026-08-20")
+    readings.record("telegram:1", {"nitrate_mg_l": 38.0}, {"nitrate_mg_l": 31.0},
+                    greenhouse="shade", recorded_at="2026-08-27")
+
+    hist = readings.history("telegram:1")
+
+    assert [h["recorded_at"] for h in hist] == ["2026-08-20", "2026-08-27"]
+    assert hist[0]["observed"]["nitrate_mg_l"] == 40.0
+    assert hist[0]["modelled"]["nitrate_mg_l"] == 12.0
+    assert hist[1]["greenhouse"] == "shade"
+
+
+def test_readings_are_scoped_per_user(readings):
+    readings.record("telegram:1", {"water_temp_c": 27.0}, {"water_temp_c": 25.0})
+    readings.record("telegram:2", {"water_temp_c": 19.0}, {"water_temp_c": 20.0})
+
+    assert len(readings.history("telegram:1")) == 1
+    assert readings.history("telegram:1")[0]["observed"]["water_temp_c"] == 27.0
+    assert readings.history("nobody")== []
+
+
+def test_readings_purge_is_user_scoped(readings):
+    readings.record("telegram:1", {"water_temp_c": 27.0}, {"water_temp_c": 25.0})
+    readings.record("telegram:2", {"water_temp_c": 19.0}, {"water_temp_c": 20.0})
+
+    readings.purge("telegram:1")
+
+    assert readings.history("telegram:1") == []
+    assert len(readings.history("telegram:2")) == 1

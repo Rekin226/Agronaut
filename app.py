@@ -15,6 +15,7 @@ import streamlit as st
 
 from agent.calculator_ui import render_calculator
 from agent.optimizer_ui import render_optimizer
+from agent.twin_ui import render_twin
 
 
 APP_TITLE = "🌱 Agronaut"
@@ -35,7 +36,17 @@ def _agent_error() -> str | None:
         return st.session_state.agent_error
     try:
         from agronaut_agent.core import AgronautAgent
-        st.session_state.agent = AgronautAgent()
+        # require_tools=False: the agent still carries the stores and the deterministic
+        # twin when no tool-calling provider exists, so My Twin survives a missing key.
+        agent = AgronautAgent(require_tools=False)
+        st.session_state.agent = agent
+        if agent.chat_error:
+            reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` "
+                      f"with `NVIDIA_API_KEY`) — couldn't start one: {agent.chat_error}. "
+                      "**My Twin**, **Design Calculator** and **Optimize Ratio** are fully "
+                      "deterministic and keep working.")
+            st.session_state.agent_error = reason
+            return reason
         return None
     except ModuleNotFoundError as exc:
         reason = (f"Chat mode needs the optional chat stack (`{exc.name}` isn't installed). "
@@ -160,9 +171,10 @@ def main() -> None:
     # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
-        ("Design Calculator", "Optimize Ratio", "Assistant (chat)"),
+        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)"),
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. Chat runs a consultation with the full agent (needs an LLM).",
+             "your constraint. My Twin mirrors the system you actually run (deterministic, "
+             "no LLM). Chat runs a consultation with the full agent (needs an LLM).",
     )
 
     if mode == "Design Calculator":
@@ -170,6 +182,16 @@ def main() -> None:
         return
     if mode == "Optimize Ratio":
         render_optimizer()
+        return
+
+    # My Twin is deterministic — it must render even when no LLM is configured, because
+    # surviving model weather is the entire promise of the twin's command layer.
+    if mode == "My Twin":
+        reason = _agent_error()
+        if "agent" not in st.session_state:
+            st.warning(reason or "The twin is unavailable in this install.")
+            return
+        render_twin(brain=st.session_state.agent, user=_web_user())
         return
 
     # Assistant (chat) — the real consultative agent, degrading gracefully when the

@@ -10,6 +10,7 @@ single-process event loop safe. Stdlib only — no ORM, no heavy deps.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
@@ -114,6 +115,19 @@ CREATE TABLE IF NOT EXISTS measurements (
     recorded_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_measurements_user ON measurements(user_id, coefficient);
+-- Append-only history of readings a user logged into their LIVE twin, paired with what
+-- the twin predicted at that moment. The twin state itself keeps only "today" (each /log
+-- overwrites the snapshot), so without this the drift report is computed, spoken once and
+-- lost — and "is the model getting closer to MY pond?" becomes unanswerable.
+CREATE TABLE IF NOT EXISTS twin_readings (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    greenhouse  TEXT NOT NULL,
+    observed    TEXT NOT NULL,
+    modelled    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_twin_readings_user ON twin_readings(user_id, id);
 """
 
 
@@ -469,3 +483,44 @@ class CalibrationStore:
                 "in_range": in_range,
             })
         return report
+
+
+class ReadingStore:
+    """Append-only log of what the farmer measured vs what the twin thought at the time.
+
+    The live twin is a single overwritten snapshot by design — it models TODAY. This table
+    is the memory that snapshot cannot keep: every logged reading with the model's value
+    beside it, so drift can be charted over weeks instead of narrated once and forgotten.
+    """
+
+    def __init__(self, db: _Db | None = None, path=None):
+        self.db = db or _Db(path)
+
+    def record(self, user_id: str, observed: dict, modelled: dict,
+               greenhouse: str = "poly", recorded_at: str | None = None) -> None:
+        """Store one logged reading. `observed` is what the user measured, `modelled` what
+        the twin held for those same fields — keys absent from either are simply absent."""
+        self.db.execute(
+            "INSERT INTO twin_readings(user_id, recorded_at, greenhouse, observed, modelled)"
+            " VALUES (?,?,?,?,?)",
+            (user_id, recorded_at or _now(), str(greenhouse),
+             json.dumps(_clean_readings(observed)), json.dumps(_clean_readings(modelled))),
+        )
+
+    def history(self, user_id: str) -> list[dict]:
+        """Every reading for this user, oldest first."""
+        rows = self.db.query(
+            "SELECT recorded_at, greenhouse, observed, modelled FROM twin_readings"
+            " WHERE user_id=? ORDER BY id", (user_id,))
+        return [{"recorded_at": r["recorded_at"], "greenhouse": r["greenhouse"],
+                 "observed": json.loads(r["observed"]), "modelled": json.loads(r["modelled"])}
+                for r in rows]
+
+    def purge(self, user_id: str) -> None:
+        self.db.execute("DELETE FROM twin_readings WHERE user_id=?", (user_id,))
+
+
+def _clean_readings(d: dict | None) -> dict:
+    """Drop unset fields and coerce to plain floats — the caller passes a dict with None
+    for every reading the user did not take."""
+    return {k: float(v) for k, v in (d or {}).items() if v is not None}

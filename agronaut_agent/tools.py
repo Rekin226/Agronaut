@@ -27,7 +27,7 @@ from aqua_model.species import SPECIES, get_species
 from aqua_model.crops import CROPS
 from aqua_model import datasets, report
 
-from . import profile as profile_mod, rag, runtime, serialize
+from . import profile as profile_mod, rag, runtime, serialize, twin_view
 
 log = logging.getLogger(__name__)
 
@@ -1184,6 +1184,47 @@ def _advance_mirror(mem, user_id, facts: dict, forecast_days: int = 1,
     return stored, fc_run, notes
 
 
+_READING_TO_STATE = {
+    "water_temp_c": lambda st: st.water_temp_c,
+    "ammonia_mg_l": lambda st: st.nitrogen.tan_mg_l,
+    "nitrite_mg_l": lambda st: st.nitrogen.no2_mg_l,
+    "nitrate_mg_l": lambda st: st.nitrogen.no3_mg_l,
+    "fish_avg_weight_g": lambda st: st.fish.mean_weight_g,
+    "fish_count": lambda st: float(st.fish.count),
+}
+
+
+def _modelled_for(state, observed: dict) -> dict:
+    """What the twin held for exactly the fields the user measured — the other half of the
+    drift report, captured BEFORE the nudge pulls the state toward the reading."""
+    out = {}
+    for key, value in observed.items():
+        if value is None:
+            continue
+        read = _READING_TO_STATE.get(key)
+        if read is None:
+            continue
+        try:
+            out[key] = float(read(state))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return out
+
+
+def _record_reading(user_id: str, observed: dict, modelled: dict, greenhouse: str) -> None:
+    """Append the reading to the twin's history. Best-effort: a farmer's log must never
+    fail because history storage is unavailable (the CLI wires no ReadingStore)."""
+    store = runtime.get_readings()
+    if store is None:
+        return
+    from datetime import date
+    try:
+        store.record(user_id, observed, modelled, greenhouse=greenhouse,
+                     recorded_at=date.today().isoformat())
+    except Exception:  # noqa: BLE001 — history is an extra, never the farmer's problem
+        log.warning("could not persist twin reading", exc_info=True)
+
+
 @tool
 def log_my_readings(
     greenhouse: str = "poly",
@@ -1218,12 +1259,17 @@ def log_my_readings(
         state, _fc, notes = _advance_mirror(mem, user_id, facts, greenhouse=greenhouse)
     except Exception as err:  # noqa: BLE001 — a weather hiccup must become words
         return f"Could not advance the twin ({err}) — try again shortly."
+    observed = {"water_temp_c": water_temp_c, "ammonia_mg_l": ammonia_mg_l,
+                "nitrite_mg_l": nitrite_mg_l, "nitrate_mg_l": nitrate_mg_l,
+                "fish_avg_weight_g": fish_avg_weight_g, "fish_count": fish_count}
+    modelled = _modelled_for(state, observed)
     state, innovation = mirror.nudge(state, {
         "water_temp_c": water_temp_c, "tan_mg_l": ammonia_mg_l,
         "no2_mg_l": nitrite_mg_l, "no3_mg_l": nitrate_mg_l,
         "fish_avg_weight_g": fish_avg_weight_g, "fish_count": fish_count})
     from datetime import date
     _save_mirror(mem, user_id, state, date.today().isoformat())
+    _record_reading(user_id, observed, modelled, greenhouse)
     if fish_count is not None or fish_avg_weight_g is not None:
         upd = {}
         if fish_count is not None:
@@ -1236,6 +1282,25 @@ def log_my_readings(
             + "\nNow: " + mirror.snapshot_line(state))
 
 
+def render(snap) -> str:
+    """Format a TwinSnapshot as the Telegram/CLI reply. The dashboard reads the same
+    snapshot object instead — one computation, two renderings."""
+    from aqua_model import mirror
+    from aqua_model.production import ProductionRun, format_summary
+
+    if not snap.ready:
+        return ("The live twin needs: " + ", ".join(snap.missing) +
+                ". Ask, save with update_profile (and fetch_site_climate), then call again.")
+    out = ["LIVE twin — " + " ".join(snap.notes) if snap.notes else "LIVE twin",
+           "Now: " + mirror.snapshot_line(snap.state)]
+    if snap.summary is not None:
+        out.append("")
+        out.append(format_summary(ProductionRun(trajectory=snap.trajectory,
+                                                summary=snap.summary),
+                                  site_label=f"next {snap.summary.days} days (forecast)"))
+    return "\n".join(out)
+
+
 @tool
 def my_system_forecast(days_ahead: int = 7, greenhouse: str = "poly") -> str:
     """The LIVE twin's answer to "how is my system doing, and what happens next?" —
@@ -1246,30 +1311,15 @@ def my_system_forecast(days_ahead: int = 7, greenhouse: str = "poly") -> str:
     this heatwave do", "check my system". The state persists between conversations —
     logged readings (log_my_readings) keep it honest.
     greenhouse: the envelope they actually run — 'poly', 'shade', or 'heated'."""
-    from aqua_model import mirror
-    from aqua_model.production import format_summary
-
     cur = runtime.get_current()
     if cur is None:
         return "No session — cannot keep a live twin here."
     mem, user_id = cur
-    facts = mem.get_facts(user_id) or {}
-    missing = _mirror_context(facts)
-    if missing:
-        return ("The live twin needs: " + ", ".join(missing) +
-                ". Ask, save with update_profile (and fetch_site_climate), then call again.")
     try:
-        state, fc_run, notes = _advance_mirror(mem, user_id, facts, greenhouse=greenhouse,
-                                               forecast_days=max(2, min(int(days_ahead), 15)))
+        snap = twin_view.compute(mem, user_id, days=days_ahead, greenhouse=greenhouse)
     except Exception as err:  # noqa: BLE001
         return f"Could not advance the twin ({err}) — try again shortly."
-    out = ["LIVE twin — " + " ".join(notes) if notes else "LIVE twin",
-           "Now: " + mirror.snapshot_line(state)]
-    if fc_run is not None:
-        out.append("")
-        out.append(format_summary(fc_run,
-                                  site_label=f"next {fc_run.summary.days} days (forecast)"))
-    return "\n".join(out)
+    return render(snap)
 
 
 @tool
