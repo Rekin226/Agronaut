@@ -36,7 +36,17 @@ def _agent_error() -> str | None:
         return st.session_state.agent_error
     try:
         from agronaut_agent.core import AgronautAgent
-        st.session_state.agent = AgronautAgent()
+        # require_tools=False: the agent still carries the stores and the deterministic
+        # twin when no tool-calling provider exists, so My Twin survives a missing key.
+        agent = AgronautAgent(require_tools=False)
+        st.session_state.agent = agent
+        if agent.chat_error:
+            reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` "
+                      f"with `NVIDIA_API_KEY`) — couldn't start one: {agent.chat_error}. "
+                      "**My Twin**, **Design Calculator** and **Optimize Ratio** are fully "
+                      "deterministic and keep working.")
+            st.session_state.agent_error = reason
+            return reason
         return None
     except ModuleNotFoundError as exc:
         reason = (f"Chat mode needs the optional chat stack (`{exc.name}` isn't installed). "
@@ -178,8 +188,8 @@ def main() -> None:
     # surviving model weather is the entire promise of the twin's command layer.
     if mode == "My Twin":
         reason = _agent_error()
-        if reason and "agent" not in st.session_state:
-            st.warning(reason)
+        if "agent" not in st.session_state:
+            st.warning(reason or "The twin is unavailable in this install.")
             return
         render_twin(brain=st.session_state.agent, user=_web_user())
         return

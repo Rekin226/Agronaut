@@ -187,18 +187,29 @@ _PROMISE = _re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
-                 classify_fn=None):
-        # chat_model injectable for tests (a fake bindable model); else build from config.
-        base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
-        # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
-        # never lost. Only auto-built for the real config path; injectable for tests.
-        fb = fallback_model
-        if fb is None and chat_model is None:
-            fb = build_fallback_chat(llm_provider, llm_model)
-        if fb is not None:
-            base = ResilientChat(base, fb)
-        self._base = base                       # unbound: used to force a final text answer
-        self._bound = base.bind_tools(AGRONAUT_TOOLS)
+                 classify_fn=None, require_tools: bool = True):
+        """`require_tools=False` builds an agent whose DETERMINISTIC surfaces work even when
+        no tool-calling provider is configured — the live twin (/log, /forecast, the twin
+        dashboard) reaches no model, so a missing NVIDIA_API_KEY must not deny an operator
+        their own system. Chat then reports `chat_error` instead of answering."""
+        self._chat_error: str | None = None
+        try:
+            # chat_model injectable for tests (a fake bindable model); else build from config.
+            base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
+            # Resilience: if the primary errors/times out, fall back to a fast model so a turn is
+            # never lost. Only auto-built for the real config path; injectable for tests.
+            fb = fallback_model
+            if fb is None and chat_model is None:
+                fb = build_fallback_chat(llm_provider, llm_model)
+            if fb is not None:
+                base = ResilientChat(base, fb)
+            self._base = base                   # unbound: used to force a final text answer
+            self._bound = base.bind_tools(AGRONAUT_TOOLS)
+        except Exception as exc:  # noqa: BLE001 — surfaced as chat_error, or re-raised
+            if require_tools:
+                raise
+            self._base = self._bound = None
+            self._chat_error = str(exc)
         self._tools_by_name = {t.name: t for t in AGRONAUT_TOOLS}
         db = _Db(db_path)
         self._conv = ConversationStore(db)
@@ -454,6 +465,10 @@ class AgronautAgent:
         every later turn. Image turns therefore pass their caption (the only part the user
         actually wrote); voice turns pass nothing, because a transcript IS the user's words.
         """
+        if self._bound is None:
+            return ("I can't hold a conversation right now — no tool-calling model is "
+                    f"configured ({self._chat_error}). Your live twin still works: "
+                    "/log and /forecast never touch a model.")
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._analytics.record("message", user_id=user_id, channel=channel)
         source_text = text if fact_text is None else fact_text
@@ -636,6 +651,12 @@ class AgronautAgent:
         """Deterministic /forecast: the live twin, advanced and projected."""
         return self._run_tool_direct(channel, channel_user, "my_system_forecast",
                                      {"days_ahead": days, "greenhouse": greenhouse})
+
+    @property
+    def chat_error(self) -> str | None:
+        """Why chat is unavailable, or None when a tool-calling model is bound. The
+        deterministic twin surfaces work either way."""
+        return self._chat_error
 
     def twin_snapshot(self, channel: str, channel_user: str, days: int = 7,
                       greenhouse: str = "poly"):
