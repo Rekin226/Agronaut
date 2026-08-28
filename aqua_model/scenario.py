@@ -234,10 +234,7 @@ def format_comparison(cmp: Comparison) -> str:
     if cmp.scenario.warnings:
         lines.append("")
         lines += [f"  ! {w}" for w in cmp.scenario.warnings]
-    lines += [
-        "",
-        "This is a projection from an unvalidated model: it has not been checked against a real",
-        "system, so treat the SHAPE of the change as the useful part, not the absolute numbers.",
-        "NOT modelled: " + "; ".join(cmp.scenario.not_modelled[:3]) + ".",
-    ]
+    from .validation_status import validation_lines
+    lines += ["", *validation_lines(),
+              "NOT modelled: " + "; ".join(cmp.scenario.not_modelled[:3]) + "."]
     return "\n".join(lines)

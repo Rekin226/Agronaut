@@ -324,10 +324,7 @@ def format_summary(run: ProductionRun, *, site_label: str = "") -> str:
     if s.warnings:
         lines.append("")
         lines += [f"  ! {w}" for w in s.warnings[:6]]
-    lines += [
-        "",
-        "This is a projection from a model calibrated on literature seeds, not on your",
-        "system. Treat relative comparisons as the useful part, not the absolute kilograms.",
-        "NOT modelled: " + "; ".join(s.not_modelled[:4]) + "; ...",
-    ]
+    from .validation_status import validation_lines
+    lines += ["", *validation_lines(),
+              "NOT modelled: " + "; ".join(s.not_modelled[:4]) + "; ..."]
     return "\n".join(lines)
