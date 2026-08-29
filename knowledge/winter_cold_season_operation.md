@@ -7,7 +7,7 @@ feeding, aeration, and loading to match the reduced metabolism of the whole loop
 ## What slows down in the cold
 - **Fish metabolism** — appetite and growth fall with temperature. Feeding the summer ration into a cold tank
   simply fouls the water; uneaten feed decays and drives ammonia up.
-- **Biofilter activity** — nitrifying bacteria are temperature-sensitive. Below ~15 °C they work noticeably slower,
+- **Biofilter activity** — nitrifying bacteria are temperature-sensitive. Below ~17 °C they work noticeably slower,
   so the same feed load produces a higher ammonia spike. The filter does not "break", it just needs less input.
 - **Plant uptake** — most aquaponic crops slow or stop growing in cold water, so nutrient uptake drops and
   nitrate can accumulate.
@@ -16,7 +16,7 @@ feeding, aeration, and loading to match the reduced metabolism of the whole loop
 - **Cut feed as temperature falls** — halve the ration for every few degrees below the species' optimum, and
   watch the fish: if they are not actively taking food, do not throw more in.
 - **Skip feeding entirely below the species' cold threshold** — warm-water fish (e.g. tilapia) stop feeding below
-  roughly 15 °C. Below that, stop feeding; the fish will live off their stores until it warms.
+  roughly 17 °C. Below that, stop feeding; the fish will live off their stores until it warms.
 - **Never feed "on schedule" in winter** — feed on observed appetite, not on a calendar.
 
 ## Aeration and oxygen
@@ -44,3 +44,5 @@ feeding, aeration, and loading to match the reduced metabolism of the whole loop
 - `temperature_and_climate_control.md` — heating, insulation, and species-to-climate matching.
 - `nitrogen_cycle_and_cycling.md` — how the biofilter behaves when it is cold.
 - `dissolved_oxygen_and_aeration.md` — oxygen management at any temperature.
+
+Reference level: Somerville et al. (2014), FAO 589
