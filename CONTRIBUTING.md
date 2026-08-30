@@ -139,6 +139,27 @@ was wrong before. Compare "fix regex" with "the guard's lexicon missed bare impe
 **Say what you did not do.** If you left a case unhandled, note it in the PR. Known and stated
 is fine; discovered later is expensive.
 
+### AI-assisted contributions
+
+Welcome, and used here too — a good deal of this repository was written with a coding agent.
+The bar does not move either way, and it is the bar an agent is most likely to walk past:
+
+- **Open a PR, not a comment.** A patch pasted into an issue thread cannot be run, reviewed,
+  or merged. If there is no branch, there is no contribution.
+- **The files have to exist.** Agents confidently patch plausible paths that this repository
+  does not have. Check the diff against a real checkout before you post it.
+- **Run the tests you claim to have run.** `pytest` and `python -m scripts.safety_eval`, on
+  your branch, merged with `main`. Do not describe a verification you did not perform.
+- **Cite the number or leave it out.** Coefficients need a `source=` string pointing at
+  published work, and a `low`/`high` envelope. An illustrative or plausible-looking constant
+  is worse than a missing one: the missing one is visibly missing, and the invented one gets
+  copied forward for years.
+- **You are the author.** Review what your agent wrote before it becomes your PR, and be able
+  to answer questions about it. "The model produced it" is not an answer in review.
+
+Contributions that fail these are closed and hidden as off-topic, regardless of how they are
+formatted. A confident report is not evidence of work.
+
 ### Before you open a PR
 
 ```bash

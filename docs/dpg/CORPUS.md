@@ -34,8 +34,9 @@ smaller. Nothing in the code depends on that source existing.
 
 | Source | Licence | Role |
 |---|---|---|
-| 21 × `knowledge/*.md` | First-party | **The answer layer.** Hand-written operator guidance |
+| 22 × `knowledge/*.md` | First-party | **The answer layer.** Hand-written operator guidance |
 | FAO 589 (Somerville et al., 2014) | FAO permissive (NC) | **The depth layer.** 275-page canonical reference |
+| Goddek, Joyce, Kotzen & Burnell eds. (2019), *Aquaponics Food Production Systems*, Springer Open | CC BY 4.0 (confirmed from the book's own copyright page) | **The research layer.** 619-page, 24-chapter open-access book; the source behind many of `aqua_model`'s cited coefficients (see `docs/twin_parameter_dossier.md`). Indexed via the OAPEN mirror because link.springer.com serves a bot challenge; ~2,576 chunks, which roughly triples the corpus — the hybrid-retrieval weighting sweep must be re-run before trusting hybrid over dense-only (see `agronaut_agent/rag.py`) |
 | Applications, technologies and evaluation methods in smart aquaponics (Artif Intell Rev, 2024) | CC BY 4.0 | Systematic review; IoT/ML framing |
 | Love et al. (2014), An International Survey of Aquaponics Practitioners (PLOS ONE) | CC BY 4.0 | Practitioner survey data |
 
@@ -86,7 +87,7 @@ python -m scripts.corpus_report
 
 ## Sources evaluated and not added
 
-Corpus breadth is the real weakness — 21 hand-written files still answer most queries. A survey
+Corpus breadth is the real weakness — 22 hand-written files still answer most queries. A survey
 for openly licensed prose to widen it produced this, and it is recorded so the search is not
 repeated from scratch:
 
@@ -121,7 +122,7 @@ and fill exactly the husbandry gap.
 - **Web drift is bounded, not detected.** A publisher can edit a source without `urls.txt`
   changing. The index cache fingerprint cannot see that — detecting it would require the fetch the
   cache exists to avoid — so a 7-day TTL bounds staleness instead.
-- **Coverage is narrow.** 21 hand-written files maintained by one operator. Breadth, not source
+- **Coverage is narrow.** 22 hand-written files maintained by one operator. Breadth, not source
   quality, is the corpus's real weakness.
 - **Extension services are frequently unreachable.** Oklahoma State's aquaponics fact sheets sit
   behind Cloudflare (HTTP 403, "Just a moment..."), and FAO's own repository landing pages are

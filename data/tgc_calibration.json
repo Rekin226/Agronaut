@@ -1,0 +1,159 @@
+{
+ "dataset": "Ogbuokiri/Udanor et al., Kaggle DOI 10.34740/kaggle/dsv/2681778 (Data in Brief 43:108400, CC BY); Clarias gariepinus, Nigeria 2021",
+ "method": "per-pond least squares of W^(1/3) vs cumulative degree-days from the pond's own daily median temperature; fortnightly manual weight samplings",
+ "caveats": [
+  "feeding unrecorded: realized growth under the farm's own ration, not potential",
+  "aggregate pond means; no size structure",
+  "temperature outside 15-40 C dropped as sensor faults; gaps interpolated"
+ ],
+ "generated_utc": "2026-08-25T22:35:06+00:00",
+ "ponds": [
+  {
+   "pond": "IoTPond10.csv",
+   "usable": true,
+   "tgc_x1000": 0.198,
+   "r2": 0.766,
+   "n_events": 13,
+   "weight_g": [
+    27.6,
+    54.06
+   ],
+   "days": 103,
+   "temp_median_c": 26.0
+  },
+  {
+   "pond": "IoTPond11.csv",
+   "usable": true,
+   "tgc_x1000": 0.58,
+   "r2": 0.981,
+   "n_events": 3,
+   "weight_g": [
+    33.8,
+    40.93
+   ],
+   "days": 13,
+   "temp_median_c": 26.1
+  },
+  {
+   "pond": "IoTPond12.csv",
+   "usable": false,
+   "reason": "only 1 weight sampling events"
+  },
+  {
+   "pond": "IoTPond2.csv",
+   "usable": true,
+   "tgc_x1000": 1.836,
+   "r2": 0.988,
+   "n_events": 111,
+   "weight_g": [
+    3.36,
+    394.66
+   ],
+   "days": 134,
+   "temp_median_c": 24.8
+  },
+  {
+   "pond": "IoTPond3.csv",
+   "usable": true,
+   "tgc_x1000": 1.986,
+   "r2": 0.962,
+   "n_events": 76,
+   "weight_g": [
+    3.2,
+    294.92
+   ],
+   "days": 115,
+   "temp_median_c": 23.8
+  },
+  {
+   "pond": "IoTPond4.csv",
+   "usable": true,
+   "tgc_x1000": 2.494,
+   "r2": 0.988,
+   "n_events": 67,
+   "weight_g": [
+    3.07,
+    223.73
+   ],
+   "days": 78,
+   "temp_median_c": 24.7
+  },
+  {
+   "pond": "IoTPond6.csv",
+   "usable": true,
+   "tgc_x1000": 1.813,
+   "r2": 0.973,
+   "n_events": 88,
+   "weight_g": [
+    3.2,
+    304.76
+   ],
+   "days": 116,
+   "temp_median_c": 24.2
+  },
+  {
+   "pond": "IoTPond7.csv",
+   "usable": true,
+   "tgc_x1000": 2.236,
+   "r2": 0.954,
+   "n_events": 63,
+   "weight_g": [
+    3.04,
+    179.74
+   ],
+   "days": 66,
+   "temp_median_c": 25.0
+  },
+  {
+   "pond": "IoTPond8.csv",
+   "usable": true,
+   "tgc_x1000": 2.489,
+   "r2": 0.989,
+   "n_events": 16,
+   "weight_g": [
+    2.87,
+    43.27
+   ],
+   "days": 34,
+   "temp_median_c": 24.7
+  },
+  {
+   "pond": "IoTPond9.csv",
+   "usable": true,
+   "tgc_x1000": 2.152,
+   "r2": 0.991,
+   "n_events": 99,
+   "weight_g": [
+    4.37,
+    431.2
+   ],
+   "days": 117,
+   "temp_median_c": 24.1
+  },
+  {
+   "pond": "IoTpond1.csv",
+   "usable": true,
+   "tgc_x1000": 1.837,
+   "r2": 0.99,
+   "n_events": 81,
+   "weight_g": [
+    2.91,
+    318.64
+   ],
+   "days": 116,
+   "temp_median_c": 24.6
+  }
+ ],
+ "summary": {
+  "n_usable": 10,
+  "tgc_median": 1.911,
+  "tgc_iqr": [
+   1.819,
+   2.215
+  ],
+  "tgc_range": [
+   0.198,
+   2.494
+  ]
+ }
+}

@@ -27,6 +27,34 @@ def _parse_allowlist(raw: str | None) -> set[str]:
     return {x.strip() for x in (raw or "").split(",") if x.strip()}
 
 
+# Readings syntax /log accepts, deliberately forgiving:
+#   /log ammonia 0.5 nitrate 40 temp 27
+#   /log ammonia=0.5, no2: 0.3, weight 210, count 58, shade
+_LOG_KEYS = {
+    "ammonia": "ammonia_mg_l", "nh3": "ammonia_mg_l", "nh4": "ammonia_mg_l",
+    "nitrite": "nitrite_mg_l", "no2": "nitrite_mg_l",
+    "nitrate": "nitrate_mg_l", "no3": "nitrate_mg_l",
+    "temp": "water_temp_c", "temperature": "water_temp_c", "water": "water_temp_c",
+    "weight": "fish_avg_weight_g", "count": "fish_count", "fish": "fish_count",
+}
+
+
+def parse_log_args(text: str) -> dict:
+    """Parse a /log command's free-form readings into log_my_readings kwargs. Pure and
+    unit-tested — this is a farmer's data-entry path and must not surprise anyone."""
+    import re
+    text = (text or "").lower()
+    args: dict = {}
+    for key, val in re.findall(r"([a-z][a-z0-9_]*)\s*[:=]?\s*(-?\d+(?:\.\d+)?)", text):
+        field = _LOG_KEYS.get(key)
+        if field:
+            args[field] = int(float(val)) if field == "fish_count" else float(val)
+    for mode in ("shade", "poly", "heated"):
+        if mode in text:
+            args["greenhouse"] = mode
+    return args
+
+
 class TelegramAdapter(ChannelAdapter):
     channel_name = "telegram"
 
@@ -69,6 +97,13 @@ class TelegramAdapter(ChannelAdapter):
             "🌱 *Agronaut* — your aquaponics assistant.\n\n"
             "Just tell me about your system or ask a question. I can:\n"
             "• *Size* a system (species, grow area, water temp, water budget)\n"
+            "• *Simulate* a season at your town with real weather — harvest, heater "
+            "questions, what-ifs (\"how much will 24 m² produce in Bobo?\")\n"
+            "• *Mirror* your running system LIVE — log your test-kit readings and ask "
+            "\"how's my system, what happens this week?\"\n"
+            "• *Estimate* build & running costs, and whether it makes money\n"
+            "• *Show* your design in 3D — greenhouse, tanks, beds, swimming fish "
+            "(I send a file that opens in your browser)\n"
             "• *Optimize* the fish/crop ratio for a goal\n"
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
             "• *Draw* your system as a labeled diagram (just ask me to draw it)\n"
@@ -76,6 +111,9 @@ class TelegramAdapter(ChannelAdapter):
             "• *Hear* a voice note and reply in your language\n"
             "• *Remember* your setup across chats\n\n"
             "Commands:\n"
+            "/log — put readings into your LIVE twin (works even when I'm slow):\n"
+            "    /log ammonia 0.5 nitrate 40 temp 27\n"
+            "/forecast — your twin now + the week ahead (add shade/poly/heated)\n"
             "/design — size a new system\n"
             "/optimize — best fish/crop ratio\n"
             "/troubleshoot — diagnose a problem\n"
@@ -86,6 +124,38 @@ class TelegramAdapter(ChannelAdapter):
             "/delete\\_me — permanently erase all your data",
             parse_mode="Markdown",
         )
+
+    async def _on_log(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Deterministic path into the LIVE twin — no LLM between the reading and the
+        state. Measured free-tier LLM failure modes (narrated-but-not-logged readings)
+        motivated this: a farmer's data must never depend on model weather."""
+        if not self._allowed(update):
+            return await self._deny(update)
+        args = parse_log_args(" ".join(ctx.args or []))
+        if not args:
+            return await update.message.reply_text(
+                "Give me readings, e.g.:\n/log ammonia 0.5 nitrate 40 temp 27\n"
+                "(keys: ammonia, nitrite/no2, nitrate/no3, temp, weight, count; "
+                "add shade/poly/heated for your cover)")
+        reply = await asyncio.to_thread(
+            self.agent.log_readings_direct, self.channel_name, self._identity(update), args)
+        await update.message.reply_text(reply)
+
+    async def _on_forecast(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Deterministic /forecast — the live twin advanced through real weather, no LLM."""
+        if not self._allowed(update):
+            return await self._deny(update)
+        days, greenhouse = 7, "poly"
+        for a in (ctx.args or []):
+            if a.isdigit():
+                days = max(2, min(int(a), 15))
+            elif a.lower() in ("shade", "poly", "heated"):
+                greenhouse = a.lower()
+        reply = await asyncio.to_thread(
+            self.agent.forecast_direct, self.channel_name, self._identity(update),
+            days, greenhouse)
+        for part in chunk(reply):
+            await update.message.reply_text(part)
 
     async def _on_whoami(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -274,6 +344,8 @@ class TelegramAdapter(ChannelAdapter):
             ("design", self._on_design, "Mode: size a new system"),
             ("optimize", self._on_optimize, "Mode: best fish/crop ratio"),
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
+            ("log", self._on_log, "Log readings into your LIVE twin"),
+            ("forecast", self._on_forecast, "Your live twin: now + the week ahead"),
             ("whoami", self._on_whoami, "What I remember about you"),
             ("export", self._on_export, "Download all my data (JSON)"),
             ("reset", self._on_reset, "Clear this conversation"),

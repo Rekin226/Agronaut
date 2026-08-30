@@ -153,3 +153,38 @@ def test_chat_mode_still_renders_with_the_file_accepting_input(fake_agent_backen
     at = _open_chat(AppTest.from_file(_APP))
     assert not at.exception
     assert at.chat_input
+
+
+def _no_tool_calling_llm(monkeypatch):
+    """Force the deployment where no tool-calling provider is configured. Pinned via env
+    rather than left to the machine: a developer's .env made this pass locally and fail in
+    CI, which is the wrong way round for a test about running WITHOUT credentials."""
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
+def test_my_twin_mode_is_reachable_and_needs_no_llm(monkeypatch):
+    """The twin tab must appear beside the other modes and render with NO tool-calling
+    model available — surviving model weather is the whole promise of the command layer,
+    and a provider that cannot bind tools is the harshest weather there is."""
+    _no_tool_calling_llm(monkeypatch)
+
+    at = AppTest.from_file(_APP).run(timeout=60)
+    assert "My Twin" in at.sidebar.radio[0].options
+
+    at.sidebar.radio[0].set_value("My Twin").run(timeout=60)
+
+    assert not at.exception
+    assert "My Twin" in [s.value for s in at.subheader]
+
+
+def test_chat_still_reports_that_it_needs_a_provider(monkeypatch):
+    """Making the twin survive a missing LLM must not silently promise a working chat."""
+    _no_tool_calling_llm(monkeypatch)
+
+    at = AppTest.from_file(_APP).run(timeout=60)
+    at.sidebar.radio[0].set_value("Assistant (chat)").run(timeout=60)
+
+    assert not at.exception
+    assert any("provider" in str(w.value).lower() for w in at.warning)

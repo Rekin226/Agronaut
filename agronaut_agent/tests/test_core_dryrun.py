@@ -401,3 +401,140 @@ def test_tool_rows_do_not_shrink_conversation_window(tmp_path):
 
     blob = "\n".join(str(getattr(m, "content", "")) for m in agent._build_context(uid))
     assert "FIRST_QUESTION" in blob  # 18 tool rows must not push it out of a 20-row window
+
+
+class _FabricatingFake:
+    """A model that fabricates a tool result on the first ask, then complies when nudged."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="[earlier result from estimate_system_cost] It costs 1,200,000 XOF.")
+        return AIMessage(content="Let me actually compute that for you — one moment.")
+
+
+class _StubbornFabricator:
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        return AIMessage(content="[earlier result from business_case] You will profit greatly.")
+
+
+def test_a_fabricated_tool_result_is_caught_and_retried(tmp_path):
+    """Measured live failure: the model prefixed invented numbers with '[earlier result
+    from X]' without calling anything. The tripwire forces one corrective iteration."""
+    from agronaut_agent.core import AgronautAgent
+
+    agent_ = AgronautAgent(db_path=str(tmp_path / "a.sqlite3"), chat_model=_FabricatingFake())
+    reply = agent_.handle_message("cli", "u1", "what will it cost?")
+    assert "[earlier result" not in reply
+    assert "compute" in reply.lower()
+
+
+def test_a_stubborn_fabricator_is_refused_not_delivered(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    agent_ = AgronautAgent(db_path=str(tmp_path / "b.sqlite3"), chat_model=_StubbornFabricator())
+    reply = agent_.handle_message("cli", "u2", "will it make money?")
+    assert "profit greatly" not in reply
+    assert "[earlier result" not in reply
+    assert "without computing" in reply
+
+
+class _LeakyFake:
+    """Emits a tool call as mistral's native text syntax (the measured NIM leak), then
+    answers normally once the rescued tool result arrives."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content='[TOOL_CALLS]list_supported_species_and_crops{}')
+        return AIMessage(content="We support tilapia and lettuce, among others.")
+
+
+def test_a_leaked_text_tool_call_is_rescued_and_executed(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _LeakyFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "c.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u3", "what species do you support?")
+    assert "[TOOL_CALLS]" not in reply
+    assert fake.calls == 2, "the loop must continue after the rescued call, not end on the leak"
+    assert "tilapia" in reply
+
+
+class _BareJsonLeakFake:
+    """The second measured NIM leak dialect: a bare JSON-ish call with Python literals."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content=(
+                '{"name": "list_supported_species_and_crops", "parameters": '
+                '{"unused": None, "flag": True}}'))
+        return AIMessage(content="Tilapia is supported.")
+
+
+def test_the_bare_json_leak_dialect_is_rescued_too(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _BareJsonLeakFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "d.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u4", "what fish do you support?")
+    assert fake.calls == 2
+    assert "Tilapia" in reply and "{" not in reply
+
+
+class _PromisingFake:
+    """Announces an action without calling a tool, then complies when nudged."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="I'll check the supported species for you now.")
+        if self.calls == 2:
+            return AIMessage(content="", tool_calls=[{
+                "name": "list_supported_species_and_crops", "args": {}, "id": "c1"}])
+        return AIMessage(content="We support tilapia and more.")
+
+
+def test_a_promise_without_action_is_nudged_into_the_call(tmp_path):
+    """Measured: 'I'll log your readings' as a final reply, with nothing logged. The
+    nudge converts the narration into the actual tool call."""
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _PromisingFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "e.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u5", "what species do you support?")
+    assert fake.calls >= 2, "the promise must trigger a corrective iteration"
+    assert "tilapia" in reply.lower() or "species" in reply.lower()

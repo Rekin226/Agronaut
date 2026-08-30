@@ -14,7 +14,7 @@ def test_tool_registry():
     assert "optimize_fish_crop_ratio" in names
     assert "search_knowledge_base" in names
     assert "remember_about_user" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 27
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -166,7 +166,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 27
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -197,7 +197,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 27
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -241,7 +241,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 27
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -292,7 +292,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(AGRONAUT_TOOLS) == 17
+    assert len(AGRONAUT_TOOLS) == 27
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
@@ -442,3 +442,225 @@ def test_optimize_tool_labels_calibration():
         assert "calibrated from your" in out.lower()          # optimize now labels it
     finally:
         runtime.clear_current()
+def test_registry_includes_the_twin_tools():
+    """The twin is user-visible: season simulation, what-if forking, and the 3D design."""
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    assert "simulate_season" in names
+    assert "what_if_nitrogen" in names
+    assert "design_system_3d" in names
+
+
+def test_simulate_season_teaches_when_the_site_is_missing():
+    """A missing climate file must return the fetch command, not a stack trace."""
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil",
+                                grow_area_m2=10.0, site="atlantis",
+                                water_budget_lpd=300.0)
+    assert "fetch_climate.py" in text
+    assert "atlantis" in text
+
+
+def test_what_if_nitrogen_reports_relative_not_absolute():
+    from agronaut_agent.tools import what_if_nitrogen
+    text = what_if_nitrogen.func(fish_species="tilapia", volume_l=2000.0,
+                                 feed_g_per_day=150.0, temperature_c=27.0,
+                                 change="double feed", new_feed_g_per_day=300.0)
+    assert "x higher" in text or "x lower" in text or "No material change" in text
+    # The footer now reports what the validation record found rather than the single word
+    # "unvalidated" — strictly more informative, so assert the property.
+    assert "VALIDATION" in text or "UNMEASURED" in text
+
+
+def test_simulate_season_design_mode_stocks_the_designed_system():
+    """Path 1 of the intake procedure: the agreed design flows into the twin without
+    anyone retyping numbers — the summary label carries the design's own fish count."""
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil", grow_area_m2=24.0,
+                                site="taichung_2025", water_budget_lpd=500.0,
+                                system_type="raft", days=60)
+    assert "designed:" in text and "fish" in text
+    assert "Season projection" in text
+
+
+def test_simulate_season_without_a_system_teaches_instead_of_guessing():
+    from agronaut_agent.tools import simulate_season
+    text = simulate_season.func(fish_species="tilapia", crop="basil",
+                                grow_area_m2=10.0, site="taichung_2025")
+    assert "water_budget_lpd" in text
+
+
+def test_simulate_my_system_asks_for_what_the_mirror_is_missing():
+    """Path 2: an incomplete profile returns the exact list to collect, not a guess."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import simulate_my_system
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        mem.set_facts("cli:t", {"fish_species": "tilapia", "crop": "lettuce"},
+                      source="user_stated")
+        text = simulate_my_system.func()
+    finally:
+        runtime.clear_current()
+    assert "tank_volume_l" in text and "fish_count" in text and "climate_site" in text
+    assert "update_profile" in text
+
+
+def test_simulate_my_system_mirrors_a_complete_profile():
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import simulate_my_system
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        mem.set_facts("cli:t", {
+            "fish_species": "tilapia", "crop": "basil", "grow_area_m2": 15,
+            "tank_volume_l": 2000, "fish_count": 60, "fish_avg_weight_g": 200,
+            "climate_site": "taichung_2025"}, source="user_stated")
+        text = simulate_my_system.func(days=60)
+    finally:
+        runtime.clear_current()
+    assert "your system" in text
+    assert "Season projection" in text
+
+
+def test_estimate_system_cost_degrades_without_a_price_book_or_region():
+    from agronaut_agent.tools import estimate_system_cost
+    text = estimate_system_cost.func(fish_species="tilapia", crop="basil",
+                                     grow_area_m2=24.0, temperature_c=27.0,
+                                     water_budget_lpd=500.0, region="list")
+    assert "price book" in text.lower() or "region" in text.lower()
+
+
+def test_registry_includes_fetch_site_climate():
+    """Over Telegram nobody can run scripts — weather must be a tool call away."""
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    assert "fetch_site_climate" in {t.name for t in AGRONAUT_TOOLS}
+
+
+def test_fetch_site_climate_refuses_an_empty_place_without_network():
+    from agronaut_agent.tools import fetch_site_climate
+    assert "town or city" in fetch_site_climate.func(place="  ")
+
+
+def test_registry_includes_the_live_mirror_and_full_design():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+    names = {t.name for t in AGRONAUT_TOOLS}
+    for n in ("log_my_readings", "my_system_forecast", "design_full_system"):
+        assert n in names, f"{n} missing from the tool surface"
+
+
+def test_the_live_mirror_asks_for_what_it_needs():
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import log_my_readings
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        text = log_my_readings.func(ammonia_mg_l=0.5)
+    finally:
+        runtime.clear_current()
+    assert "fetch_site_climate" in text and "tank_volume_l" in text
+
+
+def test_log_command_parsing_is_forgiving_and_exact():
+    """The /log deterministic path: a farmer's data entry must not surprise anyone."""
+    from agronaut_agent.channels.telegram_adapter import parse_log_args
+
+    a = parse_log_args("ammonia 0.5 nitrate 40 temp 27")
+    assert a == {"ammonia_mg_l": 0.5, "nitrate_mg_l": 40.0, "water_temp_c": 27.0}
+    b = parse_log_args("no2: 0.3, weight=210, count 58, shade")
+    assert b == {"nitrite_mg_l": 0.3, "fish_avg_weight_g": 210.0,
+                 "fish_count": 58, "greenhouse": "shade"}
+    assert parse_log_args("hello there") == {}
+
+
+def test_direct_tool_path_needs_no_llm(tmp_path):
+    """/log and /forecast back onto _run_tool_direct — a dead or drunk LLM must not
+    stand between an operator and their twin."""
+    from agronaut_agent.core import AgronautAgent
+
+    class _DeadModel:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages):
+            raise RuntimeError("LLM is down")
+
+    b = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=_DeadModel())
+    reply = b.log_readings_direct("telegram", "42", {"ammonia_mg_l": 0.5})
+    assert "live twin needs" in reply.lower() or "logged" in reply.lower()
+
+
+def _twin_profile(mem, uid):
+    """A complete live-twin profile, sited so the mirror has coordinates."""
+    mem.set_facts(uid, {
+        "fish_species": "tilapia", "crop": "basil", "grow_area_m2": 15,
+        "tank_volume_l": 2000, "fish_count": 60, "fish_avg_weight_g": 200,
+        "climate_site": "taichung_2025", "site_lat": 24.15, "site_lon": 120.68},
+        source="user_stated")
+
+
+def _offline_weather(monkeypatch):
+    """Stub the one network boundary the mirror crosses (Open-Meteo), so twin tests are
+    deterministic. Everything downstream — the model, the nudge, the drift — stays real."""
+    from datetime import date, timedelta
+
+    from aqua_model.climate import DailyClimate
+    from agronaut_agent import tools as T
+
+    def fake(lat, lon, past_days, forecast_days):
+        n = min(92, max(0, past_days)) + min(16, max(1, forecast_days))
+        start = date.today() - timedelta(days=min(92, max(0, past_days)))
+        dates = [(start + timedelta(days=i)).isoformat() for i in range(n)]
+        days = tuple(DailyClimate(t_mean_c=26.0, t_min_c=22.0, t_max_c=30.0,
+                                  solar_mj_m2=18.0) for _ in range(n))
+        return dates, days
+
+    monkeypatch.setattr(T, "_live_weather", fake)
+
+
+def test_logging_a_reading_persists_it_beside_the_models_value(monkeypatch):
+    """The drift report is the twin's whole claim to being a twin. Speaking it once and
+    dropping it makes "is the model getting closer to MY pond?" unanswerable."""
+    from agronaut_agent.store import _Db, MemoryStore, ReadingStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import log_my_readings
+
+    _offline_weather(monkeypatch)
+    db = _Db(":memory:")
+    mem, readings = MemoryStore(db), ReadingStore(db)
+    runtime.set_current(mem, "cli:t", readings=readings)
+    try:
+        _twin_profile(mem, "cli:t")
+        log_my_readings.func(nitrate_mg_l=40.0, water_temp_c=27.0, greenhouse="shade")
+    finally:
+        runtime.clear_current()
+
+    hist = readings.history("cli:t")
+    assert len(hist) == 1, "the logged reading was not persisted"
+    assert hist[0]["observed"] == {"nitrate_mg_l": 40.0, "water_temp_c": 27.0}
+    assert "nitrate_mg_l" in hist[0]["modelled"], "the model's own value was not kept"
+    assert hist[0]["greenhouse"] == "shade"
+
+
+def test_logging_without_a_reading_store_still_works(monkeypatch):
+    """Telegram and the CLI construct the agent differently; a missing store must not
+    turn a farmer's log into a traceback."""
+    from agronaut_agent.store import _Db, MemoryStore
+    from agronaut_agent import runtime
+    from agronaut_agent.tools import log_my_readings
+
+    _offline_weather(monkeypatch)
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:t")
+    try:
+        _twin_profile(mem, "cli:t")
+        text = log_my_readings.func(nitrate_mg_l=40.0)
+    finally:
+        runtime.clear_current()
+    assert "Logged." in text
