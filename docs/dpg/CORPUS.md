@@ -87,7 +87,7 @@ python -m scripts.corpus_report
 
 ## Sources evaluated and not added
 
-Corpus breadth is the real weakness — 21 hand-written files still answer most queries. A survey
+Corpus breadth is the real weakness — 22 hand-written files still answer most queries. A survey
 for openly licensed prose to widen it produced this, and it is recorded so the search is not
 repeated from scratch:
 
@@ -122,7 +122,7 @@ and fill exactly the husbandry gap.
 - **Web drift is bounded, not detected.** A publisher can edit a source without `urls.txt`
   changing. The index cache fingerprint cannot see that — detecting it would require the fetch the
   cache exists to avoid — so a 7-day TTL bounds staleness instead.
-- **Coverage is narrow.** 21 hand-written files maintained by one operator. Breadth, not source
+- **Coverage is narrow.** 22 hand-written files maintained by one operator. Breadth, not source
   quality, is the corpus's real weakness.
 - **Extension services are frequently unreachable.** Oklahoma State's aquaponics fact sheets sit
   behind Cloudflare (HTTP 403, "Just a moment..."), and FAO's own repository landing pages are

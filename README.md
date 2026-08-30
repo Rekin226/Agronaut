@@ -151,7 +151,7 @@ Parametric, not machine-learned — buildable today from published equations:
 
 ## The advice layer (retrieval), and how it was tuned
 
-Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 21 hand-written
+Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 22 hand-written
 operator guides plus openly licensed publications — currently **1354 chunks**, led by FAO 589.
 
 Retrieval is measured, not assumed. `docs/dpg/retrieval_eval/golden_set.json` holds queries in
@@ -466,7 +466,7 @@ and the model says so in every result it produces.
 The advice layer has the same shape of honesty and the same gap. Retrieval is measured against a
 33-query golden set, but that set was written by one person against the corpus it already had —
 it cannot tell you about questions nobody thought to ask. And **corpus breadth is the live
-constraint**: 21 hand-written files still answer most queries, because open-access aquaponics
+constraint**: 22 hand-written files still answer most queries, because open-access aquaponics
 *literature* is plentiful while open *operator guidance* barely exists. Widening it is
 [#77](https://github.com/Rekin226/Agronaut/issues/77), and `docs/dpg/CORPUS.md` records which
 sources were surveyed and why they were not added.
