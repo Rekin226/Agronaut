@@ -118,6 +118,45 @@ def test_canonical_skill_names_still_work():
     assert code == 0 and "FEASIBLE" in out
 
 
+def test_design_is_an_alias_for_size_not_a_second_implementation():
+    # `design` is the name issue #20 asked for. It must reach the same callable rather
+    # than a parallel copy, or the two surfaces drift and only one gets fixed.
+    args = ["--fish", "tilapia", "--crop", "lettuce", "--area", "12", "--temp", "27",
+            "--water", "3000"]
+    design_code, design_out = _run(["design", *args])
+    size_code, size_out = _run(["size", *args])
+    assert design_code == size_code == 0
+    assert design_out == size_out
+
+
+def test_design_rejects_an_unknown_species_non_zero():
+    code, out = _run(["design", "--fish", "shark", "--crop", "lettuce", "--area", "12",
+                      "--temp", "27", "--water", "3000"])
+    assert code == 2
+    assert "VALIDATION_FAILED" in out and "shark" in out
+
+
+@pytest.mark.parametrize("system_type,expected", [
+    ("raft", "raft"),
+    ("nft", "NFT"),
+    ("media_bed", "media bed"),
+    ("vertical_tower", "vertical tower"),
+])
+def test_system_type_reaches_the_model(system_type, expected):
+    # Every method the model knows is selectable from the CLI, not just from the web form.
+    code, out = _run(["size", "--fish", "tilapia", "--crop", "lettuce", "--area", "12",
+                      "--temp", "27", "--water", "3000", "--system-type", system_type])
+    assert code == 0
+    assert expected.lower() in out.lower()
+
+
+def test_unknown_system_type_is_rejected_not_defaulted():
+    with pytest.raises(SystemExit) as excinfo:
+        _run(["size", "--fish", "tilapia", "--crop", "lettuce", "--area", "12",
+              "--temp", "27", "--water", "3000", "--system-type", "hydroloop"])
+    assert excinfo.value.code == 2
+
+
 # --- the long-running services ----------------------------------------------------------
 
 def test_web_launches_streamlit_on_the_real_app_file(monkeypatch):

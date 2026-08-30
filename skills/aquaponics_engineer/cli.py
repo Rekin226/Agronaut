@@ -6,7 +6,7 @@ No LLM and no network: validated input in, cited sizing out. The trust gate is p
 a bad argument is rejected loudly (non-zero exit) rather than producing a wrong design.
 
     python -m skills.aquaponics_engineer.cli size-aquaponics \
-        --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+        --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000 [--system-type nft]
     python -m skills.aquaponics_engineer.cli size-hydroponics --crop lettuce --area 10 --temp 22 --water 500
     python -m skills.aquaponics_engineer.cli optimize --area 10 --temp 28 --water 5000 --objective food
     python -m skills.aquaponics_engineer.cli list
@@ -26,13 +26,15 @@ from aqua_model import (  # noqa: E402
     validate_design_input, validate_hydroponic_input, ValidationError, OBJECTIVES,
 )
 from aqua_model.species import SPECIES  # noqa: E402
+from aqua_model.system_types import SYSTEM_TYPES  # noqa: E402
 from aqua_model.crops import CROPS  # noqa: E402
 from agronaut_agent import serialize  # noqa: E402
 
 
 def _cmd_size_aquaponics(a) -> int:
     try:
-        design = validate_design_input(a.fish, a.crop, a.area, a.temp, a.water)
+        design = validate_design_input(a.fish, a.crop, a.area, a.temp, a.water,
+                                       system_type=a.system_type)
     except ValidationError as err:
         print(serialize.serialize_validation_error(err.errors))
         return 2
@@ -91,6 +93,10 @@ def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
     sa.add_argument("--area", type=float, required=True, help="grow area m2")
     sa.add_argument("--temp", type=float, required=True, help="water temperature C")
     sa.add_argument("--water", type=float, required=True, help="daily water budget L")
+    # Choices come from SYSTEM_TYPES rather than a literal list: a method added to the model
+    # is offered here the same day, instead of being reachable only through the web form.
+    sa.add_argument("--system-type", default="raft", choices=sorted(SYSTEM_TYPES),
+                    help="grow-bed method (default: raft)")
     sa.set_defaults(func=_cmd_size_aquaponics)
 
     sh = _add("size-hydroponics", help="size a plant-only (no fish) system")

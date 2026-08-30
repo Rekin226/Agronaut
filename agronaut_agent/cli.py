@@ -7,6 +7,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
 
     agronaut                                        # chat with the agent
     agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+    agronaut design ...                             # alias for `size`
     agronaut web                                    # the Streamlit app
     agronaut bot                                    # the Telegram bot
 """
@@ -14,7 +15,6 @@ owns it, so this module stays a dispatcher and only a dispatcher.
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -29,31 +29,10 @@ def _root_importable() -> None:
 
 
 def _cmd_chat(args) -> int:
-    from . import core
+    from . import core  # imported late: `agronaut list` must not pay for the LLM stack
     core._repl()
     return 0
 
-
-def _cmd_design(args) -> int:
-    from agent.facts import design_from_form
-    from aqua_model import size_system, ValidationError
-    from . import serialize
-
-    try:
-        design = design_from_form(
-            fish_species=args.fish,
-            crop=args.crop,
-            grow_area_m2=args.area,
-            temperature_c=args.temp,
-            water_budget_lpd=args.water,
-            system_type=args.system_type,
-        )
-    except ValidationError as err:
-        print(serialize.serialize_validation_error(err.errors))
-        return 2
-
-    print(serialize.serialize_design_output(size_system(design)))
-    return 0
 
 def _cmd_web(args) -> int:
     # sys.executable, not a bare "streamlit": the console script is often invoked by
@@ -93,21 +72,12 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd")
 
     sub.add_parser("chat", help="chat with the agent in the terminal").set_defaults(func=_cmd_chat)
-    design = sub.add_parser("design", help="run the aquaponics design calculator")
-    design.add_argument("--fish", required=True)
-    design.add_argument("--crop", required=True)
-    design.add_argument("--area", type=float, required=True, help="grow area m2")
-    design.add_argument("--temp", type=float, required=True, help="water temperature C")
-    design.add_argument("--water", type=float, required=True, help="daily water budget L")
-    design.add_argument("--system-type", default="raft",
-                        choices=["raft", "nft", "media_bed"])
-    design.set_defaults(func=_cmd_design)
 
     # Sizing commands are defined once, in the portable skill CLI, and borrowed here under
     # shorter names so the two surfaces cannot drift apart.
     from skills.aquaponics_engineer.cli import add_sizing_subcommands
 
-    add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size"],
+    add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size", "design"],
                                          "size-hydroponics": ["size-hydro"]})
 
     web = sub.add_parser("web", help="run the Streamlit web app "
