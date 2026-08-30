@@ -177,10 +177,14 @@ def to_svg(out) -> str:
 def _font(size: int, bold: bool = False):
     from PIL import ImageFont
 
+    # DejaVu first: it ships with the base system on Debian/Ubuntu, where the bot runs.
+    # Arial is the Windows fallback, and is only present on Linux if someone installed
+    # msttcorefonts by hand. If every candidate misses we land on load_default(), which
+    # ignores the requested size and flattens the whole type hierarchy to one bitmap.
     candidates = (
-        ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf")
+        ("DejaVuSans-Bold.ttf", "C:/Windows/Fonts/arialbd.ttf", "DejaVuSans.ttf")
         if bold
-        else ("C:/Windows/Fonts/arial.ttf",)
+        else ("DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf")
     )
 
     for name in candidates:
