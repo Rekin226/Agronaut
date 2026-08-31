@@ -5,6 +5,8 @@ numbers on the diagram match the design's numbers.
 
 import xml.dom.minidom as minidom
 
+import pytest
+
 from aqua_model import (
     size_system, validate_design_input,
     size_hydroponic_system, validate_hydroponic_input,
@@ -81,3 +83,40 @@ def test_to_png_returns_a_valid_png_image():
 def test_to_png_is_deterministic():
     from aqua_model.schematic import to_png
     assert to_png(_aqua()) == to_png(_aqua())
+
+
+def test_font_prefers_a_font_the_base_system_actually_ships(monkeypatch):
+    """DejaVu before Arial, or the PNG loses its type hierarchy off Windows.
+
+    `fonts-dejavu-core` is a base package on Debian and Ubuntu, where the bot renders
+    these schematics. Arial only exists there if someone installed msttcorefonts by
+    hand. If every candidate misses, Pillow falls back to `load_default()`, which
+    ignores the requested size — so 18/14/12/11 all come out the same bitmap size.
+    """
+    from PIL import ImageFont
+
+    from aqua_model import schematic
+
+    tried = []
+
+    def _record(name, size=10, *args, **kwargs):
+        tried.append(name)
+        raise OSError("not here")
+
+    monkeypatch.setattr(ImageFont, "truetype", _record)
+    # load_default() reaches for truetype internally, so it needs stubbing too.
+    monkeypatch.setattr(ImageFont, "load_default", lambda *a, **k: "fallback")
+    for bold in (False, True):
+        tried.clear()
+        schematic._font(12, bold=bold)
+        assert tried, "no font was attempted"
+        assert "DejaVu" in tried[0], f"tried {tried[0]} before DejaVu (bold={bold})"
+
+
+def test_font_sizes_stay_distinct_when_a_truetype_resolves():
+    from aqua_model.schematic import _font
+
+    big, small = _font(18), _font(11)
+    if not hasattr(big, "size"):  # bitmap fallback: no fonts on this machine at all
+        pytest.skip("no TrueType font available on this system")
+    assert big.size == 18 and small.size == 11

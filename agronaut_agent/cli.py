@@ -7,6 +7,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
 
     agronaut                                        # chat with the agent
     agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+    agronaut design ...                             # alias for `size`
     agronaut web                                    # the Streamlit app
     agronaut bot                                    # the Telegram bot
 """
@@ -76,7 +77,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # shorter names so the two surfaces cannot drift apart.
     from skills.aquaponics_engineer.cli import add_sizing_subcommands
 
-    add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size"],
+    add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size", "design"],
                                          "size-hydroponics": ["size-hydro"]})
 
     web = sub.add_parser("web", help="run the Streamlit web app "

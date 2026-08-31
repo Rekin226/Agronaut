@@ -174,13 +174,25 @@ def to_svg(out) -> str:
 
 
 # --- PNG renderer (Pillow) --------------------------------------------------
-def _font(size: int):
+def _font(size: int, bold: bool = False):
     from PIL import ImageFont
-    for name in ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"):
+
+    # DejaVu first: it ships with the base system on Debian/Ubuntu, where the bot runs.
+    # Arial is the Windows fallback, and is only present on Linux if someone installed
+    # msttcorefonts by hand. If every candidate misses we land on load_default(), which
+    # ignores the requested size and flattens the whole type hierarchy to one bitmap.
+    candidates = (
+        ("DejaVuSans-Bold.ttf", "C:/Windows/Fonts/arialbd.ttf", "DejaVuSans.ttf")
+        if bold
+        else ("DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf")
+    )
+
+    for name in candidates:
         try:
             return ImageFont.truetype(name, size)
         except OSError:
             continue
+
     return ImageFont.load_default()
 
 
@@ -200,8 +212,11 @@ def to_png(out) -> bytes:
     s = _scene(out)
     img = Image.new("RGB", (_W, _H), "#f7fafc")
     d = ImageDraw.Draw(img)
-    f_title, f_box_title, f_line, f_status, f_arrow = (
-        _font(18), _font(14), _font(12), _font(12), _font(11))
+    f_title = _font(18, bold=True)
+    f_box_title = _font(14, bold=True)
+    f_line = _font(12)
+    f_status = _font(12, bold=True)
+    f_arrow = _font(11)
 
     _center_text(d, _W / 2, 14, s.title, f_title, "#0b1b2b")
     _center_text(d, _W / 2, 38, s.status, f_status,
