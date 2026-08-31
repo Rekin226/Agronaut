@@ -48,7 +48,9 @@ def fetch() -> None:
 def main() -> int:
     fetch()
     if "--no-build" not in sys.argv:
-        from aqua_model import datasets  # imported here so download works without pandas
+        from aqua_model import (
+            datasets,  # imported here so download works without pandas
+        )
 
         art = datasets.write_artifact()
         print(

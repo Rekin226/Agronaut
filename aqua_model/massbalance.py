@@ -25,7 +25,6 @@ from . import coefficients as C
 from .crops import Crop
 from .species import FishSpecies
 
-
 # Independent estimates of where excreted N goes (NOT a residual). These are coarse
 # literature fractions; they must sum to ~1.0 with the plant-uptake fraction so the
 # balance is a real check, not a tautology.

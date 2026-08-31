@@ -6,12 +6,11 @@ embedder is available. Tests use a deterministic bag-of-words embedder — no mo
 import re
 
 import numpy as np
-
 from langchain_core.messages import AIMessage
 
 from agronaut_agent.core import AgronautAgent
 from agronaut_agent.semantic import SemanticMemory
-from agronaut_agent.store import _Db, MemoryStore
+from agronaut_agent.store import MemoryStore, _Db
 
 
 def _stable_bucket(word: str, dim: int = 64) -> int:

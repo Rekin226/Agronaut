@@ -8,7 +8,10 @@ import pytest
 
 from agent import classifier
 from agent.classifier import (
-    MIN_CONFIDENCE, Prediction, describe_predictions, features_from_predictions,
+    MIN_CONFIDENCE,
+    Prediction,
+    describe_predictions,
+    features_from_predictions,
     make_classifier,
 )
 from agent.observation_features import features_from, merge_feature_kwargs

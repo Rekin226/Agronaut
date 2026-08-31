@@ -31,7 +31,9 @@ def default_embedder():
 
     def _embed(texts):
         if "model" not in state:
-            from sentence_transformers import SentenceTransformer  # heavy: import lazily
+            from sentence_transformers import (
+                SentenceTransformer,  # heavy: import lazily
+            )
             state["model"] = SentenceTransformer(_EMBED_MODEL)
         return state["model"].encode([str(t) for t in texts], normalize_embeddings=True)
 

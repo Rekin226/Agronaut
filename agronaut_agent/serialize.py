@@ -8,8 +8,8 @@ a reviewer can trace every number back to a cited coefficient.
 
 from __future__ import annotations
 
+from aqua_model.optimizer import Candidate, OptimizeResult
 from aqua_model.types import DesignOutput, HydroponicOutput
-from aqua_model.optimizer import OptimizeResult, Candidate
 
 
 def _g(x: float) -> str:

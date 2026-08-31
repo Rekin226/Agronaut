@@ -7,10 +7,7 @@ contract isn't Telegram-shaped.
 import ast
 import pathlib
 
-import pytest
-
 from agronaut_agent.channels import base
-
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -61,6 +58,5 @@ def test_delivery_chat_id_handles_plain_and_composite():
 def test_repl_channel_is_a_channel_adapter():
     from agronaut_agent.channels.repl import ReplChannel
     assert issubclass(ReplChannel, base.ChannelAdapter)
-    import inspect
     assert not any("telegram" in m for m in _imports(
         ROOT / "agronaut_agent" / "channels" / "repl.py"))

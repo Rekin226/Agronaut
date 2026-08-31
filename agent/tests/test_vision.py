@@ -135,6 +135,7 @@ def test_hedge_inside_a_rich_observation_is_not_unclear():
 def _jpeg_with_gps() -> bytes:
     """A real JPEG carrying an EXIF GPS tag, built in-memory."""
     import io
+
     from PIL import Image
     im = Image.new("RGB", (32, 32), (10, 120, 40))
     exif = Image.Exif()
@@ -146,6 +147,7 @@ def _jpeg_with_gps() -> bytes:
 
 def test_strip_exif_removes_embedded_metadata():
     import io
+
     from PIL import Image
     raw = _jpeg_with_gps()
     assert Image.open(io.BytesIO(raw)).getexif()          # precondition: EXIF is there
@@ -270,6 +272,7 @@ def test_multi_sentence_observation_survives_intact():
 
 def _real_jpeg_bytes() -> bytes:
     import io
+
     from PIL import Image
     im = Image.new("RGB", (10, 10), (200, 50, 50))
     buf = io.BytesIO()
@@ -295,6 +298,7 @@ def _jpeg_rotated(width=40, height=20, orientation=6) -> bytes:
     """A landscape JPEG carrying EXIF Orientation=6 (rotate 90° CW to display correctly),
     i.e. the pixel data is landscape but should be DISPLAYED as portrait."""
     import io
+
     from PIL import Image
     im = Image.new("RGB", (width, height), (10, 120, 40))
     exif = Image.Exif()
@@ -306,6 +310,7 @@ def _jpeg_rotated(width=40, height=20, orientation=6) -> bytes:
 
 def test_strip_exif_applies_orientation_before_discarding_it():
     import io
+
     from PIL import Image
     raw = _jpeg_rotated(width=40, height=20, orientation=6)
     assert Image.open(io.BytesIO(raw)).size == (40, 20)  # precondition: raw pixels are landscape

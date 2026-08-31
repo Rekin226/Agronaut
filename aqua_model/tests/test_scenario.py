@@ -8,11 +8,15 @@ absolute level, because the same unmodelled error sits in both branches.
 Several tests here exist because the obvious implementation gives dangerous advice.
 """
 
-import pytest
 
 from aqua_model.crops import CROPS
 from aqua_model.scenario import (
-    THRESHOLDS_MG_L, THRESHOLD_SOURCE, Intervention, compare, format_comparison, run_scenario,
+    THRESHOLD_SOURCE,
+    THRESHOLDS_MG_L,
+    Intervention,
+    compare,
+    format_comparison,
+    run_scenario,
 )
 from aqua_model.species import SPECIES
 from aqua_model.twin import NOT_MODELLED, TwinState, mature_biofilter, simulate

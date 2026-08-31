@@ -41,7 +41,7 @@ _FISH_WORDS = frozenset({
 
 def extract_facts(text: str) -> dict[str, str]:
     """Pull system facts from free text. Returns only keys that were confidently found."""
-    from srcs.chatbot import _parse_temperature_c, _parse_ph, _parse_fish_species
+    from srcs.chatbot import _parse_fish_species, _parse_ph, _parse_temperature_c
 
     facts: dict[str, str] = {}
     if _TEMP_CUE.search(text):

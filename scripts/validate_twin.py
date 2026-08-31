@@ -35,7 +35,6 @@ series, provenance in every row — created data, labelled as created).
 
 from __future__ import annotations
 
-import glob
 import json
 import sys
 from datetime import UTC, datetime
@@ -47,7 +46,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from aqua_model.species import get_species          # noqa: E402
+from aqua_model.species import get_species  # noqa: E402
 from aqua_model.twin import TwinState, mature_biofilter, step  # noqa: E402
 
 DATA_DIR = REPO_ROOT / "data" / "raw" / "kaggle_catfish_12ponds"

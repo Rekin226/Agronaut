@@ -7,9 +7,9 @@ import os
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from agronaut_agent.core import AgronautAgent
 from agronaut_agent import runtime
-from agronaut_agent.tools import render_system_schematic, AGRONAUT_TOOLS
+from agronaut_agent.core import AgronautAgent
+from agronaut_agent.tools import AGRONAUT_TOOLS, render_system_schematic
 
 
 def test_tool_registered_and_records_a_png_attachment():

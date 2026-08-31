@@ -43,7 +43,7 @@ Pure and deterministic. The needs arrive as data; the verdict carries WHY per co
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .crops import Crop
 from .species import FishSpecies

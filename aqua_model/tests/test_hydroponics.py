@@ -6,11 +6,11 @@ its own 'not modeled' list, and nutrient (EC / elemental-N) targets fish systems
 import pytest
 
 from aqua_model import (
-    size_hydroponic_system,
-    validate_hydroponic_input,
     HydroponicInput,
     HydroponicOutput,
     ValidationError,
+    size_hydroponic_system,
+    validate_hydroponic_input,
 )
 
 

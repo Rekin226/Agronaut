@@ -12,7 +12,12 @@ from aqua_model.crops import CROPS
 from aqua_model.massbalance import nitrogen_check
 from aqua_model.species import SPECIES
 from aqua_model.twin import (
-    NOT_MODELLED, TwinState, excreted_n_g, mature_biofilter, simulate, step,
+    NOT_MODELLED,
+    TwinState,
+    excreted_n_g,
+    mature_biofilter,
+    simulate,
+    step,
 )
 
 SP = SPECIES["tilapia"]

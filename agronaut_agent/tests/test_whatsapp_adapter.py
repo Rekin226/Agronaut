@@ -8,8 +8,8 @@ import hashlib
 import hmac
 import json
 
-from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
 from agronaut_agent.channels import base
+from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
 
 
 class _FakeAgent:

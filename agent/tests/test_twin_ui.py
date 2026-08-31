@@ -21,8 +21,8 @@ class _NoLLM:
 
 
 def _offline(monkeypatch):
-    from aqua_model.climate import DailyClimate
     from agronaut_agent import tools as T
+    from aqua_model.climate import DailyClimate
 
     def fake(lat, lon, past_days, forecast_days):
         n = min(92, max(0, past_days)) + min(16, max(1, forecast_days))

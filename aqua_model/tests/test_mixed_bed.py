@@ -9,7 +9,7 @@ Two invariants make this trustworthy rather than just flexible:
 
 import pytest
 
-from aqua_model import size_system, validate_design_input, ValidationError
+from aqua_model import ValidationError, size_system, validate_design_input
 
 
 def test_single_entry_plan_matches_single_crop_exactly():

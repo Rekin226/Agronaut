@@ -28,7 +28,6 @@ os.chdir(REPO_ROOT)
 
 logging.basicConfig(level=logging.ERROR)
 
-import agent  # noqa: E402  — loads .env
 from agronaut_agent import tools as T  # noqa: E402
 from agronaut_agent.core import AgronautAgent  # noqa: E402
 

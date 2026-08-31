@@ -8,11 +8,16 @@ from aqua_model.climate import DailyClimate, GreenhouseParams
 from aqua_model.cropgrowth import NOT_MODELLED as CROP_NM
 from aqua_model.crops import get_crop
 from aqua_model.production import (
-    NOT_MODELLED, ProductionParams, format_summary, simulate_production, start_state,
+    NOT_MODELLED,
+    ProductionParams,
+    format_summary,
+    simulate_production,
+    start_state,
     step_production,
 )
 from aqua_model.species import get_species
-from aqua_model.twin import NOT_MODELLED as TWIN_NM, excreted_n_g
+from aqua_model.twin import NOT_MODELLED as TWIN_NM
+from aqua_model.twin import excreted_n_g
 
 TILAPIA = get_species("tilapia")
 BASIL = get_crop("basil")   # the classic tilapia pairing (UVI) — bands actually overlap

@@ -1,11 +1,13 @@
 """The flowsheet: components earn their place from needs, and the low end stays simple."""
 
-import pytest
 
-from aqua_model.flowsheet import (
-    MEDIA_BED_SELF_FILTER_MAX_KG_M3, Needs, format_flowsheet, plan_flowsheet,
-)
 from aqua_model.crops import get_crop
+from aqua_model.flowsheet import (
+    MEDIA_BED_SELF_FILTER_MAX_KG_M3,
+    Needs,
+    format_flowsheet,
+    plan_flowsheet,
+)
 from aqua_model.sizing import size_system
 from aqua_model.species import get_species
 from aqua_model.validate import validate_design_input

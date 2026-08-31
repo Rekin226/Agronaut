@@ -2,7 +2,7 @@
 
 import pytest
 
-from aqua_model.validate import validate_design_input, ValidationError
+from aqua_model.validate import ValidationError, validate_design_input
 
 
 def _ok(**over):
@@ -63,7 +63,7 @@ def test_multiple_errors_collected_together():
 # yields at exit 0, and a NaN temperature scored identically to an optimal one (every NaN
 # comparison is False, so the temperature penalty silently never applied).
 
-from aqua_model import optimize, OptimizeInput  # noqa: E402
+from aqua_model import OptimizeInput, optimize  # noqa: E402
 
 
 def _opt(**over):

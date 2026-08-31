@@ -3,7 +3,10 @@
 import pytest
 
 from aqua_model.costing import (
-    NOT_INCLUDED, estimate_cost, format_estimate, opex_takeoff, takeoff,
+    NOT_INCLUDED,
+    estimate_cost,
+    format_estimate,
+    takeoff,
 )
 from aqua_model.layout import plan_layout
 from aqua_model.sizing import size_system

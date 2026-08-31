@@ -32,8 +32,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
 
 from srcs.chatbot import (  # noqa: E402
-    CHUNK_OVERLAP, CHUNK_SIZE, KNOWLEDGE_DIR, URL_FILE, WEB_LOAD_TIMEOUT,
-    _is_boilerplate_text, _pdf_documents, _probe_url, load_web_page, parse_urls_file,
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    KNOWLEDGE_DIR,
+    URL_FILE,
+    WEB_LOAD_TIMEOUT,
+    _is_boilerplate_text,
+    _pdf_documents,
+    _probe_url,
+    load_web_page,
+    parse_urls_file,
 )
 
 # Words that carry no topic signal, so their presence in a LABEL proves nothing about whether
@@ -124,6 +132,7 @@ def _pdf_title(content: bytes) -> str:
     """The /Title (or /Subject) a PDF declares in its metadata."""
     try:
         import io
+
         from pypdf import PdfReader
         info = PdfReader(io.BytesIO(content)).metadata or {}
         return str(info.get("/Title") or info.get("/Subject") or "")[:200]

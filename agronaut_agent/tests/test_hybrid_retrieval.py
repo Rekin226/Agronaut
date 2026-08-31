@@ -15,7 +15,6 @@ import pytest
 
 from agronaut_agent import rag
 
-
 # --- fusion arithmetic (pure) ------------------------------------------------
 
 def test_rrf_rewards_agreement_between_the_two_rankings():
