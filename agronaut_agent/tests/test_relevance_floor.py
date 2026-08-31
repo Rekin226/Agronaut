@@ -78,9 +78,35 @@ def test_env_override_and_off_switch(monkeypatch):
     assert rag.max_distance() == rag._DEFAULT_MAX_DISTANCE
 
 
-def test_floor_default_sits_between_the_measured_bands():
-    """The default is only meaningful if it lies inside the gap measured on the golden set:
-    worst on-topic 1.554, closest off-topic 1.717."""
-    assert 1.554 < rag._DEFAULT_MAX_DISTANCE < 1.717
+# Band edges measured on the 3935-chunk corpus, 2026-09-01 (retrieval_eval/sweep_2026_09.json).
+# At 1354 chunks these were 1.548 and 1.426 — OVERLAPPING, so no floor could separate them. More
+# corpus pulled the on-topic band in: every real question now has a closer match than it did.
+_WORST_ON_TOPIC = 1.383
+_CLOSEST_OFF_TOPIC = 1.411
+_MIN_HEADROOM = 0.10       # the margin this project accepted when it rejected a 0.032 one
+
+
+def test_floor_default_keeps_the_measured_safety_margin():
+    """The default must clear the worst REAL query by the margin this project settled on.
+
+    Deliberately not "sits inside the gap between the bands". The bands are now separable
+    (1.383 < 1.411) and a floor of 1.40 would sit in that gap and reject all ten controls — but it
+    would clear the worst real query by 0.017, half the margin that was already judged too thin.
+    The property that must hold is headroom above real queries, not tightness against off-topic
+    ones, so that is what this asserts.
+    """
+    assert rag._DEFAULT_MAX_DISTANCE >= _WORST_ON_TOPIC + _MIN_HEADROOM
+
+
+def test_floor_default_is_tighter_than_the_pre_drift_value():
+    """The bands separated when the corpus grew, so the floor could be tightened from 1.65. If
+    this ever fails upward again, the corpus moved and the sweep needs re-running."""
+    assert rag._DEFAULT_MAX_DISTANCE < 1.65
+
+
+def test_the_bands_are_recorded_as_separable():
+    """A guard on the premise. If these two ever cross again the floor's whole justification
+    changes, and `scripts/retrieval_eval` prints OVERLAPPING instead of separable."""
+    assert _WORST_ON_TOPIC < _CLOSEST_OFF_TOPIC
 
 

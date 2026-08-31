@@ -152,7 +152,8 @@ Parametric, not machine-learned — buildable today from published equations:
 ## The advice layer (retrieval), and how it was tuned
 
 Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 22 hand-written
-operator guides plus openly licensed publications — currently **1354 chunks**, led by FAO 589.
+operator guides plus openly licensed publications — currently **CHUNKS_TBD chunks**, led by
+Goddek et al. (2019) and FAO 589.
 
 Retrieval is measured, not assumed. `docs/dpg/retrieval_eval/golden_set.json` holds queries in
 real operator voice ("my tilapia are gasping at the surface", not "dissolved oxygen") plus
@@ -160,20 +161,57 @@ off-topic controls that must be **refused**:
 
 ```bash
 python -m scripts.retrieval_eval     # recall@k, precision@k, MRR, MAP@k + floor separation
+python -m scripts.retrieval_sweep --all   # re-pick floor / per-source cap / hybrid β
 python -m scripts.corpus_report      # what each declared source actually contributes
 ```
 
-Eight techniques were implemented and measured. **Four ship; four lose** — and the losses are
-recorded in `docs/dpg/retrieval_eval/techniques.json` with the conditions that would reverse them,
-which is how hybrid search went from rejected to shipped when the corpus grew:
+Nine techniques were implemented and measured. **Four ship, four lose, one is available but
+unused** — and the losses are recorded in `docs/dpg/retrieval_eval/techniques.json` with the
+conditions that would reverse them, which is how hybrid search went from rejected to shipped when
+the corpus grew:
 
 | | ships | why |
 |---|---|---|
-| Relevance floor | **on** | refuses 8/10 off-topic queries, silences 0/33 real ones |
-| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354: recall/MAP +0.091 |
-| Per-source cap | **on** (2) | one 992-chunk book was taking all 3 slots on 10 of 33 queries |
+| Relevance floor | **on** (1.50) | refuses 8/10 off-topic queries, silences 0/33 real ones, keeps 0.117 headroom |
+| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354, re-confirmed at 3935 |
+| Per-source cap | **on** (1) | two books now hold 98% of the corpus; at cap=2 they take 2 of 3 slots |
 | PDF cleaning | **on** | drops contents pages; running header removed from 111 chunks → 4 |
+| Metadata filtering | available, off | the third leg of hybrid search. Filters `source_type`, `kb_tag`, `chapter`, `page`, `url_category` on **both** pools before fusion. A capability, not a ranking change — no golden-set number moves, and none is claimed |
 | Header chunking · context prefix · PDF chapter labels · cross-encoder rerank | off | each measured *worse* on this corpus |
+
+**Current: hit 0.879 · recall 0.833 · MAP 0.624 · 8/10 off-topic refused · 0/33 real silenced.**
+
+### A decision expiring, caught in the act
+
+`techniques.json` was written 2026-08-25. The next day, commit `70b2d00` added a second book and
+took the corpus from 1354 to 3935 chunks. Nothing was re-measured, and every constant silently
+became wrong for the corpus that actually shipped:
+
+| | at 1354 (recorded) | at 3935 (untouched) | at 3935 (re-tuned) |
+|---|---|---|---|
+| hit_rate | 0.939 | 0.848 | **0.879** |
+| recall@k | 0.894 | 0.758 | **0.833** |
+| MAP@k | 0.697 | 0.578 | **0.624** |
+| off-topic refused | 8/10 | 4/10 | **8/10** |
+
+Two constants moved, one did not. The **floor** tightened 1.65 → 1.50, because the distance bands
+*separated* as the corpus grew (on-topic worst 1.383, closest off-topic 1.411, where at 1354
+chunks they overlapped and no floor could work). The **cap** tightened 2 → 1, because cap=2 was
+calibrated against *one* oversized source and there are now two. **β stayed at 0.90** — it
+describes the relationship between two ranking signals, which is a property of the query language,
+not of how much text sits behind it.
+
+The floor was *not* tightened to 1.40, though that refuses all 10 controls: it clears the worst
+real query by 0.017, and this project had already rejected a 0.032 margin as too thin. 33 golden
+queries say nothing about the 34th; headroom is the only thing that does.
+
+```bash
+python -m scripts.retrieval_sweep --all      # re-pick all three, with the evidence table
+```
+
+That command exists because the drift was not carelessness. Re-measuring three constants was an
+afternoon of ad-hoc scripting, so it did not happen. Now it is one command — run it after any
+corpus or embedding-model change.
 
 Three of the four failures share one mechanism: they add topic words to chunks in a corpus where
 every document already shares a vocabulary domain, which dilutes rather than disambiguates. What
@@ -191,6 +229,63 @@ python -m scripts.corpus_report --candidate "<url>" --label "<expected topic>"
 It checks four things, because a source can fail in four ways: unreachable, empty, **wrong
 subject** (a guessed publication ID once resolved to *"Sharks for the Aquarium"* — 28k characters
 that pass every check except being about aquaponics), or not openly licensed.
+
+---
+
+## Observability: what a turn actually did
+
+Retrieval quality is measured offline against a golden set. Production behaviour is a different
+question, and needs a different instrument.
+
+**Every turn is one trace.** All the events a turn produces — the message, each model call, each
+tool call, the retrieval, the turn summary — carry the same random per-turn id, so the log reads
+as a path rather than as counters:
+
+```bash
+agronaut traces          # recent turns: which tools ran, what retrieval returned, where the ms went
+agronaut analytics       # p50/p95/max latency for turn / model / retrieval, tokens, thumbs up-down
+```
+
+**The trace holds shape, never content.** No prompt, no reply, no passage text, no query is
+recorded, and that is enforced by an allowlist that drops unknown fields rather than by callers
+remembering not to pass them (`agronaut_agent/tests/test_turn_tracing.py` asserts it). The trace
+id is minted fresh per turn and is never derived from the user, so it groups a turn without
+following anyone between turns.
+
+**What gets measured, and why those things.** Turn latency and model latency separately, because
+the course is blunt that the transformer is the bottleneck and this project previously timed only
+retrieval — the fast, cheap stage. Token counts in and out, omitted entirely rather than recorded
+as `0` when a provider reports no usage, so a quiet provider cannot drag every cost aggregate
+toward zero. And a failed turn is still written, because dropping the turns that broke is how a
+p95 comes to look healthier than the service is.
+
+### Does the answer actually use what was retrieved?
+
+`retrieval_eval` scores whether the right documents were found. It cannot score whether the reply
+used them, and a system can hit recall 0.894 while inventing every number in its answer.
+
+```bash
+AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval
+```
+
+Three metrics of three deliberately different kinds:
+
+| | judged by | what it catches |
+|---|---|---|
+| `faithfulness` | an LLM, per atomic claim | claims the retrieved context does not support — the grounding measure |
+| `response_relevancy` | an LLM + embeddings | an answer that is true but does not address the question |
+| `citation_accuracy` | **code, no model** | `[source: ...]` labels that were never retrieved — a fabricated citation |
+
+The judge is treated as a witness, not an oracle: rubrics are binary with named labels, an
+unparseable verdict counts as **unjudged** rather than being folded into either side, and
+`n_unjudged` is printed beside every score. It calls the network, so it is opt-in and never runs
+in CI; the scoring arithmetic is pure and unit-tested without a model.
+
+### Human feedback
+
+`/good` and `/bad` on Telegram record a bare rating, 1 or -1. There is no comment field on
+purpose — it is the one place message content could enter the analytics log, and the allowlist
+would drop it anyway. `agronaut analytics` prints the positive share.
 
 ---
 
@@ -284,7 +379,8 @@ agronaut web                     # the Streamlit app (trailing flags go to strea
                                  #   e.g. agronaut web --server.port=9000)
 agronaut bot                     # the Telegram bot
 agronaut review                  # approve/reject pending community insights
-agronaut analytics               # usage summary
+agronaut analytics               # usage summary: latency p50/p95, tokens, feedback
+agronaut traces                  # recent turns as pipeline traces (no message text)
 ```
 
 **Where it keeps things.** In a checkout, the knowledge base, the fetched-page cache and the
@@ -312,7 +408,7 @@ The consultative agent is reachable over Telegram. Set these (in `.env` or the e
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
-| `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.65, `off` disables). Calibrated against the golden set; **not portable** — re-read `python -m scripts.retrieval_eval` after any corpus or embedding-model change |
+| `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.50, `off` disables). Calibrated against the golden set; **not portable** — re-run `python -m scripts.retrieval_sweep --all` after any corpus or embedding-model change |
 | `AGRONAUT_HYBRID` / `AGRONAUT_HYBRID_BETA` | keyword+semantic fusion, on by default at β=0.90 (β is the semantic weight) |
 | `AGRONAUT_MAX_PER_SOURCE` | how many passages one source may contribute to a single answer (default 2; `1` favours breadth, `0` disables) |
 | `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
@@ -427,8 +523,10 @@ agronaut_agent/        # the channel-agnostic brain
   channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
 
 scripts/               # safety_eval.py (hermetic golden set, runs in CI), vision_eval.py
+                       # faithfulness_eval.py (faithfulness / relevancy / citation accuracy)
                        # corpus_report.py (what each source contributes; --candidate vets one)
                        # retrieval_eval.py (recall/precision/MRR/MAP over the retrieval golden set)
+                       # retrieval_sweep.py (re-calibrates floor / cap / beta on the live corpus)
 skills/                # the deterministic core as a portable agentskills.io skill + CLI
 knowledge/ urls.txt    # the curated, cited knowledge base (urls.txt: CATEGORY|URL|LABEL|LICENCE)
 docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval

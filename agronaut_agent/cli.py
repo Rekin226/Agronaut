@@ -62,6 +62,41 @@ def _cmd_analytics(args) -> int:
     return analytics.main()
 
 
+def _cmd_traces(args) -> int:
+    """Print recent turns as traces: what each one did and where its time went.
+
+    The course's "follow a prompt's path through the entire RAG pipeline", minus the prompt.
+    Text is never recorded here, so a trace shows the SHAPE of the path — which tools ran,
+    what retrieval returned, how the milliseconds split between model and retriever. That is
+    what answers "why was this turn slow" and "why did this answer have no sources", and it
+    stays inside the privacy guarantee.
+    """
+    from .analytics import Analytics
+
+    traces = Analytics().traces(limit=args.limit)
+    if not traces:
+        print("No traces recorded yet. Traces appear once the agent handles a turn "
+              "(and are off entirely with AGRONAUT_ANALYTICS=off).")
+        return 0
+    for t in traces:
+        head = f"trace {t['trace']}  {t['date']}  {t['channel'] or '-'}"
+        if t["latency_ms"] is not None:
+            head += f"  {t['latency_ms']} ms total"
+            if t["llm_ms"] is not None:
+                share = f" ({t['llm_ms'] / t['latency_ms']:.0%})" if t["latency_ms"] else ""
+                head += f", {t['llm_ms']} ms model{share}"
+        if t["tokens_in"] or t["tokens_out"]:
+            head += f", {t['tokens_in'] or 0}/{t['tokens_out'] or 0} tok"
+        print(head)
+        for e in t["events"]:
+            detail = {k: v for k, v in e.items()
+                      if k not in {"event", "uid", "date", "trace", "channel"} and v is not None}
+            bits = " ".join(f"{k}={v}" for k, v in detail.items())
+            print(f"    {e['event']:14s} {bits}")
+        print()
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agronaut",
@@ -89,6 +124,9 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("review", help="approve/reject pending community insights").set_defaults(
         func=_cmd_review)
     sub.add_parser("analytics", help="summarise recorded usage").set_defaults(func=_cmd_analytics)
+    tr = sub.add_parser("traces", help="show recent turns as pipeline traces")
+    tr.add_argument("--limit", type=int, default=10, help="how many recent turns to show")
+    tr.set_defaults(func=_cmd_traces)
     return p
 
 

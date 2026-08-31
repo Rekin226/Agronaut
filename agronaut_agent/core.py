@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
@@ -381,12 +382,51 @@ class AgronautAgent:
                     return {"name": obj["name"], "args": args, "id": "rescued-leaked-call"}
         return None
 
+    # --- model instrumentation -------------------------------------------
+    @staticmethod
+    def _usage(ai) -> tuple:
+        """(input_tokens, output_tokens) from a model reply, or (None, None).
+
+        Two shapes because providers disagree: LangChain normalises modern chat models into
+        `usage_metadata`, while others only pass through the raw OpenAI-style
+        `response_metadata['token_usage']`. Anything else yields None rather than a zero —
+        an absent count and a genuine zero must not aggregate into the same number.
+        """
+        meta = getattr(ai, "usage_metadata", None)
+        if isinstance(meta, dict) and ("input_tokens" in meta or "output_tokens" in meta):
+            return meta.get("input_tokens"), meta.get("output_tokens")
+        raw = getattr(ai, "response_metadata", None) or {}
+        tu = raw.get("token_usage") or raw.get("usage") or {}
+        if isinstance(tu, dict) and tu:
+            return (tu.get("prompt_tokens") or tu.get("input_tokens"),
+                    tu.get("completion_tokens") or tu.get("output_tokens"))
+        return None, None
+
+    def _invoke_model(self, model, messages: list, stage: str):
+        """Call a chat model, timing it and accumulating its cost into the turn.
+
+        Every model call in the turn goes through here. The course is explicit that the
+        transformer is the latency and the cost, and this project measured only retrieval —
+        the fast stage — until now. Instrumenting the call site rather than the turn also
+        separates the two questions a slow turn raises: was it one slow call, or six.
+        """
+        t0 = time.perf_counter()
+        try:
+            ai = model.invoke(messages)
+        finally:
+            elapsed = int((time.perf_counter() - t0) * 1000)
+        tin, tout = self._usage(ai)
+        runtime.record_llm_call(elapsed, tin, tout)
+        self._analytics.record("llm_call", stage=stage, latency_ms=elapsed,
+                               tokens_in=tin, tokens_out=tout)
+        return ai
+
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
         fabrication_nudged = False
         promise_nudged = False
         for _ in range(_MAX_ITERS):
-            ai = self._bound.invoke(messages)
+            ai = self._invoke_model(self._bound, messages, "agent")
             messages.append(ai)
             tool_calls = getattr(ai, "tool_calls", None)
             if not tool_calls:
@@ -442,6 +482,7 @@ class AgronautAgent:
                         result = tool.invoke(call["args"])
                     except Exception as exc:  # fed back so the model can correct; never hidden
                         result = f"TOOL_ERROR: {exc}"
+                runtime.record_tool_call()
                 self._analytics.record("tool_call", user_id=user_id, tool=call["name"],
                                        ok=not str(result).startswith("TOOL_ERROR"))
                 self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
@@ -454,7 +495,7 @@ class AgronautAgent:
         try:
             messages.append(SystemMessage(content="Now reply to the user in plain text using what "
                                                    "you have. Do not call any more tools."))
-            final = self._base.invoke(messages)
+            final = self._invoke_model(self._base, messages, "final")
             text = (getattr(final, "content", "") or "").strip()
             if text:
                 return text
@@ -475,9 +516,48 @@ class AgronautAgent:
         actually wrote); voice turns pass nothing, because a transcript IS the user's words.
         """
         if self._bound is None:
+            # Refused BEFORE the trace opens, deliberately. A turn is a run through the
+            # pipeline; this never reaches it, and recording it as one would drop a ~0 ms row
+            # into the latency distribution and flatter the p50 of turns that really ran. The
+            # event is still counted, so an operator can see a missing model rather than infer
+            # it from an absence of turns.
+            self._analytics.record("no_model", channel=channel)
             return ("I can't hold a conversation right now — no tool-calling model is "
                     f"configured ({self._chat_error}). Your live twin still works: "
                     "/log and /forecast never touch a model.")
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_message_inner(channel, channel_user, text, display_name, fact_text)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _record_turn(self, channel: str, t0: float) -> None:
+        """Close the turn out with its end-to-end shape: total wall clock, how much of it
+        was the model, how many calls it took, and what it cost in tokens.
+
+        Written in a `finally`, so a turn that raised is still measured. A failed turn is
+        the one whose latency you most want in the distribution, and dropping it is how a
+        p95 comes to look healthier than the service actually is.
+        """
+        m = runtime.turn_metrics()
+        fields = {
+            "channel": channel,
+            "latency_ms": int((time.perf_counter() - t0) * 1000),
+            "llm_ms": m.get("llm_ms"),
+            "llm_calls": m.get("llm_calls"),
+            "tool_calls": m.get("tool_calls"),
+        }
+        if m.get("usage_seen"):     # omit entirely when the provider reported no usage
+            fields["tokens_in"] = m.get("tokens_in")
+            fields["tokens_out"] = m.get("tokens_out")
+        self._analytics.record("turn", **fields)
+
+    def _handle_message_inner(self, channel: str, channel_user: str, text: str,
+                              display_name: str | None = None,
+                              fact_text: str | None = None) -> str:
         user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
         self._analytics.record("message", user_id=user_id, channel=channel)
         source_text = text if fact_text is None else fact_text
@@ -516,6 +596,21 @@ class AgronautAgent:
         self._schedule_summary(user_id)
         return reply
 
+    def record_feedback(self, channel: str, channel_user: str, positive: bool) -> str:
+        """Record a thumbs up/down on the last reply and acknowledge it.
+
+        The course's cheapest quality signal and the only one that measures what the other
+        evaluators cannot: whether the person actually asked was helped. Deliberately a bare
+        rating with no comment field — a free-text box here would be the one place message
+        content could enter the analytics log, and the allowlist would drop it anyway.
+        """
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._analytics.record("feedback", user_id=user_id, channel=channel,
+                               rating=1 if positive else -1)
+        return ("Noted, thank you — that helps me get better."
+                if positive else
+                "Thanks for telling me. What was wrong with it? I'll use that to do better.")
+
     def take_attachments(self, channel: str, channel_user: str) -> list:
         """Files the last turn produced for this user, to be sent by the channel adapter.
         Draining is idempotent — returns [] once taken."""
@@ -527,6 +622,17 @@ class AgronautAgent:
         """A photo arrives: the VLM produces a plain-language visual observation, which is
         then run through the NORMAL text turn — so memory, the trust-gated tools, and cited
         knowledge all still apply. The vision model never calls tools or emits numbers."""
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_image_inner(channel, channel_user, image_bytes, caption, display_name)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _handle_image_inner(self, channel: str, channel_user: str, image_bytes: bytes,
+                            caption: str | None = None, display_name: str | None = None) -> str:
         self._analytics.record("image", user_id=self._conv.get_or_create_user(channel, channel_user),
                                channel=channel)
         if self._describe is None:
@@ -608,6 +714,17 @@ class AgronautAgent:
         """A voice note arrives: transcribe it, then run the transcript through the NORMAL
         text turn. The transcript IS the user's message, so everything (memory, tools, cited
         knowledge, reply-in-user-language) applies unchanged."""
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_voice_inner(channel, channel_user, audio_bytes, mime, display_name)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _handle_voice_inner(self, channel: str, channel_user: str, audio_bytes: bytes,
+                            mime: str | None = None, display_name: str | None = None) -> str:
         self._analytics.record("voice", user_id=self._conv.get_or_create_user(channel, channel_user),
                                channel=channel)
         if self._transcribe is None:

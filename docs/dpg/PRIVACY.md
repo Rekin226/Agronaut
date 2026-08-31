@@ -56,10 +56,18 @@ Reachable directly from chat at any time:
 
 - Data is stored in a single local SQLite database on the operator's own machine/server.
   There is no central Agronaut server and no third-party analytics on your content.
-- The operator may keep **local usage analytics** — event counts and funnels only (e.g. how
-  many messages, how many designs). These are content-free by construction: no message text
-  is recorded, and user ids are stored only as a truncated one-way hash, so distinct users
-  can be counted without identifying anyone. Disable with `AGRONAUT_ANALYTICS=off`.
+- The operator may keep **local usage analytics** — event counts, funnels and timings only
+  (e.g. how many messages, how many designs, how long a turn took, how many tokens it cost).
+  These are content-free by construction: no message text is recorded, and user ids are stored
+  only as a truncated one-way hash, so distinct users can be counted without identifying
+  anyone. Disable with `AGRONAUT_ANALYTICS=off`.
+- Each turn's events share a **trace id** so one turn can be read back as one path through the
+  pipeline (`agronaut traces`). The id is a fresh random token minted per turn: it is never
+  derived from your identity, never reused across turns, and links only the shape of a single
+  turn — which tools ran, how many passages came back, where the time went. It cannot be used
+  to follow you between turns.
+- A **thumbs up/down** (`/good`, `/bad`) is stored as a bare rating, 1 or -1. There is
+  deliberately no comment field, so this signal cannot carry anything you wrote.
 - Data is retained until you delete it. An operator deployment may set its own retention
   window; this reference build retains until erasure is requested.
 - Access control: on Telegram/WhatsApp an allowlist restricts who can use a given

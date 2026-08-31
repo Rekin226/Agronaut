@@ -123,6 +123,7 @@ class TelegramAdapter(ChannelAdapter):
             "/design — size a new system\n"
             "/optimize — best fish/crop ratio\n"
             "/troubleshoot — diagnose a problem\n"
+            "/good, /bad — tell me if an answer helped (it's how I improve)\n"
             "/whoami — what I remember about you\n"
             "/export — download all your data (open JSON)\n"
             "/reset — clear this conversation (keeps long-term memory)\n"
@@ -162,6 +163,22 @@ class TelegramAdapter(ChannelAdapter):
             days, greenhouse)
         for part in chunk(reply):
             await update.message.reply_text(part)
+
+    async def _on_feedback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """/good and /bad — the human-feedback signal, as two commands rather than inline
+        buttons.
+
+        Buttons would read better, but they require a CallbackQueryHandler and a message id to
+        attach to, and a rating that only exists while the keyboard is still on screen is a
+        rating most people never give. A command works on every client, works late, and works
+        after the message has scrolled away.
+        """
+        positive = (update.message.text or "").lstrip("/").lower().startswith("good")
+        if not self._allowed(update):
+            return await self._deny(update)
+        reply = await asyncio.to_thread(
+            self.agent.record_feedback, self.channel_name, self._identity(update), positive)
+        await update.message.reply_text(reply)
 
     async def _on_whoami(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -352,6 +369,8 @@ class TelegramAdapter(ChannelAdapter):
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
             ("log", self._on_log, "Log readings into your LIVE twin"),
             ("forecast", self._on_forecast, "Your live twin: now + the week ahead"),
+            ("good", self._on_feedback, "That last answer helped"),
+            ("bad", self._on_feedback, "That last answer missed"),
             ("whoami", self._on_whoami, "What I remember about you"),
             ("export", self._on_export, "Download all my data (JSON)"),
             ("reset", self._on_reset, "Clear this conversation"),
