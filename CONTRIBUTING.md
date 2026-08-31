@@ -139,6 +139,11 @@ was wrong before. Compare "fix regex" with "the guard's lexicon missed bare impe
 **Say what you did not do.** If you left a case unhandled, note it in the PR. Known and stated
 is fine; discovered later is expensive.
 
+**An assigned issue is yours until you say otherwise.** If a maintainer ends up doing an
+assigned task anyway — it turned out to be urgent, or larger than the assignment implied —
+they say so on the issue, say why, and credit the work already done. Silently landing
+something out from under a contributor is the fastest way to lose one.
+
 ### AI-assisted contributions
 
 Welcome, and used here too — a good deal of this repository was written with a coding agent.
