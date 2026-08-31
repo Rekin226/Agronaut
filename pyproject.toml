@@ -45,3 +45,15 @@ exclude = ["*.tests", "*.tests.*"]
 [tool.setuptools.data-files]
 "share/agronaut" = ["urls.txt"]
 "share/agronaut/knowledge" = ["knowledge/*.md"]
+
+[tool.ruff]
+# Pinned here rather than passed on the CI command line, so a local `ruff check`
+# and the blocking CI job cannot disagree about what "clean" means.
+line-length = 95
+
+[tool.ruff.lint]
+# The set the tree is actually kept green under (#76). Ruff's own defaults drift
+# between releases — 0.16 reports ~275 findings here under no explicit selection —
+# so the list is spelled out and widened deliberately, never by upgrading ruff.
+#   E4/E7/E9 pycodestyle errors, F pyflakes, I import order
+select = ["E4", "E7", "E9", "F", "I"]

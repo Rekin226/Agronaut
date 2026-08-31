@@ -95,9 +95,10 @@ jobs:
           # This repo's file is requirement.txt (singular) — setup-python's default glob
           # looks for requirements.txt/pyproject.toml and hard-fails when it matches nothing.
           cache-dependency-path: requirement.txt
-      - run: python -m pip install --upgrade pip ruff
-      # Advisory for now: report style, fail only on real errors (undefined names, syntax).
-      - name: Errors only (blocking)
-        run: ruff check --select E9,F63,F7,F82 --output-format=github .
-      - name: Full style report (non-blocking)
-        run: ruff check --output-format=github . || true
+      # Pinned: ruff's default ruleset widens between releases, and an unpinned upgrade
+      # would turn this job red on code nobody touched. Bump it deliberately.
+      - run: python -m pip install --upgrade pip && python -m pip install ruff==0.16.3
+      # Blocking. The ruleset lives in pyproject.toml so this and a local `ruff check`
+      # cannot disagree; widening it is a deliberate edit there, not a flag here.
+      - name: Style (blocking)
+        run: ruff check --output-format=github .
