@@ -16,6 +16,9 @@ dist/
 # Tooling / local agent state (machine-specific, do not commit)
 .gstack/
 .claude/settings.local.json
+# uv resolves against requirement.txt; CI and the documented setup both use pip,
+# so this lockfile is one contributor's local resolution, not the project's.
+uv.lock
 
 # Promotional / marketing working files (local only, never committed)
 promo/
