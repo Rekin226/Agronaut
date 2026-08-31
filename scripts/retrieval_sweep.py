@@ -65,6 +65,18 @@ _METRICS = ["hit_rate", "recall@k", "precision@k", "MRR", "MAP@k"]
 # 34th is the one that matters, and headroom is the only thing standing between it and a refusal.
 _MIN_HEADROOM = 0.10
 
+# Smallest difference in a rate metric that is allowed to DECIDE anything.
+#
+# The golden set has 33 queries, so one query flipping moves hit_rate by 0.030. A MAP gap of
+# 0.002 is a fifteenth of that: it is sampling noise wearing a decimal point. Without this, the
+# picker chose beta=1.0 (dense-only, hybrid off) over beta=0.90 on a 0.002 MAP win while
+# hit_rate fell 0.031 and recall 0.030 the other way — turning a whole retrieval technique off
+# on the strength of a rounding difference.
+#
+# Ties inside this band are broken on hit_rate, then recall: "did the operator get a relevant
+# document at all" outranks "how well was it ranked" when the ranking difference is not real.
+_NOISE = 0.01
+
 
 def _score(floor=None, cap=None, beta=None) -> dict:
     """Score one configuration. Env vars are the seam because that is how the shipped code
@@ -171,7 +183,15 @@ def pick_floor(rows: list[dict]) -> dict | None:
 
 
 def pick_by(rows: list[dict], metric: str) -> dict:
-    return max(rows, key=lambda r: (r[metric], r["hit_rate"]))
+    """Best row by `metric`, treating differences under `_NOISE` as no difference.
+
+    Rows within the noise band of the leader are re-ranked on hit_rate, then recall. A strict
+    argmax over a 33-query sample will happily hand a decision to the third decimal place, and
+    on this corpus it did.
+    """
+    best = max(r[metric] for r in rows)
+    front = [r for r in rows if r[metric] >= best - _NOISE]
+    return max(front, key=lambda r: (r["hit_rate"], r["recall@k"], r[metric]))
 
 
 def main() -> int:

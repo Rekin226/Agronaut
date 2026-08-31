@@ -14,16 +14,21 @@ import re
 # Maximum FAISS L2 distance a passage may have and still be offered to the model as context.
 # LOWER is closer; anything above this is treated as "nothing relevant matched".
 #
-# RE-CALIBRATED 2026-09-01 on the 3935-chunk corpus (was 1.65 at 1354 chunks).
-# `python -m scripts.retrieval_sweep --floor ...`, saved to retrieval_eval/sweep_2026_09.json:
+# RE-CALIBRATED 2026-09-01 on the 3941-chunk corpus (was 1.65 at 1354 chunks).
+# `python -m scripts.retrieval_sweep --all`, saved to retrieval_eval/sweep_2026_09.json:
 #
 #     floor  hit    recall  prec    MRR     MAP     silenced  rejected  headroom
-#     1.30   0.758  0.682   0.409   0.591   0.538   4         10/10     -0.083
-#     1.35   0.818  0.727   0.429   0.621   0.553   2         10/10     -0.033
-#     1.40   0.818  0.727   0.429   0.621   0.553   0         10/10      0.017
-#     1.45   0.818  0.727   0.434   0.636   0.568   0          8/10      0.067
-#     1.50   0.818  0.727   0.434   0.636   0.568   0          8/10      0.117   <- ships
-#     1.65   0.848  0.758   0.444   0.646   0.578   0          4/10      0.267
+#     1.30   0.788  0.773   0.333   0.581   0.568   4         10/10     -0.083
+#     1.35   0.848  0.818   0.354   0.611   0.583   2         10/10     -0.033
+#     1.40   0.848  0.818   0.354   0.611   0.583   0         10/10      0.017
+#     1.45   0.848  0.818   0.354   0.626   0.598   0          8/10      0.067
+#     1.50   0.879  0.833   0.364   0.636   0.604   0          8/10      0.117   <- ships
+#     1.65   0.909  0.879   0.384   0.646   0.624   0          4/10      0.267
+#
+# READ THAT TABLE HONESTLY: a LOOSER floor scores BETTER on every retrieval metric. 1.65 gets
+# hit 0.909 and MAP 0.624 against 1.50's 0.879 and 0.604. This change costs retrieval quality
+# and buys refusal, doubling 4/10 to 8/10. It is a safety trade, not an improvement, and the
+# per-source cap below is what pays for it (net, old config to new: hit 0.818 -> 0.879).
 #
 # THE BANDS HAVE SEPARATED, which is new and is what makes a tighter floor possible at all. At
 # 1354 chunks the worst on-topic distance (1.548) sat ABOVE the closest off-topic match (1.426)
@@ -35,10 +40,7 @@ import re
 # project already rejected a 0.032 margin as too thin ("a threefold cut in safety margin for one
 # extra rejection"), and 0.017 is half of that. The golden set has 33 queries; the 34th is the one
 # that matters, and headroom is all that protects it. 1.50 keeps 0.117, comparable to the 0.10
-# that reasoning accepted, and still doubles refusal from 4/10 to 8/10.
-#
-# The cost is real and is the honest half of this: hit_rate 0.848 -> 0.818 and MAP 0.578 -> 0.568
-# at this stage. The per-source cap below more than repays it (final: hit 0.879, MAP 0.624).
+# that reasoning accepted.
 #
 # This number is a property of THIS embedding model over THIS corpus and does not port.
 # `python -m scripts.retrieval_eval` reprints the separation on every run and says outright when
@@ -69,14 +71,20 @@ _RRF_K = 60
 #     0.90   0.848  0.788   0.495   0.692   0.636   <- shipped then
 #     dense  0.848  0.697   0.490   0.682   0.545
 #
-# RE-CONFIRMED 2026-09-01 at 3935 chunks, under floor 1.50 and cap 1 — the one constant the corpus
-# growth did NOT move:
+# RE-CONFIRMED 2026-09-01 at 3941 chunks, under floor 1.50 and cap 1 — the one constant the
+# corpus growth did NOT move:
 #
-#     beta   hit    recall  prec    MRR     MAP      (3935 chunks)
-#     0.50   0.879  0.788   0.333   0.601   0.558
-#     0.70   0.879  0.803   0.343   0.606   0.571
-#     0.90   0.879  0.833   0.364   0.657   0.624   <- ships
-#     1.00   0.848  0.803   0.354   0.662   0.621    (dense-only)
+#     beta   hit    recall  prec    MRR     MAP      (3941 chunks)
+#     0.50   0.879  0.788   0.333   0.591   0.548
+#     0.70   0.879  0.803   0.343   0.601   0.566
+#     0.90   0.879  0.833   0.364   0.636   0.604   <- ships
+#     1.00   0.848  0.803   0.354   0.646   0.606    (dense-only, hybrid OFF)
+#
+# NOTE THE TRAP IN THAT LAST ROW. Dense-only shows the highest MAP, by 0.002. A strict argmax
+# would turn hybrid search off on that, while hit_rate and recall each fall by ~0.030 — fifteen
+# times the size of the "win". With 33 queries, one flipping moves hit_rate by 0.030, so 0.002 is
+# noise with a decimal point. scripts/retrieval_sweep.py now re-ranks inside a 0.01 noise band on
+# hit_rate for exactly this reason.
 #
 # Note how LITTLE keyword weight is right: 10%. Enough to break ties a book would otherwise win on
 # volume, not enough to let common aquaponics vocabulary dominate the ranking. At 0.5 — the
@@ -167,7 +175,7 @@ def hybrid_enabled() -> bool:
     of targeted operator guidance is precisely the situation a keyword signal is for: it breaks
     ties that dense similarity resolves by volume.
 
-    RE-CONFIRMED 2026-09-01 at 3935 chunks: still on, still beta=0.90, and now measurably ahead of
+    RE-CONFIRMED 2026-09-01 at 3941 chunks: still on, still beta=0.90, and now measurably ahead of
     dense-only on hit_rate as well (0.879 vs 0.848). Disable with AGRONAUT_HYBRID=off.
     """
     return os.getenv("AGRONAUT_HYBRID", "").lower() not in {"off", "0", "false"}
@@ -223,22 +231,23 @@ _POOL = 20      # candidates drawn from each retriever before fusion
 # materially less irrelevant context (precision 0.540 vs 0.404), and still let a source with real
 # depth contribute twice.
 #
-# There are now TWO. Goddek et al. (2019) added 2576 chunks, so 3853 of 3935 chunks are books and
-# the curated files are 2% of the corpus. cap=2 lets books take two of three slots, which is the
+# There are now TWO. Goddek et al. (2019) added 2576 chunks, so 3848 of 3941 chunks are books and
+# the curated files are 2.4% of the corpus. cap=2 lets books take two of three slots, which is the
 # same failure the cap was built to stop, arriving through a door the cap left open.
 #
-# Measured (3935-chunk corpus, floor 1.50, hybrid on) — retrieval_eval/sweep_2026_09.json:
+# Measured (3941-chunk corpus, floor 1.50, hybrid on) — retrieval_eval/sweep_2026_09.json:
 #
 #     cap    hit    recall  prec    MRR     MAP
-#     1      0.879  0.833   0.364   0.657   0.624   <- ships
-#     2      0.818  0.727   0.434   0.636   0.568
-#     3      0.697  0.621   0.374   0.576   0.515
-#     none   0.697  0.621   0.374   0.576   0.515
+#     1      0.879  0.833   0.364   0.636   0.604   <- ships
+#     2      0.788  0.697   0.419   0.606   0.538
+#     3      0.667  0.591   0.359   0.545   0.485
+#     none   0.667  0.591   0.359   0.545   0.485
 #
-# The gap that decided it widened by roughly four times. At 1354 chunks cap=1 bought +0.031 hit
-# and +0.025 recall over cap=2; here it buys +0.061 hit and +0.106 recall, and +0.056 MAP.
+# THIS is the change that carries the re-calibration. The deciding gap widened roughly fourfold:
+# at 1354 chunks cap=1 bought +0.031 hit and +0.025 recall over cap=2; here it buys +0.091 hit
+# and +0.136 recall, and +0.066 MAP.
 #
-# Precision still falls (0.434 -> 0.364) and that is still partly a metric artefact: `relevant` is
+# Precision still falls (0.419 -> 0.364) and that is still partly a metric artefact: `relevant` is
 # labelled at DOCUMENT granularity, so cap=1 caps precision@3 at 0.333 for any query with one
 # relevant document however good the answer is. What is NOT an artefact is recall and MAP, which
 # both move decisively the other way. When the honest and the artefactual disagree this sharply,
@@ -363,7 +372,7 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
         if filters:
             # fetch_k over-fetches BEFORE filtering, so it must be generous: FAISS takes the
             # nearest fetch_k, drops those the filter rejects, and only then keeps k. Left at
-            # its default of 20, a narrow filter over a 3935-chunk corpus would usually find
+            # its default of 20, a narrow filter over a 3941-chunk corpus would usually find
             # nothing in the top 20 and return empty for a query the corpus can answer well.
             pairs = index.similarity_search_with_score(
                 query, k=max(_POOL, k * 2),
@@ -449,7 +458,7 @@ def rerank_enabled() -> bool:
     the model.
 
     THE TABLE ABOVE WAS MEASURED AT 1354 CHUNKS and has NOT been re-run since the corpus reached
-    3935. Unlike the floor and the cap, this decision was not re-measured on 2026-09-01, because
+    3941. Unlike the floor and the cap, this decision was not re-measured on 2026-09-01, because
     a technique that lost on every metric and tripled latency does not become the priority when
     the corpus grows. It is recorded as stale rather than quietly presented as current — re-run
     `AGRONAUT_RERANK=on python -m scripts.retrieval_eval` before trusting either verdict.

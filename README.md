@@ -152,7 +152,7 @@ Parametric, not machine-learned — buildable today from published equations:
 ## The advice layer (retrieval), and how it was tuned
 
 Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 22 hand-written
-operator guides plus openly licensed publications — currently **CHUNKS_TBD chunks**, led by
+operator guides plus openly licensed publications — currently **3941 chunks**, led by
 Goddek et al. (2019) and FAO 589.
 
 Retrieval is measured, not assumed. `docs/dpg/retrieval_eval/golden_set.json` holds queries in
@@ -173,13 +173,13 @@ the corpus grew:
 | | ships | why |
 |---|---|---|
 | Relevance floor | **on** (1.50) | refuses 8/10 off-topic queries, silences 0/33 real ones, keeps 0.117 headroom |
-| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354, re-confirmed at 3935 |
-| Per-source cap | **on** (1) | two books now hold 98% of the corpus; at cap=2 they take 2 of 3 slots |
+| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354, re-confirmed at 3941 |
+| Per-source cap | **on** (1) | two books hold 97% of the corpus; at cap=2 they take 2 of 3 slots |
 | PDF cleaning | **on** | drops contents pages; running header removed from 111 chunks → 4 |
 | Metadata filtering | available, off | the third leg of hybrid search. Filters `source_type`, `kb_tag`, `chapter`, `page`, `url_category` on **both** pools before fusion. A capability, not a ranking change — no golden-set number moves, and none is claimed |
 | Header chunking · context prefix · PDF chapter labels · cross-encoder rerank | off | each measured *worse* on this corpus |
 
-**Current: hit 0.879 · recall 0.833 · MAP 0.624 · 8/10 off-topic refused · 0/33 real silenced.**
+**Current: hit 0.879 · recall 0.833 · MAP 0.604 · 8/10 off-topic refused · 0/33 real silenced.**
 
 ### A decision expiring, caught in the act
 
@@ -187,11 +187,11 @@ the corpus grew:
 took the corpus from 1354 to 3935 chunks. Nothing was re-measured, and every constant silently
 became wrong for the corpus that actually shipped:
 
-| | at 1354 (recorded) | at 3935 (untouched) | at 3935 (re-tuned) |
+| | at 1354 (recorded) | at 3941, old constants | at 3941, re-tuned |
 |---|---|---|---|
-| hit_rate | 0.939 | 0.848 | **0.879** |
-| recall@k | 0.894 | 0.758 | **0.833** |
-| MAP@k | 0.697 | 0.578 | **0.624** |
+| hit_rate | 0.939 | 0.818 | **0.879** |
+| recall@k | 0.894 | 0.727 | **0.833** |
+| MAP@k | 0.697 | 0.548 | **0.604** |
 | off-topic refused | 8/10 | 4/10 | **8/10** |
 
 Two constants moved, one did not. The **floor** tightened 1.65 → 1.50, because the distance bands
@@ -200,6 +200,12 @@ chunks they overlapped and no floor could work). The **cap** tightened 2 → 1, 
 calibrated against *one* oversized source and there are now two. **β stayed at 0.90** — it
 describes the relationship between two ranking signals, which is a property of the query language,
 not of how much text sits behind it.
+
+Worth being precise about which change did what, because they pull opposite ways. **The floor
+costs retrieval quality**: at cap=1, staying at 1.65 would score hit 0.909 and MAP 0.624 against
+1.50's 0.879 and 0.604. That is bought deliberately, to double off-topic refusal from 4/10 to
+8/10. **The cap is what pays for it**: at floor 1.50, cap=1 gives 0.879/0.833/0.604 against
+cap=2's 0.788/0.697/0.538.
 
 The floor was *not* tightened to 1.40, though that refuses all 10 controls: it clears the worst
 real query by 0.017, and this project had already rejected a 0.032 margin as too thin. 33 golden
@@ -210,8 +216,10 @@ python -m scripts.retrieval_sweep --all      # re-pick all three, with the evide
 ```
 
 That command exists because the drift was not carelessness. Re-measuring three constants was an
-afternoon of ad-hoc scripting, so it did not happen. Now it is one command — run it after any
-corpus or embedding-model change.
+afternoon of ad-hoc scripting, so it did not happen. It also earned its keep immediately: while
+this work was in review the corpus moved *again* (a 22nd knowledge file, 3935 → 3941 chunks) and
+re-running was one command rather than an afternoon. Run it after any corpus or embedding-model
+change.
 
 Three of the four failures share one mechanism: they add topic words to chunks in a corpus where
 every document already shares a vocabulary domain, which dilutes rather than disambiguates. What

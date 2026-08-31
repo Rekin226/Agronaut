@@ -5,9 +5,9 @@
     "hit_rate": 0.8787878787878788,
     "precision@k": 0.36363636363636365,
     "recall@k": 0.8333333333333334,
-    "MRR": 0.6565656565656566,
-    "MAP@k": 0.6237373737373737,
-    "latency_ms_mean": 252.1364115686579,
+    "MRR": 0.6363636363636364,
+    "MAP@k": 0.6035353535353536,
+    "latency_ms_mean": 253.1206956217912,
     "floor_silenced_on_topic": 0,
     "floor_rejected_off_topic": 8,
     "negative_controls": 10
@@ -111,7 +111,7 @@
         "knowledge/nitrogen_cycle_and_cycling.md",
         "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
       ],
-      "top_score": 1.0203709602355957,
+      "top_score": 1.0203710794448853,
       "raw_top_score": 0.9735504388809204,
       "floor_returned_nothing": false
     },
@@ -560,8 +560,8 @@
         "knowledge/plant_pests_and_ipm.md",
         "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
       ],
-      "top_score": 0.6313092708587646,
-      "raw_top_score": 0.6313092708587646,
+      "top_score": 0.6313093304634094,
+      "raw_top_score": 0.6313093304634094,
       "floor_returned_nothing": false
     },
     {
@@ -647,22 +647,22 @@
     },
     {
       "retrieved": [
-        "knowledge/temperature_and_climate_control.md",
+        "knowledge/winter_cold_season_operation.md",
         "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
-        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+        "knowledge/temperature_and_climate_control.md"
       ],
       "hit": true,
       "precision": 0.3333333333333333,
       "recall": 1.0,
-      "rr": 1.0,
-      "ap": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
       "id": "temp-02",
       "query": "which species suits a cold winter",
       "relevant": [
         "knowledge/temperature_and_climate_control.md"
       ],
-      "top_score": 1.0294992923736572,
-      "raw_top_score": 1.0294992923736572,
+      "top_score": 0.9586202502250671,
+      "raw_top_score": 0.9586202502250671,
       "floor_returned_nothing": false
     },
     {
@@ -680,8 +680,8 @@
       "relevant": [
         "knowledge/water_quality_ranges.md"
       ],
-      "top_score": 1.3826854228973389,
-      "raw_top_score": 1.3826854228973389,
+      "top_score": 1.3826850652694702,
+      "raw_top_score": 1.3826850652694702,
       "floor_returned_nothing": false
     }
   ],
@@ -689,7 +689,7 @@
     {
       "id": "neg-01",
       "query": "how do I fix a slipping bicycle chain",
-      "top_score": 1.6716821193695068,
+      "top_score": 1.6716817617416382,
       "returned": [],
       "rejected_by_floor": true
     },
@@ -742,7 +742,7 @@
     {
       "id": "neg-08",
       "query": "best way to remove red wine from a carpet",
-      "top_score": 1.425750732421875,
+      "top_score": 1.425750494003296,
       "returned": [
         "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
         "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
@@ -760,7 +760,7 @@
     {
       "id": "neg-10",
       "query": "who won the world cup in 1998",
-      "top_score": 1.750444769859314,
+      "top_score": 1.7504446506500244,
       "returned": [],
       "rejected_by_floor": true
     }

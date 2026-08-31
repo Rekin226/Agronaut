@@ -63,7 +63,7 @@ def agent(tmp_path, monkeypatch):
 
 def _rows(agent):
     p = agent._analytics.path
-    return [json.loads(l) for l in p.read_text().splitlines()] if p.exists() else []
+    return [json.loads(line) for line in p.read_text().splitlines()] if p.exists() else []
 
 
 # --- the trace ---------------------------------------------------------------

@@ -104,3 +104,33 @@ def test_every_swept_constant_has_a_default_ladder(kind):
     """A sweep with no candidates silently succeeds and reports nothing, which reads exactly like
     a sweep that found no change."""
     assert len(getattr(sw, f"_{kind.upper()}S")) >= 3
+
+
+# --- the noise band ----------------------------------------------------------
+
+def test_a_sub_noise_metric_win_does_not_decide():
+    """The real case this constant was added for. On the shipped corpus beta=1.0 (hybrid OFF)
+    beat beta=0.9 by 0.002 MAP while losing 0.031 hit_rate and 0.030 recall. A strict argmax
+    turns a whole retrieval technique off on a rounding difference."""
+    rows = [_row(0.9, hit=0.879, **{"MAP@k": 0.604, "recall@k": 0.833}),
+            _row(1.0, hit=0.848, **{"MAP@k": 0.606, "recall@k": 0.803})]
+    assert sw.pick_by(rows, "MAP@k")["value"] == 0.9
+
+
+def test_a_real_metric_win_still_decides():
+    """The noise band must not flatten genuine differences: cap=1 beats cap=2 by 0.066 MAP,
+    far outside it, and must win even though its hit_rate advantage is smaller."""
+    rows = [_row(1, hit=0.879, **{"MAP@k": 0.604}), _row(2, hit=0.788, **{"MAP@k": 0.538})]
+    assert sw.pick_by(rows, "MAP@k")["value"] == 1
+
+
+def test_recall_breaks_a_tie_when_hit_rate_also_ties():
+    rows = [_row("a", hit=0.879, **{"MAP@k": 0.600, "recall@k": 0.803}),
+            _row("b", hit=0.879, **{"MAP@k": 0.604, "recall@k": 0.833})]
+    assert sw.pick_by(rows, "MAP@k")["value"] == "b"
+
+
+def test_noise_band_is_smaller_than_one_query_flipping():
+    """33 golden queries, so one flip moves hit_rate by 1/33 = 0.030. The band must sit under
+    that or it would swallow real single-query differences."""
+    assert 0 < sw._NOISE < 1 / 33
