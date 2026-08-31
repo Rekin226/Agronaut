@@ -21,14 +21,20 @@ from pathlib import Path
 # Make the repo importable when this file is run directly from anywhere.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from agronaut_agent import serialize  # noqa: E402
 from aqua_model import (  # noqa: E402
-    size_system, size_hydroponic_system, optimize, OptimizeInput,
-    validate_design_input, validate_hydroponic_input, ValidationError, OBJECTIVES,
+    OBJECTIVES,
+    OptimizeInput,
+    ValidationError,
+    optimize,
+    size_hydroponic_system,
+    size_system,
+    validate_design_input,
+    validate_hydroponic_input,
 )
+from aqua_model.crops import CROPS  # noqa: E402
 from aqua_model.species import SPECIES  # noqa: E402
 from aqua_model.system_types import SYSTEM_TYPES  # noqa: E402
-from aqua_model.crops import CROPS  # noqa: E402
-from agronaut_agent import serialize  # noqa: E402
 
 
 def _cmd_size_aquaponics(a) -> int:

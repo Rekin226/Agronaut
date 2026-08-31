@@ -16,32 +16,44 @@ Design rules (from the approved design doc + eng/CEO reviews):
   - Every output lists what is NOT modeled. Calibration != validation.
 """
 
-from .sizing import size_system
+from .climate import DailyClimate, GreenhouseParams, from_records
+from .fishgrowth import Cohort, days_to_weight
 from .hydroponics import size_hydroponic_system
-from .pilot import PilotInfo, to_pilot_proposal, projected_outcomes
-from .optimizer import optimize, OptimizeInput, OptimizeResult, Candidate, OBJECTIVES
+from .layout import Layout, plan_layout
+from .optimizer import OBJECTIVES, Candidate, OptimizeInput, OptimizeResult, optimize
+from .pilot import PilotInfo, projected_outcomes, to_pilot_proposal
+from .production import (
+    ProductionParams,
+    ProductionState,
+    format_summary,
+    simulate_production,
+    start_state,
+)
+from .scenario import Intervention, compare, format_comparison, run_scenario
+from .scene3d import to_scene
+from .sizing import size_system
+from .triage import (
+    ObservationFeatures,
+    TriageCandidate,
+    TriageResult,
+    format_triage,
+    triage_symptoms,
+    validate_observation_features,
+)
+from .twin import TwinParams, TwinState, mature_biofilter, simulate
+from .types import (
+    CoefficientUse,
+    DesignInput,
+    DesignOutput,
+    HydroponicInput,
+    HydroponicOutput,
+)
 from .validate import (
+    ValidationError,
     validate_design_input,
     validate_hydroponic_input,
     validate_optimize_input,
-    ValidationError,
 )
-from .triage import (
-    ObservationFeatures, TriageCandidate, TriageResult, format_triage, triage_symptoms,
-    validate_observation_features,
-)
-from .types import (
-    DesignInput, DesignOutput, CoefficientUse, HydroponicInput, HydroponicOutput,
-)
-from .twin import TwinParams, TwinState, mature_biofilter, simulate
-from .scenario import Intervention, compare, format_comparison, run_scenario
-from .climate import DailyClimate, GreenhouseParams, from_records
-from .fishgrowth import Cohort, days_to_weight
-from .production import (
-    ProductionParams, ProductionState, format_summary, simulate_production, start_state,
-)
-from .layout import Layout, plan_layout
-from .scene3d import to_scene
 
 __all__ = [
     "size_system",

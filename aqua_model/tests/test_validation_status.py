@@ -12,8 +12,6 @@ These tests pin that, and pin the direction it fails in when the evidence is abs
 
 import json
 
-import pytest
-
 from aqua_model import validation_status as vs
 
 
@@ -97,7 +95,6 @@ def test_the_gate_fails_closed_without_evidence(tmp_path):
 def test_the_season_projection_carries_it():
     """The farmer-facing path. A projection printing kilograms and mg/L reads as a forecast
     whatever hedging surrounds it, so the hedge has to be specific enough to overcome that."""
-    from aqua_model.production import ProductionRun
     import aqua_model.production as prod
     src = (prod.__file__)
     text = open(src).read()

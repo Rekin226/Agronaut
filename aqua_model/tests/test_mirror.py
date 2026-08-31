@@ -2,11 +2,14 @@
 
 import pytest
 
-from aqua_model.fishgrowth import Cohort
 from aqua_model.mirror import (
-    MIRROR_SCHEMA_VERSION, NUDGE_WEIGHTS, from_dict, nudge, snapshot_line, to_dict,
+    NUDGE_WEIGHTS,
+    from_dict,
+    nudge,
+    snapshot_line,
+    to_dict,
 )
-from aqua_model.production import ProductionState, start_state
+from aqua_model.production import start_state
 from aqua_model.species import get_species
 
 TILAPIA = get_species("tilapia")

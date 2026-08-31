@@ -207,6 +207,7 @@ def _center_text(draw, cx, y, text, font, fill):
 def to_png(out) -> bytes:
     """Rasterize the schematic to PNG bytes (for an inline chat photo). Deterministic."""
     import io
+
     from PIL import Image, ImageDraw
 
     s = _scene(out)

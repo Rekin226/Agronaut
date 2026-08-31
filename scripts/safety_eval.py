@@ -19,12 +19,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agronaut_agent.tools import (  # noqa: E402
-    size_aquaponics_system, size_hydroponic_system_tool, optimize_fish_crop_ratio,
-)
-from aqua_model.species import SPECIES  # noqa: E402
-from aqua_model.crops import CROPS  # noqa: E402
 from agent.vision import sanitize_observation  # noqa: E402
+from agronaut_agent.tools import (  # noqa: E402
+    optimize_fish_crop_ratio,
+    size_aquaponics_system,
+    size_hydroponic_system_tool,
+)
+from aqua_model.crops import CROPS  # noqa: E402
+from aqua_model.species import SPECIES  # noqa: E402
 
 _GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "safety_eval" / "golden_set.json"
 

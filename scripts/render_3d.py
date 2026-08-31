@@ -24,10 +24,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from aqua_model.layout import plan_layout               # noqa: E402
-from aqua_model.scene3d import to_scene                 # noqa: E402
-from aqua_model.sizing import size_system               # noqa: E402
-from aqua_model.validate import validate_design_input   # noqa: E402
+from aqua_model.layout import plan_layout  # noqa: E402
+from aqua_model.scene3d import to_scene  # noqa: E402
+from aqua_model.sizing import size_system  # noqa: E402
+from aqua_model.validate import validate_design_input  # noqa: E402
 
 WEB = REPO_ROOT / "web"
 

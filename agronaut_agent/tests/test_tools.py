@@ -1,10 +1,10 @@
 """Tools wrap the deterministic core, preserve the trust gate, and carry provenance."""
 
 from agronaut_agent.tools import (
-    size_aquaponics_system,
-    optimize_fish_crop_ratio,
-    list_supported_species_and_crops,
     AGRONAUT_TOOLS,
+    list_supported_species_and_crops,
+    optimize_fish_crop_ratio,
+    size_aquaponics_system,
 )
 
 
@@ -30,7 +30,7 @@ def test_size_valid_carries_numbers_and_sources():
 
 
 def test_mixed_bed_tool_sizes_several_crops_and_carries_the_plan():
-    from agronaut_agent.tools import size_mixed_bed_aquaponics, AGRONAUT_TOOLS
+    from agronaut_agent.tools import AGRONAUT_TOOLS, size_mixed_bed_aquaponics
     assert "size_mixed_bed_aquaponics" in {t.name for t in AGRONAUT_TOOLS}
     out = size_mixed_bed_aquaponics.invoke({
         "fish_species": "tilapia",
@@ -63,7 +63,7 @@ def test_mixed_bed_tool_rejects_unknown_crop_through_the_trust_gate():
 
 
 def test_pilot_proposal_tool_renders_funder_document():
-    from agronaut_agent.tools import render_pilot_proposal, AGRONAUT_TOOLS
+    from agronaut_agent.tools import AGRONAUT_TOOLS, render_pilot_proposal
     assert "render_pilot_proposal" in {t.name for t in AGRONAUT_TOOLS}
     out = render_pilot_proposal.invoke({
         "fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": 20,
@@ -86,7 +86,7 @@ def test_pilot_proposal_tool_trust_gate_rejects_bad_input():
 
 
 def test_hydroponic_tool_registered_and_sizes_without_fish():
-    from agronaut_agent.tools import size_hydroponic_system_tool, AGRONAUT_TOOLS
+    from agronaut_agent.tools import AGRONAUT_TOOLS, size_hydroponic_system_tool
     assert "size_hydroponic_system_tool" in {t.name for t in AGRONAUT_TOOLS}
     out = size_hydroponic_system_tool.invoke(
         {"crop": "lettuce", "grow_area_m2": 10, "temperature_c": 22, "water_budget_lpd": 500})
@@ -170,8 +170,8 @@ def test_registry_includes_update_profile():
 
 
 def test_update_profile_writes_canonical_drops_unknown():
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import update_profile
 
     mem = MemoryStore(_Db(":memory:"))
@@ -201,8 +201,8 @@ def test_registry_includes_schedule_followup():
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
-    from agronaut_agent.store import _Db, MemoryStore, FollowupStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import FollowupStore, MemoryStore, _Db
     from agronaut_agent.tools import schedule_followup
 
     db = _Db(":memory:")
@@ -221,8 +221,8 @@ def test_schedule_followup_writes_a_row_and_guards_duplicates():
 
 
 def test_schedule_followup_rejects_out_of_range_hours():
-    from agronaut_agent.store import _Db, MemoryStore, FollowupStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import FollowupStore, MemoryStore, _Db
     from agronaut_agent.tools import schedule_followup
 
     db = _Db(":memory:")
@@ -245,8 +245,8 @@ def test_registry_includes_community_tools():
 
 
 def test_nominate_writes_pending_and_rejects_blank():
-    from agronaut_agent.store import _Db, MemoryStore, CommunityStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CommunityStore, MemoryStore, _Db
     from agronaut_agent.tools import nominate_shared_insight
 
     db = _Db(":memory:")
@@ -269,8 +269,8 @@ def test_nominate_writes_pending_and_rejects_blank():
 
 
 def test_search_community_knowledge_labels_and_filters():
-    from agronaut_agent.store import _Db, MemoryStore, CommunityStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CommunityStore, MemoryStore, _Db
     from agronaut_agent.tools import search_community_knowledge
 
     db = _Db(":memory:")
@@ -296,8 +296,8 @@ def test_registry_includes_record_measurement():
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import record_measurement
 
     db = _Db(":memory:")
@@ -319,8 +319,8 @@ def test_record_measurement_is_honest_when_no_calibration_coverage():
     # trout.harvest_weight has no published range in aqua_model.calibration: the value must
     # still be stored (for when coverage lands), but the reply must say it can't calibrate —
     # never the silent "I'll use your measurements to calibrate" lie.
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import record_measurement
 
     db = _Db(":memory:")
@@ -340,8 +340,8 @@ def test_record_measurement_is_honest_when_no_calibration_coverage():
 
 
 def test_record_measurement_rejects_unknown_metric_and_bad_value():
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import record_measurement
 
     db = _Db(":memory:")
@@ -356,8 +356,8 @@ def test_record_measurement_rejects_unknown_metric_and_bad_value():
 
 
 def test_size_tool_applies_calibration_and_labels_it():
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import size_aquaponics_system
 
     db = _Db(":memory:")
@@ -389,8 +389,8 @@ def test_size_tool_without_calibration_is_unchanged():
 def test_size_tool_surfaces_override_validation_error():
     """Prove that a ValidationError raised by an override is caught and surfaced,
     not crashed."""
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import size_aquaponics_system
 
     class _BadCal:
@@ -410,8 +410,8 @@ def test_size_tool_surfaces_override_validation_error():
 
 
 def test_size_note_not_claimed_for_mismatched_species():
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import size_aquaponics_system
     db = _Db(":memory:")
     mem, cal = MemoryStore(db), CalibrationStore(db)
@@ -428,8 +428,8 @@ def test_size_note_not_claimed_for_mismatched_species():
 
 
 def test_optimize_tool_labels_calibration():
-    from agronaut_agent.store import _Db, MemoryStore, CalibrationStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import CalibrationStore, MemoryStore, _Db
     from agronaut_agent.tools import optimize_fish_crop_ratio
     db = _Db(":memory:")
     mem, cal = MemoryStore(db), CalibrationStore(db)
@@ -492,8 +492,8 @@ def test_simulate_season_without_a_system_teaches_instead_of_guessing():
 
 def test_simulate_my_system_asks_for_what_the_mirror_is_missing():
     """Path 2: an incomplete profile returns the exact list to collect, not a guess."""
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import simulate_my_system
 
     mem = MemoryStore(_Db(":memory:"))
@@ -509,8 +509,8 @@ def test_simulate_my_system_asks_for_what_the_mirror_is_missing():
 
 
 def test_simulate_my_system_mirrors_a_complete_profile():
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import simulate_my_system
 
     mem = MemoryStore(_Db(":memory:"))
@@ -554,8 +554,8 @@ def test_registry_includes_the_live_mirror_and_full_design():
 
 
 def test_the_live_mirror_asks_for_what_it_needs():
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import log_my_readings
 
     mem = MemoryStore(_Db(":memory:"))
@@ -610,8 +610,8 @@ def _offline_weather(monkeypatch):
     deterministic. Everything downstream — the model, the nudge, the drift — stays real."""
     from datetime import date, timedelta
 
-    from aqua_model.climate import DailyClimate
     from agronaut_agent import tools as T
+    from aqua_model.climate import DailyClimate
 
     def fake(lat, lon, past_days, forecast_days):
         n = min(92, max(0, past_days)) + min(16, max(1, forecast_days))
@@ -627,8 +627,8 @@ def _offline_weather(monkeypatch):
 def test_logging_a_reading_persists_it_beside_the_models_value(monkeypatch):
     """The drift report is the twin's whole claim to being a twin. Speaking it once and
     dropping it makes "is the model getting closer to MY pond?" unanswerable."""
-    from agronaut_agent.store import _Db, MemoryStore, ReadingStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, ReadingStore, _Db
     from agronaut_agent.tools import log_my_readings
 
     _offline_weather(monkeypatch)
@@ -651,8 +651,8 @@ def test_logging_a_reading_persists_it_beside_the_models_value(monkeypatch):
 def test_logging_without_a_reading_store_still_works(monkeypatch):
     """Telegram and the CLI construct the agent differently; a missing store must not
     turn a farmer's log into a traceback."""
-    from agronaut_agent.store import _Db, MemoryStore
     from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
     from agronaut_agent.tools import log_my_readings
 
     _offline_weather(monkeypatch)

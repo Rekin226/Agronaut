@@ -14,7 +14,6 @@ import pytest
 from aqua_model import sensor_qc as qc
 from aqua_model.coefficients import DO_SUPERSATURATION_TOLERANCE
 
-
 # --- oxygen saturation -------------------------------------------------------
 
 @pytest.mark.parametrize("temp_c,expected", [

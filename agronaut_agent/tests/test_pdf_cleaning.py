@@ -10,7 +10,6 @@ Measured on FAO 589: 13 structural pages dropped, running header present in 4/99
 of 111/1034.
 """
 
-import pytest
 
 from srcs import chatbot
 

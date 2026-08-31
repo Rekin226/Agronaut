@@ -17,7 +17,6 @@ from agent.calculator_ui import render_calculator
 from agent.optimizer_ui import render_optimizer
 from agent.twin_ui import render_twin
 
-
 APP_TITLE = "🌱 Agronaut"
 _PHOTO_TYPES = ["png", "jpg", "jpeg", "webp"]
 

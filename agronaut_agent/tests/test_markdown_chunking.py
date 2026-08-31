@@ -10,7 +10,6 @@ window, which is exactly the book-length PDFs the corpus is growing toward. So i
 correct and inert now, and correct and available later.
 """
 
-import pytest
 
 from srcs import chatbot
 

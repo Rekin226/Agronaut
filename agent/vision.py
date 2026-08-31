@@ -224,6 +224,7 @@ def strip_exif(image_bytes: bytes) -> bytes:
     scope — importing this module must stay dependency-free."""
     try:
         import io
+
         from PIL import Image, ImageOps
         with Image.open(io.BytesIO(image_bytes)) as im:
             im = ImageOps.exif_transpose(im)   # honour Orientation before discarding the tag
@@ -242,8 +243,8 @@ def strip_exif(image_bytes: bytes) -> bytes:
 def _build_vlm_backend(provider: str, model: str):
     """Return a callable(data_uri, prompt) -> str for the resolved provider. Lazy imports."""
     if provider == "nvidia":
-        from langchain_nvidia_ai_endpoints import ChatNVIDIA
         from langchain_core.messages import HumanMessage
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA
         client = ChatNVIDIA(model=model, temperature=1e-3)
 
         def _call(data_uri: str, prompt: str) -> str:

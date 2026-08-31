@@ -13,7 +13,9 @@ import pytest
 
 import aqua_model.triage as triage_mod
 from aqua_model.triage import (
-    ObservationFeatures, format_triage, triage_symptoms,
+    ObservationFeatures,
+    format_triage,
+    triage_symptoms,
     validate_observation_features,
 )
 from aqua_model.validate import ValidationError
@@ -251,6 +253,7 @@ def test_package_export_does_not_shadow_the_submodule():
     convention already used by sizing.py/size_system and hydroponics.py/
     size_hydroponic_system, where no export collides with a module name."""
     import types
+
     from aqua_model import triage as imported
     assert isinstance(imported, types.ModuleType)
     import aqua_model

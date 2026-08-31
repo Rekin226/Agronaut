@@ -23,7 +23,7 @@ cited, dated, and meant to be replaced by local quotes. The output says so.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .layout import Layout
 from .system_types import get_system_type

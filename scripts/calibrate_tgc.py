@@ -25,7 +25,6 @@ Writes data/tgc_calibration.json and prints the comparison against the current s
 
 from __future__ import annotations
 
-import glob
 import json
 import sys
 from datetime import UTC, datetime

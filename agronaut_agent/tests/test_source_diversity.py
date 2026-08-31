@@ -9,7 +9,6 @@ Measured effect (1354 chunks, hybrid on): hit_rate 0.848 -> 0.939, recall 0.788 
 precision 0.495 -> 0.540. Every metric improved — the largest single gain in this work.
 """
 
-import pytest
 
 from agronaut_agent import rag
 

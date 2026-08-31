@@ -13,7 +13,6 @@ All hermetic: no network, no index, no embedding model.
 
 import pytest
 
-
 # --- what gets in: HTTP status must gate indexing ----------------------------
 
 class _Resp:
@@ -26,7 +25,8 @@ class _Resp:
 @pytest.fixture
 def fake_requests(monkeypatch):
     """Swap the `requests` module srcs.chatbot imports inside _probe_url."""
-    import sys, types
+    import sys
+    import types
 
     def _install(resp=None, raises=None):
         mod = types.ModuleType("requests")
@@ -97,7 +97,11 @@ def test_unreadable_pdf_bytes_degrade_to_empty_not_crash():
 # --- vetting a proposed source before it enters the corpus -------------------
 
 from scripts.corpus_report import (  # noqa: E402
-    _drift, _drift_in_text, _tokens, detect_licence, detect_licence_in_text,
+    _drift,
+    _drift_in_text,
+    _tokens,
+    detect_licence,
+    detect_licence_in_text,
 )
 
 
@@ -218,6 +222,7 @@ def test_pdf_extraction_actually_works():
     """A functional round-trip, not a graceful-degradation check: build a real PDF and read its
     text back. Without pypdf this fails instead of silently yielding zero chunks."""
     import io
+
     from pypdf import PdfWriter
 
     from srcs.chatbot import _pdf_documents

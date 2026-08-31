@@ -3,7 +3,13 @@
 import pytest
 
 from aqua_model.fishgrowth import (
-    NOT_MODELLED, TGC, Cohort, days_to_weight, grow, ration_g_day, tgc_for,
+    NOT_MODELLED,
+    TGC,
+    Cohort,
+    days_to_weight,
+    grow,
+    ration_g_day,
+    tgc_for,
 )
 from aqua_model.species import get_species
 

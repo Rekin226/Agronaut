@@ -8,10 +8,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from aqua_model.climate import DailyClimate
-from agronaut_agent import runtime, tools as T
+from agronaut_agent import tools as T
 from agronaut_agent.core import AgronautAgent
-from agronaut_agent.store import _Db, MemoryStore, ReadingStore
+from aqua_model.climate import DailyClimate
 
 
 @pytest.fixture

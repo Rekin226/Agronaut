@@ -26,8 +26,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from .logging_schema import SCHEMA_VERSION
 from . import sensor_qc
+from .logging_schema import SCHEMA_VERSION
 
 _PKG_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _PKG_DIR.parent

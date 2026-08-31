@@ -3,8 +3,14 @@
 import pytest
 
 from aqua_model.cropgrowth import (
-    NOT_MODELLED, CropFactors, f_light, f_nitrogen, f_temp, factors,
-    harvest_rate_kg_m2_day, n_uptake_g_day,
+    NOT_MODELLED,
+    CropFactors,
+    f_light,
+    f_nitrogen,
+    f_temp,
+    factors,
+    harvest_rate_kg_m2_day,
+    n_uptake_g_day,
 )
 from aqua_model.crops import get_crop
 

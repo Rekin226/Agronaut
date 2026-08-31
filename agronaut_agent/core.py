@@ -9,15 +9,26 @@ figure must come from a tool result, with its cited coefficients and caveats pas
 from __future__ import annotations
 
 import logging
+import re
 import threading
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import get_chat_model, get_llm, build_fallback_chat, ResilientChat
+from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm
 from agent.vision import sanitize_observation
+
+from . import memory_extract, profile, runtime, semantic, twin_view
+from .store import (
+    CalibrationStore,
+    CommunityStore,
+    ConversationStore,
+    FollowupStore,
+    MemoryStore,
+    ReadingStore,
+    _Db,
+    _now,
+)
 from .tools import AGRONAUT_TOOLS
-from .store import _Db, ConversationStore, MemoryStore, FollowupStore, CommunityStore, CalibrationStore, _now, ReadingStore
-from . import memory_extract, runtime, profile, semantic, twin_view
 
 log = logging.getLogger(__name__)
 
@@ -179,9 +190,7 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 # forecast" — and then stops, the promise substituting for the tool call. Measured on the
 # six-step live validation: three consecutive turns of narration with no effect. The
 # corrective nudge is safe for the ask-a-question case (see the nudge text).
-import re as _re
-
-_PROMISE = _re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\b", _re.I)
+_PROMISE = re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\b", re.I)
 
 
 class AgronautAgent:
@@ -758,7 +767,7 @@ class AgronautAgent:
 def _repl() -> None:
     """Local dry-run: talk to the agent from the terminal, no Telegram. Needs a configured
     tool-calling provider (e.g. LLM_PROVIDER=nvidia NVIDIA_API_KEY=...)."""
-    import agent  # loads .env
+
     from .channels.repl import ReplChannel
     ReplChannel(AgronautAgent()).run()
 

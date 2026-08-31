@@ -20,7 +20,12 @@ from dataclasses import dataclass, replace
 
 from .species import FishSpecies
 from .twin import (
-    NOT_MODELLED, PARAMS_FAST, PARAMS_SLOW, PARAMS_TYPICAL, StepResult, TwinParams, TwinState,
+    NOT_MODELLED,
+    PARAMS_FAST,
+    PARAMS_SLOW,
+    PARAMS_TYPICAL,
+    StepResult,
+    TwinState,
     simulate,
 )
 

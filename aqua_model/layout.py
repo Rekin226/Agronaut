@@ -56,9 +56,11 @@ class Placed:
     z: float = 0.0
     # cylinders
     d: float = 0.0
-    # boxes
+    # boxes. `l` is width/length/height as the 3D viewer reads them: scene3d.py
+    # serialises these names straight into the JSON that viewer_template.html
+    # consumes as o.w/o.l/o.h, so renaming this field reaches into the JavaScript.
     w: float = 0.0
-    l: float = 0.0
+    l: float = 0.0  # noqa: E741 - geometry, not an ambiguous name
     h: float = 0.0
     water_frac: float = 0.0   # fill level as a fraction of height; 0 = dry component
     plants: bool = False

@@ -2,9 +2,8 @@
 
 import pytest
 
-from aqua_model import optimize, OptimizeInput
+from aqua_model import OptimizeInput, optimize
 from aqua_model.crops import get_crop
-from aqua_model.species import get_species
 
 
 def _inp(**over):
@@ -82,7 +81,7 @@ def test_honesty_layer_present():
 
 
 def test_optimize_yield_override_changes_food_score():
-    from aqua_model import optimize, OptimizeInput
+    from aqua_model import OptimizeInput, optimize
     inp = OptimizeInput(grow_area_m2=10, temperature_c=27, water_budget_lpd=5000, objective="food")
     base = optimize(inp)
     higher = optimize(inp, overrides={"lettuce.yield": 30.0})  # top of range vs seed 25
@@ -91,13 +90,13 @@ def test_optimize_yield_override_changes_food_score():
 
 
 def test_optimize_no_override_is_unchanged():
-    from aqua_model import optimize, OptimizeInput
+    from aqua_model import OptimizeInput, optimize
     inp = OptimizeInput(grow_area_m2=10, temperature_c=27, water_budget_lpd=5000, objective="food")
     assert optimize(inp, overrides=None).best.score == optimize(inp).best.score
 
 
 def test_optimize_default_palette_includes_new_entries():
-    from aqua_model import optimize, OptimizeInput
+    from aqua_model import OptimizeInput, optimize
     inp = OptimizeInput(grow_area_m2=10, temperature_c=25, water_budget_lpd=5000, objective="food")
     res = optimize(inp)                      # default palettes = all species/crops
     assert res.best is not None              # a feasible best exists with the expanded palette

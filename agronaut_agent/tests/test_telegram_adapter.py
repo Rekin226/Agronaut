@@ -1,5 +1,7 @@
 """The Telegram adapter's command wiring — verified without running the bot."""
 
+import asyncio
+
 from agronaut_agent.channels.telegram_adapter import TelegramAdapter
 
 
@@ -48,7 +50,6 @@ def test_adapter_has_followup_poller():
 
 # --- media handlers -----------------------------------------------------------
 
-import asyncio
 
 
 class _FakePhoto:

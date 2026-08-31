@@ -3,8 +3,13 @@
 import pytest
 
 from aqua_model.climate import (
-    NOT_MODELLED, DailyClimate, GreenhouseParams, from_records, inside_air_mean_c,
-    par_inside_mol_m2, water_temp_next_c,
+    NOT_MODELLED,
+    DailyClimate,
+    GreenhouseParams,
+    from_records,
+    inside_air_mean_c,
+    par_inside_mol_m2,
+    water_temp_next_c,
 )
 
 _DAY = DailyClimate(t_mean_c=25.0, t_min_c=18.0, t_max_c=32.0, solar_mj_m2=20.0)

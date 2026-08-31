@@ -2,8 +2,8 @@
 agent (Hermes, OpenClaw, Claude Code) can call. No LLM, no network — validated input in,
 cited sizing out; the trust gate is preserved (bad input exits non-zero)."""
 
-import io
 import contextlib
+import io
 
 from skills.aquaponics_engineer import cli
 

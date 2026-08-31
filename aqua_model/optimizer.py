@@ -20,10 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from itertools import combinations_with_replacement
 
-from . import coefficients as C
 from . import massbalance as mb
 from .crops import CROPS, get_crop
-from .overrides import validate_overrides, apply_overrides
+from .overrides import apply_overrides, validate_overrides
 from .species import SPECIES, get_species, temperature_feed_factor
 from .validate import ValidationError, validate_optimize_input
 

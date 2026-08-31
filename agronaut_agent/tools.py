@@ -14,20 +14,22 @@ import logging
 from langchain_core.tools import tool
 
 from aqua_model import (
-    size_system,
-    size_hydroponic_system,
-    optimize,
+    OBJECTIVES,
     OptimizeInput,
+    ValidationError,
+    datasets,
+    optimize,
+    report,
+    size_hydroponic_system,
+    size_system,
     validate_design_input,
     validate_hydroponic_input,
-    ValidationError,
-    OBJECTIVES,
 )
-from aqua_model.species import SPECIES, get_species
 from aqua_model.crops import CROPS
-from aqua_model import datasets, report
+from aqua_model.species import SPECIES, get_species
 
-from . import profile as profile_mod, rag, runtime, serialize, twin_view
+from . import profile as profile_mod
+from . import rag, runtime, serialize, twin_view
 
 log = logging.getLogger(__name__)
 
@@ -334,6 +336,7 @@ def render_system_schematic(
     deterministically from the sized design — you do not describe it, just call this."""
     import os
     import tempfile
+
     from aqua_model.schematic import to_png
     fish = _clean_optional(fish_species)
     try:
@@ -592,9 +595,9 @@ def _greenhouse_from(mode: str, heat_setpoint_c: float | None):
 def _run_season(*, species_key: str, crop_key: str, grow_area_m2: float, site: str,
                 init, days: int, greenhouse: str, heat_setpoint_c: float | None,
                 label_extra: str = "") -> str:
-    from aqua_model.production import ProductionParams as _PP, format_summary, simulate_production
     from aqua_model.crops import get_crop
-    from aqua_model.species import get_species
+    from aqua_model.production import ProductionParams as _PP
+    from aqua_model.production import format_summary, simulate_production
 
     weather, _meta = _climate_days(site)
     gh, mode = _greenhouse_from(greenhouse, heat_setpoint_c)
@@ -648,7 +651,6 @@ def simulate_season(
         uncycled (the cycling transient, nitrite spike included, is part of a first
         season), an explicit run assumes an established, cycled system."""
     from aqua_model.production import start_state, start_state_from_design
-    from aqua_model.species import get_species
 
     species_key = str(fish_species).strip().lower()
     crop_key = str(crop).strip().lower()
@@ -717,7 +719,6 @@ def simulate_my_system(
     update_profile, then call again. The biofilter is assumed cycled (it is a running
     system). Compare scenarios by calling twice with a different greenhouse mode."""
     from aqua_model.production import start_state
-    from aqua_model.species import get_species
 
     cur = runtime.get_current()
     if cur is None:
@@ -780,8 +781,12 @@ def what_if_nitrogen(
     absolute levels are not to be trusted.
 
     change: a short human label for the intervention (e.g. 'double feed')."""
-    from aqua_model.scenario import Intervention, compare, format_comparison, run_scenario
-    from aqua_model.species import get_species
+    from aqua_model.scenario import (
+        Intervention,
+        compare,
+        format_comparison,
+        run_scenario,
+    )
     from aqua_model.twin import TwinState, mature_biofilter
 
     try:
@@ -953,7 +958,6 @@ def design_full_system(
     from aqua_model.flowsheet import Needs, format_flowsheet, plan_flowsheet
     from aqua_model.layout import plan_layout
     from aqua_model.scene3d import to_scene
-    from aqua_model.species import get_species
 
     try:
         design = validate_design_input(fish_species, crop, grow_area_m2, temperature_c,
@@ -1136,7 +1140,6 @@ def _advance_mirror(mem, user_id, facts: dict, forecast_days: int = 1,
 
     from aqua_model.crops import get_crop
     from aqua_model.production import ProductionParams, simulate_production, start_state
-    from aqua_model.species import get_species
 
     gh, _mode = _greenhouse_from(greenhouse, None)
     params = ProductionParams(greenhouse=gh)
@@ -1361,9 +1364,12 @@ def business_case(
     from aqua_model.crops import get_crop
     from aqua_model.layout import plan_layout
     from aqua_model.production import (
-        ProductionParams as _PP, simulate_production, start_state_from_design,
+        ProductionParams as _PP,
     )
-    from aqua_model.species import get_species
+    from aqua_model.production import (
+        simulate_production,
+        start_state_from_design,
+    )
 
     book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
     if not book_path.exists():

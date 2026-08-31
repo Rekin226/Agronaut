@@ -34,7 +34,15 @@ from . import fishgrowth as FG
 from .crops import Crop
 from .species import FishSpecies, temperature_feed_factor
 from .twin import (
-    NOT_MODELLED as TWIN_NOT_MODELLED, StepResult, TwinParams, TwinState, mature_biofilter,
+    NOT_MODELLED as TWIN_NOT_MODELLED,
+)
+from .twin import (
+    StepResult,
+    TwinParams,
+    TwinState,
+    mature_biofilter,
+)
+from .twin import (
     step as nitrogen_step,
 )
 

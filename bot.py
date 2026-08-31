@@ -14,8 +14,8 @@ from __future__ import annotations
 import logging
 
 import agent  # noqa: F401 — importing the package loads project-root .env (agent/__init__.py)
-from agronaut_agent.core import AgronautAgent
 from agronaut_agent.channels.telegram_adapter import TelegramAdapter
+from agronaut_agent.core import AgronautAgent
 
 
 def main() -> None:

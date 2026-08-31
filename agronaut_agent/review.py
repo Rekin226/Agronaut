@@ -6,7 +6,7 @@ Run:  python -m agronaut_agent.review
 
 from __future__ import annotations
 
-from .store import _Db, CommunityStore
+from .store import CommunityStore, _Db
 
 
 def format_candidate(c: dict) -> str:
@@ -37,7 +37,6 @@ def apply_command(store: CommunityStore, cmd: str) -> str:
 
 
 def main() -> None:  # pragma: no cover (interactive loop)
-    import agent  # loads .env (AGRONAUT_DB path)
     store = CommunityStore(_Db())
     print("Community insight review — approve <id> / reject <id> / quit")
     while True:

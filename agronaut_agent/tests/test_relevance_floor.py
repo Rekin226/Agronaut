@@ -12,7 +12,6 @@ import pytest
 
 from agronaut_agent import rag
 
-
 # --- what gets out: the relevance floor --------------------------------------
 
 class _Doc:

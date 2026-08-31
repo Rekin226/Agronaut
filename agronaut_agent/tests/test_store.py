@@ -2,8 +2,18 @@
 
 import pytest
 
-from agronaut_agent.store import _Db, ConversationStore, MemoryStore, user_id_for
 from agronaut_agent import memory_extract
+from agronaut_agent.store import (
+    CalibrationStore,
+    CommunityStore,
+    ConversationStore,
+    FollowupStore,
+    MemoryStore,
+    ReadingStore,
+    _Db,
+    _now,
+    user_id_for,
+)
 
 
 @pytest.fixture
@@ -96,7 +106,6 @@ def test_forget_wipes_memory_and_summary(stores):
     assert mem.get_facts(uid) == {}
 
 
-from agronaut_agent.store import _Db, FollowupStore, _now
 
 
 def _fs():
@@ -146,7 +155,6 @@ def test_answer_and_cancel_free_the_slot():
     assert fs.open_for("telegram:1") is None
 
 
-from agronaut_agent.store import CommunityStore
 
 
 def _cs():
@@ -202,7 +210,6 @@ def test_approve_only_acts_on_pending():
     assert len(cs.search_approved("some")) == 1         # still approved, not rejected
 
 
-from agronaut_agent.store import CalibrationStore
 
 
 def _cal():
@@ -246,7 +253,6 @@ def test_calibration_report_reflects_status():
 # report is printed, then discarded. These readings are what makes the twin auditable
 # over time — "was the model getting closer?" — so they are stored append-only.
 
-from agronaut_agent.store import ReadingStore
 
 
 @pytest.fixture
