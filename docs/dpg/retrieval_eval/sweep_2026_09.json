@@ -1,0 +1,271 @@
+{
+  "description": "Re-measurement of the tunable retrieval constants against the corpus as it stands (3941 chunks, 22 curated files, 4 publications). The `rows` are the measurement; `chosen` is the decision rule applied to them.",
+  "floor": {
+    "rows": [
+      {
+        "value": 1.3,
+        "hit_rate": 0.7879,
+        "recall@k": 0.7727,
+        "precision@k": 0.3333,
+        "MRR": 0.5808,
+        "MAP@k": 0.5682,
+        "silenced_on_topic": 4,
+        "rejected_off_topic": 10,
+        "negative_controls": 10,
+        "latency_ms": 289,
+        "worst_on_topic": 1.3827,
+        "headroom": -0.0827
+      },
+      {
+        "value": 1.35,
+        "hit_rate": 0.8485,
+        "recall@k": 0.8182,
+        "precision@k": 0.3535,
+        "MRR": 0.6111,
+        "MAP@k": 0.5833,
+        "silenced_on_topic": 2,
+        "rejected_off_topic": 10,
+        "negative_controls": 10,
+        "latency_ms": 17,
+        "worst_on_topic": 1.3827,
+        "headroom": -0.0327
+      },
+      {
+        "value": 1.4,
+        "hit_rate": 0.8485,
+        "recall@k": 0.8182,
+        "precision@k": 0.3535,
+        "MRR": 0.6111,
+        "MAP@k": 0.5833,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 10,
+        "negative_controls": 10,
+        "latency_ms": 16,
+        "worst_on_topic": 1.3827,
+        "headroom": 0.0173
+      },
+      {
+        "value": 1.45,
+        "hit_rate": 0.8485,
+        "recall@k": 0.8182,
+        "precision@k": 0.3535,
+        "MRR": 0.6263,
+        "MAP@k": 0.5985,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16,
+        "worst_on_topic": 1.3827,
+        "headroom": 0.0673
+      },
+      {
+        "value": 1.5,
+        "hit_rate": 0.8788,
+        "recall@k": 0.8333,
+        "precision@k": 0.3636,
+        "MRR": 0.6364,
+        "MAP@k": 0.6035,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16,
+        "worst_on_topic": 1.3827,
+        "headroom": 0.1173
+      },
+      {
+        "value": 1.65,
+        "hit_rate": 0.9091,
+        "recall@k": 0.8788,
+        "precision@k": 0.3838,
+        "MRR": 0.6465,
+        "MAP@k": 0.6237,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 4,
+        "negative_controls": 10,
+        "latency_ms": 16,
+        "worst_on_topic": 1.3827,
+        "headroom": 0.2673
+      }
+    ],
+    "chosen": {
+      "value": 1.5,
+      "hit_rate": 0.8788,
+      "recall@k": 0.8333,
+      "precision@k": 0.3636,
+      "MRR": 0.6364,
+      "MAP@k": 0.6035,
+      "silenced_on_topic": 0,
+      "rejected_off_topic": 8,
+      "negative_controls": 10,
+      "latency_ms": 16,
+      "worst_on_topic": 1.3827,
+      "headroom": 0.1173
+    }
+  },
+  "cap": {
+    "rows": [
+      {
+        "value": 1,
+        "hit_rate": 0.8788,
+        "recall@k": 0.8333,
+        "precision@k": 0.3636,
+        "MRR": 0.6364,
+        "MAP@k": 0.6035,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      },
+      {
+        "value": 2,
+        "hit_rate": 0.7879,
+        "recall@k": 0.697,
+        "precision@k": 0.4192,
+        "MRR": 0.6061,
+        "MAP@k": 0.5379,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      },
+      {
+        "value": 3,
+        "hit_rate": 0.6667,
+        "recall@k": 0.5909,
+        "precision@k": 0.3586,
+        "MRR": 0.5455,
+        "MAP@k": 0.4848,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      },
+      {
+        "value": 0,
+        "hit_rate": 0.6667,
+        "recall@k": 0.5909,
+        "precision@k": 0.3586,
+        "MRR": 0.5455,
+        "MAP@k": 0.4848,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      }
+    ],
+    "chosen": {
+      "value": 1,
+      "hit_rate": 0.8788,
+      "recall@k": 0.8333,
+      "precision@k": 0.3636,
+      "MRR": 0.6364,
+      "MAP@k": 0.6035,
+      "silenced_on_topic": 0,
+      "rejected_off_topic": 8,
+      "negative_controls": 10,
+      "latency_ms": 16
+    },
+    "held": {
+      "floor": 1.5
+    }
+  },
+  "beta": {
+    "rows": [
+      {
+        "value": 0.5,
+        "hit_rate": 0.8788,
+        "recall@k": 0.7879,
+        "precision@k": 0.3333,
+        "MRR": 0.5909,
+        "MAP@k": 0.548,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 15
+      },
+      {
+        "value": 0.7,
+        "hit_rate": 0.8788,
+        "recall@k": 0.803,
+        "precision@k": 0.3434,
+        "MRR": 0.601,
+        "MAP@k": 0.5657,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      },
+      {
+        "value": 0.9,
+        "hit_rate": 0.8788,
+        "recall@k": 0.8333,
+        "precision@k": 0.3636,
+        "MRR": 0.6364,
+        "MAP@k": 0.6035,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      },
+      {
+        "value": 1.0,
+        "hit_rate": 0.8485,
+        "recall@k": 0.803,
+        "precision@k": 0.3535,
+        "MRR": 0.6465,
+        "MAP@k": 0.6061,
+        "silenced_on_topic": 0,
+        "rejected_off_topic": 8,
+        "negative_controls": 10,
+        "latency_ms": 16
+      }
+    ],
+    "chosen": {
+      "value": 0.9,
+      "hit_rate": 0.8788,
+      "recall@k": 0.8333,
+      "precision@k": 0.3636,
+      "MRR": 0.6364,
+      "MAP@k": 0.6035,
+      "silenced_on_topic": 0,
+      "rejected_off_topic": 8,
+      "negative_controls": 10,
+      "latency_ms": 16
+    },
+    "held": {
+      "floor": 1.5,
+      "cap": 1
+    },
+    "note": "beta=1.0 (hybrid OFF) shows MAP 0.606 against 0.90's 0.604. That 0.002 is below the noise band: one query flipping moves hit_rate by 1/33 = 0.030, and hit_rate and recall both fall by ~0.030 at beta=1.0. The picker re-ranks inside the noise band on hit_rate, so 0.90 holds."
+  },
+  "verified": {
+    "config": {
+      "floor": 1.5,
+      "cap": 1,
+      "beta": 0.9
+    },
+    "hit_rate": 0.879,
+    "recall@k": 0.833,
+    "precision@k": 0.364,
+    "MRR": 0.636,
+    "MAP@k": 0.604,
+    "silenced_on_topic": 0,
+    "rejected_off_topic": 8
+  },
+  "vs_previous_config": {
+    "previous": {
+      "config": {
+        "floor": 1.65,
+        "cap": 2,
+        "beta": 0.9
+      },
+      "hit_rate": 0.818,
+      "recall@k": 0.727,
+      "precision@k": 0.429,
+      "MRR": 0.616,
+      "MAP@k": 0.548,
+      "rejected_off_topic": 4
+    },
+    "note": "Both measured on the SAME corpus, so the delta isolates the constants."
+  }
+}

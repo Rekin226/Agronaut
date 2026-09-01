@@ -1,9 +1,10 @@
 {
-  "description": "Every retrieval technique implemented in this work, what it measured, and whether it ships. Recorded so each decision is reproducible and so a decision can EXPIRE \u2014 hybrid search was rejected, then adopted when the corpus grew.",
+  "description": "Every retrieval technique implemented in this work, what it measured, and whether it ships. Recorded so each decision is reproducible and so a decision can EXPIRE — hybrid search was rejected, then adopted when the corpus grew.",
   "corpus_at_final_measurement": {
     "chunks": 1354,
     "local_files": 21,
-    "web_sources": 3
+    "web_sources": 3,
+    "note": "SUPERSEDED — see corpus_now / final_2026_09"
   },
   "final": {
     "hit_rate": 0.939,
@@ -11,26 +12,27 @@
     "precision@k": 0.54,
     "MRR": 0.737,
     "MAP@k": 0.697,
-    "latency_ms": 244
+    "latency_ms": 244,
+    "note": "SUPERSEDED by final_2026_09. Kept because the reversal is the point: these numbers were correct for a 1354-chunk corpus and expired one day later."
   },
   "techniques": [
     {
       "name": "Relevance floor",
-      "ships": "ON",
-      "evidence": "rejects 8/10 off-topic, silences 0/33 real",
-      "note": "Bands overlap (on-topic worst 1.548, off-topic best 1.426) so it cannot be tightened."
+      "ships": "ON (1.50, was 1.65)",
+      "evidence": "3941 chunks: rejects 8/10 off-topic, silences 0/33 real, 0.117 headroom above the worst real query (1.383). COSTS retrieval quality to do it (1.65 scores hit 0.909 / MAP 0.624 against 1.50's 0.879 / 0.604) — a safety trade, not an improvement.",
+      "note": "REVERSED PREMISE. The bands OVERLAPPED at 1354 chunks (on-topic worst 1.548 above off-topic best 1.426) and no floor could separate them. At 3935 they SEPARATE (1.383 < 1.411), because more corpus means a closer match for every real question. Not tightened to 1.40 despite that rejecting 10/10: it clears the worst real query by 0.017, and this project already rejected a 0.032 margin as too thin. The golden set has 33 queries; headroom is what protects the 34th."
     },
     {
       "name": "Hybrid BM25 + RRF",
       "ships": "ON (beta=0.90)",
-      "evidence": "362 chunks: lost at every beta. 1354 chunks: recall +0.091, MAP +0.091",
-      "note": "REVERSED. The technique did not change; the corpus did. Only 10% keyword weight is correct."
+      "evidence": "362 chunks: lost at every beta. 1354 chunks: recall +0.091, MAP +0.091 3941 chunks: re-confirmed at beta=0.90, and now ahead of dense-only on hit_rate too (0.879 vs 0.848 for dense-only).",
+      "note": "REVERSED. The technique did not change; the corpus did. Only 10% keyword weight is correct. Beta is the ONE constant a 3x corpus growth did not move."
     },
     {
       "name": "Per-source cap",
-      "ships": "ON (2)",
-      "evidence": "hit 0.848->0.939, recall 0.788->0.894, precision 0.495->0.540",
-      "note": "Largest single gain. FAO 589 was taking all 3 slots on 10 of 33 queries."
+      "ships": "ON (1, was 2)",
+      "evidence": "3941 chunks, floor 1.50: cap=1 hit 0.879 / recall 0.833 / MAP 0.604 vs cap=2's 0.788 / 0.697 / 0.538. At 1354 chunks cap=2 won on precision.",
+      "note": "REVERSED. cap=2 was right against ONE oversized source; there are now TWO (3848 of 3941 chunks are books, curated files are 2.4%), so cap=2 lets books take two of three slots — the same failure the cap exists to stop, through a door it left open. The deciding gap widened roughly fourfold: cap=1 bought +0.031 hit at 1354 chunks and buys +0.061 here."
     },
     {
       "name": "PDF cleaning",
@@ -60,13 +62,100 @@
       "name": "Cross-encoder reranking",
       "ships": "OFF",
       "evidence": "hit 0.939->0.879, latency 274->761 ms",
-      "note": "ms-marco model is out of domain for operator phrasing against agronomy prose."
+      "note": "ms-marco model is out of domain for operator phrasing against agronomy prose. NOT re-measured at 3941 chunks — recorded as stale rather than presented as current. A technique that lost on every metric and tripled latency does not become the priority when the corpus grows."
     },
     {
       "name": "Query rewriting",
       "ships": "NOT BUILT",
       "note": "Three prefix/expansion techniques already lost for the same reason; adding vocabulary to a corpus that shares one vocabulary domain dilutes rather than disambiguates."
+    },
+    {
+      "name": "Metadata filtering",
+      "ships": "AVAILABLE, off by default",
+      "evidence": "Default path unchanged: with no filter passed, the golden-set scorecard is identical before and after (0.848 / 0.758 / 0.444 / 0.646 / 0.578 on the 3935-chunk corpus), verified by re-running the eval against a stash of the change.",
+      "note": "The third leg of M2 hybrid search, and the only one this system lacked. Applied to BOTH pools before fusion, never after, so an excluded chunk cannot consume a pool slot. Filterable keys: source_type, kb_tag, url_category, chapter, page — all already carried by every chunk. It is a CAPABILITY, not a ranking change: it encodes something the caller knows that the query text does not say, so there is no golden-set number for it to move and none is claimed. Nothing calls it with a filter yet."
+    },
+    {
+      "name": "Sweep harness (scripts/retrieval_sweep.py)",
+      "ships": "N/A — tooling",
+      "evidence": "Reproduces the floor/cap/beta tables above in one command.",
+      "note": "Built because the drift above was not a carelessness problem. Re-measuring three constants was an afternoon of ad-hoc scripting, so it did not happen when the corpus changed. The floor picker encodes the project's ACTUAL decision rule — zero real queries silenced, then a minimum 0.10 headroom, then maximum rejections — rather than maximising a metric, because a naive picker chose 1.40 here and 1.40 is the wrong answer for a reason no metric in the table can see. A second rule was added after the first real use: differences under 0.01 in a rate metric do not decide anything. A strict argmax picked beta=1.0 (hybrid OFF) over 0.90 on a 0.002 MAP win while hit_rate and recall each fell ~0.030 — one query out of 33 is 0.030, so 0.002 is noise."
     }
   ],
-  "the_pattern": "Four of the eight measured techniques LOST, and three of those four share one mechanism: they add topic words (a section crumb, a chapter name, a heading) to chunks in a corpus where every document already shares a vocabulary domain. Words that appear in every chunk about a topic carry no discriminating information \u2014 they only dilute the distinctive content already in the vector. What DID work was structural instead of lexical: refusing irrelevant passages, refusing error pages, and refusing to let one source occupy every slot."
+  "the_pattern": "Four of the eight measured techniques LOST, and three of those four share one mechanism: they add topic words (a section crumb, a chapter name, a heading) to chunks in a corpus where every document already shares a vocabulary domain. Words that appear in every chunk about a topic carry no discriminating information — they only dilute the distinctive content already in the vector. What DID work was structural instead of lexical: refusing irrelevant passages, refusing error pages, and refusing to let one source occupy every slot. A ninth technique has since been added and a corpus drift recorded: see `corpus_drift_warning`. The lesson the hybrid reversal taught — a measurement is a property of a corpus and expires when the corpus moves — has now applied to the per-source cap and the relevance floor as well.",
+  "corpus_drift_warning": {
+    "status": "RESOLVED 2026-09-01 by re-calibration; kept as the case history",
+    "what_happened": "techniques.json was written 2026-08-25. Commit 70b2d00 added Goddek et al. (2019) on 2026-08-26 — one day later — taking the corpus from 1354 to 3935 chunks. Nothing was re-measured, so every constant here was calibrated for a corpus that no longer existed.",
+    "cost_of_the_drift": {
+      "note": "Measured on the 3941-chunk corpus with the 1354-era constants still in place.",
+      "hit_rate": -0.121,
+      "recall@k": -0.167,
+      "precision@k": -0.111,
+      "MRR": -0.121,
+      "MAP@k": -0.149,
+      "off_topic_rejected": "8/10 -> 4/10"
+    },
+    "what_moved_and_what_did_not": "The floor and the cap both moved; beta did not. That is informative rather than incidental: beta describes the relationship between two RANKING SIGNALS, a property of the query language and the embedding model. The floor and the cap describe the corpus's shape — how far a stranger's question lands from it, and how many chances one source gets to answer. Corpus growth moves the second kind and leaves the first alone.",
+    "the_fix_is_a_command_not_a_resolution": "`python -m scripts.retrieval_sweep --all` re-picks all three and prints the evidence. The drift happened because re-measuring was an afternoon of ad-hoc scripting; it will happen again if it stays that way. Re-run it after any corpus or embedding-model change.",
+    "measurement_bug_found_while_fixing_it": "The band edges were being read through a CAPPED result set. The cap can displace the chunk that is closest in L2 (when it is a source's second passage), so the on-topic worst distance read 1.416 under cap=1 instead of the true 1.383 — which would have overstated how tight a floor could safely be, on exactly the decision it feeds. `retrieve(max_per_source=0)` now exists so evaluators see the pool the floor really gates, and scripts/retrieval_eval.py uses it for the unfiltered pass.",
+    "it_happened_again_during_this_work": "While this branch was open, main added a 22nd knowledge file and the corpus moved from 3935 to 3941 chunks. The sweep was re-run rather than the earlier numbers reused. That is the whole argument for the harness: the corpus moved twice in eight days."
+  },
+  "corpus_now": {
+    "measured": "2026-09-01",
+    "chunks": 3941,
+    "distinct_sources": 26,
+    "curated_files": 22,
+    "curated_chunks": 93,
+    "largest": {
+      "Goddek et al. 2019": 2576,
+      "FAO 589": 992,
+      "smart aquaponics review": 215,
+      "Love et al. 2014": 65
+    }
+  },
+  "final_2026_09": {
+    "config": {
+      "relevance_floor": 1.5,
+      "max_per_source": 1,
+      "hybrid_beta": 0.9
+    },
+    "hit_rate": 0.879,
+    "recall@k": 0.833,
+    "precision@k": 0.364,
+    "MRR": 0.636,
+    "MAP@k": 0.604,
+    "off_topic_rejected": "8/10",
+    "real_queries_silenced": "0/33",
+    "band_edges": {
+      "worst_on_topic": 1.383,
+      "closest_off_topic": 1.411,
+      "separable": true,
+      "headroom_at_1.50": 0.117
+    },
+    "vs_previous_config_same_corpus": {
+      "was": {
+        "config": {
+          "relevance_floor": 1.65,
+          "max_per_source": 2,
+          "hybrid_beta": 0.9
+        },
+        "hit_rate": 0.818,
+        "recall@k": 0.727,
+        "precision@k": 0.429,
+        "MRR": 0.616,
+        "MAP@k": 0.548,
+        "off_topic_rejected": "4/10"
+      },
+      "delta": {
+        "hit_rate": 0.061,
+        "recall@k": 0.106,
+        "precision@k": -0.065,
+        "MRR": 0.02,
+        "MAP@k": 0.056,
+        "off_topic_rejected": "+4"
+      }
+    },
+    "which_change_did_what": "The two constants pull in opposite directions and the writeup must not blur them. The FLOOR alone COSTS retrieval quality: at cap=1, loosening to 1.65 scores hit 0.909 / MAP 0.624 against 1.50's 0.879 / 0.604. It is bought deliberately, doubling off-topic refusal from 4/10 to 8/10. The CAP is what pays for it: at floor 1.50, cap=1 gives 0.879 / 0.833 / 0.604 against cap=2's 0.788 / 0.697 / 0.538. Net, the pair is ahead on every metric except precision.",
+    "on_the_precision_drop": "Real but partly structural. `relevant` is labelled at DOCUMENT granularity, so cap=1 bounds precision@3 at 0.333 for any query with a single relevant document, however good the answer. Recall and MAP are not so bounded and both move decisively the other way."
+  }
 }

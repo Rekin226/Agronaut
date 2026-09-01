@@ -5,8 +5,13 @@ golden-set queries — so a targeted operator answer that existed in knowledge/ 
 model at all. Ranking cannot fix that on its own: the book genuinely is similar, and it has twelve
 times as many chances to be. Capping per-source occupancy spends one slot on breadth.
 
-Measured effect (1354 chunks, hybrid on): hit_rate 0.848 -> 0.939, recall 0.788 -> 0.894,
-precision 0.495 -> 0.540. Every metric improved — the largest single gain in this work.
+Measured effect at 1354 chunks (hybrid on): hit_rate 0.848 -> 0.939, recall 0.788 -> 0.894,
+precision 0.495 -> 0.540. Every metric improved — the largest single gain in that round.
+
+The cap SHIPS AT 1 as of 2026-09-01, not 2. A second book (Goddek et al. 2019, 2576 chunks) took
+the corpus to 3935, and at cap=2 two books can still take two of three slots. Re-measured under
+floor 1.50: cap=1 gives hit 0.879 / recall 0.833 / MAP 0.624 against cap=2's 0.818 / 0.727 /
+0.568. The mechanism did not change; the number of oversized sources did.
 """
 
 
@@ -75,13 +80,13 @@ def test_empty_ranking_is_safe():
 
 def test_default_cap_and_env_override(monkeypatch):
     monkeypatch.delenv("AGRONAUT_MAX_PER_SOURCE", raising=False)
-    assert rag.max_source_cap() == 2
-    monkeypatch.setenv("AGRONAUT_MAX_PER_SOURCE", "1")
-    assert rag.max_source_cap() == 1
+    assert rag.max_source_cap() == 1       # re-measured 2026-09-01 on the 3935-chunk corpus
+    monkeypatch.setenv("AGRONAUT_MAX_PER_SOURCE", "2")
+    assert rag.max_source_cap() == 2       # the previous default is still one env var away
     monkeypatch.setenv("AGRONAUT_MAX_PER_SOURCE", "0")
     assert rag.max_source_cap() == 0
     monkeypatch.setenv("AGRONAUT_MAX_PER_SOURCE", "nonsense")
-    assert rag.max_source_cap() == 2       # bad config must not break a turn
+    assert rag.max_source_cap() == 1       # bad config must not break a turn
 
 
 def test_citation_labels_are_what_the_cap_counts():

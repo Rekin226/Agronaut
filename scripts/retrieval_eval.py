@@ -121,7 +121,10 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
         inf = float("inf")
         retrieve = (lambda q, kk: rag.retrieve(q, kk, max_dist=inf)) if no_floor else rag.retrieve
         if unfiltered is None:
-            unfiltered = lambda q, kk: rag.retrieve(q, kk, max_dist=inf)  # noqa: E731
+            # No floor AND no per-source cap. The cap can displace the very chunk that is closest
+            # in L2 (when it is a source's second passage), so a "raw" distance measured through
+            # a capped result set is too high and would overstate how tight a floor can be.
+            unfiltered = lambda q, kk: rag.retrieve(q, kk, max_dist=inf, max_per_source=0)  # noqa: E731
     if unfiltered is None:
         unfiltered = retrieve
 

@@ -14,27 +14,40 @@ import re
 # Maximum FAISS L2 distance a passage may have and still be offered to the model as context.
 # LOWER is closer; anything above this is treated as "nothing relevant matched".
 #
-# Measured on docs/dpg/retrieval_eval/golden_set.json (33 operator queries, 10 off-topic controls),
-# corpus of 1354 chunks: rejects 8/10 off-topic queries, silences 0/33 real ones.
+# RE-CALIBRATED 2026-09-01 on the 3941-chunk corpus (was 1.65 at 1354 chunks).
+# `python -m scripts.retrieval_sweep --all`, saved to retrieval_eval/sweep_2026_09.json:
 #
-# THE BANDS OVERLAP AND CANNOT BE SEPARATED. Worst on-topic distance is 1.548; the CLOSEST
-# off-topic match is 1.426 ("best way to remove red wine from a carpet", which lands near
-# algae_control.md's advice on removing growth from surfaces). Adding FAO 589 widened this gap in
-# the wrong direction — a 275-page book covering everything from plumbing to food safety is
-# semantically near almost any question. No single global threshold can catch that query without
-# also silencing real ones.
+#     floor  hit    recall  prec    MRR     MAP     silenced  rejected  headroom
+#     1.30   0.788  0.773   0.333   0.581   0.568   4         10/10     -0.083
+#     1.35   0.848  0.818   0.354   0.611   0.583   2         10/10     -0.033
+#     1.40   0.848  0.818   0.354   0.611   0.583   0         10/10      0.017
+#     1.45   0.848  0.818   0.354   0.626   0.598   0          8/10      0.067
+#     1.50   0.879  0.833   0.364   0.636   0.604   0          8/10      0.117   <- ships
+#     1.65   0.909  0.879   0.384   0.646   0.624   0          4/10      0.267
 #
-# 1.65 rather than a tighter 1.58: the tighter value would reject one more control (neg-06, at
-# 1.616) but leaves only 0.032 of headroom above the worst real query, versus 0.10 at 1.65. On a
-# 33-query sample that trades a threefold cut in safety margin for one extra rejection, and
-# "silences 0 real queries" is the property that must not break. A real question is refused
-# service; an off-topic one merely gets an honest "no matching passages".
+# READ THAT TABLE HONESTLY: a LOOSER floor scores BETTER on every retrieval metric. 1.65 gets
+# hit 0.909 and MAP 0.624 against 1.50's 0.879 and 0.604. This change costs retrieval quality
+# and buys refusal, doubling 4/10 to 8/10. It is a safety trade, not an improvement, and the
+# per-source cap below is what pays for it (net, old config to new: hit 0.818 -> 0.879).
+#
+# THE BANDS HAVE SEPARATED, which is new and is what makes a tighter floor possible at all. At
+# 1354 chunks the worst on-topic distance (1.548) sat ABOVE the closest off-topic match (1.426)
+# and no single threshold could work. Adding Goddek et al. (2019) pulled the on-topic band in —
+# more corpus means a closer match for every real question — so the worst real query is now 1.383
+# and the nearest off-topic one is 1.411. The eval prints "separable" instead of "OVERLAPPING".
+#
+# NOT 1.40, though it rejects all ten controls. It sits 0.017 above the worst real query. This
+# project already rejected a 0.032 margin as too thin ("a threefold cut in safety margin for one
+# extra rejection"), and 0.017 is half of that. The golden set has 33 queries; the 34th is the one
+# that matters, and headroom is all that protects it. 1.50 keeps 0.117, comparable to the 0.10
+# that reasoning accepted.
 #
 # This number is a property of THIS embedding model over THIS corpus and does not port.
 # `python -m scripts.retrieval_eval` reprints the separation on every run and says outright when
-# the bands overlap. Re-read it after any corpus change. Override with
-# AGRONAUT_RELEVANCE_MAX_DISTANCE (or "off" to disable).
-_DEFAULT_MAX_DISTANCE = 1.65
+# the bands overlap; `python -m scripts.retrieval_sweep --all` re-picks all three constants.
+# Re-run after any corpus change — the value above expired in one day the last time nobody did.
+# Override with AGRONAUT_RELEVANCE_MAX_DISTANCE (or "off" to disable).
+_DEFAULT_MAX_DISTANCE = 1.50
 
 _INDEX = None          # cached FAISS index (or None if unavailable)
 _TRIED = False         # don't retry a failed/slow build every call
@@ -52,15 +65,33 @@ _RRF_K = 60
 # disabled. Adding FAO 589 grew the corpus to 1354 chunks, and re-running the sweep — which the
 # recorded evidence explicitly said to do after substantial corpus growth — flipped the result:
 #
-#     beta   hit    recall  prec    MRR     MAP
+#     beta   hit    recall  prec    MRR     MAP      (1354 chunks)
 #     0.50   0.758  0.727   0.444   0.561   0.543
 #     0.70   0.818  0.773   0.475   0.646   0.606
-#     0.90   0.848  0.788   0.495   0.692   0.636   <- ships
+#     0.90   0.848  0.788   0.495   0.692   0.636   <- shipped then
 #     dense  0.848  0.697   0.490   0.682   0.545
 #
-# Note how LITTLE keyword weight is right: 10%. Enough to break ties a 992-chunk book would
-# otherwise win on volume, not enough to let common aquaponics vocabulary dominate the ranking.
-# At 0.5 — the intuitive "balanced" setting — hybrid is still clearly worse than dense.
+# RE-CONFIRMED 2026-09-01 at 3941 chunks, under floor 1.50 and cap 1 — the one constant the
+# corpus growth did NOT move:
+#
+#     beta   hit    recall  prec    MRR     MAP      (3941 chunks)
+#     0.50   0.879  0.788   0.333   0.591   0.548
+#     0.70   0.879  0.803   0.343   0.601   0.566
+#     0.90   0.879  0.833   0.364   0.636   0.604   <- ships
+#     1.00   0.848  0.803   0.354   0.646   0.606    (dense-only, hybrid OFF)
+#
+# NOTE THE TRAP IN THAT LAST ROW. Dense-only shows the highest MAP, by 0.002. A strict argmax
+# would turn hybrid search off on that, while hit_rate and recall each fall by ~0.030 — fifteen
+# times the size of the "win". With 33 queries, one flipping moves hit_rate by 0.030, so 0.002 is
+# noise with a decimal point. scripts/retrieval_sweep.py now re-ranks inside a 0.01 noise band on
+# hit_rate for exactly this reason.
+#
+# Note how LITTLE keyword weight is right: 10%. Enough to break ties a book would otherwise win on
+# volume, not enough to let common aquaponics vocabulary dominate the ranking. At 0.5 — the
+# intuitive "balanced" setting — hybrid is still clearly worse. That beta held steady across a
+# 3x corpus growth while the floor and the cap both moved is itself informative: beta describes
+# the relationship between two RANKING SIGNALS, which is a property of the query language and the
+# embedding model, not of how much text sits behind them.
 _DEFAULT_BETA = 0.90
 
 
@@ -142,7 +173,10 @@ def hybrid_enabled() -> bool:
 
     Nothing about the technique changed. The corpus did. A 992-chunk book competing with 82 chunks
     of targeted operator guidance is precisely the situation a keyword signal is for: it breaks
-    ties that dense similarity resolves by volume. Disable with AGRONAUT_HYBRID=off.
+    ties that dense similarity resolves by volume.
+
+    RE-CONFIRMED 2026-09-01 at 3941 chunks: still on, still beta=0.90, and now measurably ahead of
+    dense-only on hit_rate as well (0.879 vs 0.848). Disable with AGRONAUT_HYBRID=off.
     """
     return os.getenv("AGRONAUT_HYBRID", "").lower() not in {"off", "0", "false"}
 
@@ -189,29 +223,38 @@ _POOL = 20      # candidates drawn from each retriever before fusion
 
 # At most this many passages from any ONE source in a single result set.
 #
-# The observed failure when a 992-chunk book joined an 82-chunk curated corpus was not subtle:
-# FAO 589 took all three slots on 10 of 33 queries, so a targeted operator answer that existed in
-# knowledge/ never reached the model. Ranking alone cannot fix that — the book genuinely IS
-# similar, and has twelve times as many chances to be. A per-source cap spends one slot on breadth
-# instead, which is what a researcher does by reflex: read two sources, not three pages of one.
+# CHANGED 2026-09-01 from 2 to 1. The reason the old choice expired is worth keeping, because the
+# technique did not change — the corpus did, for the second time.
 #
-# Measured (1354-chunk corpus, hybrid on):
+# At 1354 chunks there was ONE oversized source (FAO 589, 992 chunks) against 82 chunks of curated
+# operator guidance, and cap=2 was the right call: it kept most of cap=1's recall while returning
+# materially less irrelevant context (precision 0.540 vs 0.404), and still let a source with real
+# depth contribute twice.
+#
+# There are now TWO. Goddek et al. (2019) added 2576 chunks, so 3848 of 3941 chunks are books and
+# the curated files are 2.4% of the corpus. cap=2 lets books take two of three slots, which is the
+# same failure the cap was built to stop, arriving through a door the cap left open.
+#
+# Measured (3941-chunk corpus, floor 1.50, hybrid on) — retrieval_eval/sweep_2026_09.json:
 #
 #     cap    hit    recall  prec    MRR     MAP
-#     1      0.970  0.919   0.404   0.747   0.710
-#     2      0.939  0.894   0.540   0.737   0.697   <- ships
-#     none   0.848  0.788   0.495   0.692   0.636
+#     1      0.879  0.833   0.364   0.636   0.604   <- ships
+#     2      0.788  0.697   0.419   0.606   0.538
+#     3      0.667  0.591   0.359   0.545   0.485
+#     none   0.667  0.591   0.359   0.545   0.485
 #
-# cap=1 restores the pre-FAO hit_rate exactly and wins MRR/MAP, so it is a defensible choice and
-# is one env var away. It ships at 2 because part of cap=1's advantage is an artefact of the
-# metric rather than a real gain: `relevant` is labelled at DOCUMENT granularity, so one FAO
-# passage scores identically to three, and the metric cannot see that some queries (feeding rates,
-# pest treatments) are genuinely best answered by several passages from the same chapter. cap=2
-# keeps most of the recall while returning materially less irrelevant context to the model
-# (precision 0.540 vs 0.404), and still allows a source with real depth to contribute twice.
+# THIS is the change that carries the re-calibration. The deciding gap widened roughly fourfold:
+# at 1354 chunks cap=1 bought +0.031 hit and +0.025 recall over cap=2; here it buys +0.091 hit
+# and +0.136 recall, and +0.066 MAP.
 #
-# Set AGRONAUT_MAX_PER_SOURCE=1 to prioritise coverage, or 0 to disable the cap entirely.
-_MAX_PER_SOURCE = 2
+# Precision still falls (0.419 -> 0.364) and that is still partly a metric artefact: `relevant` is
+# labelled at DOCUMENT granularity, so cap=1 caps precision@3 at 0.333 for any query with one
+# relevant document however good the answer is. What is NOT an artefact is recall and MAP, which
+# both move decisively the other way. When the honest and the artefactual disagree this sharply,
+# follow the metric that is not structurally bounded.
+#
+# Set AGRONAUT_MAX_PER_SOURCE=2 to restore the old behaviour, or 0 to disable the cap entirely.
+_MAX_PER_SOURCE = 1
 
 # Cross-encoder reranker. A bi-encoder embeds query and passage SEPARATELY, so it can only
 # compare two summaries of meaning; a cross-encoder reads the pair together and scores their
@@ -222,8 +265,59 @@ _RERANKER = None
 _RERANK_TRIED = False
 
 
+# Metadata keys a caller may filter on. Restricted deliberately: an open-ended predicate over
+# arbitrary metadata would let a caller filter on fields that only some chunks carry, silently
+# excluding every document that predates the field rather than the ones it meant to exclude.
+#
+# What each key holds (assigned in srcs/chatbot.py):
+#   source_type    "local_file" | "web"    — curated operator guidance vs a fetched page
+#   kb_tag         markdown filename stem  — "ph_and_alkalinity", "fish_disease_and_treatment"
+#   url_category   the curated category from urls.txt
+#   chapter        FAO 589 chapter, forward-filled to ~95% page coverage
+#   page           page number within a PDF source
+_FILTERABLE = {"source_type", "kb_tag", "url_category", "chapter", "page"}
+
+
+def _matches(metadata: dict, filters: dict) -> bool:
+    """Whether one chunk satisfies every filter clause.
+
+    A clause value may be a scalar or a collection, so {"source_type": "local_file"} and
+    {"kb_tag": ["ph_and_alkalinity", "water_quality_ranges"]} both read naturally. Every
+    clause must match: filters narrow, they never widen. A chunk MISSING the key fails,
+    which is the safe direction — "give me only FAO chapter 8" must not return the whole
+    markdown corpus on the grounds that it has no chapter to disagree with.
+    """
+    for key, want in filters.items():
+        got = metadata.get(key)
+        if got is None:
+            return False
+        if isinstance(want, (list, tuple, set, frozenset)):
+            if got not in want and str(got) not in {str(w) for w in want}:
+                return False
+        elif got != want and str(got) != str(want):
+            return False
+    return True
+
+
+def normalize_filters(filters: dict | None) -> dict | None:
+    """Validate a filter dict, dropping unknown keys with a warning. None/empty -> None.
+
+    Unknown keys are dropped rather than raising: a filter is a retrieval REFINEMENT, and a
+    typo in one should cost precision, never the whole answer to an operator's question.
+    """
+    if not filters:
+        return None
+    clean = {k: v for k, v in filters.items() if k in _FILTERABLE}
+    unknown = set(filters) - set(clean)
+    if unknown:
+        logging.warning("Ignoring unfilterable metadata keys %s (filterable: %s)",
+                        sorted(unknown), sorted(_FILTERABLE))
+    return clean or None
+
+
 def retrieve(query: str, k: int = 3, max_dist: float | None = None,
-             hybrid: bool | None = None) -> list[dict]:
+             hybrid: bool | None = None, filters: dict | None = None,
+             max_per_source: int | None = None) -> list[dict]:
     """Structured retrieval: the ranked passages for `query`, each as
     {"text", "source", "score"}.
 
@@ -243,17 +337,49 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
     fusion only decides the order of what it returns. If nothing clears the floor, nothing is
     returned, whatever the keyword scores say.
 
+    METADATA FILTERING (`filters`) is the third leg of hybrid retrieval and works differently
+    from the other two: it does not rank anything. It excludes, on rigid criteria, before
+    ranking happens — and so it is applied to BOTH pools, not to the fused result. Filtering
+    after fusion would let excluded chunks consume pool slots first and silently shrink the
+    candidate set; filtering before means each retriever spends its whole pool inside the
+    permitted subset. See `_FILTERABLE` for the keys and `_matches` for the semantics.
+
+    It is OFF unless a caller passes it, and passing nothing leaves behaviour byte-identical
+    to before it existed. That is deliberate. A filter encodes something the CALLER knows and
+    the query text does not say ("only my own curated docs", "only chapter 8"); inferring one
+    from the query would be query rewriting wearing a different hat, and that technique is
+    recorded as measured-and-lost for this corpus.
+
+    `max_per_source` overrides the diversity cap for this call (0 disables it). It exists for
+    MEASUREMENT: the calibration of the relevance floor depends on the closest distance in the
+    raw candidate pool, and the cap can drop precisely that chunk when it is the second passage
+    from a source. Measuring the band edge through a capped result set therefore reports a
+    distance that is too high — on this corpus, 1.416 instead of the true 1.383 — which would
+    quietly overstate how tight a floor can safely be. Evaluators pass 0 here to see the pool the
+    floor actually gates.
+
     Returns [] both when the index is unavailable and when nothing survives filtering; callers
     that must tell those apart should check `index_available()`.
     """
     limit = max_distance() if max_dist is None else max_dist
+    filters = normalize_filters(filters)
     index = _get_index()
     if index is None:
         return []
     import srcs.chatbot as core
 
     try:
-        pairs = index.similarity_search_with_score(query, k=max(_POOL, k * 2))
+        if filters:
+            # fetch_k over-fetches BEFORE filtering, so it must be generous: FAISS takes the
+            # nearest fetch_k, drops those the filter rejects, and only then keeps k. Left at
+            # its default of 20, a narrow filter over a 3941-chunk corpus would usually find
+            # nothing in the top 20 and return empty for a query the corpus can answer well.
+            pairs = index.similarity_search_with_score(
+                query, k=max(_POOL, k * 2),
+                filter=lambda md: _matches(md, filters),
+                fetch_k=max(_POOL * 20, 400))
+        else:
+            pairs = index.similarity_search_with_score(query, k=max(_POOL, k * 2))
     except Exception as exc:
         logging.warning("knowledge search failed: %s", exc)
         return []
@@ -291,6 +417,8 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
                 doc = docs[i]
                 if core._is_boilerplate_text(doc.page_content):
                     continue
+                if filters and not _matches(doc.metadata, filters):
+                    continue
                 key = (_source_label(doc.metadata), doc.page_content[:120])
                 if key not in by_key:
                     # A keyword-only hit carries no L2 distance. Record it as exactly that
@@ -307,7 +435,7 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
         # Rerank the shortlist BEFORE the diversity cap: the cap should displace the least
         # relevant duplicate, which requires relevance to already be correct.
         fused = _rerank(query, fused[:_POOL], by_key)
-    return [by_key[key] for key in _diversify(fused, by_key, k)]
+    return [by_key[key] for key in _diversify(fused, by_key, k, max_per_source)]
 
 
 def rerank_enabled() -> bool:
@@ -327,7 +455,13 @@ def rerank_enabled() -> bool:
     This is a statement about THIS model on THIS domain, not about reranking. A cross-encoder
     fine-tuned on agronomy text, or simply a stronger general one, could plausibly win — the
     machinery is here and AGRONAUT_RERANK=on turns it on, with AGRONAUT_RERANK_MODEL selecting
-    the model. Re-measure before trusting it.
+    the model.
+
+    THE TABLE ABOVE WAS MEASURED AT 1354 CHUNKS and has NOT been re-run since the corpus reached
+    3941. Unlike the floor and the cap, this decision was not re-measured on 2026-09-01, because
+    a technique that lost on every metric and tripled latency does not become the priority when
+    the corpus grows. It is recorded as stale rather than quietly presented as current — re-run
+    `AGRONAUT_RERANK=on python -m scripts.retrieval_eval` before trusting either verdict.
     """
     return os.getenv("AGRONAUT_RERANK", "").lower() in {"on", "1", "true"}
 
@@ -415,7 +549,7 @@ def index_available() -> bool:
     return _get_index() is not None
 
 
-def search_with_stats(query: str, k: int = 3) -> tuple[str, dict]:
+def search_with_stats(query: str, k: int = 3, filters: dict | None = None) -> tuple[str, dict]:
     """search(), plus non-identifying telemetry about how the retrieval went.
 
     The stats deliberately contain NO query text and NO passage text — only shape and timing. The
@@ -429,7 +563,7 @@ def search_with_stats(query: str, k: int = 3) -> tuple[str, dict]:
     if not index_available():
         return _UNAVAILABLE, {"outcome": "unavailable", "n_results": 0,
                               "latency_ms": int((time.perf_counter() - t0) * 1000)}
-    hits = retrieve(query, k=k)
+    hits = retrieve(query, k=k, filters=filters)
     latency_ms = int((time.perf_counter() - t0) * 1000)
     scored = [h["score"] for h in hits if h.get("score") is not None]
     stats = {
@@ -439,13 +573,17 @@ def search_with_stats(query: str, k: int = 3) -> tuple[str, dict]:
         "latency_ms": latency_ms,
         "top_score": round(min(scored), 3) if scored else None,
         "hybrid": hybrid_enabled(),
+        # WHICH keys were filtered on, never their values: a value can be as specific as a
+        # single kb_tag, and "this user filtered to fish_disease_and_treatment" is closer to
+        # the subject of their question than the shape of it.
+        "filtered": sorted(normalize_filters(filters) or {}) or None,
     }
     if not hits:
         return _NO_MATCH, stats
     return "\n\n".join(f"[source: {h['source']}]\n{h['text']}" for h in hits), stats
 
 
-def search(query: str, k: int = 3) -> str:
+def search(query: str, k: int = 3, filters: dict | None = None) -> str:
     """Return retrieved knowledge passages for `query`, each labeled with its source —
     citation is enforced here, not left to the model — or a clear 'no context' note."""
-    return search_with_stats(query, k=k)[0]
+    return search_with_stats(query, k=k, filters=filters)[0]
