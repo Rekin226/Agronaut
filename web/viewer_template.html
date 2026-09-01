@@ -6,56 +6,87 @@
 <title>__TITLE__</title>
 <style>
   :root {
-    --panel-bg: rgba(18, 26, 24, 0.82);
+    --panel-bg: rgba(16, 24, 22, 0.86);
     --panel-fg: #e8f0ec;
     --accent: #5dd39e;
-    --muted: #9db4aa;
+    --muted: #93aaa1;
+    --line: rgba(255,255,255,0.10);
   }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1412;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   #c { display: block; width: 100%; height: 100%; }
-  #hud {
-    position: absolute; top: 14px; left: 14px; max-width: 320px;
+
+  .panel {
     background: var(--panel-bg); color: var(--panel-fg);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
-    padding: 12px 14px; backdrop-filter: blur(6px); font-size: 13px; line-height: 1.45;
+    border: 1px solid var(--line); border-radius: 11px;
+    backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(0,0,0,0.32);
   }
-  #hud h1 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
-  #hud .sub { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
-  #hud ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 38vh; overflow-y: auto; }
-  #hud li { padding: 3px 6px; border-radius: 6px; cursor: pointer; display: flex; gap: 7px; align-items: center; }
-  #hud li:hover { background: rgba(255,255,255,0.07); }
-  #hud li .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
-  #toggles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-  #toggles button {
+  #hud { position: absolute; top: 14px; left: 14px; width: 274px;
+    padding: 13px 14px; font-size: 13px; line-height: 1.45; }
+  #hud h1 { font-size: 15px; margin: 0 0 3px; font-weight: 650; letter-spacing: -0.01em; }
+  #hud .sub { color: var(--muted); font-size: 11.5px; margin-bottom: 10px; line-height: 1.4; }
+  #hud .grp { color: var(--muted); font-size: 10px; letter-spacing: .09em;
+    text-transform: uppercase; margin: 11px 0 3px; font-weight: 600; }
+  #hud ul { list-style: none; padding: 0; margin: 0; }
+  #hud li { padding: 3px 6px; border-radius: 6px; cursor: pointer; display: flex;
+    gap: 8px; align-items: center; font-size: 12.5px; }
+  #hud li:hover { background: rgba(255,255,255,0.08); }
+  #hud li .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset; }
+  #hud li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #legend-scroll { max-height: 30vh; overflow-y: auto; margin-top: 2px; }
+
+  #toggles { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .btn {
     background: rgba(255,255,255,0.06); color: var(--panel-fg);
-    border: 1px solid rgba(255,255,255,0.14); border-radius: 7px;
-    font-size: 12px; padding: 4px 9px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 7px;
+    font-size: 11.5px; padding: 4px 9px; cursor: pointer; font-family: inherit;
+    transition: background .12s, color .12s;
   }
-  #toggles button.on { background: var(--accent); color: #0c1a13; border-color: var(--accent); font-weight: 600; }
-  #tip {
-    position: absolute; pointer-events: none; display: none;
-    background: var(--panel-bg); color: var(--panel-fg); font-size: 12.5px;
-    border: 1px solid rgba(255,255,255,0.12); border-radius: 7px; padding: 6px 9px; max-width: 260px;
+  .btn:hover { background: rgba(255,255,255,0.13); }
+  .btn.on { background: var(--accent); color: #0c1a13; border-color: var(--accent); font-weight: 600; }
+
+  #views { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 5px; padding: 7px 8px; }
+  #tip { position: absolute; pointer-events: none; display: none; font-size: 12.5px;
+    padding: 7px 10px; max-width: 260px; z-index: 5; }
+  #tip b { color: var(--accent); }
+  #cap { position: absolute; bottom: 14px; left: 16px; color: var(--muted); font-size: 11px; }
+  #scalebar { position: absolute; bottom: 14px; right: 16px; color: var(--muted);
+    font-size: 11px; text-align: center; }
+  #scalebar .bar { height: 4px; border: 1px solid var(--muted); border-top: 0;
+    margin-bottom: 3px; }
+  @media (max-width: 720px) {
+    #hud { width: auto; right: 14px; }
+    #legend-scroll { max-height: 20vh; }
+    #cap { display: none; }
   }
-  #cap { position: absolute; bottom: 10px; left: 14px; color: var(--muted); font-size: 11.5px; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud">
+<div id="hud" class="panel">
   <h1 id="t-name"></h1>
   <div class="sub" id="t-sub"></div>
   <div id="toggles">
-    <button id="b-gh" class="on">greenhouse</button>
-    <button id="b-flow" class="on">flow</button>
-    <button id="b-fish" class="on">fish</button>
-    <button id="b-labels">labels</button>
+    <button id="b-gh" class="btn on">greenhouse</button>
+    <button id="b-flow" class="btn on">flow</button>
+    <button id="b-fish" class="btn on">fish</button>
+    <button id="b-plants" class="btn on">crop</button>
+    <button id="b-dims" class="btn">dimensions</button>
+    <button id="b-labels" class="btn">labels</button>
   </div>
-  <ul id="t-list"></ul>
+  <div id="legend-scroll"></div>
 </div>
-<div id="tip"></div>
+<div id="views" class="panel">
+  <button class="btn view on" data-view="iso">iso</button>
+  <button class="btn view" data-view="plan">plan</button>
+  <button class="btn view" data-view="front">front</button>
+  <button class="btn view" data-view="inside">walk in</button>
+</div>
+<div id="tip" class="panel"></div>
 <div id="cap">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
+<div id="scalebar"><div class="bar" id="sb-bar"></div><span id="sb-txt"></span></div>
 
 <script>/*__THREE_JS__*/</script>
 <script>/*__ORBIT_CONTROLS__*/</script>
@@ -64,24 +95,66 @@
 "use strict";
 const SCENE = JSON.parse(document.getElementById("scene-data").textContent);
 
+/* ---------- deterministic randomness ----------
+   The model is deterministic, so the picture must be too: the same design has to render
+   the same way every time it is opened, or a screenshot in a report and the file a
+   reviewer opens are different drawings. Seeded from the scene itself. */
+function makeRng(seedStr) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < seedStr.length; i++) { h ^= seedStr.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return function () {
+    h += 0x6D2B79F5; let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = makeRng((SCENE.name || "") + "|" + JSON.stringify(SCENE.greenhouse || {}) +
+                    "|" + (SCENE.objects || []).length);
+
 /* ---------- palette by component role ---------- */
 const ROLE_STYLE = {
-  fish_tank:   { color: 0x2f6f8f, label: "fish tank" },
-  sump:        { color: 0x3d5a66, label: "sump" },
-  clarifier:   { color: 0x8a6d3b, label: "clarifier" },
-  settling:    { color: 0x8a6d3b, label: "settling tank" },
-  biofilter:   { color: 0x7a4f9e, label: "biofilter" },
-  mineraliser: { color: 0x9e6a4f, label: "mineraliser" },
-  dwc_bed:     { color: 0xdfe6e9, label: "DWC raft bed" },
-  media_bed:   { color: 0x8d6e63, label: "media bed" },
-  nft_channel: { color: 0xb0bec5, label: "NFT channel" },
-  vertical_tower: { color: 0x90a4ae, label: "tower" },
-  wicking_bed: { color: 0x795548, label: "wicking bed" },
-  dutch_bucket:{ color: 0xa1887f, label: "dutch bucket" },
-  degasser:    { color: 0x607d8b, label: "degasser" },
-  generic:     { color: 0x78909c, label: "component" },
+  fish_tank:   { color: 0x2b6f92, label: "fish tank",     grp: "Fish" },
+  sump:        { color: 0x3f5b67, label: "sump",          grp: "Water treatment" },
+  clarifier:   { color: 0x8a6d3b, label: "clarifier",     grp: "Water treatment" },
+  settling:    { color: 0x8a6d3b, label: "settling tank", grp: "Water treatment" },
+  biofilter:   { color: 0x7a4f9e, label: "biofilter",     grp: "Water treatment" },
+  mineraliser: { color: 0x9e6a4f, label: "mineraliser",   grp: "Water treatment" },
+  degasser:    { color: 0x5f7d8b, label: "degasser",      grp: "Water treatment" },
+  dwc_bed:     { color: 0xa8bcc4, label: "DWC raft bed",  grp: "Growing" },
+  media_bed:   { color: 0x8d6e63, label: "media bed",     grp: "Growing" },
+  nft_channel: { color: 0x9fb0b8, label: "NFT channel",   grp: "Growing" },
+  vertical_tower: { color: 0x96a8b2, label: "tower",      grp: "Growing" },
+  wicking_bed: { color: 0x795548, label: "wicking bed",   grp: "Growing" },
+  dutch_bucket:{ color: 0xa1887f, label: "dutch bucket",  grp: "Growing" },
+  generic:     { color: 0x78909c, label: "component",     grp: "Other" },
 };
-const WATER = 0x2196c9, WATER_OP = 0.55;
+const GROUP_ORDER = ["Fish", "Water treatment", "Growing", "Other"];
+const WATER_COL = 0x1c7fa8;
+
+/* ---------- crop form ----------
+   Enough to tell a raft of lettuce from a row of tomatoes at a glance. Heights are
+   ordinary mature sizes, not model output: the plants are scenery, and labelling them
+   as measured would be a lie the rest of this file does not tell. */
+const CROP_FORMS = {
+  //        h: plant height (m)  leafW: leaf width (m)  tilt: outer-leaf lean from vertical
+  lettuce:    { h: 0.23, leaves: 11, leafW: 0.105, tilt: 1.15, tint: 0x4f9a3c, stem: 0.00 },
+  spinach:    { h: 0.21, leaves: 10, leafW: 0.075, tilt: 1.05, tint: 0x3f8a37, stem: 0.00 },
+  pak_choi:   { h: 0.25, leaves: 9,  leafW: 0.095, tilt: 0.85, tint: 0x59a83f, stem: 0.10 },
+  basil:      { h: 0.36, leaves: 12, leafW: 0.070, tilt: 0.80, tint: 0x2f7a35, stem: 0.30 },
+  mint:       { h: 0.28, leaves: 12, leafW: 0.060, tilt: 0.75, tint: 0x3d8f45, stem: 0.25 },
+  kale:       { h: 0.45, leaves: 10, leafW: 0.110, tilt: 0.90, tint: 0x3a6b45, stem: 0.28 },
+  chard:      { h: 0.42, leaves: 9,  leafW: 0.105, tilt: 0.85, tint: 0x448a3a, stem: 0.30 },
+  strawberry: { h: 0.22, leaves: 9,  leafW: 0.080, tilt: 1.00, tint: 0x3f8a3a, stem: 0.12 },
+  pepper:     { h: 0.62, leaves: 13, leafW: 0.090, tilt: 0.95, tint: 0x2f6b33, stem: 0.45 },
+  tomato:     { h: 1.05, leaves: 16, leafW: 0.115, tilt: 1.00, tint: 0x2b6330, stem: 0.55 },
+  cucumber:   { h: 0.95, leaves: 14, leafW: 0.135, tilt: 1.05, tint: 0x336e33, stem: 0.50 },
+};
+function cropForm(key) {
+  const k = String(key || "").toLowerCase().replace(/[\s-]+/g, "_");
+  return CROP_FORMS[k] || { h: 0.26, leaves: 10, leafW: 0.090, tilt: 1.0, tint: 0x448a3a, stem: 0.12 };
+}
+const FORM = cropForm(SCENE.crop);
 
 /* ---------- renderer / scene ---------- */
 const canvas = document.getElementById("c");
@@ -91,9 +164,11 @@ try {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if ("outputColorSpace" in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  else if ("outputEncoding" in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.92;
 } catch (e) {
-  // Headless browsers and very old machines have no WebGL. The scene data still builds
-  // below (it is plain geometry), so tests can assert on it; only drawing is skipped.
   const msg = document.createElement("div");
   msg.id = "no-webgl";
   msg.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;" +
@@ -104,229 +179,523 @@ try {
 }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x101a17);
-scene.fog = new THREE.Fog(0x101a17, 40, 120);
-
 const gw = (SCENE.greenhouse && SCENE.greenhouse.width) || 8;
 const gl = (SCENE.greenhouse && SCENE.greenhouse.length) || 12;
-const camera = new THREE.PerspectiveCamera(50, 2, 0.1, 500);
-camera.position.set(gw * 1.25, Math.max(gw, gl) * 0.75, gl * 1.15);
+const gwallH = (SCENE.greenhouse && SCENE.greenhouse.wall_h) || 2.2;
+const gridgeH = (SCENE.greenhouse && SCENE.greenhouse.ridge_h) || (gwallH + 1.2);
+const SPAN = Math.max(gw, gl);
+const CX = gw / 2, CZ = gl / 2;
 
+/* sky: a soft daylight gradient, so the model sits in a place rather than in a void */
+(function sky() {
+  const cv = document.createElement("canvas");
+  cv.width = 4; cv.height = 256;
+  const g = cv.getContext("2d").createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0.00, "#8fb6cf");
+  g.addColorStop(0.55, "#c8d9de");
+  g.addColorStop(1.00, "#dfe4dc");
+  const ctx = cv.getContext("2d"); ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(cv);
+  if ("colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = tex;
+  scene.fog = new THREE.Fog(0xc9d6d4, SPAN * 5.5, SPAN * 14);
+})();
+
+const camera = new THREE.PerspectiveCamera(48, 2, 0.05, 600);
 const controls = new THREE.OrbitControls(camera, canvas);
-controls.target.set(gw / 2, 0.6, gl / 2);
-controls.maxPolarAngle = Math.PI * 0.495;
+controls.maxPolarAngle = Math.PI * 0.497;
 controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 1.2;
+controls.maxDistance = SPAN * 6;
 
-scene.add(new THREE.HemisphereLight(0xdfeeea, 0x22302a, 0.85));
-const sun = new THREE.DirectionalLight(0xfff3d6, 1.6);
-sun.position.set(gw * 1.5, 18, -6);
+scene.add(new THREE.HemisphereLight(0xbcd4e4, 0x46523c, 0.62));
+const sun = new THREE.DirectionalLight(0xfff1d4, 1.45);
+sun.position.set(gw * 1.1 + 6, SPAN * 1.5, -gl * 0.35);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-const shadowSpan = Math.max(gw, gl) * 1.2;
-Object.assign(sun.shadow.camera, { left: -shadowSpan, right: shadowSpan, top: shadowSpan, bottom: -shadowSpan });
-scene.add(sun);
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.02;
+const shSpan = SPAN * 1.15;
+Object.assign(sun.shadow.camera, { left: -shSpan, right: shSpan, top: shSpan, bottom: -shSpan, near: 1, far: SPAN * 6 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.target.position.set(CX, 0, CZ);
+scene.add(sun, sun.target);
 
-/* ---------- ground ---------- */
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(Math.max(gw, gl) * 4, 48),
-  new THREE.MeshStandardMaterial({ color: 0x24352c, roughness: 1 }));
-ground.rotation.x = -Math.PI / 2;
-ground.position.set(gw / 2, -0.01, gl / 2);
-ground.receiveShadow = true;
-scene.add(ground);
-const grid = new THREE.GridHelper(Math.max(gw, gl) * 2, Math.max(gw, gl) * 2, 0x3a544a, 0x2c4038);
-grid.position.set(gw / 2, 0, gl / 2);
-scene.add(grid);
+/* ---------- site: grass, then a concrete pad the building stands on ---------- */
+const grass = new THREE.Mesh(
+  new THREE.CircleGeometry(SPAN * 5, 64),
+  new THREE.MeshStandardMaterial({ color: 0x4a6b3c, roughness: 1 }));
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(CX, -0.06, CZ);
+grass.receiveShadow = true;
+scene.add(grass);
 
-/* ---------- greenhouse shell ---------- */
+const PAD = 0.75;
+const pad = new THREE.Mesh(
+  new THREE.BoxGeometry(gw + PAD * 2, 0.12, gl + PAD * 2),
+  new THREE.MeshStandardMaterial({ color: 0x8b8b82, roughness: 0.95 }));
+pad.position.set(CX, -0.06, CZ);
+pad.receiveShadow = true;
+scene.add(pad);
+
+/* ---------- greenhouse ----------
+   A gable frame that reads as a building: trusses at bay spacing, purlins tying them
+   along the length, a gutter beam at eaves height, glazed end walls and a door. The
+   previous version drew posts and one ridge line, which from any distance looked like
+   the system was standing in the open. */
 const ghGroup = new THREE.Group();
-if (SCENE.greenhouse) {
-  const g = SCENE.greenhouse;
-  const W = g.width, L = g.length, hw = g.wall_h || 2.2, hr = g.ridge_h || hw + 1.2;
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x9aa8a2, metalness: 0.6, roughness: 0.4 });
-  const skinMat = new THREE.MeshPhysicalMaterial({
-    color: 0xcfe8ef, transparent: true, opacity: 0.16, roughness: 0.15,
-    transmission: 0.6, side: THREE.DoubleSide, depthWrite: false });
+{
+  const W = gw, L = gl, hw = gwallH, hr = gridgeH;
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xb3bcb8, metalness: 0.5, roughness: 0.42 });
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: 0xd6ecf2, transparent: true, opacity: 0.13, roughness: 0.06, metalness: 0.0,
+    side: THREE.DoubleSide, depthWrite: false });
+  const R = 0.045;
 
-  function post(x, z, h) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, h, 8), frameMat);
-    m.position.set(x, h / 2, z); ghGroup.add(m);
+  function bar(x1, y1, z1, x2, y2, z2, r) {
+    const a = new THREE.Vector3(x1, y1, z1), b = new THREE.Vector3(x2, y2, z2);
+    const len = a.distanceTo(b);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r || R, r || R, len, 8), frameMat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+      b.clone().sub(a).normalize());
+    m.castShadow = true;
+    ghGroup.add(m);
+    return m;
   }
-  const nPost = Math.max(2, Math.round(L / 2));
-  for (let i = 0; i <= nPost; i++) {
-    const z = (L * i) / nPost;
-    post(0, z, hw); post(W, z, hw);
+
+  // trusses on a ~2 m bay
+  const bays = Math.max(2, Math.round(L / 2));
+  const zs = [];
+  for (let i = 0; i <= bays; i++) zs.push((L * i) / bays);
+  for (const z of zs) {
+    bar(0, 0, z, 0, hw, z);            // eave post, left
+    bar(W, 0, z, W, hw, z);            // eave post, right
+    bar(0, hw, z, W / 2, hr, z);       // rafter, left
+    bar(W, hw, z, W / 2, hr, z);       // rafter, right
+    bar(0, hw, z, W, hw, z, 0.03);     // collar tie
   }
-  // gable profile as a shape extruded along length
-  const prof = new THREE.Shape();
-  prof.moveTo(0, 0); prof.lineTo(0, hw); prof.lineTo(W / 2, hr); prof.lineTo(W, hw); prof.lineTo(W, 0);
-  const skinGeo = new THREE.ExtrudeGeometry(prof, { depth: L, bevelEnabled: false });
-  skinGeo.rotateY(0);
-  const skin = new THREE.Mesh(skinGeo, skinMat);
-  skin.position.set(0, 0, 0);
-  ghGroup.add(skin);
-  // ridge beam
-  const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, L, 8), frameMat);
-  ridge.rotation.x = Math.PI / 2;
-  ridge.position.set(W / 2, hr, L / 2);
-  ghGroup.add(ridge);
+  // purlins + ridge + gutters run the length
+  bar(W / 2, hr, 0, W / 2, hr, L, 0.05);
+  bar(0, hw, 0, 0, hw, L, 0.05);
+  bar(W, hw, 0, W, hw, L, 0.05);
+  for (const f of [0.35, 0.7]) {
+    const px = W / 2 * f, py = hw + (hr - hw) * (1 - f);
+    bar(px, py, 0, px, py, L, 0.03);
+    bar(W - px, py, 0, W - px, py, L, 0.03);
+  }
+
+  // glazing: roof planes + side walls, as thin double-sided sheets
+  // Triangle fan over any convex outline, so gable ends (which are five-sided) can be
+  // given as one polygon instead of being hand-split into quads.
+  function sheet(pts) {
+    const v = [];
+    for (let i = 1; i + 1 < pts.length; i++) {
+      v.push(...pts[0], ...pts[i], ...pts[i + 1]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(v), 3));
+    g.computeVertexNormals();
+    ghGroup.add(new THREE.Mesh(g, skinMat));
+  }
+  sheet([[0, hw, 0], [W / 2, hr, 0], [W / 2, hr, L], [0, hw, L]]);       // roof left
+  sheet([[W, hw, 0], [W / 2, hr, 0], [W / 2, hr, L], [W, hw, L]]);       // roof right
+  sheet([[0, 0, 0], [0, hw, 0], [0, hw, L], [0, 0, L]]);                 // wall left
+  sheet([[W, 0, 0], [W, hw, 0], [W, hw, L], [W, 0, L]]);                 // wall right
+  sheet([[0, 0, L], [0, hw, L], [W / 2, hr, L], [W, hw, L], [W, 0, L]]);  // gable, far
+
+  // near gable, with a doorway left open in it
+  const dW = 1.1, dH = 2.0, dx0 = W / 2 - dW / 2, dx1 = W / 2 + dW / 2;
+  sheet([[0, 0, 0], [0, hw, 0], [dx0, hw, 0], [dx0, 0, 0]]);
+  sheet([[dx1, 0, 0], [dx1, hw, 0], [W, hw, 0], [W, 0, 0]]);
+  sheet([[dx0, dH, 0], [dx0, hw, 0], [dx1, hw, 0], [dx1, dH, 0]]);
+  sheet([[0, hw, 0], [W / 2, hr, 0], [W, hw, 0]]);
+  bar(dx0, 0, 0, dx0, dH, 0, 0.035);
+  bar(dx1, 0, 0, dx1, dH, 0, 0.035);
+  bar(dx0, dH, 0, dx1, dH, 0, 0.035);
 }
 scene.add(ghGroup);
 
 /* ---------- components ---------- */
 const pickables = [];
 const labelSprites = [];
+const plantGroup = new THREE.Group(); scene.add(plantGroup);
 
 function makeLabel(text, x, y, z) {
-  const pad = 8, fs = 26;
+  const pad = 9, fs = 26;
   const cv = document.createElement("canvas");
-  const ctx = cv.getContext("2d");
+  let ctx = cv.getContext("2d");
   ctx.font = `600 ${fs}px -apple-system, Segoe UI, sans-serif`;
-  cv.width = ctx.measureText(text).width + pad * 2; cv.height = fs + pad * 2;
+  cv.width = Math.ceil(ctx.measureText(text).width) + pad * 2; cv.height = fs + pad * 2;
+  ctx = cv.getContext("2d");
   ctx.font = `600 ${fs}px -apple-system, Segoe UI, sans-serif`;
-  ctx.fillStyle = "rgba(14,22,19,0.78)";
-  ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 10); ctx.fill();
+  ctx.fillStyle = "rgba(12,20,17,0.86)";
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 10); ctx.fill(); }
+  else ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.fillStyle = "#eaf6f0"; ctx.textBaseline = "top"; ctx.fillText(text, pad, pad);
   const tex = new THREE.CanvasTexture(cv);
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-  const s = 0.006;
+  if ("colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  const s = 0.0055;
   spr.scale.set(cv.width * s, cv.height * s, 1);
   spr.position.set(x, y, z);
   spr.visible = false;
+  spr.renderOrder = 10;
   labelSprites.push(spr);
   scene.add(spr);
 }
 
-function addWaterCyl(x, z, d, top) {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(d / 2 - 0.02, 32),
-    new THREE.MeshStandardMaterial({ color: WATER, transparent: true, opacity: WATER_OP, roughness: 0.1 }));
+const waterMat = new THREE.MeshStandardMaterial({
+  color: WATER_COL, transparent: true, opacity: 0.60, roughness: 0.12,
+  metalness: 0.25, side: THREE.DoubleSide });
+
+function waterDisc(x, z, d, top) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(d / 2 - 0.03, 40), waterMat);
   m.rotation.x = -Math.PI / 2; m.position.set(x, top, z); scene.add(m);
+  return m;
 }
-function addWaterBox(x, z, w, l, top) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.04, l - 0.04),
-    new THREE.MeshStandardMaterial({ color: WATER, transparent: true, opacity: WATER_OP, roughness: 0.1 }));
+function waterPlane(x, z, w, l, top) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), waterMat);
   m.rotation.x = -Math.PI / 2; m.position.set(x, top, z); scene.add(m);
+  return m;
 }
 
-const plantMat = new THREE.MeshStandardMaterial({ color: 0x3f9b4f, roughness: 0.9 });
-const plantMat2 = new THREE.MeshStandardMaterial({ color: 0x63b45c, roughness: 0.9 });
-function addPlants(x0, z0, w, l, top, spacing) {
+/* An open trough: base + four walls, no lid. A BoxGeometry here is why the raft beds
+   used to render as solid white slabs with their water sealed invisibly inside. */
+function trough(x, z, w, l, h, baseY, mat) {
+  const g = new THREE.Group();
+  const t = Math.min(0.05, h * 0.16);
+  function slab(sx, sy, sz, px, py, pz) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true;
+    g.add(m); return m;
+  }
+  slab(w, t, l, x, baseY + t / 2, z);
+  slab(w, h, t, x, baseY + h / 2, z - l / 2 + t / 2);
+  slab(w, h, t, x, baseY + h / 2, z + l / 2 - t / 2);
+  slab(t, h, l - t * 2, x - w / 2 + t / 2, baseY + h / 2, z);
+  slab(t, h, l - t * 2, x + w / 2 - t / 2, baseY + h / 2, z);
+  scene.add(g);
+  return g;
+}
+
+/* ---------- plants ----------
+   One InstancedMesh of leaves per bed (plus one of stems), so a full raft costs two draw
+   calls instead of one object per plant. */
+const leafGeo = (function () {
+  // A leaf, not a shard: unit width and length, tapered to the tip and cupped along its
+  // length so it catches light from more than one direction.
+  const g = new THREE.PlaneGeometry(1, 1, 3, 5);
+  g.translate(0, 0.5, 0);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i);
+    const w = Math.sin(Math.PI * Math.min(1, y * 1.05 + 0.12)) * 0.62 + 0.18;  // leaf outline
+    p.setX(i, x * w);
+    p.setZ(i, p.getZ(i) + 0.30 * y * y + 0.55 * x * x * w);                    // arch + cup
+  }
+  g.computeVertexNormals();
+  return g;
+})();
+const stemGeo = new THREE.CylinderGeometry(0.010, 0.016, 1, 5);
+stemGeo.translate(0, 0.5, 0);
+
+function addPlants(cx, cz, w, l, top, spacing) {
   const sp = spacing || 0.25;
   const nx = Math.max(1, Math.floor(w / sp)), nz = Math.max(1, Math.floor(l / sp));
-  const geo = new THREE.SphereGeometry(sp * 0.32, 7, 6);
-  const inst = new THREE.InstancedMesh(geo, Math.random() < 0.5 ? plantMat : plantMat2, nx * nz);
-  const M = new THREE.Matrix4();
-  let i = 0;
+  const n = nx * nz, K = FORM.leaves;
+  const leafMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.72, metalness: 0.0, side: THREE.DoubleSide });
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x4a7536, roughness: 0.9 });
+  const leaves = new THREE.InstancedMesh(leafGeo, leafMat, n * K);
+  leaves.castShadow = true; leaves.receiveShadow = true;
+  const stems = FORM.stem > 0 ? new THREE.InstancedMesh(stemGeo, stemMat, n) : null;
+  if (stems) stems.castShadow = true;
+
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler();
+  const P = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
+  const base = new THREE.Color(FORM.tint);
+  const hsl = {}; base.getHSL(hsl);
+  let li = 0;
   for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++) {
-    const jx = (Math.random() - 0.5) * sp * 0.2, jz = (Math.random() - 0.5) * sp * 0.2;
-    const s = 0.75 + Math.random() * 0.5;
-    M.makeScale(s, s * 0.8, s);
-    M.setPosition(x0 - w / 2 + sp / 2 + a * sp + jx, top + sp * 0.22, z0 - l / 2 + sp / 2 + b * sp + jz);
-    inst.setMatrixAt(i++, M);
+    const px = cx - w / 2 + sp / 2 + a * sp + (rnd() - 0.5) * sp * 0.14;
+    const pz = cz - l / 2 + sp / 2 + b * sp + (rnd() - 0.5) * sp * 0.14;
+    const vigour = 0.80 + rnd() * 0.40;          // not every plant grows the same
+    const H = FORM.h * vigour, stemH = FORM.stem * H;
+    if (stems) {
+      E.set(0, rnd() * 6.283, 0); Q.setFromEuler(E);
+      P.set(px, top, pz); S.set(1, stemH, 1);
+      stems.setMatrixAt(a * nz + b, M.compose(P, Q, S));
+    }
+    // Per-plant colour jitter: a uniform bed of one green is the tell of a rendering.
+    C.setHSL(hsl.h + (rnd() - 0.5) * 0.035, hsl.s * (0.85 + rnd() * 0.3),
+             hsl.l * (0.82 + rnd() * 0.36));
+    const spin = rnd() * 6.283;
+    for (let k = 0; k < K; k++) {
+      const ring = k / K;                        // 0 = outer/oldest, 1 = inner/newest
+      const ang = spin + k * 2.399 + (rnd() - 0.5) * 0.25;   // golden-angle phyllotaxis
+      const tilt = FORM.tilt * (1 - 0.78 * ring) + (rnd() - 0.5) * 0.12;
+      E.set(tilt, ang, 0, "YXZ"); Q.setFromEuler(E);
+      const len = (H - stemH) * (0.55 + 0.5 * (1 - ring)) * (0.85 + rnd() * 0.3);
+      P.set(px, top + stemH, pz);
+      S.set(FORM.leafW * (0.85 + rnd() * 0.3), len, 1);
+      leaves.setMatrixAt(li, M.compose(P, Q, S));
+      leaves.setColorAt(li, C);
+      li++;
+    }
   }
-  inst.castShadow = true;
-  scene.add(inst);
+  leaves.count = li;
+  if (leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
+  plantGroup.add(leaves);
+  if (stems) plantGroup.add(stems);
+  return n;
 }
 
-const tanks = {};   // id -> {x, z, r, waterTop, h} for fish + pipe anchoring
-const boxes = {};
+const tanks = {};
+let plantCount = 0;
 
 for (const o of SCENE.objects || []) {
   const st = ROLE_STYLE[o.role] || ROLE_STYLE.generic;
-  const mat = new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.75, metalness: 0.05 });
-  let mesh;
+  const mat = new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.72, metalness: 0.04 });
+  const meta = { label: o.label || st.label, detail: o.detail || "" };
+
   if (o.kind === "cyl") {
-    const geo = new THREE.CylinderGeometry(o.d / 2, o.d / 2, o.h, 40, 1, true);
-    mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      color: st.color, roughness: 0.75, side: THREE.DoubleSide }));
-    mesh.position.set(o.x, o.h / 2, o.y);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(o.d / 2, 0.025, 8, 40), mat);
-    rim.rotation.x = Math.PI / 2; rim.position.set(o.x, o.h, o.y); scene.add(rim);
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(o.d / 2, o.d / 2, o.h, 44, 1, true),
+      new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.72, side: THREE.DoubleSide }));
+    wall.position.set(o.x, o.h / 2, o.y);
+    wall.castShadow = true; wall.receiveShadow = true;
+    wall.userData = meta; pickables.push(wall); scene.add(wall);
+
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(o.d / 2, 44), mat);
+    floor.rotation.x = -Math.PI / 2; floor.position.set(o.x, 0.01, o.y);
+    floor.receiveShadow = true; scene.add(floor);
+
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(o.d / 2, 0.028, 8, 44), mat);
+    rim.rotation.x = Math.PI / 2; rim.position.set(o.x, o.h, o.y);
+    rim.castShadow = true; scene.add(rim);
+
     const wf = o.water_frac == null ? 0.85 : o.water_frac;
-    if (wf > 0) addWaterCyl(o.x, o.y, o.d, o.h * wf);
-    tanks[o.id] = { x: o.x, z: o.y, r: o.d / 2, waterTop: o.h * wf, h: o.h, role: o.role };
-    makeLabel(o.label || st.label, o.x, o.h + 0.55, o.y);
+    if (wf > 0) waterDisc(o.x, o.y, o.d, o.h * wf);
+    tanks[o.id] = { x: o.x, z: o.y, r: o.d / 2, waterTop: o.h * wf, role: o.role };
+    makeLabel(meta.label, o.x, o.h + 0.5, o.y);
+
   } else {
-    const geo = new THREE.BoxGeometry(o.w, o.h, o.l);
-    mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(o.x, (o.z || 0) + o.h / 2, o.y);
+    const baseY = o.z || 0;
     const wf = o.water_frac == null ? 0 : o.water_frac;
-    const topY = (o.z || 0) + o.h;
-    if (wf > 0) addWaterBox(o.x, o.y, o.w, o.l, (o.z || 0) + o.h * wf);
-    if (o.plants) addPlants(o.x, o.y, o.w, o.l, topY, o.plant_spacing);
-    boxes[o.id] = { x: o.x, z: o.y, w: o.w, l: o.l, topY, role: o.role };
-    makeLabel(o.label || st.label, o.x, topY + 0.55, o.y);
+    const topY = baseY + o.h;
+    const holds = wf > 0;
+
+    if (holds) {
+      const g = trough(o.x, o.y, o.w, o.l, o.h, baseY, mat);
+      g.children.forEach(m => { m.userData = meta; pickables.push(m); });
+      waterPlane(o.x, o.y, o.w - 0.09, o.l - 0.09, baseY + o.h * wf);
+      if (o.role === "media_bed") {
+        const media = new THREE.Mesh(
+          new THREE.BoxGeometry(o.w - 0.1, o.h * 0.9, o.l - 0.1),
+          new THREE.MeshStandardMaterial({ color: 0x6b4f3f, roughness: 1 }));
+        media.position.set(o.x, baseY + o.h * 0.45, o.y);
+        media.receiveShadow = true; scene.add(media);
+      } else if (o.role === "dwc_bed") {
+        // Floating rafts: what a DWC bed actually shows from above.
+        const nRaft = Math.max(1, Math.round(o.l / 1.2));
+        const rl = (o.l - 0.09) / nRaft;
+        const raftMat = new THREE.MeshStandardMaterial({ color: 0xf2f5f3, roughness: 0.85 });
+        for (let i = 0; i < nRaft; i++) {
+          const r = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.14, 0.025, rl * 0.94), raftMat);
+          r.position.set(o.x, baseY + o.h * wf + 0.012,
+            o.y - o.l / 2 + 0.045 + rl * (i + 0.5));
+          r.castShadow = true; r.receiveShadow = true;
+          r.userData = meta; pickables.push(r); scene.add(r);
+        }
+      }
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.l), mat);
+      m.position.set(o.x, baseY + o.h / 2, o.y);
+      m.castShadow = true; m.receiveShadow = true;
+      m.userData = meta; pickables.push(m); scene.add(m);
+      if (baseY > 0.02) {   // benches and stands need legs, or they float
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x8d9aa0, metalness: 0.4, roughness: 0.5 });
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, baseY, 0.05), legMat);
+          leg.position.set(o.x + sx * (o.w / 2 - 0.08), baseY / 2, o.y + sz * (o.l / 2 - 0.12));
+          leg.castShadow = true; scene.add(leg);
+        }
+      }
+    }
+    if (o.plants) {
+      const plantTop = o.role === "dwc_bed" ? baseY + o.h * wf + 0.025 : topY;
+      plantCount += addPlants(o.x, o.y, o.w, o.l, plantTop, o.plant_spacing);
+    }
+    makeLabel(meta.label, o.x, topY + 0.5, o.y);
   }
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  mesh.userData = { label: o.label || st.label, detail: o.detail || "" };
-  pickables.push(mesh);
-  scene.add(mesh);
 }
 
-/* ---------- pipes + flow particles ---------- */
-const flowGroup = new THREE.Group();
-scene.add(flowGroup);
-const flows = [];  // {curve, len, particles: InstancedMesh, n, speed}
-const pipeMat = new THREE.MeshStandardMaterial({ color: 0xd8dee2, roughness: 0.5 });
-const dropMat = new THREE.MeshBasicMaterial({ color: 0x8fd9ff });
+/* ---------- pipes + flow ---------- */
+const flowGroup = new THREE.Group(); scene.add(flowGroup);
+const flows = [];
+const pipeMat = new THREE.MeshStandardMaterial({ color: 0x5c666b, roughness: 0.4, metalness: 0.25 });
+const pumpMat = new THREE.MeshStandardMaterial({ color: 0xc2703a, roughness: 0.4, metalness: 0.25 });
+const dropMat = new THREE.MeshBasicMaterial({ color: 0x7fd4ff });
 
 for (const p of SCENE.pipes || []) {
   const pts = p.path.map(q => new THREE.Vector3(q[0], q[2], q[1]));
-  const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.08);
+  const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.05);
   const len = curve.getLength();
-  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12, len * 6 | 0), (p.d || 0.04) / 2, 10), pipeMat);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, Math.max(16, (len * 7) | 0), (p.d || 0.05) / 2, 10),
+    p.pumped ? pumpMat : pipeMat);
   tube.castShadow = true;
+  const fall = (p.path[0][2] - p.path[p.path.length - 1][2]);
+  tube.userData = {
+    label: (p.pumped ? "PUMPED return " : "gravity ") + p.from + " → " + p.to,
+    detail: [(p.d ? Math.round(p.d * 1000) + " mm" : ""),
+             (p.flow_lpm ? p.flow_lpm + " L/min" : ""),
+             (p.length_m ? p.length_m.toFixed(2) + " m routed" : ""),
+             (p.pumped ? "lifts " + Math.abs(fall).toFixed(2) + " m"
+                       : "falls " + fall.toFixed(2) + " m")].filter(Boolean).join(" · ") };
+  pickables.push(tube);
   flowGroup.add(tube);
-  const n = Math.max(4, Math.min(40, len * 3 | 0));
-  const drops = new THREE.InstancedMesh(new THREE.SphereGeometry((p.d || 0.04) * 0.7, 6, 5), dropMat, n);
+  const n = Math.max(5, Math.min(44, (len * 3.5) | 0));
+  const drops = new THREE.InstancedMesh(new THREE.SphereGeometry((p.d || 0.05) * 0.62, 6, 5), dropMat, n);
   flowGroup.add(drops);
-  flows.push({ curve, len, drops, n, speed: 0.11 + 0.05 * Math.min(1, (p.flow_lpm || 30) / 60), off: Math.random() });
+  flows.push({ curve, drops, n, speed: 0.10 + 0.06 * Math.min(1, (p.flow_lpm || 30) / 90), off: rnd() });
 }
 
-/* ---------- fish ---------- */
-const fishGroup = new THREE.Group();
-scene.add(fishGroup);
+/* ---------- fish ----------
+   Fish used to orbit the tank centre at a fixed radius and depth, which reads as a
+   carousel rather than a stocked tank. Each fish now steers: it holds a heading, turns
+   by a slow random walk, drifts in depth, and is pushed back when it nears the wall. */
+const fishGroup = new THREE.Group(); scene.add(fishGroup);
 const fishes = [];
-const fishGeo = new THREE.ConeGeometry(0.045, 0.16, 6);
-fishGeo.rotateX(Math.PI / 2);
-const fishMat = new THREE.MeshStandardMaterial({ color: 0xd8956b, roughness: 0.6 });
-for (const f of SCENE.fish || []) {
-  const t = tanks[f.tank]; if (!t) continue;
-  const n = Math.min(f.count || 10, 60);
-  for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(fishGeo, fishMat);
-    const s = (f.length_m || 0.15) / 0.16;
-    m.scale.set(s, s, s);
-    fishGroup.add(m);
-    fishes.push({
-      m, t,
-      a: Math.random() * Math.PI * 2,               // angular position
-      rr: 0.25 + Math.random() * 0.6,               // radius fraction
-      y: 0.25 + Math.random() * 0.55,               // depth fraction
-      w: (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.5),  // angular speed
-      wob: Math.random() * Math.PI * 2,
-    });
+{
+  const bodyGeo = new THREE.SphereGeometry(0.5, 10, 8);
+  bodyGeo.scale(0.32, 0.42, 1.0);
+  const tailGeo = new THREE.ConeGeometry(0.26, 0.34, 4);
+  tailGeo.rotateX(-Math.PI / 2); tailGeo.scale(0.35, 1.0, 1.0); tailGeo.translate(0, 0, -0.62);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xb98a5e, roughness: 0.45, metalness: 0.15 });
+  const tailMat = new THREE.MeshStandardMaterial({ color: 0x9d7150, roughness: 0.5,
+    transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+
+  for (const f of SCENE.fish || []) {
+    const t = tanks[f.tank]; if (!t) continue;
+    const n = Math.min(f.count || 10, 60);
+    const L = f.length_m || 0.15;
+    for (let i = 0; i < n; i++) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      g.add(body, tail);
+      g.scale.setScalar(L);
+      fishGroup.add(g);
+      const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * t.r * 0.72;
+      fishes.push({
+        g, t, tail,
+        x: t.x + rr * Math.cos(a), z: t.z + rr * Math.sin(a),
+        y: t.waterTop * (0.25 + rnd() * 0.55),
+        head: rnd() * 6.283,
+        turn: (rnd() - 0.5) * 0.6,
+        speed: L * (1.1 + rnd() * 1.1),          // body-lengths per second, roughly
+        bob: rnd() * 6.283,
+        wag: rnd() * 6.283,
+      });
+    }
   }
+}
+
+/* ---------- a person, for scale ----------
+   The single cheapest thing that makes a rendering legible: without it the eye has no
+   way to tell a 4 m tunnel from a 40 m one. */
+const humanGroup = new THREE.Group();
+{
+  const skin = new THREE.MeshStandardMaterial({ color: 0x8d6748, roughness: 0.9 });
+  const cloth = new THREE.MeshStandardMaterial({ color: 0x35566b, roughness: 0.95 });
+  function part(geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+    m.castShadow = true; humanGroup.add(m);
+  }
+  part(new THREE.CylinderGeometry(0.055, 0.06, 0.82, 8), cloth, -0.075, 0.41, 0);
+  part(new THREE.CylinderGeometry(0.055, 0.06, 0.82, 8), cloth, 0.075, 0.41, 0);
+  part(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.16, 0.42, 4, 10)
+                                 : new THREE.CylinderGeometry(0.17, 0.17, 0.6, 10), cloth, 0, 1.11, 0);
+  part(new THREE.SphereGeometry(0.105, 12, 10), skin, 0, 1.58, 0);
+  part(new THREE.CylinderGeometry(0.035, 0.035, 0.56, 7), skin, -0.21, 1.12, 0.02);
+  part(new THREE.CylinderGeometry(0.035, 0.035, 0.56, 7), skin, 0.21, 1.12, 0.02);
+  humanGroup.position.set(gw / 2 + 0.95, 0, 0.55);
+  humanGroup.rotation.y = -0.5;
+  scene.add(humanGroup);
+}
+
+/* ---------- dimensions ---------- */
+const dimGroup = new THREE.Group(); dimGroup.visible = false; scene.add(dimGroup);
+{
+  const dimMat = new THREE.LineBasicMaterial({ color: 0x1d2b26 });
+  function dimLine(a, b, text) {
+    const g = new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+    dimGroup.add(new THREE.Line(g, dimMat));
+    const cv = document.createElement("canvas");
+    let ctx = cv.getContext("2d");
+    ctx.font = "600 30px -apple-system, Segoe UI, sans-serif";
+    cv.width = Math.ceil(ctx.measureText(text).width) + 22; cv.height = 46;
+    ctx = cv.getContext("2d");
+    ctx.font = "600 30px -apple-system, Segoe UI, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(0, 0, cv.width, cv.height, 8); ctx.fill(); }
+    else ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = "#16241f"; ctx.textBaseline = "middle"; ctx.fillText(text, 11, 24);
+    const tex = new THREE.CanvasTexture(cv);
+    if ("colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    s.scale.set(cv.width * 0.0052, cv.height * 0.0052, 1);
+    s.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 0.22, (a[2] + b[2]) / 2);
+    s.renderOrder = 11;
+    dimGroup.add(s);
+  }
+  const off = 0.5;
+  dimLine([0, 0.02, -off], [gw, 0.02, -off], gw.toFixed(1) + " m wide");
+  dimLine([gw + off, 0.02, 0], [gw + off, 0.02, gl], gl.toFixed(1) + " m long");
+  dimLine([-off, 0, 0], [-off, gridgeH, 0], gridgeH.toFixed(1) + " m ridge");
+  dimLine([gw + off, 0, gl], [gw + off, 1.7, gl], "1.7 m person");
 }
 
 /* ---------- HUD ---------- */
 document.getElementById("t-name").textContent = SCENE.name || "Aquaponic system";
 document.getElementById("t-sub").textContent = SCENE.subtitle || "";
-const list = document.getElementById("t-list");
+
+const legendHost = document.getElementById("legend-scroll");
+const byGroup = new Map();
 for (const o of SCENE.objects || []) {
   const st = ROLE_STYLE[o.role] || ROLE_STYLE.generic;
-  const li = document.createElement("li");
-  const dot = document.createElement("span");
-  dot.className = "dot"; dot.style.background = "#" + st.color.toString(16).padStart(6, "0");
-  const tx = document.createElement("span"); tx.textContent = o.label || st.label;
-  li.append(dot, tx);
-  li.onclick = () => {
-    const target = o.kind === "cyl" ? new THREE.Vector3(o.x, o.h / 2, o.y)
-                                    : new THREE.Vector3(o.x, ((o.z || 0) + o.h) / 2, o.y);
-    controls.target.copy(target);
-  };
-  list.appendChild(li);
+  if (!byGroup.has(st.grp)) byGroup.set(st.grp, []);
+  byGroup.get(st.grp).push([o, st]);
 }
+let legendItems = 0;
+for (const grp of GROUP_ORDER) {
+  const rows = byGroup.get(grp);
+  if (!rows || !rows.length) continue;
+  const h = document.createElement("div"); h.className = "grp"; h.textContent = grp;
+  legendHost.appendChild(h);
+  const ul = document.createElement("ul");
+  for (const [o, st] of rows) {
+    const li = document.createElement("li");
+    const dot = document.createElement("span");
+    dot.className = "dot"; dot.style.background = "#" + st.color.toString(16).padStart(6, "0");
+    const tx = document.createElement("span"); tx.className = "nm";
+    tx.textContent = o.label || st.label;
+    li.append(dot, tx);
+    li.title = o.detail || "";
+    li.onclick = () => {
+      const y = o.kind === "cyl" ? o.h * 0.6 : ((o.z || 0) + o.h) * 0.8;
+      flyTo(new THREE.Vector3(o.x + 2.2, y + 1.8, o.y + 2.6),
+            new THREE.Vector3(o.x, y, o.y));
+    };
+    ul.appendChild(li); legendItems++;
+  }
+  legendHost.appendChild(ul);
+}
+
 function bindToggle(id, group) {
   const b = document.getElementById(id);
   b.onclick = () => { group.visible = !group.visible; b.classList.toggle("on", group.visible); };
@@ -334,11 +703,53 @@ function bindToggle(id, group) {
 bindToggle("b-gh", ghGroup);
 bindToggle("b-flow", flowGroup);
 bindToggle("b-fish", fishGroup);
+bindToggle("b-plants", plantGroup);
+bindToggle("b-dims", dimGroup);
 document.getElementById("b-labels").onclick = function () {
-  const on = !labelSprites.length || !labelSprites[0].visible;
+  const on = labelSprites.length ? !labelSprites[0].visible : false;
   labelSprites.forEach(s => s.visible = on);
   this.classList.toggle("on", on);
 };
+
+/* ---------- camera presets ---------- */
+let fly = null;
+function flyTo(pos, target) {
+  fly = { p0: camera.position.clone(), p1: pos.clone(),
+          t0: controls.target.clone(), t1: target.clone(), u: 0 };
+}
+// Distance that puts a sphere of `radius` fully in frame at the current aspect ratio.
+function fitDistance(radius, margin) {
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * Math.max(0.65, camera.aspect));
+  return (radius / Math.sin(Math.min(vFov, hFov) / 2)) * (margin || 1.06);
+}
+const SITE_R = Math.hypot(gw, gl, gridgeH) / 2;
+const VIEWS = {
+  iso: () => {
+    const d = fitDistance(SITE_R, 1.10);
+    const dir = new THREE.Vector3(0.62, 0.52, 0.59).normalize();
+    return [new THREE.Vector3(CX, gridgeH * 0.45, CZ).add(dir.multiplyScalar(d)),
+            new THREE.Vector3(CX, gridgeH * 0.35, CZ)];
+  },
+  plan: () => [new THREE.Vector3(CX, fitDistance(SITE_R, 1.02), CZ + 0.01),
+               new THREE.Vector3(CX, 0, CZ)],
+  front: () => [new THREE.Vector3(CX, gridgeH * 0.62, CZ - fitDistance(SITE_R, 1.06)),
+                new THREE.Vector3(CX, gridgeH * 0.40, CZ)],
+  inside: () => [new THREE.Vector3(CX, 1.68, -0.55),
+                 new THREE.Vector3(CX, 1.02, gl * 0.92)],
+};
+let activeView = "iso";
+document.querySelectorAll("button.view").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("button.view").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    activeView = b.dataset.view;
+    const [p, t] = VIEWS[activeView]();
+    flyTo(p, t);
+  };
+});
+// Orbiting by hand means the user has taken the camera; stop re-framing under them.
+controls.addEventListener("start", () => { activeView = null; });
 
 /* ---------- hover tooltip ---------- */
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -347,63 +758,101 @@ canvas.addEventListener("pointermove", e => {
   mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(mouse, camera);
   const hit = ray.intersectObjects(pickables, false)[0];
-  if (hit) {
+  if (hit && hit.object.userData && hit.object.userData.label) {
     tip.style.display = "block";
-    tip.style.left = e.clientX + 14 + "px";
-    tip.style.top = e.clientY + 10 + "px";
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 280) + "px";
+    tip.style.top = (e.clientY + 12) + "px";
     tip.innerHTML = "<b>" + hit.object.userData.label + "</b>" +
       (hit.object.userData.detail ? "<br>" + hit.object.userData.detail : "");
   } else tip.style.display = "none";
 });
+canvas.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+
+/* ---------- scale bar ---------- */
+const sbBar = document.getElementById("sb-bar"), sbTxt = document.getElementById("sb-txt");
+function updateScaleBar() {
+  const d = camera.position.distanceTo(controls.target);
+  const worldPerPx = 2 * Math.tan((camera.fov * Math.PI / 180) / 2) * d / canvas.clientHeight;
+  const nice = [0.5, 1, 2, 5, 10, 20, 50];
+  const target = worldPerPx * 90;
+  const m = nice.reduce((a, b) => Math.abs(b - target) < Math.abs(a - target) ? b : a, nice[0]);
+  sbBar.style.width = Math.round(m / worldPerPx) + "px";
+  sbTxt.textContent = m + " m";
+}
+
+/* ---------- testable summary ---------- */
+window.__SCENE_STATS__ = {
+  webgl: !!renderer,
+  schema: SCENE.schema_version || "",
+  objects: (SCENE.objects || []).length,
+  pipes: flows.length,
+  fish: fishes.length,
+  plants: plantCount,
+  hudItems: legendItems,
+  greenhouse: !!SCENE.greenhouse,
+  crop: SCENE.crop || "",
+};
 
 /* ---------- animate ---------- */
 const M4 = new THREE.Matrix4();
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (canvas.width !== w * renderer.getPixelRatio() | 0 || canvas.height !== h * renderer.getPixelRatio() | 0) {
+  if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) ||
+      canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    if (!fly && activeView) { const [p, tg] = VIEWS[activeView](); flyTo(p, tg); }
   }
 }
-// Testable summary of what was built — asserted headless, where WebGL may not exist.
-window.__SCENE_STATS__ = {
-  webgl: !!renderer,
-  objects: (SCENE.objects || []).length,
-  pipes: flows.length,
-  fish: fishes.length,
-  hudItems: list.children.length,
-  greenhouse: !!SCENE.greenhouse,
-};
 
 let last = 0;
 function tick(tms) {
   const t = tms / 1000, dt = Math.min(0.05, t - last); last = t;
   resize();
+
+  if (fly) {
+    fly.u = Math.min(1, fly.u + dt * 1.7);
+    const e = fly.u < 0.5 ? 2 * fly.u * fly.u : 1 - Math.pow(-2 * fly.u + 2, 2) / 2;
+    camera.position.lerpVectors(fly.p0, fly.p1, e);
+    controls.target.lerpVectors(fly.t0, fly.t1, e);
+    if (fly.u >= 1) fly = null;
+  }
   controls.update();
+  updateScaleBar();
 
   if (flowGroup.visible) for (const f of flows) {
     for (let i = 0; i < f.n; i++) {
       const u = (f.off + i / f.n + t * f.speed) % 1;
-      const pos = f.curve.getPointAt(u);
-      M4.makeTranslation(pos.x, pos.y, pos.z);
+      const p = f.curve.getPointAt(u);
+      M4.makeTranslation(p.x, p.y, p.z);
       f.drops.setMatrixAt(i, M4);
     }
     f.drops.instanceMatrix.needsUpdate = true;
   }
 
   if (fishGroup.visible) for (const f of fishes) {
-    f.a += f.w * dt;
-    f.wob += dt * 6;
-    const r = f.t.r * f.rr * (1 + 0.06 * Math.sin(f.wob * 0.35));
-    const x = f.t.x + r * Math.cos(f.a);
-    const z = f.t.z + r * Math.sin(f.a);
-    const y = f.t.waterTop * f.y + 0.03 * Math.sin(f.wob * 0.5);
-    f.m.position.set(x, y, z);
-    // face direction of travel (tangent of the circle, sign of w)
-    const dirx = -Math.sin(f.a) * Math.sign(f.w), dirz = Math.cos(f.a) * Math.sign(f.w);
-    f.m.lookAt(x + dirx, y, z + dirz);
-    f.m.rotation.z = 0.15 * Math.sin(f.wob);
+    // steer: slow random walk on heading, plus a push away from the tank wall
+    f.turn += (Math.sin(t * 0.7 + f.bob) * 0.5 - f.turn) * dt * 0.8;
+    f.head += f.turn * dt;
+    const dx = f.x - f.t.x, dz = f.z - f.t.z;
+    const dist = Math.hypot(dx, dz), edge = f.t.r * 0.80;
+    if (dist > edge) {
+      const inward = Math.atan2(-dz, -dx);
+      let diff = ((inward - f.head + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      f.head += diff * Math.min(1, (dist - edge) / (f.t.r * 0.2)) * dt * 3.2;
+    }
+    const v = f.speed * (0.85 + 0.3 * Math.sin(t * 1.3 + f.wag));
+    f.x += Math.cos(f.head) * v * dt;
+    f.z += Math.sin(f.head) * v * dt;
+    f.bob += dt * 0.6;
+    f.y += Math.sin(f.bob) * 0.06 * dt;
+    f.y = Math.max(f.t.waterTop * 0.12, Math.min(f.t.waterTop * 0.92, f.y));
+    f.g.position.set(f.x, f.y, f.z);
+    f.g.rotation.set(0, -f.head + Math.PI / 2, 0);
+    f.wag += dt * (7 + v * 8);
+    f.tail.rotation.y = 0.45 * Math.sin(f.wag);
+    f.g.rotation.z = 0.10 * Math.sin(f.wag * 0.5);
   }
 
   renderer.render(scene, camera);

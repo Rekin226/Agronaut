@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     layout = plan_layout(out, crop_label=args.crop, species_label=args.species)
     scene = to_scene(
         layout, out,
+        crop=args.crop, species=args.species,
         name=f"{args.system_type.replace('_', ' ').title()} aquaponics — "
              f"{args.species} + {args.crop}",
         subtitle=(f"{out.grow_area_m2:.0f} m² grow area · {out.fish_count} fish "
