@@ -7,6 +7,13 @@ hold for anything derived from an image.
 
 Provider-agnostic, mirroring agent/llm.py: select with VLM_PROVIDER / VLM_MODEL. The
 backend library is imported lazily, so importing this module needs nothing installed.
+
+    nvidia -> hosted, needs NVIDIA_API_KEY (the default)
+    ollama -> local, no key and no connectivity: `ollama pull llama3.2-vision`
+
+Whatever the provider, the VLM's words go through `sanitize_observation` before anyone
+sees them, so a hallucinated "pH is about 6.4" cannot reach a calculation. That guard is
+provider-independent and a new backend inherits it.
 """
 
 from __future__ import annotations
@@ -21,8 +28,19 @@ log = logging.getLogger(__name__)
 DEFAULT_MODELS = {
     # NVIDIA hosts OpenAI-compatible vision models on the same free tier as the chat brain.
     "nvidia": "meta/llama-3.2-11b-vision-instruct",
+    # The offline path: the same model family as the NVIDIA default, so an observation from
+    # a self-hosted install is comparable to a hosted one. `ollama pull llama3.2-vision`.
+    # Alternatives via VLM_MODEL: qwen2.5vl (strong, 3b/7b variants), llava, or moondream
+    # for a machine that cannot hold an 11B.
+    "ollama": "llama3.2-vision",
 }
 SUPPORTED = tuple(DEFAULT_MODELS)
+
+# The default stays `nvidia` deliberately, even though the CHAT default is `ollama`. Making
+# vision follow LLM_PROVIDER would be convenient and would also mean changing one env var
+# silently changed another subsystem, with a failure mode (photos quietly declined) that
+# gives the operator nothing to go on. Self-hosters set VLM_PROVIDER=ollama; the README says
+# so, and `default_describer` now says so too when it cannot build a backend.
 
 _OBSERVE_PROMPT = (
     "You are helping an aquaponics assistant. Describe ONLY what you can see in this photo "
@@ -240,8 +258,57 @@ def strip_exif(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
+def _ollama_lacks_vision(model: str) -> bool:
+    """True only when Ollama positively reports this model cannot see.
+
+    The trap this exists to spring: a text-only tag accepts an image-bearing message,
+    ignores the image, and answers from the prompt alone. The reply looks like a real
+    observation and is pure invention, which is the worst possible failure for a subsystem
+    whose entire job is to report what is actually in a photograph. It is the same shape of
+    bug as `llama3` binding tools and never calling one.
+
+    Deliberately one-sided: anything unknown (no daemon, old client, unexpected response
+    shape) returns False. A probe that cannot reach the server must never block an install
+    that would otherwise work.
+    """
+    try:
+        import ollama
+        info = ollama.show(model)
+        caps = getattr(info, "capabilities", None)
+        if caps is None and isinstance(info, dict):
+            caps = info.get("capabilities")
+        if not caps:
+            return False
+        return "vision" not in {str(c).lower() for c in caps}
+    except Exception:
+        log.debug("could not probe Ollama capabilities for %r", model, exc_info=True)
+        return False
+
+
 def _build_vlm_backend(provider: str, model: str):
     """Return a callable(data_uri, prompt) -> str for the resolved provider. Lazy imports."""
+    if provider == "ollama":
+        from langchain_core.messages import HumanMessage
+        from langchain_ollama import ChatOllama
+        if _ollama_lacks_vision(model):
+            raise ValueError(
+                f"Ollama model {model!r} has no vision capability, so it would ignore the "
+                f"image and describe nothing. Pull one that can see: "
+                f"`ollama pull llama3.2-vision` (or set VLM_MODEL to qwen2.5vl / llava)."
+            )
+        client = ChatOllama(model=model, temperature=0.0)
+
+        def _call(data_uri: str, prompt: str) -> str:
+            # Same content shape as the NVIDIA branch: langchain_ollama accepts a dict
+            # image_url and splits the base64 payload off the data URI itself.
+            msg = HumanMessage(content=[
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": data_uri}},
+            ])
+            out = client.invoke([msg])
+            return (getattr(out, "content", "") or "").strip()
+
+        return _call
     if provider == "nvidia":
         from langchain_core.messages import HumanMessage
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -276,8 +343,20 @@ def default_describer():
         return None
     try:
         provider, model = resolve()
-        backend = _build_vlm_backend(provider, model)
     except Exception:
-        log.debug("vision backend unavailable", exc_info=True)
+        log.warning("VLM_PROVIDER is not a known provider; photos will be declined",
+                    exc_info=True)
+        return None
+    try:
+        backend = _build_vlm_backend(provider, model)
+    except Exception as exc:  # noqa: BLE001 — a missing VLM must never break startup
+        # Warning, not debug. This used to fail silently, so an operator whose install
+        # declined every photo had nothing in the log to act on. Naming the resolved
+        # provider and model is the difference between a bug report and a one-line fix.
+        log.warning(
+            "vision unavailable (provider=%s model=%s): %s. "
+            "Self-hosting? Set VLM_PROVIDER=ollama and `ollama pull llama3.2-vision`. "
+            "Hosted? VLM_PROVIDER=nvidia needs NVIDIA_API_KEY.",
+            provider, model, exc)
         return None
     return make_describer(backend)

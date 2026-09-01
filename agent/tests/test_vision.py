@@ -319,3 +319,103 @@ def test_strip_exif_applies_orientation_before_discarding_it():
     out = Image.open(io.BytesIO(cleaned))
     assert out.size == (20, 40)  # orientation applied: now portrait
     assert not out.getexif()     # and the tag itself is gone
+
+
+# --- the local (offline) provider ---------------------------------------------------------
+
+def test_ollama_is_a_supported_provider(monkeypatch):
+    """Vision was the last subsystem that still needed an API key (#121)."""
+    monkeypatch.setenv("VLM_PROVIDER", "ollama")
+    monkeypatch.delenv("VLM_MODEL", raising=False)
+    provider, model = vision.resolve()
+    assert provider == "ollama"
+    assert model == vision.DEFAULT_MODELS["ollama"]
+
+
+def test_the_hosted_provider_stays_the_default(monkeypatch):
+    """Adding the local path must not silently change what an existing install uses:
+    switching a working NVIDIA deployment to a model nobody has pulled would decline every
+    photo with no error the operator can see."""
+    monkeypatch.delenv("VLM_PROVIDER", raising=False)
+    assert vision.resolve()[0] == "nvidia"
+
+
+def _fake_ollama(monkeypatch, capabilities):
+    """Make the capability probe answer without a daemon.
+
+    Patches `show` on the REAL ollama module rather than substituting a fake one in
+    sys.modules: langchain_ollama imports `AsyncClient, Client, Message` from it, so a stub
+    module breaks the very backend these tests are about.
+    """
+    import ollama
+    monkeypatch.setattr(ollama, "show", lambda model: {"capabilities": capabilities})
+
+
+def test_a_text_only_tag_is_refused_loudly(monkeypatch):
+    """A text-only model accepts an image-bearing message, ignores the image and answers
+    from the prompt alone. The reply reads like an observation and is invention. Better to
+    refuse to build than to describe a photo nobody looked at."""
+    _fake_ollama(monkeypatch, ["completion", "tools"])
+    assert vision._ollama_lacks_vision("qwen2.5") is True
+    import pytest
+    with pytest.raises(ValueError, match="no vision capability"):
+        vision._build_vlm_backend("ollama", "qwen2.5")
+
+
+def test_a_vision_tag_passes_the_probe(monkeypatch):
+    _fake_ollama(monkeypatch, ["completion", "vision"])
+    assert vision._ollama_lacks_vision("llama3.2-vision") is False
+
+
+def test_an_unreachable_daemon_does_not_block_a_working_install(monkeypatch):
+    """The probe is one-sided on purpose: unknown must never mean refuse."""
+    import ollama
+
+    def _boom(model):
+        raise ConnectionError("no daemon")
+    monkeypatch.setattr(ollama, "show", _boom)
+    assert vision._ollama_lacks_vision("llama3.2-vision") is False
+
+
+def test_an_old_client_reporting_no_capabilities_does_not_block(monkeypatch):
+    _fake_ollama(monkeypatch, [])
+    assert vision._ollama_lacks_vision("llama3.2-vision") is False
+
+
+def test_the_local_backend_sends_the_image_in_the_shape_ollama_parses(monkeypatch):
+    """langchain_ollama reads {"type": "image_url", "image_url": {"url": ...}} and splits
+    the base64 payload off the data URI itself. If this shape drifts, images are dropped
+    silently and the model describes nothing."""
+    _fake_ollama(monkeypatch, ["vision"])
+    sent = {}
+
+    class _FakeChat:
+        def __init__(self, **kw):
+            sent["init"] = kw
+
+        def invoke(self, messages):
+            sent["content"] = messages[0].content
+            class _Out:
+                content = "Leaves are pale at the margins."
+            return _Out()
+
+    import langchain_ollama
+    monkeypatch.setattr(langchain_ollama, "ChatOllama", _FakeChat)
+    backend = vision._build_vlm_backend("ollama", "llama3.2-vision")
+    out = backend("data:image/jpeg;base64,QUJD", "describe this")
+
+    assert out == "Leaves are pale at the margins."
+    kinds = [part["type"] for part in sent["content"]]
+    assert kinds == ["text", "image_url"]
+    assert sent["content"][1]["image_url"] == {"url": "data:image/jpeg;base64,QUJD"}
+    assert sent["init"]["model"] == "llama3.2-vision"
+
+
+def test_the_local_path_still_goes_through_the_sanitizer():
+    """A local model is not a trusted one. Whatever it says is still stripped of numbers
+    and prescriptions before anyone reads it."""
+    cleaned, flags = vision.sanitize_observation(
+        "The water is cloudy and ammonia reads 4 mg/L. Add chelated iron to the sump.")
+    assert "4 mg/L" not in cleaned
+    assert "chelated iron" not in cleaned
+    assert "stripped:measurement" in flags and "stripped:prescriptive" in flags
