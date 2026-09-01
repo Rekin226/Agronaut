@@ -109,3 +109,38 @@ def test_scene_serialization_is_complete_and_json_safe():
 def test_layout_declares_it_is_a_proposal():
     layout = plan_layout(_design("raft"))
     assert any("not a site plan" in a for a in layout.assumptions)
+
+
+def test_rearing_tanks_are_plumbed_in_parallel_never_in_series():
+    """Tank1 -> tank2 would feed one tank's waste into the next, which is the opposite of
+    what everything downstream exists to do. Every tank drains to the same first treatment
+    stage instead."""
+    layout = plan_layout(_design(area=40.0))     # big enough to split into several tanks
+    tank_ids = {c.id for c in layout.components if c.role == "fish_tank"}
+    assert len(tank_ids) > 1, "this test needs a design that splits into multiple tanks"
+    for p in layout.pipes:
+        assert not (p.from_id in tank_ids and p.to_id in tank_ids), (
+            f"{p.from_id} is plumbed into {p.to_id}: rearing tanks are in series")
+    drains = {p.to_id for p in layout.pipes if p.from_id in tank_ids}
+    assert len(drains) == 1, f"tanks drain to {drains}; they should share one first stage"
+
+
+def test_the_pump_returns_to_every_rearing_tank():
+    """A return line to only the first tank leaves the others with no inflow at all."""
+    layout = plan_layout(_design(area=40.0))
+    tank_ids = {c.id for c in layout.components if c.role == "fish_tank"}
+    sump = next(c for c in layout.components if c.role == "sump")
+    returned = {p.to_id for p in layout.pipes if p.from_id == sump.id}
+    assert tank_ids <= returned, f"no return line to {sorted(tank_ids - returned)}"
+
+
+def test_every_component_is_connected_to_the_loop():
+    """An orphan vessel on the drawing is a vessel nobody plumbed."""
+    for system_type in ("raft", "nft", "media_bed", "vertical_tower"):
+        layout = plan_layout(_design(system_type))
+        plumbed = {p.from_id for p in layout.pipes} | {p.to_id for p in layout.pipes}
+        # Grow units repeat; only the first is drawn into the loop, by design.
+        expected = {c.id for c in layout.components
+                    if not c.id.startswith("bed") or c.id == "bed1"}
+        assert expected <= plumbed, (
+            f"{system_type}: orphaned {sorted(expected - plumbed)}")

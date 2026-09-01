@@ -21,6 +21,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from . import hydraulics
 from .system_types import SystemType, get_system_type
 from .types import DesignOutput
 
@@ -39,7 +40,6 @@ NFT_BENCH_H_M = 0.85      # channels on benches at working height
 MEDIA_BED_STAND_H_M = 0.55
 TOWER_H_M = 2.0
 TOWER_ROW_SPACING_M = 1.0
-PIPE_RUN_H_M = 0.25       # distribution plumbing runs near the floor
 
 
 @dataclass(frozen=True)
@@ -77,6 +77,8 @@ class PipeRun:
     path: tuple[tuple[float, float, float], ...]
     diameter_m: float = 0.05
     flow_lpm: float = 30.0
+    pumped: bool = False      # False = falls under gravity; True = the pump's return line
+    length_m: float = 0.0     # routed length, not straight-line — this is what head uses
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,7 @@ class Layout:
     components: tuple[Placed, ...]
     pipes: tuple[PipeRun, ...]
     assumptions: tuple[str, ...] = field(default_factory=tuple)
+    hydraulics: "hydraulics.HydraulicReport | None" = None
 
     def by_role(self, role: str) -> list[Placed]:
         return [c for c in self.components if c.role == role]
@@ -287,42 +290,49 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
     # --- plumbing: one loop, in flow order ---
     # Main flow order: fish -> solids removal -> biofilter -> degasser -> beds -> sump.
     # The mineraliser is a SPUR off the solids stream (sludge goes there, not the main flow).
-    order = ([c for c in comps if c.role == "fish_tank"]
-             + [c for c in comps if c.role in ("clarifier", "settling")]
-             + [c for c in comps if c.role == "biofilter"]
-             + [c for c in comps if c.role == "degasser"])
+    #
+    # Rearing tanks sit in PARALLEL on that loop, never in series. Chaining tank1 -> tank2
+    # would feed one tank's waste straight into the next, which is the exact thing the
+    # filtration downstream exists to prevent, and it is the first error an operator reads
+    # off a drawing. Every tank drains to the first treatment stage; the pump returns to
+    # every tank through a manifold.
+    rearing = [c for c in comps if c.role == "fish_tank"]
+    treatment = ([c for c in comps if c.role in ("clarifier", "settling")]
+                 + [c for c in comps if c.role == "biofilter"]
+                 + [c for c in comps if c.role == "degasser"])
     first_bed = next((c for c in comps if c.role == role), None)
     sump = next((c for c in comps if c.role == "sump"), None)
     flow_lpm = out.pump_turnover_lph / 60.0 if out.pump_turnover_lph else 30.0
 
-    def rim(c: Placed) -> tuple[float, float, float]:
-        top = c.z + (c.h if c.kind == "box" else c.h)
-        return (c.x, c.y, round(top * (c.water_frac or 0.9), 2))
-
-    pipes: list[PipeRun] = []
-
-    def run(a: Placed, b: Placed) -> None:
-        ax, ay, az = rim(a)
-        bx, by, bz = rim(b)
-        pipes.append(PipeRun(
-            from_id=a.id, to_id=b.id,
-            path=((ax, ay, az), (ax, ay, PIPE_RUN_H_M), (bx, by, PIPE_RUN_H_M), (bx, by, bz)),
-            flow_lpm=round(flow_lpm, 1)))
-
-    chain: list[Placed] = []
-    chain += order
+    # The single-file part of the loop: treatment in series, then the beds, then the sump.
+    downstream: list[Placed] = list(treatment)
     if first_bed is not None:
-        chain.append(first_bed)
+        downstream.append(first_bed)
     if sump is not None:
-        chain.append(sump)
-    for a, b in zip(chain, chain[1:]):
-        run(a, b)
+        downstream.append(sump)
+
+    # Elevations, routes and head all come from `hydraulics`, which needs the flow order
+    # this function just worked out. Before it existed every vessel sat on the floor, so
+    # the beds' water surface was BELOW the sump's and the drawing showed water running
+    # uphill; runs were straight diagonals that cut through whatever stood between their
+    # endpoints. Both were invisible in the numbers because pump head came from a constant.
+    pipe_d = hydraulics.pipe_diameter_m(flow_lpm)
+    comps, runs, hydro = hydraulics.grade_and_route(
+        comps, gh, chain=downstream, rearing=rearing, sump=sump,
+        flow_lpm=flow_lpm, pipe_d_m=pipe_d)
+    pipes = [PipeRun(from_id=f, to_id=t, path=path, diameter_m=pipe_d,
+                     flow_lpm=round(flow_lpm, 1), pumped=pumped, length_m=ln)
+             for f, t, path, pumped, ln in runs]
+
     mineraliser = next((c for c in comps if c.role == "mineraliser"), None)
     solids = next((c for c in comps if c.role in ("settling", "clarifier")), None)
     if mineraliser is not None and solids is not None:
-        run(solids, mineraliser)          # sludge spur, off the main loop
-    if sump is not None and order:
-        run(sump, order[0])  # the pump's return line closes the loop
+        # Sludge spur, off the main loop: it carries solids, not the recirculating flow.
+        pipes.append(PipeRun(
+            from_id=solids.id, to_id=mineraliser.id,
+            path=((solids.x, solids.y, solids.z + solids.h * 0.2),
+                  (mineraliser.x, mineraliser.y, mineraliser.z + mineraliser.h * 0.9)),
+            diameter_m=pipe_d, flow_lpm=0.0, pumped=False, length_m=0.0))
 
     assumptions += [
         f"greenhouse sized from the layout: {gh.width_m} x {gh.length_m} m "
@@ -331,5 +341,6 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
         f"aisles {AISLE_M} m, wall margin {MARGIN_M} m",
         "positions are a deterministic proposal, not a site plan — doors, slope and services move things",
     ]
+    assumptions += hydro.summary().splitlines()
     return Layout(greenhouse=gh, components=tuple(comps), pipes=tuple(pipes),
-                  assumptions=tuple(assumptions))
+                  assumptions=tuple(assumptions), hydraulics=hydro)

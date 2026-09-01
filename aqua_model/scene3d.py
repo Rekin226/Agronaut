@@ -19,7 +19,7 @@ from dataclasses import asdict
 from .layout import Layout, Placed
 from .types import DesignOutput
 
-SCENE_SCHEMA_VERSION = "1.0.0"
+SCENE_SCHEMA_VERSION = "1.1.0"
 
 
 def _component(c: Placed) -> dict:
@@ -40,11 +40,18 @@ def _component(c: Placed) -> dict:
 
 
 def to_scene(layout: Layout, out: DesignOutput, *,
-             name: str = "Aquaponic system", subtitle: str = "") -> dict:
+             name: str = "Aquaponic system", subtitle: str = "",
+             crop: str = "", species: str = "") -> dict:
     """Build the scene dict the 3D viewer renders.
 
     Fish are shown in proportion to the design's stocking (capped for legibility — the
-    picture is an explanation, not a census), split evenly across rearing tanks."""
+    picture is an explanation, not a census), split evenly across rearing tanks.
+
+    `crop` and `species` are the plain keys ("lettuce", "tilapia"), not labels. The viewer
+    picks a plant form and a fish form from them, so a bed of lettuce and a bed of tomatoes
+    stop looking like the same green spheres. Parsing them out of the label instead would
+    make the picture depend on prose, which is the coupling `scene3d` exists to avoid.
+    """
     tanks = layout.by_role("fish_tank")
     fish: list[dict] = []
     if tanks and out.fish_count:
@@ -57,6 +64,8 @@ def to_scene(layout: Layout, out: DesignOutput, *,
         "schema_version": SCENE_SCHEMA_VERSION,
         "name": name,
         "subtitle": subtitle,
+        "crop": crop,
+        "species": species,
         "units": "m",
         "greenhouse": {
             "width": layout.greenhouse.width_m,
@@ -67,9 +76,12 @@ def to_scene(layout: Layout, out: DesignOutput, *,
         "objects": [_component(c) for c in layout.components],
         "pipes": [
             {"from": p.from_id, "to": p.to_id, "path": [list(q) for q in p.path],
-             "d": p.diameter_m, "flow_lpm": p.flow_lpm}
+             "d": p.diameter_m, "flow_lpm": p.flow_lpm,
+             "pumped": p.pumped, "length_m": p.length_m}
             for p in layout.pipes
         ],
         "fish": fish,
         "assumptions": list(layout.assumptions),
+        "hydraulics": (asdict(layout.hydraulics)
+                       if layout.hydraulics is not None else None),
     }
