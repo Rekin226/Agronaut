@@ -5,7 +5,9 @@ routing, and explanation in the chat/troubleshooting flow. So the backend is fre
 via config; correctness of any design is unaffected.
 
 Select with the LLM_PROVIDER env var (or pass `provider=`):
-    ollama    -> local open model via Ollama (offline; default)
+    ollama    -> local open model via Ollama (offline; default). Tool calling works, so
+                 this drives the full agent — pick a tool-capable model (qwen2.5,
+                 llama3.1, mistral-nemo); older ones like llama3 will not call tools.
     nvidia    -> NVIDIA hosted open models (OpenAI-compatible; needs NVIDIA_API_KEY)
     hf        -> Hugging Face Inference (hosted; needs HUGGINGFACEHUB_API_TOKEN)
     hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
@@ -36,7 +38,10 @@ log = logging.getLogger(__name__)
 #   - Qwen/Qwen2.5-1.5B-Instruct         (Apache-2.0, tiny — for low-resource/edge field use)
 #   - microsoft/Phi-4-mini-instruct      (small, multilingual)
 DEFAULT_MODELS = {
-    "ollama": "llama3",
+    # qwen2.5 rather than llama3: llama3 predates Ollama's tool-calling support, so it
+    # cannot drive the agent. Apache-2.0, good at structured output, and `ollama pull
+    # qwen2.5` is the whole install for a grower self-hosting with no API key.
+    "ollama": "qwen2.5",
     "nvidia": "meta/llama-3.1-8b-instruct",
     "hf": "Qwen/Qwen2.5-7B-Instruct",
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
@@ -85,8 +90,12 @@ class StringLLM:
 
 def _build_backend(provider: str, model: str, temperature: float):
     if provider == "ollama":
-        from langchain_ollama.llms import OllamaLLM
-        return OllamaLLM(model=model, temperature=temperature)
+        # ChatOllama, not OllamaLLM. Both ship in langchain_ollama, but OllamaLLM is the
+        # text-COMPLETION class and has no .bind_tools(), so selecting it locked the most
+        # popular local-model runtime out of the tool-calling agent entirely. Ollama itself
+        # has supported tool calling since 2024; only the class chosen here did not.
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=model, temperature=temperature)
     if provider == "nvidia":
         # OpenAI-compatible NVIDIA API Catalog / NIM. Reads NVIDIA_API_KEY from env.
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -150,6 +159,9 @@ class ToolCallingUnsupported(RuntimeError):
 # nothing. The fallback is weaker but responsive; a real answer beats a dead turn.
 FALLBACK_MODELS: dict[str, str] = {
     "nvidia": "meta/llama-3.1-8b-instruct",
+    # Local fallback too: a grower self-hosting has no hosted tier to lean on, so a stalled
+    # 7B on a laptop should drop to something that fits in RAM rather than lose the turn.
+    "ollama": "qwen2.5:3b",
 }
 
 
@@ -204,9 +216,11 @@ def get_chat_model(provider: str | None = None, model: str | None = None, temper
     `AIMessage.tool_calls`. Unlike get_llm()->StringLLM, this does NOT normalize to str —
     the tool-calling agent loop needs the message object.
 
-    Use a tool-calling-capable provider: `nvidia` (ChatNVIDIA) is the supported default;
-    `hf`/`hf_local` chat models technically expose bind_tools but tool-calling reliability
-    varies. `ollama`'s text LLM backend does not support tools.
+    Use a tool-calling-capable provider: `nvidia` (ChatNVIDIA) is the hosted default and
+    `ollama` (ChatOllama) is the local one, both of which bind tools. `hf`/`hf_local` chat
+    models technically expose bind_tools but tool-calling reliability varies, and the
+    reliability depends on the MODEL as much as the provider: an Ollama tag that predates
+    tool calling (llama3, mistral) will happily bind and then never emit a tool call.
     """
     provider, model = resolve(provider, model)
     backend = _build_backend(provider, model, temperature)

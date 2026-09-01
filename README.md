@@ -303,15 +303,26 @@ The chat layer is model-agnostic — pick a backend with one env var, no code ch
 
 | Provider | `LLM_PROVIDER` | Notes |
 |---|---|---|
-| Ollama (local) | `ollama` | Offline, default (`llama3`). Best for low-connectivity / field use. |
+| Ollama (local) | `ollama` | **Offline, default (`qwen2.5`), drives the full tool-calling agent.** The shortest path for a grower self-hosting with no API key: `ollama pull qwen2.5` and go. Pick a tool-capable tag — older ones (`llama3`, `mistral`) bind tools and then never call any. |
 | NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
 | Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
-| Self-hosted (OpenAI-compatible) | `openai_compat` | **Zero proprietary API** — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
+| Self-hosted (OpenAI-compatible) | `openai_compat` | Zero proprietary API — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
 
 ### Self-hosted, no vendor (the open-weights path)
 
-For a deployment with no hosted API at all, serve an open-weights model with an
-OpenAI-compatible server and point Agronaut at it:
+Agronaut is meant to be run by the grower, on their own machine, so the no-vendor path is
+the one that matters most. The shortest version is Ollama:
+
+```bash
+ollama pull qwen2.5
+export LLM_PROVIDER=ollama          # this is already the default
+python bot.py
+```
+
+That is the whole setup: no API key, no account, no connectivity after the pull.
+
+For more control over serving (batching, quantisation, a shared box), use any
+OpenAI-compatible server instead:
 
 ```bash
 # example: vLLM serving a tool-calling-capable open model

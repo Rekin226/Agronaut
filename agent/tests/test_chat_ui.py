@@ -157,8 +157,14 @@ def test_chat_mode_still_renders_with_the_file_accepting_input(fake_agent_backen
 def _no_tool_calling_llm(monkeypatch):
     """Force the deployment where no tool-calling provider is configured. Pinned via env
     rather than left to the machine: a developer's .env made this pass locally and fail in
-    CI, which is the wrong way round for a test about running WITHOUT credentials."""
-    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    CI, which is the wrong way round for a test about running WITHOUT credentials.
+
+    This used to set `ollama`, back when the Ollama backend was built as `OllamaLLM` (the
+    text-completion class, no .bind_tools()). That is fixed: `ollama` now builds ChatOllama
+    and drives the agent, which is the whole point of the local path. So the stand-in is a
+    provider name that does not resolve at all, which is a real misconfiguration and needs
+    neither a network nor credentials to reproduce."""
+    monkeypatch.setenv("LLM_PROVIDER", "no-such-provider")
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 

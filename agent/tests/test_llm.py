@@ -10,7 +10,7 @@ def test_default_provider_and_model(monkeypatch):
     monkeypatch.delenv("LLM_MODEL", raising=False)
     provider, model = L.resolve()
     assert provider == "ollama"
-    assert model == "llama3"
+    assert model == "qwen2.5"
 
 
 def test_env_selects_provider_and_model(monkeypatch):
@@ -108,3 +108,30 @@ def test_stringllm_always_returns_str():
     out = client.invoke("ping")
     assert isinstance(out, str)
     assert out == "echo:ping"
+
+
+def test_the_local_provider_can_actually_drive_the_agent():
+    """Ollama is how a grower self-hosting with no API key runs a model, so it has to bind
+    tools. It used to build `OllamaLLM`, the text-COMPLETION class, which has no
+    .bind_tools() — so `LLM_PROVIDER=ollama` raised ToolCallingUnsupported and the whole
+    local path was dead. Constructing ChatOllama contacts no server, so this needs no
+    running Ollama and no network."""
+    model = L.get_chat_model(provider="ollama", model="qwen2.5")
+    assert hasattr(model, "bind_tools")
+    assert model.bind_tools([]) is not None
+
+
+def test_every_default_model_can_bind_tools_or_is_documented_as_hosted():
+    """A provider whose DEFAULT model cannot call tools is a trap: the agent refuses to
+    start and the error names the provider rather than the model."""
+    from langchain_ollama import ChatOllama
+    assert hasattr(ChatOllama, "bind_tools")
+    assert L.DEFAULT_MODELS["ollama"].startswith("qwen2.5"), (
+        "the default Ollama tag must be one that supports tool calling; llama3 does not")
+
+
+def test_the_local_provider_has_a_fallback_too():
+    """A self-hoster has no hosted tier to lean on, so the fallback matters more locally
+    than it does for a provider with a big model behind it."""
+    assert "ollama" in L.FALLBACK_MODELS
+    assert L.FALLBACK_MODELS["ollama"] != L.DEFAULT_MODELS["ollama"]
