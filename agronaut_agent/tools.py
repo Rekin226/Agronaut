@@ -1325,6 +1325,141 @@ def my_system_forecast(days_ahead: int = 7, greenhouse: str = "poly") -> str:
     return render(snap)
 
 
+def _measured_channels(user_id: str) -> frozenset[str]:
+    """Channels the operator reported within `MEASUREMENT_FRESH_DAYS` — what lets a
+    recommendation reach the top confidence class.
+
+    Deliberately conservative in both directions: no history store, no reading, or an
+    unparseable date all mean "not measured", so a stale system is never flattered into
+    high confidence by a bookkeeping failure.
+    """
+    from datetime import date, datetime
+
+    from aqua_model.advisory import MEASUREMENT_FRESH_DAYS
+
+    store = runtime.get_readings()
+    if store is None:
+        return frozenset()
+    try:
+        history = store.history(user_id)
+    except Exception:  # noqa: BLE001 — confidence must degrade, never crash
+        log.warning("could not read twin history for confidence classing", exc_info=True)
+        return frozenset()
+    today = date.today()
+    fresh: set[str] = set()
+    for row in history:
+        stamp = str(row.get("recorded_at", ""))[:10]
+        try:
+            when = datetime.strptime(stamp, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if (today - when).days <= MEASUREMENT_FRESH_DAYS:
+            fresh.update(k for k, v in (row.get("observed") or {}).items() if v is not None)
+    return frozenset(fresh)
+
+
+@tool
+def recommend_actions(days_ahead: int = 7, greenhouse: str = "poly") -> str:
+    """PROPOSE what to do about the user's live system, as a numbered list they approve or
+    reject. Call when the user asks "what should I do", "what do you recommend", "how do I
+    fix this", or after a reading that looks bad. Advances their LIVE twin to today through
+    real weather, then applies the deterministic advisory rules: each item carries the
+    action, why, a confidence DERIVED from the class of evidence behind it, what to measure
+    to verify it, and its source. Nothing is applied — Agronaut has no connection to any
+    equipment — and the user replies /approve or /reject by number. If an urgent item rests
+    only on a modelled value, the list asks them to test the water first.
+    greenhouse: the envelope they actually run — 'poly', 'shade', or 'heated'."""
+    from aqua_model import advisory
+
+    cur = runtime.get_current()
+    if cur is None:
+        return "No session — cannot keep a live twin here."
+    mem, user_id = cur
+    try:
+        snap = twin_view.compute(mem, user_id, days=days_ahead, greenhouse=greenhouse)
+    except Exception as err:  # noqa: BLE001 — a weather hiccup must become words
+        return f"Could not advance the twin ({err}) — try again shortly."
+    if not snap.ready:
+        return ("Before I can recommend anything I need: " + ", ".join(snap.missing) +
+                ". Ask, save with update_profile (and fetch_site_climate), then call again.")
+
+    from datetime import date
+
+    facts = mem.get_facts(user_id) or {}
+    species = get_species(str(facts["fish_species"]).strip().lower())
+    proposal = advisory.recommend(
+        snap.state, species,
+        trajectory=list(snap.trajectory),
+        measured_channels=_measured_channels(user_id),
+        as_of=date.today().isoformat(),
+        horizon_days=int(days_ahead))
+
+    store = runtime.get_proposals()
+    if store is not None and not proposal.is_empty():
+        try:
+            store.record(user_id, advisory.to_dict(proposal))
+        except Exception:  # noqa: BLE001 — the advice still stands if the gate cannot log it
+            log.warning("could not persist proposal", exc_info=True)
+            return (advisory.format_proposal(proposal) +
+                    "\n\n(Note: I could not save this proposal, so /approve will not find "
+                    "it. The reasoning above is unaffected.)")
+    return advisory.format_proposal(proposal)
+
+
+@tool
+def decide_on_recommendations(approve: bool, numbers: list[int]) -> str:
+    """RECORD the user's decision on items of the proposal they were just shown. Call only
+    when the user names which items they accept or refuse ("do 1 and 3", "no to number 2").
+    `approve` True records acceptance, False refusal; `numbers` are the item numbers as
+    rendered. This records a DECISION and changes nothing physical — Agronaut cannot operate
+    equipment. Decisions are final: a changed mind means asking for a fresh proposal, since
+    the system has moved on by then. Never guess the numbers; if the user is vague, ask."""
+    cur = runtime.get_current()
+    if cur is None:
+        return "No session — cannot record a decision here."
+    _mem, user_id = cur
+    store = runtime.get_proposals()
+    if store is None:
+        return "Decisions aren't being stored in this setup, so there is nothing to record."
+    wanted = sorted({int(n) for n in (numbers or [])})
+    if not wanted:
+        return "Which numbers? Tell me the item numbers, e.g. 1 and 3."
+    try:
+        result = store.decide(user_id, wanted, approve=bool(approve))
+    except Exception as err:  # noqa: BLE001
+        return f"Could not record that decision ({err})."
+    return _format_decision(result, approve=bool(approve))
+
+
+def _format_decision(result: dict, *, approve: bool) -> str:
+    """Say exactly what was recorded and what was not. A gate that silently drops a
+    mis-typed number is worse than no gate: the operator walks away believing a decision
+    was taken."""
+    from aqua_model.advisory import ACTION_LABEL
+
+    if result.get("proposal_id") is None:
+        return ("I have no proposal on record for you yet. Ask me what to do about your "
+                "system first, then approve or reject by number.")
+    verb = "Approved" if approve else "Rejected"
+    lines: list[str] = []
+    if result["decided"]:
+        named = ", ".join(
+            f"{p} ({ACTION_LABEL.get(result['action_for'].get(p, ''), result['action_for'].get(p, ''))})"
+            for p in result["decided"])
+        lines.append(f"{verb}: {named}.")
+        if approve:
+            lines.append("Recorded as your decision, with the reasons and the state the twin "
+                         "was in. Nothing has been actuated — these are yours to do by hand.")
+    for pos, was in sorted(result["already"].items()):
+        lines.append(f"Item {pos} was already {was}; decisions are final, so I left it.")
+    if result["unknown"]:
+        nums = ", ".join(str(p) for p in result["unknown"])
+        lines.append(f"There is no item {nums} in your latest proposal — check the numbers.")
+    if not lines:
+        lines.append("Nothing to record.")
+    return "\n".join(lines)
+
+
 @tool
 def business_case(
     fish_species: str,
@@ -1436,6 +1571,8 @@ AGRONAUT_TOOLS = [
     fetch_site_climate,
     log_my_readings,
     my_system_forecast,
+    recommend_actions,
+    decide_on_recommendations,
     what_if_nitrogen,
     design_system_3d,
     design_full_system,

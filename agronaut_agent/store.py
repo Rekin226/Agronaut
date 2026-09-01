@@ -128,6 +128,38 @@ CREATE TABLE IF NOT EXISTS twin_readings (
     modelled    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_twin_readings_user ON twin_readings(user_id, id);
+-- The approval gate. A proposal from `aqua_model.advisory` is inert until a human decides
+-- on it, and this table IS that decision: one row per proposal, one row per item, with the
+-- state the twin was in when it proposed. Nothing in Agronaut may act on a recommendation
+-- that does not have an `approved` row here — today that rule costs nothing, because there
+-- is no actuation path at all; it exists so that when one is built the gate is already the
+-- only door, rather than something bolted on afterwards.
+--
+-- It is also the record that makes the advice measurable: an approved action with a date
+-- beside the readings that followed it is the only way to ever answer "did taking this
+-- system's advice help?", which is the question a literature-seeded model most needs asked.
+CREATE TABLE IF NOT EXISTS proposals (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL,
+    as_of        TEXT NOT NULL,
+    context      TEXT NOT NULL,
+    payload      TEXT NOT NULL,   -- advisory.to_dict(), the proposal exactly as rendered
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, id);
+CREATE TABLE IF NOT EXISTS proposal_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposal_id  INTEGER NOT NULL,
+    user_id      TEXT NOT NULL,
+    position     INTEGER NOT NULL,  -- the number the operator sees and types
+    action       TEXT NOT NULL,
+    confidence   REAL NOT NULL,
+    evidence     TEXT NOT NULL,
+    status       TEXT NOT NULL,     -- proposed | approved | rejected
+    decided_at   TEXT,
+    UNIQUE(proposal_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_proposal_items_user ON proposal_items(user_id, status);
 """
 
 
@@ -524,3 +556,111 @@ def _clean_readings(d: dict | None) -> dict:
     """Drop unset fields and coerce to plain floats — the caller passes a dict with None
     for every reading the user did not take."""
     return {k: float(v) for k, v in (d or {}).items() if v is not None}
+
+
+class ProposalStore:
+    """The approval gate: proposals recorded, decisions recorded, nothing acted on.
+
+    Two properties matter and both are enforced here rather than by convention.
+
+    *Only the latest proposal is decidable.* An operator typing `/approve 2` means item 2 of
+    what they are looking at now. If a stale proposal could still take decisions, the same
+    two keystrokes would mean different things depending on how far the chat had scrolled,
+    which is precisely the class of mistake an approval gate exists to prevent.
+
+    *A decision is final.* Re-approving or flipping an already-decided item is refused, not
+    silently overwritten, because the row is evidence about what a person chose at a moment.
+    Changing their mind means asking for a fresh proposal, which is honest: the system has
+    moved on by then anyway.
+    """
+
+    OPEN, APPROVED, REJECTED = "proposed", "approved", "rejected"
+
+    def __init__(self, db: _Db | None = None, path=None):
+        self.db = db or _Db(path)
+
+    def record(self, user_id: str, payload: dict) -> int:
+        """Store a freshly computed proposal and return its id. `payload` is
+        `advisory.to_dict(proposal)`; positions follow the order it renders in."""
+        now = _now()
+        cur = self.db.execute(
+            "INSERT INTO proposals(user_id, as_of, context, payload, created_at)"
+            " VALUES (?,?,?,?,?)",
+            (user_id, str(payload.get("as_of") or now[:10]), str(payload.get("context", "")),
+             json.dumps(payload), now))
+        pid = int(cur.lastrowid)
+        for i, r in enumerate(payload.get("recommendations", []), 1):
+            self.db.execute(
+                "INSERT INTO proposal_items(proposal_id, user_id, position, action,"
+                " confidence, evidence, status) VALUES (?,?,?,?,?,?,?)",
+                (pid, user_id, i, str(r["action"]), float(r["confidence"]),
+                 str(r["evidence"]), self.OPEN))
+        return pid
+
+    def latest(self, user_id: str) -> dict | None:
+        """The most recent proposal with its items, or None if this user has never had one."""
+        rows = self.db.query(
+            "SELECT id, as_of, context, payload, created_at FROM proposals"
+            " WHERE user_id=? ORDER BY id DESC LIMIT 1", (user_id,))
+        if not rows:
+            return None
+        r = rows[0]
+        return {"id": int(r["id"]), "as_of": r["as_of"], "context": r["context"],
+                "payload": json.loads(r["payload"]), "created_at": r["created_at"],
+                "items": self._items(int(r["id"]))}
+
+    def _items(self, proposal_id: int) -> list[dict]:
+        rows = self.db.query(
+            "SELECT position, action, confidence, evidence, status, decided_at"
+            " FROM proposal_items WHERE proposal_id=? ORDER BY position", (proposal_id,))
+        return [{"position": int(x["position"]), "action": x["action"],
+                 "confidence": float(x["confidence"]), "evidence": x["evidence"],
+                 "status": x["status"], "decided_at": x["decided_at"]} for x in rows]
+
+    def decide(self, user_id: str, positions, approve: bool) -> dict:
+        """Record the operator's decision on items of their LATEST proposal.
+
+        Returns what happened, per position, rather than raising: a farmer typing a number
+        that is off by one should get a sentence, not a stack trace. Keys: `decided`,
+        `already` (position -> prior status), `unknown`, plus `proposal_id` and `action_for`.
+        """
+        latest = self.latest(user_id)
+        out: dict = {"decided": [], "already": {}, "unknown": [], "proposal_id": None,
+                     "action_for": {}}
+        if latest is None:
+            return out
+        out["proposal_id"] = latest["id"]
+        by_pos = {i["position"]: i for i in latest["items"]}
+        out["action_for"] = {i["position"]: i["action"] for i in latest["items"]}
+        status = self.APPROVED if approve else self.REJECTED
+        now = _now()
+        for pos in positions:
+            item = by_pos.get(int(pos))
+            if item is None:
+                out["unknown"].append(int(pos))
+                continue
+            if item["status"] != self.OPEN:
+                out["already"][int(pos)] = item["status"]
+                continue
+            self.db.execute(
+                "UPDATE proposal_items SET status=?, decided_at=? WHERE proposal_id=?"
+                " AND position=? AND status=?",
+                (status, now, latest["id"], int(pos), self.OPEN))
+            out["decided"].append(int(pos))
+        return out
+
+    def approved_history(self, user_id: str, limit: int = 20) -> list[dict]:
+        """Actions this operator approved, newest first — the record that lets a later
+        question ("did following the advice help?") be answered against the readings."""
+        rows = self.db.query(
+            "SELECT i.action, i.confidence, i.evidence, i.decided_at, p.as_of, p.context"
+            " FROM proposal_items i JOIN proposals p ON p.id = i.proposal_id"
+            " WHERE i.user_id=? AND i.status=? ORDER BY i.id DESC LIMIT ?",
+            (user_id, self.APPROVED, int(limit)))
+        return [{"action": r["action"], "confidence": float(r["confidence"]),
+                 "evidence": r["evidence"], "decided_at": r["decided_at"],
+                 "as_of": r["as_of"], "context": r["context"]} for r in rows]
+
+    def purge(self, user_id: str) -> None:
+        self.db.execute("DELETE FROM proposal_items WHERE user_id=?", (user_id,))
+        self.db.execute("DELETE FROM proposals WHERE user_id=?", (user_id,))

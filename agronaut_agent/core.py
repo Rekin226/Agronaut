@@ -25,6 +25,7 @@ from .store import (
     ConversationStore,
     FollowupStore,
     MemoryStore,
+    ProposalStore,
     ReadingStore,
     _Db,
     _now,
@@ -228,6 +229,7 @@ class AgronautAgent:
         self._community = CommunityStore(db)
         self._calibration = CalibrationStore(db)
         self._readings = ReadingStore(db)
+        self._proposals = ProposalStore(db)
         # Semantic recall over memories — injectable for tests; lazily built for the real
         # path (model loads on first search). None -> recency fallback, the old behaviour.
         if embed_fn is None and chat_model is None:
@@ -580,7 +582,7 @@ class AgronautAgent:
             self._followups.cancel(open_fu["id"])
 
         runtime.set_current(self._mem, user_id, self._followups, self._community,
-                            self._calibration, self._readings)  # tools reach this user
+                            self._calibration, self._readings, self._proposals)  # tools reach this user
         try:
             messages = self._build_context(user_id, query=text)
             if capture_note:
@@ -756,7 +758,7 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         tool = {t.name: t for t in AGRONAUT_TOOLS}[tool_name]
         runtime.set_current(self._mem, user_id, self._followups, self._community,
-                            self._calibration, self._readings)
+                            self._calibration, self._readings, self._proposals)
         try:
             result = tool.invoke(args)
         except Exception as exc:  # noqa: BLE001 — a command must answer, not stack-trace
@@ -777,6 +779,22 @@ class AgronautAgent:
         """Deterministic /forecast: the live twin, advanced and projected."""
         return self._run_tool_direct(channel, channel_user, "my_system_forecast",
                                      {"days_ahead": days, "greenhouse": greenhouse})
+
+    def advise_direct(self, channel: str, channel_user: str, days: int = 7,
+                      greenhouse: str = "poly") -> str:
+        """Deterministic /advise: the twin's proposal, no LLM between the state and the
+        recommendation. Same guarantee /log and /forecast earned, and it matters more here:
+        a model that paraphrases a proposal can drop the confidence class, the source or the
+        measure-first gate, and every one of those is load-bearing."""
+        return self._run_tool_direct(channel, channel_user, "recommend_actions",
+                                     {"days_ahead": days, "greenhouse": greenhouse})
+
+    def decide_direct(self, channel: str, channel_user: str, approve: bool,
+                      numbers: list) -> str:
+        """Deterministic /approve and /reject. An approval must NEVER pass through a model:
+        the whole value of the gate is that what got recorded is what the human typed."""
+        return self._run_tool_direct(channel, channel_user, "decide_on_recommendations",
+                                     {"approve": bool(approve), "numbers": list(numbers)})
 
     @property
     def chat_error(self) -> str | None:
@@ -818,6 +836,7 @@ class AgronautAgent:
             "messages": self._conv.recent_messages(user_id, limit=100000),
             "measurements": self._calibration.export(user_id),
             "twin_readings": self._readings.history(user_id),
+            "approved_actions": self._proposals.approved_history(user_id, limit=100000),
             "exported_at": _now(),
         }
 
@@ -829,6 +848,7 @@ class AgronautAgent:
         self._mem.forget(user_id)
         self._calibration.purge(user_id)
         self._readings.purge(user_id)
+        self._proposals.purge(user_id)
 
     # --- follow-up delivery API (called by a channel poller) ----------------
     def due_followups(self, channel: str) -> list:

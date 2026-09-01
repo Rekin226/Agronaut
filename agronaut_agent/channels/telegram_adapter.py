@@ -61,6 +61,21 @@ def parse_log_args(text: str) -> dict:
     return args
 
 
+def parse_item_numbers(text: str) -> list[int]:
+    """Parse `/approve 1 3` or `/reject 2,4` into item numbers.
+
+    Accepts the separators people actually type (spaces, commas, "and") and nothing else:
+    no ranges, no "all". A range is one typo away from approving something unread, and this
+    is the path where a mis-parse gets recorded as a human decision about live fish. If the
+    operator wants four items they can type four numbers.
+
+    Pure and unit-tested. Order is dropped and duplicates collapse, because the store keys
+    by position and deciding the same item twice is not a second decision.
+    """
+    import re
+    return sorted({int(n) for n in re.findall(r"\d+", text or "") if 0 < int(n) < 1000})
+
+
 class TelegramAdapter(ChannelAdapter):
     channel_name = "telegram"
 
@@ -120,6 +135,8 @@ class TelegramAdapter(ChannelAdapter):
             "/log — put readings into your LIVE twin (works even when I'm slow):\n"
             "    /log ammonia 0.5 nitrate 40 temp 27\n"
             "/forecast — your twin now + the week ahead (add shade/poly/heated)\n"
+            "/advise — what to do about it, numbered; then /approve 1 3 or /reject 2\n"
+            "    (I never touch your equipment — approving records your decision)\n"
             "/design — size a new system\n"
             "/optimize — best fish/crop ratio\n"
             "/troubleshoot — diagnose a problem\n"
@@ -163,6 +180,46 @@ class TelegramAdapter(ChannelAdapter):
             days, greenhouse)
         for part in chunk(reply):
             await update.message.reply_text(part)
+
+    async def _on_advise(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Deterministic /advise — the twin's proposal, numbered for approval, no LLM.
+
+        The numbers are a contract: /approve refers to them, so they must come from the same
+        computation that rendered them. Routing this through the chat model would let a
+        paraphrase renumber the list, and the operator would approve something they never
+        read."""
+        if not self._allowed(update):
+            return await self._deny(update)
+        days, greenhouse = 7, "poly"
+        for a in (ctx.args or []):
+            if a.isdigit():
+                days = max(2, min(int(a), 15))
+            elif a.lower() in ("shade", "poly", "heated"):
+                greenhouse = a.lower()
+        reply = await asyncio.to_thread(
+            self.agent.advise_direct, self.channel_name, self._identity(update),
+            days, greenhouse)
+        for part in chunk(reply):
+            await update.message.reply_text(part)
+
+    async def _on_decide(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """/approve and /reject — the human half of the gate.
+
+        Deliberately a command rather than an inline keyboard, for the reason /good and /bad
+        are: a button that only works while the message is still on screen is a decision most
+        people never record. This works late, on any client, after the chat has scrolled."""
+        if not self._allowed(update):
+            return await self._deny(update)
+        approve = (update.message.text or "").lstrip("/").lower().startswith("approve")
+        numbers = parse_item_numbers(" ".join(ctx.args or []))
+        if not numbers:
+            verb = "approve" if approve else "reject"
+            return await update.message.reply_text(
+                f"Which items? e.g. /{verb} 1 3  (the numbers from /advise)")
+        reply = await asyncio.to_thread(
+            self.agent.decide_direct, self.channel_name, self._identity(update),
+            approve, numbers)
+        await update.message.reply_text(reply)
 
     async def _on_feedback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         """/good and /bad — the human-feedback signal, as two commands rather than inline
@@ -369,6 +426,9 @@ class TelegramAdapter(ChannelAdapter):
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
             ("log", self._on_log, "Log readings into your LIVE twin"),
             ("forecast", self._on_forecast, "Your live twin: now + the week ahead"),
+            ("advise", self._on_advise, "What to do, as items you approve"),
+            ("approve", self._on_decide, "Approve proposal items by number"),
+            ("reject", self._on_decide, "Reject proposal items by number"),
             ("good", self._on_feedback, "That last answer helped"),
             ("bad", self._on_feedback, "That last answer missed"),
             ("whoami", self._on_whoami, "What I remember about you"),
