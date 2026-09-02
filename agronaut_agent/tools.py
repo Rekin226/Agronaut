@@ -827,11 +827,6 @@ def design_system_3d(
 
     system_type: 'raft', 'nft', 'media_bed', or 'vertical_tower' — the layout changes
     accordingly (media beds skip the separate biofilter; towers raise the roof)."""
-    import os
-    import sys
-    import tempfile
-    from pathlib import Path
-
     from aqua_model.layout import plan_layout
     from aqua_model.scene3d import to_scene
 
@@ -844,10 +839,31 @@ def design_system_3d(
     layout = plan_layout(out, crop_label=crop, species_label=fish_species)
     scene = to_scene(
         layout, out,
+        crop=str(crop).strip().lower(), species=str(fish_species).strip().lower(),
         name=f"{system_type.replace('_', ' ').title()} aquaponics — {fish_species} + {crop}",
         subtitle=(f"{out.grow_area_m2:.0f} m² grow area · {out.fish_count} fish "
                   f"({out.fish_biomass_kg:.0f} kg) · {out.system_volume_l:,.0f} L · greenhouse "
                   f"{layout.greenhouse.width_m:.1f}×{layout.greenhouse.length_m:.1f} m"))
+    _attach_scene_html(scene)
+    gh = layout.greenhouse
+    return (f"Rendered the 3D model (attached as an HTML file — opens in any browser, "
+            f"offline). Greenhouse {gh.width_m:.1f} x {gh.length_m:.1f} m, "
+            f"{len(layout.components)} components, {out.fish_count} fish. Tell the user to "
+            f"open the file, then orbit/zoom; toggles show flow, fish and labels. Offer to "
+            f"simulate a season at their site next (simulate_season).")
+
+
+def _attach_scene_html(scene: dict) -> str:
+    """Render a scene to the self-contained offline HTML and attach it to the reply.
+
+    `scripts/` is outside the trust zone and holds the renderer; importing it here rather
+    than duplicating the template plumbing keeps ONE way to build the file, so the chat
+    attachment and `python scripts/render_3d.py` cannot drift apart."""
+    import os
+    import sys
+    import tempfile
+    from pathlib import Path
+
     scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
     sys.path.insert(0, str(scripts_dir))
     try:
@@ -859,12 +875,65 @@ def design_system_3d(
     with os.fdopen(fd, "w") as fh:
         fh.write(html)
     runtime.add_attachment(path)
-    gh = layout.greenhouse
-    return (f"Rendered the 3D model (attached as an HTML file — opens in any browser, "
-            f"offline). Greenhouse {gh.width_m:.1f} x {gh.length_m:.1f} m, "
-            f"{len(layout.components)} components, {out.fish_count} fish. Tell the user to "
-            f"open the file, then orbit/zoom; toggles show flow, fish and labels. Offer to "
-            f"simulate a season at their site next (simulate_season).")
+    return path
+
+
+@tool
+def show_my_system_3d(days_ahead: int = 14, greenhouse: str = "poly") -> str:
+    """Send the user a 3D view of THEIR OWN system with their LIVE twin bound to it — the
+    fish at the count and size the twin holds, the water coloured by their actual ammonia /
+    nitrite / nitrate, the crop drawn as vigorously as it is actually growing — plus a
+    scrubber that runs from today through the coming days, so they can watch what the
+    forecast does to their pond. Use when a user with a RUNNING system asks to SEE it, or
+    after a forecast or a recommendation that would land better as a picture ("show me",
+    "what does that look like", "can I see my system"). For a system that does not exist
+    yet, use design_system_3d instead: this one refuses to draw a twin nobody is running.
+
+    The geometry is a proposed arrangement sized from their grow area, exactly like any
+    other layout here; the STATE on it is theirs. The file says which is which, and so
+    should you. days_ahead: forecast days on the scrubber (2-15).
+    greenhouse: the envelope they actually run — 'poly', 'shade', or 'heated'."""
+    cur = runtime.get_current()
+    if cur is None:
+        return "No session — cannot open a live twin here."
+    mem, user_id = cur
+    try:
+        snap = twin_view.compute(mem, user_id, days=days_ahead, greenhouse=greenhouse)
+    except Exception as err:  # noqa: BLE001 — a weather hiccup must become words
+        return f"Could not advance the twin ({err}) — try again shortly."
+    facts = mem.get_facts(user_id) or {}
+    missing = list(snap.missing) + twin_view.missing_for_scene(facts)
+    if missing:
+        return ("To draw their live system I still need: " + ", ".join(missing) +
+                ". Ask the user, save with update_profile, then call this again.")
+    try:
+        scene = twin_view.scene_for(snap, facts)
+    except ValidationError as err:
+        return serialize.serialize_validation_error(err.errors)
+    except (KeyError, ValueError) as err:
+        return f"Profile value unusable: {err} — correct it with update_profile."
+    _attach_scene_html(scene)
+
+    frames = scene["twin"]["frames"]
+    worst = max(frames, key=lambda f: (f["water"]["band"] == "urgent",
+                                       f["water"]["band"] == "act"))
+    today = frames[0]
+    lines = [
+        "Rendered their live system in 3D (attached — opens in any browser, offline). "
+        f"Today: {today['fish']['count']} fish @ {today['fish']['mean_weight_g']:.0f} g, "
+        f"water {today['water']['temp_c']:.1f} C, NH3 {today['water']['tan_mg_l']:.2f} / "
+        f"NO2 {today['water']['no2_mg_l']:.2f} / NO3 {today['water']['no3_mg_l']:.0f} mg/L.",
+        f"The slider runs {len(frames)} days from today; the badge says whether a frame is "
+        "TODAY or a FORECAST, and the geometry is a proposed arrangement, not their site "
+        "plan — say so rather than letting them read it as a survey.",
+    ]
+    if worst["water"]["band"] != "ok":
+        lines.append(f"The water turns {worst['water']['band']} on "
+                     f"{worst['date'] or 'day ' + str(worst['day'])}: {worst['water']['why']}. "
+                     "Offer recommend_actions.")
+    if snap.notes:
+        lines.append("Twin notes: " + " ".join(snap.notes))
+    return " ".join(lines)
 
 
 @tool
@@ -1575,6 +1644,7 @@ AGRONAUT_TOOLS = [
     decide_on_recommendations,
     what_if_nitrogen,
     design_system_3d,
+    show_my_system_3d,
     design_full_system,
     search_knowledge_base,
     triage_visual_symptoms,

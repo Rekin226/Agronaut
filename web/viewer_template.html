@@ -56,10 +56,31 @@
     font-size: 11px; text-align: center; }
   #scalebar .bar { height: 4px; border: 1px solid var(--muted); border-top: 0;
     margin-bottom: 3px; }
+  /* ---- twin scrubber: only present when a state is bound to the design ---- */
+  #twin { position: absolute; left: 50%; transform: translateX(-50%); bottom: 62px;
+    width: min(640px, calc(100% - 28px)); padding: 9px 13px 11px; display: none;
+    color: var(--panel-fg); font-size: 12.5px; }
+  #twin .row { display: flex; align-items: center; gap: 9px; }
+  #twin .badge { font-size: 10px; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 700; padding: 3px 7px; border-radius: 5px; white-space: nowrap;
+    background: var(--accent); color: #0c1a13; }
+  #twin .badge.design { background: rgba(255,255,255,0.14); color: var(--panel-fg); }
+  #twin .badge.forecast { background: #6f8fb5; color: #0b1620; }
+  #twin .when { font-weight: 600; white-space: nowrap; }
+  #twin .when .muted { color: var(--muted); font-weight: 400; }
+  #twin .read { color: var(--muted); font-size: 11.5px; line-height: 1.5; margin-top: 6px;
+    display: flex; flex-wrap: wrap; gap: 3px 14px; }
+  #twin .read b { color: var(--panel-fg); font-weight: 600; }
+  #twin .why { display: flex; align-items: center; gap: 6px; margin-top: 5px;
+    font-size: 11.5px; color: #f0d9a8; }
+  #twin .why .chip { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  #t-range { flex: 1 1 auto; accent-color: var(--accent); height: 18px; margin: 0; }
+  #t-play { padding: 3px 9px; min-width: 30px; }
   @media (max-width: 720px) {
     #hud { width: auto; right: 14px; }
     #legend-scroll { max-height: 20vh; }
     #cap { display: none; }
+    #twin .read { font-size: 11px; }
   }
 </style>
 </head>
@@ -84,6 +105,19 @@
   <button class="btn view" data-view="front">front</button>
   <button class="btn view" data-view="inside">walk in</button>
 </div>
+<div id="twin" class="panel">
+  <div class="row">
+    <span class="badge" id="t-badge">as designed</span>
+    <button class="btn" id="t-play" title="play the season (space)">&#9654;</button>
+    <input type="range" id="t-range" min="0" max="0" value="0" step="1"
+           aria-label="day of the season">
+    <span class="when" id="t-when"></span>
+  </div>
+  <div class="read" id="t-read"></div>
+  <div class="why" id="t-why" style="display:none">
+    <span class="chip" id="t-chip"></span><span id="t-why-text"></span>
+  </div>
+</div>
 <div id="tip" class="panel"></div>
 <div id="cap">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
 <div id="scalebar"><div class="bar" id="sb-bar"></div><span id="sb-txt"></span></div>
@@ -94,6 +128,13 @@
 <script>
 "use strict";
 const SCENE = JSON.parse(document.getElementById("scene-data").textContent);
+
+/* ---------- the twin, if one is bound ----------
+   FRAMES are days of a simulated or mirrored system. Everything they make the picture do —
+   water colour, fish size and number, how vigorous the crop looks — was decided in
+   aqua_model/scene3d.py, where it is cited and tested. Nothing below picks a threshold. */
+const TWIN = SCENE.twin || {};
+const FRAMES = TWIN.frames || [];
 
 /* ---------- deterministic randomness ----------
    The model is deterministic, so the picture must be too: the same design has to render
@@ -401,6 +442,11 @@ const leafGeo = (function () {
 const stemGeo = new THREE.CylinderGeometry(0.010, 0.016, 1, 5);
 stemGeo.translate(0, 0.5, 0);
 
+/* Each bed keeps the shape it was born with — position, orientation, size, colour, per
+   instance — so a frame can redraw it at a different size or tint without re-randomising
+   the bed. Without this, scrubbing a day would reshuffle every plant in the greenhouse. */
+const plantBeds = [];
+
 function addPlants(cx, cz, w, l, top, spacing) {
   const sp = spacing || 0.25;
   const nx = Math.max(1, Math.floor(w / sp)), nz = Math.max(1, Math.floor(l / sp));
@@ -413,6 +459,15 @@ function addPlants(cx, cz, w, l, top, spacing) {
   const stems = FORM.stem > 0 ? new THREE.InstancedMesh(stemGeo, stemMat, n) : null;
   if (stems) stems.castShadow = true;
 
+  const bed = {
+    leaves, stems, n, leafCount: 0,
+    leafPos: new Float32Array(n * K * 3), leafQuat: new Float32Array(n * K * 4),
+    leafScale: new Float32Array(n * K * 2), leafColor: new Float32Array(n * K * 3),
+    leafStemH: new Float32Array(n * K),
+    stemPos: new Float32Array(n * 3), stemQuat: new Float32Array(n * 4),
+    stemH: new Float32Array(n),
+  };
+
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler();
   const P = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
   const base = new THREE.Color(FORM.tint);
@@ -423,10 +478,15 @@ function addPlants(cx, cz, w, l, top, spacing) {
     const pz = cz - l / 2 + sp / 2 + b * sp + (rnd() - 0.5) * sp * 0.14;
     const vigour = 0.80 + rnd() * 0.40;          // not every plant grows the same
     const H = FORM.h * vigour, stemH = FORM.stem * H;
+    const si = a * nz + b;
     if (stems) {
       E.set(0, rnd() * 6.283, 0); Q.setFromEuler(E);
       P.set(px, top, pz); S.set(1, stemH, 1);
-      stems.setMatrixAt(a * nz + b, M.compose(P, Q, S));
+      stems.setMatrixAt(si, M.compose(P, Q, S));
+      bed.stemPos[si * 3] = px; bed.stemPos[si * 3 + 1] = top; bed.stemPos[si * 3 + 2] = pz;
+      bed.stemQuat[si * 4] = Q.x; bed.stemQuat[si * 4 + 1] = Q.y;
+      bed.stemQuat[si * 4 + 2] = Q.z; bed.stemQuat[si * 4 + 3] = Q.w;
+      bed.stemH[si] = stemH;
     }
     // Per-plant colour jitter: a uniform bed of one green is the tell of a rendering.
     C.setHSL(hsl.h + (rnd() - 0.5) * 0.035, hsl.s * (0.85 + rnd() * 0.3),
@@ -438,18 +498,65 @@ function addPlants(cx, cz, w, l, top, spacing) {
       const tilt = FORM.tilt * (1 - 0.78 * ring) + (rnd() - 0.5) * 0.12;
       E.set(tilt, ang, 0, "YXZ"); Q.setFromEuler(E);
       const len = (H - stemH) * (0.55 + 0.5 * (1 - ring)) * (0.85 + rnd() * 0.3);
+      const lw = FORM.leafW * (0.85 + rnd() * 0.3);
       P.set(px, top + stemH, pz);
-      S.set(FORM.leafW * (0.85 + rnd() * 0.3), len, 1);
+      S.set(lw, len, 1);
       leaves.setMatrixAt(li, M.compose(P, Q, S));
       leaves.setColorAt(li, C);
+      bed.leafPos[li * 3] = px; bed.leafPos[li * 3 + 1] = top; bed.leafPos[li * 3 + 2] = pz;
+      bed.leafQuat[li * 4] = Q.x; bed.leafQuat[li * 4 + 1] = Q.y;
+      bed.leafQuat[li * 4 + 2] = Q.z; bed.leafQuat[li * 4 + 3] = Q.w;
+      bed.leafScale[li * 2] = lw; bed.leafScale[li * 2 + 1] = len;
+      bed.leafColor[li * 3] = C.r; bed.leafColor[li * 3 + 1] = C.g;
+      bed.leafColor[li * 3 + 2] = C.b;
+      bed.leafStemH[li] = stemH;
       li++;
     }
   }
   leaves.count = li;
+  bed.leafCount = li;
   if (leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
   plantGroup.add(leaves);
   if (stems) plantGroup.add(stems);
+  plantBeds.push(bed);
   return n;
+}
+
+/* Redraw every bed at `scale` of its mature size, tinted `chl` of the way toward the
+   deficiency colour. Both numbers come from the frame; neither is decided here. */
+let lastPlantState = null;
+function setPlantAppearance(scale, chl, chlColor) {
+  const key = scale.toFixed(3) + ":" + chl.toFixed(3);
+  if (key === lastPlantState) return;
+  lastPlantState = key;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion();
+  const P = new THREE.Vector3(), S = new THREE.Vector3();
+  const C = new THREE.Color(), sick = new THREE.Color(chlColor || "#c9c04a");
+  for (const bed of plantBeds) {
+    for (let i = 0; i < bed.leafCount; i++) {
+      Q.set(bed.leafQuat[i * 4], bed.leafQuat[i * 4 + 1],
+            bed.leafQuat[i * 4 + 2], bed.leafQuat[i * 4 + 3]);
+      P.set(bed.leafPos[i * 3], bed.leafPos[i * 3 + 1] + bed.leafStemH[i] * scale,
+            bed.leafPos[i * 3 + 2]);
+      S.set(bed.leafScale[i * 2] * scale, bed.leafScale[i * 2 + 1] * scale, 1);
+      bed.leaves.setMatrixAt(i, M.compose(P, Q, S));
+      C.setRGB(bed.leafColor[i * 3], bed.leafColor[i * 3 + 1], bed.leafColor[i * 3 + 2]);
+      if (chl > 0) C.lerp(sick, chl);
+      bed.leaves.setColorAt(i, C);
+    }
+    bed.leaves.instanceMatrix.needsUpdate = true;
+    if (bed.leaves.instanceColor) bed.leaves.instanceColor.needsUpdate = true;
+    if (bed.stems) {
+      for (let i = 0; i < bed.n; i++) {
+        Q.set(bed.stemQuat[i * 4], bed.stemQuat[i * 4 + 1],
+              bed.stemQuat[i * 4 + 2], bed.stemQuat[i * 4 + 3]);
+        P.set(bed.stemPos[i * 3], bed.stemPos[i * 3 + 1], bed.stemPos[i * 3 + 2]);
+        S.set(1, Math.max(1e-4, bed.stemH[i] * scale), 1);
+        bed.stems.setMatrixAt(i, M.compose(P, Q, S));
+      }
+      bed.stems.instanceMatrix.needsUpdate = true;
+    }
+  }
 }
 
 const tanks = {};
@@ -578,10 +685,14 @@ const fishes = [];
   const tailMat = new THREE.MeshStandardMaterial({ color: 0x9d7150, roughness: 0.5,
     transparent: true, opacity: 0.9, side: THREE.DoubleSide });
 
+  // Built per tank, then interleaved: a frame shows the first `drawn` of this list, so
+  // hiding the tail thins every tank evenly instead of emptying the last one.
+  const perTank = [];
   for (const f of SCENE.fish || []) {
     const t = tanks[f.tank]; if (!t) continue;
     const n = Math.min(f.count || 10, 60);
     const L = f.length_m || 0.15;
+    const group = [];
     for (let i = 0; i < n; i++) {
       const g = new THREE.Group();
       const body = new THREE.Mesh(bodyGeo, bodyMat);
@@ -590,16 +701,37 @@ const fishes = [];
       g.scale.setScalar(L);
       fishGroup.add(g);
       const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * t.r * 0.72;
-      fishes.push({
+      const fish = {
         g, t, tail,
         x: t.x + rr * Math.cos(a), z: t.z + rr * Math.sin(a),
         y: t.waterTop * (0.25 + rnd() * 0.55),
         head: rnd() * 6.283,
         turn: (rnd() - 0.5) * 0.6,
-        speed: L * (1.1 + rnd() * 1.1),          // body-lengths per second, roughly
+        speedK: 1.1 + rnd() * 1.1,               // body-lengths per second, roughly
         bob: rnd() * 6.283,
         wag: rnd() * 6.283,
-      });
+      };
+      fish.speed = L * fish.speedK;
+      group.push(fish);
+    }
+    perTank.push(group);
+  }
+  for (let i = 0; ; i++) {
+    let any = false;
+    for (const g of perTank) if (i < g.length) { fishes.push(g[i]); any = true; }
+    if (!any) break;
+  }
+}
+
+/* How many fish are in the water and how big they are, from the frame. The COUNT the
+   operator reads is the twin's; this is only how many of them the picture draws. */
+function setFishAppearance(drawn, lengthM) {
+  for (let i = 0; i < fishes.length; i++) {
+    const f = fishes[i];
+    f.g.visible = i < drawn;
+    if (lengthM > 0 && Math.abs(f.g.scale.x - lengthM) > 1e-4) {
+      f.g.scale.setScalar(lengthM);
+      f.speed = lengthM * f.speedK;
     }
   }
 }
@@ -780,6 +912,97 @@ function updateScaleBar() {
   sbTxt.textContent = m + " m";
 }
 
+/* ---------- twin scrubber ----------
+   The three things this must never confuse: a design, the system as it stands today, and a
+   projection of it. Every frame says which it is, in words, before it says anything else. */
+const twinPanel = document.getElementById("twin");
+const elBadge = document.getElementById("t-badge");
+const elWhen = document.getElementById("t-when");
+const elRead = document.getElementById("t-read");
+const elWhy = document.getElementById("t-why");
+const elWhyText = document.getElementById("t-why-text");
+const elChip = document.getElementById("t-chip");
+const elRange = document.getElementById("t-range");
+const elPlay = document.getElementById("t-play");
+
+let frameIdx = 0, playing = false, playAcc = 0;
+const todayIdx = Math.max(0, FRAMES.findIndex(f => f.kind === "today"));
+const todayDay = FRAMES.length ? FRAMES[todayIdx].day : 0;
+
+function badgeFor(f) {
+  if (f.kind === "today") return ["today", ""];
+  if (f.kind === "forecast") return ["forecast", "forecast"];
+  if (f.kind === "past") return ["as logged", ""];
+  return ["projection", "design"];
+}
+
+function whenFor(f) {
+  const off = f.day - todayDay;
+  const rel = TWIN.mode === "live" && off !== 0
+    ? (off > 0 ? "+" + off + " d" : off + " d") : "";
+  const date = f.date ? f.date : "day " + f.day;
+  return date + (rel ? ' <span class="muted">' + rel + "</span>" : "");
+}
+
+function applyFrame(i) {
+  const f = FRAMES[i];
+  if (!f) return;
+  frameIdx = i;
+  if (elRange.value !== String(i)) elRange.value = String(i);
+
+  waterMat.color.set(f.water.color);
+  setFishAppearance(f.fish.drawn, f.fish.length_m);
+  if (f.crop) setPlantAppearance(f.crop.scale, f.crop.chlorosis, f.crop.chlorosis_color);
+
+  const [label, cls] = badgeFor(f);
+  elBadge.textContent = label;
+  elBadge.className = "badge" + (cls ? " " + cls : "");
+  elWhen.innerHTML = whenFor(f);
+
+  const w = f.water, fi = f.fish;
+  const bits = [
+    "<b>" + fi.count + "</b> fish &middot; <b>" + fi.mean_weight_g.toFixed(0) +
+      " g</b> &middot; " + fi.biomass_kg.toFixed(1) + " kg" +
+      (fi.drawn < fi.count ? " (" + fi.drawn + " drawn)" : ""),
+    "water <b>" + w.temp_c.toFixed(1) + " &deg;C</b>",
+    "NH3 <b>" + w.tan_mg_l.toFixed(2) + "</b> / NO2 <b>" + w.no2_mg_l.toFixed(2) +
+      "</b> / NO3 <b>" + w.no3_mg_l.toFixed(0) + "</b> mg/L",
+  ];
+  if (f.crop) {
+    bits.push("crop <b>" + (f.crop.growth * 100).toFixed(0) + "%</b> of potential (" +
+              f.crop.limiting + "-limited)");
+  }
+  if (f.totals && (f.totals.fish_harvested_kg || f.totals.crop_harvested_kg)) {
+    bits.push("harvested <b>" + f.totals.fish_harvested_kg.toFixed(0) + " kg</b> fish, <b>" +
+              f.totals.crop_harvested_kg.toFixed(0) + " kg</b> crop");
+  }
+  elRead.innerHTML = bits.map(b => "<span>" + b + "</span>").join("");
+
+  const why = [w.band !== "ok" ? w.why : "", f.note || ""].filter(Boolean).join(" &middot; ");
+  elWhy.style.display = why ? "flex" : "none";
+  elWhyText.innerHTML = why;
+  elChip.style.background = w.color;
+}
+
+if (FRAMES.length) {
+  twinPanel.style.display = "block";
+  elRange.max = String(FRAMES.length - 1);
+  if (FRAMES.length < 2) { elRange.style.display = "none"; elPlay.style.display = "none"; }
+  elRange.oninput = () => { playing = false; elPlay.innerHTML = "&#9654;"; applyFrame(+elRange.value); };
+  elPlay.onclick = () => {
+    playing = !playing;
+    elPlay.innerHTML = playing ? "&#10073;&#10073;" : "&#9654;";
+  };
+  addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") applyFrame(Math.min(FRAMES.length - 1, frameIdx + 1));
+    else if (e.key === "ArrowLeft") applyFrame(Math.max(0, frameIdx - 1));
+    else if (e.key === " ") { e.preventDefault(); elPlay.onclick(); }
+    else return;
+    if (e.key !== " ") { playing = false; elPlay.innerHTML = "&#9654;"; }
+  });
+  applyFrame(todayIdx);
+}
+
 /* ---------- testable summary ---------- */
 window.__SCENE_STATS__ = {
   webgl: !!renderer,
@@ -791,6 +1014,14 @@ window.__SCENE_STATS__ = {
   hudItems: legendItems,
   greenhouse: !!SCENE.greenhouse,
   crop: SCENE.crop || "",
+  twinMode: TWIN.mode || "design",
+  frames: FRAMES.length,
+  frame: () => (FRAMES.length ? {
+    index: frameIdx, day: FRAMES[frameIdx].day, kind: FRAMES[frameIdx].kind,
+    badge: elBadge.textContent, water: waterMat.color.getHexString(),
+    fishVisible: fishes.filter(f => f.g.visible).length,
+  } : null),
+  goTo: i => applyFrame(i),
 };
 
 /* ---------- animate ---------- */
@@ -820,6 +1051,14 @@ function tick(tms) {
   }
   controls.update();
   updateScaleBar();
+
+  if (playing && FRAMES.length > 1) {
+    playAcc += dt;
+    if (playAcc >= 0.16) {                 // ~6 days a second: fast enough to feel like a
+      playAcc = 0;                         // season, slow enough to see a spike arrive
+      applyFrame(frameIdx + 1 >= FRAMES.length ? 0 : frameIdx + 1);
+    }
+  }
 
   if (flowGroup.visible) for (const f of flows) {
     for (let i = 0; i < f.n; i++) {
