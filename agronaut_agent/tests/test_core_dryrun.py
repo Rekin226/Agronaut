@@ -346,6 +346,18 @@ def test_system_prompt_mentions_record_measurement():
     assert "record_measurement" in SYSTEM_PROMPT.lower()
 
 
+def test_system_prompt_sends_a_running_system_to_its_own_3d_view():
+    """"Show me my system" must not route to the DESIGN renderer. A user who already runs
+    a system would get a generic drawing of a system they do not have, with none of their
+    own state on it, and no way to tell the difference."""
+    from agronaut_agent.core import SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "show_my_system_3d" in low
+    see_at = low.index("asks to see, draw, or picture")
+    assert low.index("show_my_system_3d") > see_at, (
+        "the live view must be named where the prompt routes 'show me'")
+
+
 class _ContextProbe:
     """Sizes a system on the first invoke, then only replies — and records every message
     list it is invoked with, so tests can assert what the model actually sees."""

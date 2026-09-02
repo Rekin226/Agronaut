@@ -853,7 +853,7 @@ def design_system_3d(
             f"simulate a season at their site next (simulate_season).")
 
 
-def _attach_scene_html(scene: dict) -> str:
+def _attach_scene_html(scene: dict, *, prefix: str = "agronaut_design3d_") -> str:
     """Render a scene to the self-contained offline HTML and attach it to the reply.
 
     `scripts/` is outside the trust zone and holds the renderer; importing it here rather
@@ -871,8 +871,11 @@ def _attach_scene_html(scene: dict) -> str:
     finally:
         sys.path.remove(str(scripts_dir))
     html = build_html(scene, title=scene["name"])
-    fd, path = tempfile.mkstemp(prefix="agronaut_design3d_", suffix=".html")
-    with os.fdopen(fd, "w") as fh:
+    fd, path = tempfile.mkstemp(prefix=prefix, suffix=".html")
+    # utf-8 explicitly: every scene name and subtitle carries m2, degrees and separators, and
+    # a host running under LANG=C would otherwise raise UnicodeEncodeError instead of drawing
+    # a system. Minimal containers and offline laptops are the target, not the exception.
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(html)
     runtime.add_attachment(path)
     return path
@@ -897,14 +900,20 @@ def show_my_system_3d(days_ahead: int = 14, greenhouse: str = "poly") -> str:
     if cur is None:
         return "No session — cannot open a live twin here."
     mem, user_id = cur
+    facts = mem.get_facts(user_id) or {}
+    # Ask BEFORE advancing. `twin_view.compute` fetches live weather and writes the advanced
+    # state back, so checking the drawing's own requirements afterwards spends a network
+    # round-trip and a state write on every retry of a question we could have asked first.
+    missing = twin_view.missing_for_scene(facts)
+    if missing:
+        return ("To draw their live system I still need: " + ", ".join(missing) +
+                ". Ask the user, save with update_profile, then call this again.")
     try:
         snap = twin_view.compute(mem, user_id, days=days_ahead, greenhouse=greenhouse)
     except Exception as err:  # noqa: BLE001 — a weather hiccup must become words
         return f"Could not advance the twin ({err}) — try again shortly."
-    facts = mem.get_facts(user_id) or {}
-    missing = list(snap.missing) + twin_view.missing_for_scene(facts)
-    if missing:
-        return ("To draw their live system I still need: " + ", ".join(missing) +
+    if snap.missing:
+        return ("To draw their live system I still need: " + ", ".join(snap.missing) +
                 ". Ask the user, save with update_profile, then call this again.")
     try:
         scene = twin_view.scene_for(snap, facts)
@@ -914,19 +923,28 @@ def show_my_system_3d(days_ahead: int = 14, greenhouse: str = "poly") -> str:
         return f"Profile value unusable: {err} — correct it with update_profile."
     _attach_scene_html(scene)
 
+    from aqua_model import mirror as _mirror
+
     frames = scene["twin"]["frames"]
     worst = max(frames, key=lambda f: (f["water"]["band"] == "urgent",
                                        f["water"]["band"] == "act"))
-    today = frames[0]
+    # The SAME line /forecast prints as "Now", from the same state the picture's TODAY frame
+    # renders. Two phrasings of one pond is how a farmer stops trusting either.
     lines = [
         "Rendered their live system in 3D (attached — opens in any browser, offline). "
-        f"Today: {today['fish']['count']} fish @ {today['fish']['mean_weight_g']:.0f} g, "
-        f"water {today['water']['temp_c']:.1f} C, NH3 {today['water']['tan_mg_l']:.2f} / "
-        f"NO2 {today['water']['no2_mg_l']:.2f} / NO3 {today['water']['no3_mg_l']:.0f} mg/L.",
-        f"The slider runs {len(frames)} days from today; the badge says whether a frame is "
-        "TODAY or a FORECAST, and the geometry is a proposed arrangement, not their site "
-        "plan — say so rather than letting them read it as a survey.",
+        f"Today: {_mirror.snapshot_line(snap.state)}",
     ]
+    ahead = len(frames) - 1
+    if ahead > 0:
+        lines.append(
+            f"The slider runs from today through {ahead} forecast day(s); the badge says "
+            "whether a frame is TODAY or a FORECAST, and the geometry is a proposed "
+            "arrangement, not their site plan — say so rather than letting them read it as "
+            "a survey.")
+    else:
+        lines.append(
+            "Only today could be drawn — their site's forecast was unavailable, so there is "
+            "no slider. Say that rather than implying they are seeing days ahead.")
     if worst["water"]["band"] != "ok":
         lines.append(f"The water turns {worst['water']['band']} on "
                      f"{worst['date'] or 'day ' + str(worst['day'])}: {worst['water']['why']}. "
@@ -1018,11 +1036,6 @@ def design_full_system(
     operator_experience: beginner | intermediate | expert (beginners pushed to decoupled
         get a workload warning, never a silent block).
     architecture: force 'coupled' or 'decoupled'; leave unset to let the rules decide."""
-    import os
-    import sys as _sys
-    import tempfile
-    from pathlib import Path
-
     from aqua_model.crops import get_crop
     from aqua_model.flowsheet import Needs, format_flowsheet, plan_flowsheet
     from aqua_model.layout import plan_layout
@@ -1045,21 +1058,13 @@ def design_full_system(
     layout = plan_layout(out, crop_label=crop, species_label=fish_species, flowsheet=fs)
     scene = to_scene(
         layout, out,
+        crop=str(crop).strip().lower(), species=str(fish_species).strip().lower(),
         name=f"{fs.architecture.title()} {system_type.replace('_', ' ')} — "
              f"{fish_species} + {crop}",
         subtitle=(f"{out.grow_area_m2:.0f} m² · {out.fish_count} fish · "
                   f"{len(layout.components)} components · greenhouse "
                   f"{layout.greenhouse.width_m:.1f}×{layout.greenhouse.length_m:.1f} m"))
-    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
-    _sys.path.insert(0, str(scripts_dir))
-    try:
-        from render_3d import build_html
-    finally:
-        _sys.path.remove(str(scripts_dir))
-    fd, path = tempfile.mkstemp(prefix="agronaut_fullsystem_", suffix=".html")
-    with os.fdopen(fd, "w") as fh:
-        fh.write(build_html(scene, title=scene["name"]))
-    runtime.add_attachment(path)
+    _attach_scene_html(scene, prefix="agronaut_fullsystem_")
     header = ("" if out.feasible else
               f"NOTE: infeasible as sized ({out.binding_constraint}) — resolve before building.\n\n")
     return (header + format_flowsheet(fs)

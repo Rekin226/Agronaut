@@ -130,6 +130,23 @@ def test_the_tool_asks_for_what_a_drawing_needs_instead_of_assuming(session, off
     assert not runtime.get_attachments(), "nothing should be drawn from a guess"
 
 
+def test_the_question_is_asked_before_the_weather_is_fetched(session, monkeypatch):
+    """Advancing the mirror is a network call plus a state write. Spending both, on every
+    retry, to then ask for a field already in hand is a farmer waiting for nothing."""
+    calls = []
+    monkeypatch.setattr(T, "_live_weather",
+                        lambda *a, **k: calls.append(1) or (_ for _ in ()).throw(
+                            AssertionError("weather must not be fetched")))
+    mem, uid = session
+    _profile(mem, uid)
+    mem.set_facts(uid, {"system_type": ""}, source="user_stated")
+
+    out = T.show_my_system_3d.invoke({})
+
+    assert "system_type" in out
+    assert not calls
+
+
 def test_the_tool_attaches_a_self_contained_file_with_the_season_in_it(session,
                                                                       offline_weather):
     mem, uid = session
@@ -154,6 +171,53 @@ def test_the_tool_refuses_a_twin_nobody_is_running(session, offline_weather):
 
     assert "still need" in out
     assert not runtime.get_attachments()
+
+
+def test_the_prose_says_now_in_the_same_words_the_forecast_does(session, offline_weather):
+    """One pond, one sentence. `/forecast` prints mirror.snapshot_line for "Now"; if this
+    tool paraphrased the twin's first simulated day instead, the two would disagree about
+    ammonia in the same conversation."""
+    from aqua_model import mirror
+
+    mem, uid = session
+    _profile(mem, uid)
+    snap = _snapshot(mem, uid)
+
+    out = T.show_my_system_3d.invoke({"days_ahead": 7})
+
+    assert mirror.snapshot_line(snap.state) in out
+
+
+def test_the_attached_file_actually_says_the_layout_is_a_proposal(session, offline_weather):
+    """The disclaimer is computed and tested in Python; what matters is that it reaches the
+    file the operator opens."""
+    mem, uid = session
+    _profile(mem, uid)
+
+    T.show_my_system_3d.invoke({"days_ahead": 5})
+
+    html = open(runtime.get_attachments()[0], encoding="utf-8").read()
+    assert "geometry_note" in html, "the viewer must read the note, not just carry it"
+    assert "proposed arrangement" in html
+
+
+def test_every_3d_tool_tells_the_viewer_which_crop_it_drew(session):
+    """The crop key is what picks the plant form. A renderer that leaves it out draws
+    tomatoes as the same green spheres as lettuce, which is the coupling the key exists to
+    remove — and it was missing from one of the three call sites."""
+    for tool, args in (
+        (T.design_system_3d, {"fish_species": "tilapia", "crop": "tomato",
+                              "grow_area_m2": 20, "temperature_c": 26,
+                              "water_budget_lpd": 500}),
+        (T.design_full_system, {"fish_species": "tilapia", "crop": "tomato",
+                                "grow_area_m2": 20, "temperature_c": 26,
+                                "water_budget_lpd": 500}),
+    ):
+        runtime.set_current(session[0], session[1])
+        tool.invoke(args)
+        html = open(runtime.get_attachments()[-1], encoding="utf-8").read()
+        assert '"crop": "tomato"' in html or '"crop":"tomato"' in html, (
+            f"{tool.name} rendered a scene that does not say what crop it drew")
 
 
 def test_the_tool_is_registered():

@@ -44,9 +44,11 @@ FISH_DRAWN_PER_TANK = 15
 
 # Water colour by nitrogen band. The bands themselves are `advisory.py`'s, which cites
 # knowledge/nitrogen_cycle_and_cycling.md; only the colours are new here, and a colour is
-# not a claim about a pond. "ok" is the viewer's own water blue, so an untroubled system
-# looks exactly as it did before any twin was bound to it.
-WATER_COLORS = {"ok": "#1c7fa8", "act": "#c08b2a", "urgent": "#b23c2e"}
+# not a claim about a pond. There is deliberately NO "ok" colour: healthy water carries an
+# empty override and the viewer keeps its own water blue, so an untroubled system looks
+# exactly as it did before any twin was bound, and retuning that blue stays a one-file
+# change instead of silently breaking the promise from the other side.
+WATER_COLORS = {"act": "#c08b2a", "urgent": "#b23c2e"}
 
 # How pale a nitrogen-starved crop is drawn. Chlorosis on a nitrogen-limited plant is
 # ordinary agronomy, but the DEPTH of the tint is a drawing convention, not a measurement,
@@ -117,7 +119,7 @@ def water_band(nitrogen) -> dict:
         return {"band": "act", "color": WATER_COLORS["act"], "driver": "nitrate",
                 "why": (f"nitrate {no3:.0f} mg/L is over {NO3_HIGH_MG_L:.0f} mg/L — plant "
                         "uptake is not keeping up")}
-    return {"band": "ok", "color": WATER_COLORS["ok"], "driver": "",
+    return {"band": "ok", "color": "", "driver": "",
             "why": f"ammonia {tan:.2f} / nitrite {no2:.2f} / nitrate {no3:.0f} mg/L"}
 
 
@@ -205,18 +207,20 @@ def _keyframe_indices(trajectory, max_frames: int, today_index: int | None) -> l
 
 
 def build_frames(trajectory, *, today_index: int | None = None, dates=(),
-                 max_frames: int = DEFAULT_MAX_FRAMES, roster: int = 0) -> list[dict]:
+                 max_frames: int = DEFAULT_MAX_FRAMES, roster: int = 0,
+                 peak_count: int = 0) -> list[dict]:
     """Turn a `ProductionRun.trajectory` into embeddable per-day frames.
 
     `today_index` marks the day that is NOW: earlier days are what already happened, later
     ones are projection. Pass None when the run is not anchored to a calendar at all (a
     season simulated from a design), and every frame is labelled a projection rather than
-    borrowing the authority of "today".
+    borrowing the authority of "today". Pass a NEGATIVE index when now precedes the run —
+    a live mirror whose forecast starts tonight — and every day in it is a forecast.
     """
     days = list(trajectory)
     if not days:
         return []
-    peak = max(int(d.state.fish.count) for d in days) or 1
+    peak = peak_count or max(int(d.state.fish.count) for d in days) or 1
     roster = roster or FISH_DRAWN_PER_TANK
     frames = []
     for i in _keyframe_indices(days, max_frames, today_index):
@@ -255,10 +259,16 @@ def to_scene(layout: Layout, out: DesignOutput, *,
 
     Binding a twin (all optional, and omitting them leaves the design view untouched):
 
-    - `state`: one `ProductionState` — a live mirror with no forecast behind it. Renders a
-      single frame labelled TODAY.
+    - `state`: one `ProductionState` — the live mirror, which is what NOW means everywhere
+      else in this project: `/forecast` prints it as "Now" and `advisory.recommend` reasons
+      about it. So when it is given it becomes the TODAY frame, and the trajectory behind it
+      is entirely FORECAST, exactly as `production.format_summary` labels it. Letting the
+      simulated first day stand in for today would put a different pond in the picture from
+      the one the bot is talking about, which is the disagreement `twin_view` exists to
+      prevent. Today's crop appearance comes from that first simulated day, because a stored
+      state carries no crop factors and today's conditions are precisely what it evaluates.
     - `trajectory`: a `ProductionRun.trajectory`, embedded as frames the viewer scrubs
-      through. With `today_index` set it is a live twin (today, then forecast); with it
+      through. With `today_index` set and no `state` it is a run anchored mid-way; with it
       None the run is a projection from the design and is labelled as one.
     - `dates`: ISO dates aligned to the trajectory, so the scrubber can say a real date
       instead of only a day number.
@@ -267,21 +277,30 @@ def to_scene(layout: Layout, out: DesignOutput, *,
     laptop with no connection (#79).
     """
     tanks = layout.by_role("fish_tank")
-    frames = list(build_frames(trajectory, today_index=today_index, dates=dates,
-                               max_frames=max_frames,
-                               roster=FISH_DRAWN_PER_TANK * max(1, len(tanks))))
-    if not frames and state is not None:
-        frames = [_frame(state, kind="today",
-                         roster=FISH_DRAWN_PER_TANK * max(1, len(tanks)),
-                         peak_count=int(state.fish.count) or 1, date=as_of)]
+    roster = FISH_DRAWN_PER_TANK * max(1, len(tanks))
+    days = list(trajectory)
+    counts = [int(d.state.fish.count) for d in days]
+    if state is not None:
+        counts.append(int(state.fish.count))
+    peak = max(counts, default=0) or 1
+
+    frames: list[dict] = []
+    if state is not None:
+        frames.append(_frame(state, kind="today", roster=roster, peak_count=peak,
+                             fac=days[0].crop_factors if days else None, date=as_of))
+        today_index = -1          # now precedes the run: every day in it is a forecast
+    frames += build_frames(days, today_index=today_index, dates=dates,
+                           max_frames=max_frames, roster=roster, peak_count=peak)
 
     # The fish roster: how many meshes the viewer builds. In design mode it is the design's
     # stocking, capped; with a twin bound it is sized to the busiest frame, and each frame
-    # then says how many of them are visible on that day.
+    # then says how many of them are visible on that day. A live twin with no fish in it
+    # must NOT fall through to the design's stocking, so the fallback keys on whether a twin
+    # is bound at all rather than on a count that is legitimately zero.
     fish: list[dict] = []
     peak_drawn = max((f["fish"]["drawn"] for f in frames), default=0)
-    shown = peak_drawn or (min(out.fish_count, FISH_DRAWN_PER_TANK * len(tanks))
-                           if tanks and out.fish_count else 0)
+    shown = peak_drawn if frames else (min(out.fish_count, roster)
+                                       if tanks and out.fish_count else 0)
     if tanks and shown:
         per = max(1, -(-shown // len(tanks)))     # ceil: the roster must cover the busiest day
         length = frames[0]["fish"]["length_m"] if frames else 0.15

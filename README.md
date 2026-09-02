@@ -105,9 +105,11 @@ about it afterwards. On Telegram or WhatsApp, `show_my_system_3d` does the same 
 **you** run: your fish count, your water, advanced through the weather that actually happened
 since you last spoke to the bot, then forward through the forecast.
 
-The badge always says which of the three you are looking at — **as designed**, **today**, or a
-**forecast** — because confusing them would be the worst thing this view could do. The geometry
-stays a proposed arrangement, never a survey of your site.
+The badge always says which of the three you are looking at (**as designed**, **today**, or a
+**forecast**), because confusing them would be the worst thing this view could do. "Today" is
+the same state the bot calls "Now", so the picture and the conversation never describe
+different water. The panel says in as many words that the geometry is a proposed arrangement,
+never a survey of your site.
 
 ### Voice notes
 

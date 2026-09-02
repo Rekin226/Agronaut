@@ -74,6 +74,10 @@
   #twin .why { display: flex; align-items: center; gap: 6px; margin-top: 5px;
     font-size: 11.5px; color: #f0d9a8; }
   #twin .why .chip { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  /* The disclaimer is not decoration: the state on this drawing may be someone's real
+     system while the arrangement is only a proposal, and that has to be on screen. */
+  #twin .note { color: var(--muted); font-size: 11px; margin-top: 6px; font-style: italic; }
+  #twin .badge.past { background: #9aa8a2; color: #10201a; }
   #t-range { flex: 1 1 auto; accent-color: var(--accent); height: 18px; margin: 0; }
   #t-play { padding: 3px 9px; min-width: 30px; }
   @media (max-width: 720px) {
@@ -117,6 +121,7 @@
   <div class="why" id="t-why" style="display:none">
     <span class="chip" id="t-chip"></span><span id="t-why-text"></span>
   </div>
+  <div class="note" id="t-note"></div>
 </div>
 <div id="tip" class="panel"></div>
 <div id="cap">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
@@ -928,16 +933,25 @@ const elPlay = document.getElementById("t-play");
 let frameIdx = 0, playing = false, playAcc = 0;
 const todayIdx = Math.max(0, FRAMES.findIndex(f => f.kind === "today"));
 const todayDay = FRAMES.length ? FRAMES[todayIdx].day : 0;
+const todayDate = FRAMES.length && FRAMES[todayIdx].date
+  ? Date.parse(FRAMES[todayIdx].date) : 0;
 
 function badgeFor(f) {
   if (f.kind === "today") return ["today", ""];
   if (f.kind === "forecast") return ["forecast", "forecast"];
-  if (f.kind === "past") return ["as logged", ""];
+  if (f.kind === "past") return ["as logged", "past"];
   return ["projection", "design"];
 }
 
+const DAY_MS = 86400000;
 function whenFor(f) {
-  const off = f.day - todayDay;
+  // Prefer the calendar when the scene carries one: day numbers count SIMULATED days, and
+  // the forecast's first day is the rest of today, so counting it as "+1 d" would put a
+  // frame a day ahead of the date printed beside it.
+  let off = f.day - todayDay;
+  if (f.date && todayDate) {
+    off = Math.round((Date.parse(f.date) - todayDate) / DAY_MS);
+  }
   const rel = TWIN.mode === "live" && off !== 0
     ? (off > 0 ? "+" + off + " d" : off + " d") : "";
   const date = f.date ? f.date : "day " + f.day;
@@ -950,9 +964,15 @@ function applyFrame(i) {
   frameIdx = i;
   if (elRange.value !== String(i)) elRange.value = String(i);
 
-  waterMat.color.set(f.water.color);
+  // No override means healthy water: the viewer's own blue, the one this file has always
+  // used. Only a band the advisor acts on repaints it.
+  waterMat.color.set(f.water.color || WATER_COL);
   setFishAppearance(f.fish.drawn, f.fish.length_m);
+  // A frame with no crop block knows nothing about the crop (a stored state carries no
+  // factors), so the bed goes back to how it was built rather than keeping the last frame's
+  // growth — which would leave a forecast's plants standing on a day that never claimed them.
   if (f.crop) setPlantAppearance(f.crop.scale, f.crop.chlorosis, f.crop.chlorosis_color);
+  else setPlantAppearance(1, 0, "");
 
   const [label, cls] = badgeFor(f);
   elBadge.textContent = label;
@@ -981,11 +1001,14 @@ function applyFrame(i) {
   const why = [w.band !== "ok" ? w.why : "", f.note || ""].filter(Boolean).join(" &middot; ");
   elWhy.style.display = why ? "flex" : "none";
   elWhyText.innerHTML = why;
-  elChip.style.background = w.color;
+  elChip.style.background = w.color || "#" + WATER_COL.toString(16).padStart(6, "0");
 }
 
 if (FRAMES.length) {
   twinPanel.style.display = "block";
+  // Computed in scene3d.py, and the whole difference between a twin and a picture that
+  // flatters itself. It is on screen or the claim is not made.
+  document.getElementById("t-note").textContent = TWIN.geometry_note || "";
   elRange.max = String(FRAMES.length - 1);
   if (FRAMES.length < 2) { elRange.style.display = "none"; elPlay.style.display = "none"; }
   elRange.oninput = () => { playing = false; elPlay.innerHTML = "&#9654;"; applyFrame(+elRange.value); };
@@ -994,8 +1017,11 @@ if (FRAMES.length) {
     elPlay.innerHTML = playing ? "&#10073;&#10073;" : "&#9654;";
   };
   addEventListener("keydown", e => {
-    if (e.key === "ArrowRight") applyFrame(Math.min(FRAMES.length - 1, frameIdx + 1));
-    else if (e.key === "ArrowLeft") applyFrame(Math.max(0, frameIdx - 1));
+    // preventDefault on the arrows too: with the slider focused the browser would step it
+    // a SECOND time and fire `input`, so every keypress moved two days and could jump
+    // clean over the one the user was stepping onto.
+    if (e.key === "ArrowRight") { e.preventDefault(); applyFrame(Math.min(FRAMES.length - 1, frameIdx + 1)); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); applyFrame(Math.max(0, frameIdx - 1)); }
     else if (e.key === " ") { e.preventDefault(); elPlay.onclick(); }
     else return;
     if (e.key !== " ") { playing = false; elPlay.innerHTML = "&#9654;"; }

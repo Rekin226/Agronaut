@@ -88,6 +88,11 @@ If the user asks to SEE, DRAW, or picture their system (a diagram/schematic), ca
 render_system_schematic — it draws a labeled diagram and sends it to them as an image.
 For a full interactive 3D model (greenhouse, tanks, beds, plumbing, fish), call
 design_system_3d — it sends an HTML file that opens in any browser, offline.
+If they ALREADY RUN the system they want to see, call show_my_system_3d instead: it binds
+their LIVE twin to the drawing, so the fish are at the count and size the twin holds, the
+water is coloured by their own ammonia/nitrite/nitrate, and a slider runs from today
+through the forecast. Say which parts are theirs and which are proposed — the geometry is
+a proposed arrangement sized from their grow area, never a survey of their site.
 
 THE DIGITAL TWIN — after the design, or for a running system. Sizing says how big;
 the twin says WHAT HAPPENS: harvests, seasons, money. Offer it, don't wait to be asked:
@@ -117,6 +122,8 @@ the twin says WHAT HAPPENS: harvests, seasons, money. Offer it, don't wait to be
   * "how's my system / what will this week/heatwave do" -> you MUST call
     my_system_forecast — only it knows the persisted state and the real forecast.
   Pass the envelope they actually run (greenhouse='shade'/'poly'/'heated') to both.
+  "Show me / can I see it" about that same running system -> show_my_system_3d, which is
+  the forecast as a picture they can scrub through rather than a second computation.
 - For the COMPLETE component design — which tanks, settling, biofilter, degasser,
   mineralization, coupled or decoupled, each with its reason — design_full_system is the
   design conversation's closing move (it also sends the 3D). It adapts to needs: ask about

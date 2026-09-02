@@ -89,8 +89,12 @@ def test_an_uncycled_system_says_so_rather_than_only_showing_a_colour():
     assert "cycle is not established" in band["why"]
 
 
-def test_healthy_water_keeps_the_viewers_own_blue():
-    assert water_band(_state().nitrogen)["color"] == scene3d.WATER_COLORS["ok"]
+def test_healthy_water_names_no_colour_at_all():
+    """Healthy water is the viewer's own blue, defined once, in the viewer. Restating it
+    here would let a palette change on either side break the other silently."""
+    band = water_band(_state().nitrogen)
+    assert band["band"] == "ok" and band["color"] == ""
+    assert "ok" not in scene3d.WATER_COLORS
 
 
 # --- fish are the cohort's, not a decorative constant ---------------------------------
@@ -206,12 +210,87 @@ def test_a_bare_mirror_state_renders_one_frame_labelled_today():
 def test_the_whole_bound_scene_is_json_and_embeddable():
     out = _design()
     scene = to_scene(plan_layout(out), out, trajectory=_run(120).trajectory, today_index=0)
-    text = json.dumps(scene)
-    assert "</" not in text or "<\\/" not in text
-    assert len(text) < 900_000, "an embedded season must not bloat the offline file"
+    assert len(json.dumps(scene)) < 900_000, "an embedded season must not bloat the file"
+
+
+def test_a_scene_string_cannot_close_the_script_block_that_embeds_it():
+    """The scene is injected INSIDE a <script> tag, so a stray closing tag anywhere in it
+    would end the block early and render a blank page. The escaping lives in the renderer,
+    so the renderer is what this exercises — asserting on json.dumps alone tests nothing."""
+    import sys
+    from pathlib import Path
+
+    scripts = str(Path(__file__).resolve().parents[2] / "scripts")
+    sys.path.insert(0, scripts)
+    try:
+        from render_3d import build_html
+    finally:
+        sys.path.remove(scripts)
+
+    out = _design()
+    scene = to_scene(plan_layout(out), out, name="pwn </script><script>alert(1)</script>")
+    html = build_html(scene, title="t")
+    payload = html.split('id="scene-data"', 1)[1].split("</script>", 1)[0]
+    assert "</script>" not in payload
+    assert "<\\/script>" in payload, "the closing tag must survive as an escaped sequence"
 
 
 def test_the_chlorosis_onset_is_the_cited_nitrate_floor_not_a_taste_setting():
     """Where the crop starts looking sick has to be a threshold someone can argue with."""
     from aqua_model.cropgrowth import f_nitrogen
     assert scene3d.CHLOROSIS_ONSET == f_nitrogen(advisory.NO3_LOW_MG_L)
+
+
+# --- the picture's TODAY is the same pond the bot is talking about ----------------------
+
+def test_the_today_frame_is_the_mirror_state_not_the_first_simulated_day():
+    """`/forecast` prints this state as "Now" and `advisory.recommend` reasons about it. If
+    the picture showed the first SIMULATED day instead, the bot and the drawing would report
+    different ammonia for the same pond on the same date."""
+    out = _design()
+    state = _state(tan_mg_l=0.0, no3_mg_l=0.0)
+    run = _run(10)
+    scene = to_scene(plan_layout(out), out, state=state, trajectory=run.trajectory,
+                     as_of="2026-09-03")
+
+    today = scene["twin"]["frames"][0]
+    assert today["kind"] == "today" and today["date"] == "2026-09-03"
+    assert today["water"]["tan_mg_l"] == pytest.approx(state.nitrogen.tan_mg_l, abs=1e-9)
+    assert today["fish"]["mean_weight_g"] == pytest.approx(state.fish.mean_weight_g, abs=0.05)
+    assert today["water"]["tan_mg_l"] != pytest.approx(
+        run.trajectory[0].state.nitrogen.tan_mg_l, abs=1e-6), (
+        "this test is meaningless unless the simulated day actually differs")
+
+
+def test_everything_behind_a_bound_state_is_forecast():
+    """`format_summary` calls the whole trajectory "the next N days (forecast)". The picture
+    must not promote its first day to today."""
+    out = _design()
+    scene = to_scene(plan_layout(out), out, state=_state(), trajectory=_run(10).trajectory)
+    kinds = [f["kind"] for f in scene["twin"]["frames"]]
+    assert kinds[0] == "today"
+    assert set(kinds[1:]) == {"forecast"}
+    assert scene["twin"]["mode"] == "live"
+
+
+def test_todays_crop_comes_from_the_day_the_model_actually_evaluated():
+    """A stored state carries no crop factors, but the first simulated day IS today's
+    conditions — so the bed is drawn from those rather than left at its mature size, which
+    would flatter a starved crop on the one frame the operator opens by default."""
+    out = _design()
+    run = _run(10, cycled=False)
+    scene = to_scene(plan_layout(out), out, state=_state(), trajectory=run.trajectory)
+    today = scene["twin"]["frames"][0]
+    assert today["crop"]["f_nitrogen"] == pytest.approx(
+        run.trajectory[0].crop_factors.f_nitrogen, abs=1e-6)
+
+
+def test_a_live_twin_with_no_fish_never_borrows_the_designs_stocking():
+    """`fish_count = 0` is a real state (a system between cohorts). A falsy-zero fallback
+    would advertise the sizing model's fish on a scene whose mode says "live"."""
+    out = _design()
+    empty = start_state(volume_l=3000.0, fish_count=0, start_weight_g=50.0,
+                        water_temp_c=26.0, species=TILAPIA)
+    scene = to_scene(plan_layout(out), out, state=empty)
+    assert scene["fish"] == [], "a live scene with no fish must advertise no fish"
+    assert scene["twin"]["frames"][0]["fish"]["count"] == 0

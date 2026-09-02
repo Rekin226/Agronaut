@@ -92,9 +92,17 @@ What a frame decides, and where it comes from:
 | in the picture | from | decided in |
 |---|---|---|
 | fish count and size | `ProductionState.fish` (the cohort) | `scene3d._fish_block`, length by `FULTON_K` |
-| water colour | ammonia / nitrite / nitrate vs the action bands | `scene3d.water_band`, thresholds from `advisory.py` |
+| water colour | ammonia / nitrite / nitrate vs the action bands | `scene3d.water_band`, thresholds from `advisory.py` (healthy water carries no override: the viewer keeps its own blue) |
 | crop size and pallor | the day's `CropFactors` | `scene3d._crop_block`, chlorosis onset = `f_nitrogen(NO3_LOW_MG_L)` |
 | the badge | `today` / `forecast` / `projected` | `scene3d.build_frames` |
+
+`state` is what TODAY means. `/forecast` prints it as "Now" and `advisory.recommend` reasons
+about it, so when it is bound the picture shows it and the whole trajectory behind it is
+forecast — exactly how `format_summary` labels the same run. Letting the first SIMULATED day
+stand in for today would have put a different pond in the picture from the one the bot is
+discussing in the same reply (measured: 200 g / NH3 0.00 in the bot, 202 g / NH3 0.26 in the
+drawing). Today's crop appearance comes from that first simulated day, because a stored state
+carries no crop factors and today's conditions are precisely what it evaluates.
 
 Three rules hold this together:
 

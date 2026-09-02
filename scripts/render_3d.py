@@ -63,7 +63,7 @@ def simulate(out, args):
             f"No climate file for site {args.site!r}. Available: {have}. Fetch one "
             f"(no API key needed): python scripts/fetch_climate.py --lat <LAT> "
             f"--lon <LON> --name {args.site}")
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     days = payload["days"][:max(2, int(args.days))]
     weather = from_records(days)
     species = get_species(args.species)
@@ -77,9 +77,12 @@ def simulate(out, args):
 
 
 def build_html(scene: dict, title: str) -> str:
-    template = (WEB / "viewer_template.html").read_text()
-    three = (WEB / "vendor" / "three.min.js").read_text()
-    orbit = (WEB / "vendor" / "OrbitControls.js").read_text()
+    # utf-8 everywhere, never the platform default: the template and every scene subtitle
+    # carry m2, degree signs and dashes, and a host under LANG=C would fail to write the
+    # file rather than draw a system.
+    template = (WEB / "viewer_template.html").read_text(encoding="utf-8")
+    three = (WEB / "vendor" / "three.min.js").read_text(encoding="utf-8")
+    orbit = (WEB / "vendor" / "OrbitControls.js").read_text(encoding="utf-8")
     # </script> inside the JSON payload would end the script block early; escape defensively.
     payload = json.dumps(scene).replace("</", "<\\/")
     return (template
@@ -135,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     html = build_html(scene, title=scene["name"])
     dest = Path(args.out)
-    dest.write_text(html)
+    dest.write_text(html, encoding="utf-8")
     print(f"wrote {dest}  ({len(html) / 1e6:.1f} MB, open in any browser)")
     if run is not None:
         s = run.summary
