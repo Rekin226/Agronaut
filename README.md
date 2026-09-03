@@ -84,6 +84,33 @@ iron deficiency and pH lockout look identical in an image, so you get both plus 
 separates them. Ordering follows the knowledge base's own rules — pH before iron, water quality
 before any fish pathogen. Nothing it says states a dose.
 
+### See the system, and then see it running
+
+Every design renders as a self-contained 3D page — greenhouse, tanks, filtration, beds,
+graded plumbing with the flow animated in the direction the water actually goes. One HTML
+file, no server and no CDN, so it opens from a double-click on a laptop that has never been
+online.
+
+With a twin bound to it, the same drawing stops being a picture:
+
+```bash
+# a design, plus the season it would have at a real site, on a slider
+python scripts/render_3d.py --crop basil --site taichung_2025 --days 365 -o first_year.html
+```
+
+Drag the scrubber and the fish grow, the water turns amber and then red as ammonia and
+nitrite cross the bands `aqua_model/advisory.py` acts on, and the crop is drawn as vigorously
+as it is actually growing. You *watch* the nitrite spike of week two arrive instead of reading
+about it afterwards. On Telegram or WhatsApp, `show_my_system_3d` does the same for the system
+**you** run: your fish count, your water, advanced through the weather that actually happened
+since you last spoke to the bot, then forward through the forecast.
+
+The badge always says which of the three you are looking at (**as designed**, **today**, or a
+**forecast**), because confusing them would be the worst thing this view could do. "Today" is
+the same state the bot calls "Now", so the picture and the conversation never describe
+different water. The panel says in as many words that the geometry is a proposed arrangement,
+never a survey of your site.
+
 ### Voice notes
 
 Speak instead of typing, on Telegram or WhatsApp. The transcript runs through a normal turn, so
@@ -533,6 +560,10 @@ aqua_model/            # TRUST ZONE — pure Python, no LLM, no network, no I/O,
   validate.py          #   the trust gate — the only door into the model
   report.py pilot.py   #   funder-facing design report and pilot proposal
   schematic.py         #   deterministic SVG/PNG system diagram
+  layout.py hydraulics.py #   placement, grading, routed pipe runs and the real pump head
+  production.py mirror.py #   the coupled season twin, and one operator's live state
+  advisory.py          #   proposals with derived confidence — a human approves, nothing acts
+  scene3d.py           #   the 3D scene, including the twin state the viewer renders
   logging_schema.py    #   versioned install-logging standard (the dataset moat)
 
 agent/                 # LLM-facing layer (imports aqua_model, never the reverse)

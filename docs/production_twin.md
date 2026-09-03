@@ -24,6 +24,9 @@ climate.py --> production.py <-- fishgrowth.py (TGC)
 
 sizing.py --> layout.py --> scene3d.py --> scripts/render_3d.py --> one offline HTML
               (placement)   (scene JSON)   (embeds web/vendor/three.min.js)
+                                ^
+                                |  optional: state + trajectory
+                    ProductionRun / mirror.ProductionState
 ```
 
 ## Simulating a season
@@ -64,6 +67,57 @@ design); `scene3d.to_scene` serializes it; the renderer embeds three.js (vendore
 r147, MIT) so the file works offline. Media-bed systems carry no separate biofilter
 vessel; tower systems raise the ridge. The layout declares itself a proposal, not a
 site plan.
+
+## Binding the twin to the drawing
+
+Until this landed there were two twins that had never been introduced (#118): `mirror.py`
+held one operator's real state, `scene3d.py` drew a design, and nothing joined them, so the
+3D view had never once shown anyone's actual pond.
+
+`to_scene` now takes an optional `state` (a `ProductionState`) or `trajectory` (a
+`ProductionRun.trajectory`) and embeds per-day FRAMES the viewer scrubs through:
+
+```bash
+python scripts/render_3d.py --crop basil --site taichung_2025 --days 365 -o first_year.html
+```
+
+```python
+from agronaut_agent import twin_view
+snap  = twin_view.compute(mem, user_id, days=14)     # this operator's live twin
+scene = twin_view.scene_for(snap, mem.get_facts(user_id))   # ...bound to their drawing
+```
+
+What a frame decides, and where it comes from:
+
+| in the picture | from | decided in |
+|---|---|---|
+| fish count and size | `ProductionState.fish` (the cohort) | `scene3d._fish_block`, length by `FULTON_K` |
+| water colour | ammonia / nitrite / nitrate vs the action bands | `scene3d.water_band`, thresholds from `advisory.py` (healthy water carries no override: the viewer keeps its own blue) |
+| crop size and pallor | the day's `CropFactors` | `scene3d._crop_block`, chlorosis onset = `f_nitrogen(NO3_LOW_MG_L)` |
+| the badge | `today` / `forecast` / `projected` | `scene3d.build_frames` |
+
+`state` is what TODAY means. `/forecast` prints it as "Now" and `advisory.recommend` reasons
+about it, so when it is bound the picture shows it and the whole trajectory behind it is
+forecast — exactly how `format_summary` labels the same run. Letting the first SIMULATED day
+stand in for today would have put a different pond in the picture from the one the bot is
+discussing in the same reply (measured: 200 g / NH3 0.00 in the bot, 202 g / NH3 0.26 in the
+drawing). Today's crop appearance comes from that first simulated day, because a stored state
+carries no crop factors and today's conditions are precisely what it evaluates.
+
+Three rules hold this together:
+
+1. **The viewer decides nothing.** Every appearance is a number in the frame. A colour chosen
+   in JavaScript would be a second, uncited opinion about when a pond is in trouble.
+2. **The three things stay distinct.** A design, the system today, and a projection are
+   labelled on screen at all times. `today_index=None` marks a run that is not anchored to a
+   calendar, and every frame in it says "projection" rather than borrowing today's authority.
+3. **The geometry is still a proposal** even when the state is the operator's own, and the
+   scene says so in `twin.geometry_note`. A tank volume that disagrees with what the grow area
+   implies is stated in the subtitle rather than quietly drawn over.
+
+A long run is downsampled to ~120 frames, but the peaks of each nitrogen channel, every
+harvest day, today and the endpoints are pinned in: a stride that landed either side of the
+nitrite spike would show a season in which it never happened.
 
 ## Where the data comes from, and what is still missing
 
