@@ -93,6 +93,30 @@
         "crop_leafy": {"price": 2.2, "low": 1.4, "high": 3.5, "unit": "USD/kg", "basis": "derived", "source": "USDA AMS Aug 2026 lettuce: $0.44-0.99/head shipping-point FOB, $0.92-1.17/head wholesale terminal. Converted at a ~0.5 kg head (our conversion — USDA prices lettuce by the head, not the kilogram)"},
         "crop_fruiting": {"price": 1.8, "low": 1.35, "high": 2.4, "unit": "USD/kg", "basis": "official", "source": "USDA AMS Aug 2026 tomato band (see crop_tomato)"}
       }
+    },
+    "india": {
+      "currency": "INR",
+      "as_of": "2026-08",
+      "items": {
+        "tank_1000l": {"price": 10500, "low": 6500, "high": 15328, "unit": "per 1000 L vessel", "basis": "retail_snapshot", "source": "Current India listings: TradeIndia 1000 L PVC tank ₹6,500; Moglix/Sintex 1000 L tanks ₹10,202-15,328"},
+        "pump_small": {"price": 2100, "low": 1499, "high": 2549, "unit": "per unit (~2500-3000 L/h class)", "basis": "retail_snapshot", "source": "Greenfin SUNSUN JQP-2500 35 W, 2500 L/h ₹1,499; Toolsvilla SUNSUN JQP-3000 45 W, 3000 L/h ₹2,100; Greenfin JQP-3000 ₹2,549"},
+        "air_pump": {"price": 2700, "low": 1950, "high": 3300, "unit": "per unit", "basis": "retail_snapshot", "source": "Toolsvilla India listings: RESUN ACO-001 ₹1,950; RESUN ACO-003 ₹2,690; SUNSUN ACO-003 45 W ₹3,300"},
+        "gravel_m3": {"price": 2100, "low": 1500, "high": 3000, "unit": "per m3 20 mm aggregate/gravel, material only", "basis": "derived", "source": "India aggregate benchmark: InfraLens Aug 2026 references 20 mm coarse aggregate around ₹930-1,468/t in Bhopal; converted using ~1.6 t/m3 and widened for regional variation. Delivery excluded"},
+        "biofilter_media_m3": {"price": 14500, "low": 7600, "high": 17500, "unit": "per m3 MBBR/biofilter media", "basis": "retail_snapshot", "source": "Indian supplier listings: Water Treatment Technologies ₹7,600/m3; PP Aquatech aquaculture bio media ₹14,500/m3 and K1 MBBR ₹17,500/m3"},
+        "raft_foam_m2": {"price": 278, "low": 278, "high": 278, "unit": "per m2 EPS hydroponic raft board", "basis": "retail_snapshot", "source": "Yesraj Agro Exports: food-grade EPS hydroponic raft 1200 x 600 x 25 mm at ₹200/board, equivalent to ₹277.78/m2"},
+        "liner_m2": {"price": 100, "low": 88, "high": 110, "unit": "per m2 500 micron HDPE pond liner", "basis": "retail_snapshot", "source": "Current Indian listings: Nilanjanam approx. ₹100/m2; Tanishka and Sonite Agriventures about ₹110/m2; comparable 500 micron HDPE pond-liner listings around this range"},
+        "nft_channel_m": {"price": 280, "low": 190, "high": 420, "unit": "per metre NFT channel", "basis": "retail_snapshot", "source": "Indian hydroponic supplier listings: Green Tech Hydrofarming ₹190/m; other Indian NFT channel listings around ₹200-420/m depending on channel type and configuration"},
+        "greenhouse_poly_m2": {"price": 1000, "low": 750, "high": 1200, "unit": "per m2 floor, polyhouse structure + polyfilm", "basis": "retail_snapshot", "source": "Current Indian greenhouse suppliers: tunnel/polyhouse structures around ₹750/m2; naturally ventilated and similar structures around ₹1,000-1,200/m2"},
+        "shade_net_m2": {"price": 40, "low": 35, "high": 50, "unit": "per m2 NET MATERIAL ONLY", "basis": "retail_snapshot", "source": "Current Indian HDPE shade-net listings: roughly ₹35-50/m2 depending on shade percentage; support structure excluded"},
+        "fingerling_tilapia": {"price": 4, "low": 4, "high": 8, "unit": "per fingerling", "basis": "official", "source": "NFDB GIFT tilapia RAS model lists fingerlings at ₹4/pc; Indian hatchery benchmarks indicate higher prices for larger stocking sizes, giving an upper working range around ₹8"},
+        "feed_kg": {"price": 42, "low": 30, "high": 58, "unit": "per kg floating pellet ~30-32% CP", "basis": "derived", "source": "NFDB tilapia RAS model lists ₹30/kg for 28-30% floating pellets; current Indian feed listings provide higher retail benchmarks around ₹42-58/kg for comparable floating feed"},
+        "electricity_kwh": {"price": 6.10, "low": 6.10, "high": 6.65, "unit": "per kWh", "basis": "official", "source": "CSERC FY2026-27 LV-4 Agriculture Allied Activities tariff explicitly covers fisheries, hatcheries and aquaculture: ₹6.10/kWh up to 25 HP and ₹6.65/kWh above 25 HP. State-specific India proxy"},
+        "water_m3": {"price": 40, "low": 30, "high": 40, "unit": "per m3 water only, excl. sewerage and delivery", "basis": "official", "source": "Official Indian utility tariffs: Gujarat GWSSB industrial ₹40/1000 L and commercial ₹30-35/KL; Kerala Water Authority non-domestic tariffs extend up to ₹40/KL"}
+      },
+      "revenue_items": {
+        "fish_tilapia": {"price": 75, "low": 75, "high": 75, "unit": "INR/kg farm-gate", "basis": "official", "source": "NFDB aquaculture technology benchmark: farm-gate price ₹75/kg for tilapia; the same source separately reports ₹100-150/kg when sold live, which is a different sales channel"},
+        "crop_leafy": {"price": 125, "low": 125, "high": 125, "unit": "INR/kg farm-gate proxy, leafy vegetables", "basis": "retail_snapshot", "source": "AptsoMart India ex-farm-gate sourcing references: iceberg lettuce ₹125/kg and spinach ₹125/kg; used as a leafy-vegetable farm-gate proxy rather than a national average"}
+      }
     }
   }
 }
