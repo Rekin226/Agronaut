@@ -58,7 +58,7 @@ pip install -e .                         # deps + the `agronaut` command on your
 Run things:
 
 ```bash
-pytest                                   # the full suite (~530 tests)
+pytest                                   # the full suite (~1,170 tests)
 pytest aqua_model/tests -q               # just the deterministic core (fast, no LLM needed)
 python -m scripts.safety_eval            # the advice-safety golden set; exits non-zero on a CRITICAL failure
 streamlit run app.py                     # the web UI (Calculator + Optimizer need no LLM at all)
@@ -69,6 +69,12 @@ python -m skills.aquaponics_engineer.cli size-aquaponics --help   # the portable
 **You do not need an API key to contribute.** The Design Calculator, the Optimizer, the whole
 of `aqua_model`, the visual triage table, and the golden set are all fully deterministic. Only
 the chat agent needs a model provider.
+
+**On Ubuntu 23.10+, headless-browser QA fails until you allow it.** Chromium dies at startup
+with `No usable sandbox!` because the distro restricts unprivileged user namespaces, which
+Chromium needs to build its own sandbox. `contrib/apparmor/` has the profile and the reasoning
+— including why it is the right fix and `--no-sandbox` is not. Nothing else in this repo needs
+it; the suite and the app run fine without.
 
 ---
 

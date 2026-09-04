@@ -1,0 +1,44 @@
+# AppArmor profile: let Playwright's Chromium create user namespaces.
+#
+# Ubuntu 23.10+ sets kernel.apparmor_restrict_unprivileged_userns=1, which stops
+# unconfined binaries from creating unprivileged user namespaces. Chromium needs one
+# to build its own sandbox, so without this it dies at startup with:
+#
+#     FATAL:zygote_host_impl_linux.cc: No usable sandbox!
+#
+# This grants that one capability to Playwright's Chromium binaries and nothing else.
+# The system-wide restriction stays on for every other binary, and — the point —
+# Chromium's own sandbox stays ENABLED. That is the difference between this and the
+# usual --no-sandbox advice, which fixes the crash by removing the protection.
+#
+# Modelled on Ubuntu's own /etc/apparmor.d/chrome, which does exactly this for
+# /opt/google/chrome/chrome.
+#
+# The version globs are deliberate: Playwright bumps chromium-1234 -> chromium-1250
+# on upgrade, and a path pinned to today's build would silently stop matching, putting
+# the "No usable sandbox" crash back with no clue as to why.
+#
+# Install:
+#   sudo cp playwright-chromium /etc/apparmor.d/playwright-chromium
+#   sudo apparmor_parser -r /etc/apparmor.d/playwright-chromium
+#
+# Remove:
+#   sudo apparmor_parser -R /etc/apparmor.d/playwright-chromium
+#   sudo rm /etc/apparmor.d/playwright-chromium
+
+abi <abi/4.0>,
+include <tunables/global>
+
+# Headless shell — what `browse` launches by default.
+profile playwright-chromium-headless @{HOME}/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell flags=(unconfined) {
+  userns,
+
+  include if exists <local/playwright-chromium-headless>
+}
+
+# Full Chromium — used by `browse --headed` and the connect/handoff flows.
+profile playwright-chromium-headed @{HOME}/.cache/ms-playwright/chromium-*/chrome-linux64/chrome flags=(unconfined) {
+  userns,
+
+  include if exists <local/playwright-chromium-headed>
+}
