@@ -50,8 +50,11 @@ _REVENUE_KEYS = (
 # cannot grow yet, so the number is ready on the day the crop lands. Deliberate, and
 # listed here so it stays deliberate — an entry that drops off this list without its
 # crop appearing in CROPS is a typo, which is exactly what this module exists to catch.
-#   crop_amaranth — Burkina Faso; waiting on the amaranth crop entry (#104).
-_PRICED_AHEAD_OF_CATALOGUE = frozenset({"crop_amaranth"})
+#
+# Empty, and that is the resting state. `crop_amaranth` (Burkina Faso) lived here until
+# the amaranth crop entry landed in #104; the test below is what noticed, and the entry
+# is now checked as a normal revenue key. Add to this set only alongside an issue number.
+_PRICED_AHEAD_OF_CATALOGUE: frozenset[str] = frozenset()
 
 # Documented in the contributing guide and in issue #105.
 _BASIS_VALUES = frozenset({"official", "retail_snapshot", "guide", "derived", "quote"})

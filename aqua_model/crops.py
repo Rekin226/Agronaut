@@ -267,6 +267,36 @@ PEA = Crop(
     source="FAO589 (fruiting band, low — legume: partial N-fixation lowers demand on fish-derived N)",
 )
 
+# Heat-tolerant leafy greens. Every other leafy entry above stops at 30 °C or below, so
+# a system simulated in the Sahel returned "most limiting factor: temperature" for want of
+# a crop rather than for want of a workable climate (#104).
+AMARANTH = Crop(
+    name="amaranth", category="leafy",
+    # No amaranth-specific feeding-rate ratio is published. Placed in the FAO 589 / UVI
+    # leafy band (~40-100 g/m2/day) alongside kale, the closest analogue we already carry:
+    # a fast cut-and-come-again green with repeated harvests off standing plants.
+    frr_g_per_m2_day=65.0, frr_low=45.0, frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    # Field leaf yield 11.0-15.3 t/ha across 17 entries over four leaf harvests (World
+    # Vegetable Center, Tanzania) = 1.1-1.53 kg/m2 per season. At two to three Sahelian
+    # seasons a year that is ~3-4.6 kg/m2/yr in soil; protected raft culture runs several
+    # times field for leafy greens, which places this at roughly 14-18. Held at 16 — under
+    # lettuce (25) and inside the band its leafy siblings occupy — because the multiplier,
+    # not the measurement, is the soft part of that chain.
+    yield_kg_per_m2_year=16.0, edible_protein_pct=2.5,
+    ph_min=5.5, ph_max=6.5,
+    # The reason this crop exists in the database: optimal 21-35 °C, measured across hot
+    # (33/27), warm (27/21) and cool (21/15) day/night regimes. temp_max 35 makes amaranth
+    # the most heat-tolerant entry we have, ahead of okra at 32.
+    temp_min_c=18.0, temp_max_c=35.0,
+    source=("WorldVeg Tanzania leaf-harvest trial (17 entries, 11.0-15.3 t/ha over four "
+            "harvests) for yield; Water SA, growth-temperature study of Amaranthus leaves "
+            "(hot 33/27, warm 27/21, cool 21/15 °C day/night) for the 21-35 °C band; "
+            "USDA-style composition for amaranth leaves, raw (2.5 g protein/100 g fresh); "
+            "hydroponic amaranth trials run pH 5.5-6.5. FRR placed in the FAO589/UVI "
+            "leafy band, not measured for this species"),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -276,6 +306,8 @@ CROPS: dict[str, Crop] = {
         ARUGULA, WATERCRESS, PAK_CHOI, MUSTARD_GREENS, COLLARD_GREENS, CELERY, CABBAGE,
         # fruiting & heavy brassicas
         BROCCOLI, CAULIFLOWER, STRAWBERRY, EGGPLANT, GREEN_BEAN, OKRA, ZUCCHINI, PEA,
+        # heat-tolerant
+        AMARANTH,
     )
 }
 

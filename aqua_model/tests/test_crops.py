@@ -46,3 +46,54 @@ def test_unknown_crop_lists_known():
     with pytest.raises(KeyError) as e:
         get_crop("dragonfruit")
     assert "strawberry" in str(e.value)  # error names the known set
+
+
+def test_amaranth_is_the_heat_tolerant_leafy_option():
+    """#104: the database had 30 crops and exactly one (okra, fruiting) tolerated 32 C.
+
+    A system simulated in the Sahel kept reporting temperature as the limiting factor —
+    not because aquaponics fails there, but because every leafy crop on offer wilts at
+    30 C. Amaranth is the answer to that, so its temperature band is the assertion that
+    matters: if a future edit narrows it, the gap this crop was added to close reopens
+    silently and the twin goes back to blaming the climate.
+    """
+    c = get_crop("amaranth")
+    assert c.category == "leafy"
+    assert c.temp_max_c >= 35.0, "amaranth is here for the heat; 35 C is the point"
+    assert c.temp_min_c <= 18.0
+
+    leafy_above_30 = [k for k, x in CROPS.items()
+                      if x.category == "leafy" and x.temp_max_c > 30.0]
+    assert leafy_above_30 == ["amaranth"], (
+        "amaranth should be the leafy crop that carries hot climates; if another "
+        f"joins it, widen this assertion deliberately. Found: {leafy_above_30}"
+    )
+
+
+def test_amaranth_sizes_a_system_without_error():
+    """The acceptance criterion from #104: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "amaranth", 12.0, 29.0, 3000.0))
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_amaranth_has_the_burkina_price_it_was_waiting_on():
+    """The price existed before the crop did — #104 was what let them meet.
+
+    `data/price_book.json` has carried a Burkinabe farm-gate amaranth price with nothing
+    to attach it to. Now that the crop exists the two are connected, and this asserts the
+    connection rather than leaving it to be noticed.
+    """
+    import json
+    import pathlib
+
+    book = json.loads(
+        (pathlib.Path(__file__).resolve().parents[2] / "data" / "price_book.json")
+        .read_text(encoding="utf-8")
+    )
+    revenue = book["regions"]["burkina_faso"]["revenue_items"]
+    assert "crop_amaranth" in revenue
+    assert get_crop("amaranth").name == "amaranth"
