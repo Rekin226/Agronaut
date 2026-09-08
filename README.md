@@ -25,6 +25,76 @@ The code is MIT, runs on open weights, and needs no proprietary API.
 
 ---
 
+## Quick start
+
+### 1. A real design in two minutes, with no API key and no account
+
+```bash
+git clone https://github.com/Rekin226/Agronaut.git && cd Agronaut
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+```
+
+That prints a sized system: tank and system volume, fish count, feed rate, biofilter media,
+pump duty, a bill of materials, a source for every number, and an explicit list of what it
+does **not** model. Nothing in that command touches a network.
+
+Try `agronaut list` for the species and crops it knows, or `agronaut optimize --area 10
+--temp 28 --water 5000 --objective food` to search fish × crop ratios.
+
+### 2. Add the conversation, still on your own machine
+
+Chat needs a language model. [Ollama](https://ollama.com) is the shortest path, and
+Agronaut already defaults to it:
+
+```bash
+ollama pull qwen2.5        # ~5 GB, once. Any tool-calling model works.
+agronaut                   # chat in your terminal
+```
+
+Then just say what you have: *"I have a 20 m² greenhouse in Bobo-Dioulasso, water sits
+around 28 °C, I want tilapia and lettuce."*
+
+Prefer a browser? `agronaut web` serves the Streamlit app on
+[localhost:8501](http://localhost:8501).
+
+Photos too, if you want them: `ollama pull llama3.2-vision` and set `VLM_PROVIDER=ollama`.
+
+> No GPU? `qwen2.5:3b` runs on an ordinary laptop CPU. Would rather not run a model at all?
+> A free hosted key works instead: `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY` from
+> [build.nvidia.com](https://build.nvidia.com).
+
+### 3. Put it on your phone (optional)
+
+```bash
+# .env in the project root
+TELEGRAM_BOT_TOKEN=...        # from @BotFather
+AGRONAUT_ALLOWED_IDS=...      # your Telegram user id, so it is yours alone
+```
+
+```bash
+agronaut bot
+```
+
+Message your bot. `/log ammonia 0.5 nitrate 40 temp 27` puts a reading into your live twin
+and `/forecast` tells you what the week ahead does to it — both with no model in the path,
+so they work even when the LLM is slow or unreachable.
+
+### What needs what
+
+| You want | You need |
+|---|---|
+| `size`, `size-hydro`, `optimize`, `list`, the web calculator | **Nothing.** Pure `aqua_model`: deterministic, offline, cited. |
+| Chat, the Telegram bot, photo understanding | A model — Ollama locally, or a hosted key |
+| `/log`, `/forecast`, `/advise`, `/approve` | A model for setup, then nothing: the twin commands never call one |
+
+Trouble, or want Docker, a hosted demo, or WhatsApp? See
+[Install and run: all the options](#install-and-run-all-the-options).
+
+---
+
 ## Why it's different from a chatbot
 
 A chatbot retrieves what a paper *said*. Agronaut **computes the answer for your specific
@@ -379,7 +449,10 @@ the one you use. The design/optimizer modes run with **no LLM dependency at all.
 
 ---
 
-## Quick start
+## Install and run: all the options
+
+The [Quick start](#quick-start) above is the short path. This section is the rest: Docker,
+a hosted demo, every CLI command, and the full environment-variable reference.
 
 ### Docker (one command)
 
@@ -458,21 +531,36 @@ python3 -m pytest        # the aqua_model core suite is pure (no model server ne
 
 ### Run the Telegram bot
 
-The consultative agent is reachable over Telegram. Set these (in `.env` or the environment):
+The consultative agent is reachable over Telegram.
+
+**The two you actually need**, in `.env` or the environment:
 
 | Var | Purpose |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
+
+Plus a model, which you have already if you followed the [Quick start](#quick-start):
+`LLM_PROVIDER=ollama` and a pulled model, or `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY`.
+
+<details>
+<summary><b>Everything else is optional</b> — retrieval tuning, voice, vision, caching. Skip
+this until something needs changing.</summary>
+
+| Var | Purpose |
+|---|---|
 | `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.50, `off` disables). Calibrated against the golden set; **not portable** — re-run `python -m scripts.retrieval_sweep --all` after any corpus or embedding-model change |
 | `AGRONAUT_HYBRID` / `AGRONAUT_HYBRID_BETA` | keyword+semantic fusion, on by default at β=0.90 (β is the semantic weight) |
 | `AGRONAUT_MAX_PER_SOURCE` | how many passages one source may contribute to a single answer (default 2; `1` favours breadth, `0` disables) |
 | `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
 | `AGRONAUT_RERANK` / `AGRONAUT_MD_HEADERS` / `AGRONAUT_PDF_SECTIONS` | techniques that measured *worse* on this corpus and ship disabled — kept because the verdict is corpus-dependent (see `docs/dpg/retrieval_eval/techniques.json`) |
-| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
-| `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
+| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain. Defaults to `ollama` (local, no key); `nvidia` is free at [build.nvidia.com](https://build.nvidia.com) |
+| `LLM_MODEL` | optional. Local default `qwen2.5`. On NVIDIA, `mistralai/mistral-nemotron` measured ~20x faster than `llama-3.3-70b` with correct tool calls ([docs/telegram_twin_testing.md](docs/telegram_twin_testing.md)) |
 | `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model (`VLM_PROVIDER=nvidia`, needs `NVIDIA_API_KEY`); set `VLM_PROVIDER=ollama` and `ollama pull llama3.2-vision` to run it locally with no key and no connectivity. `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
 | `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
+
+
+</details>
 
 ```bash
 source .venv/bin/activate
