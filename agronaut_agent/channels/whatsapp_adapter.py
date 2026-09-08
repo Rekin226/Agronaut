@@ -309,27 +309,40 @@ class WhatsAppAdapter(ChannelAdapter):
         adapter = self
 
         class _Handler(BaseHTTPRequestHandler):
-            def log_message(self, *a):  # quiet default logging
+            def log_message(self, *a):
+                # BaseHTTPRequestHandler's default access log is noise, but total silence
+                # is worse: when Meta stops delivering, an operator sees a running process,
+                # a green webhook in the dashboard, and nothing else to distinguish
+                # "no message arrived" from "a message arrived and was dropped". Every
+                # inbound request is now logged at INFO, with a reason for each rejection.
                 pass
 
             def do_GET(self):
+                log.info("webhook GET from %s", self.client_address[0])
                 q = parse_qs(urlparse(self.path).query)
                 challenge = adapter.verify_webhook(
                     q.get("hub.mode", [""])[0], q.get("hub.verify_token", [""])[0],
                     q.get("hub.challenge", [""])[0])
                 if challenge is not None:
+                    log.info("webhook verification OK — echoing challenge")
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(challenge.encode())
                 else:
+                    log.warning("webhook verification REFUSED — hub.verify_token did not "
+                                "match WHATSAPP_VERIFY_TOKEN")
                     self.send_response(403)
                     self.end_headers()
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
+                log.info("webhook POST from %s, %d bytes", self.client_address[0], length)
                 if adapter.app_secret and not adapter.verify_signature(
                         body, self.headers.get("X-Hub-Signature-256")):
+                    log.warning("webhook POST REJECTED — bad X-Hub-Signature-256. The "
+                                "WHATSAPP_APP_SECRET does not match the app Meta signed "
+                                "with; a message DID arrive and was dropped.")
                     self.send_response(403)
                     self.end_headers()
                     return

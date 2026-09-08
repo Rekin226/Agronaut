@@ -51,6 +51,15 @@ def _cmd_bot(args) -> int:
 
 def _cmd_whatsapp(args) -> int:
     _root_importable()
+    if args.check or args.subscribe:
+        import agent  # noqa: F401 — loads the project-root .env
+
+        from . import whatsapp_doctor as doc
+
+        checks = doc.run_checks(subscribe=args.subscribe, public_url=args.url)
+        text, code = doc.report(checks)
+        print(text)
+        return code
     import whatsapp
 
     return whatsapp.main()
@@ -128,8 +137,15 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="e.g. --server.port=9000 --server.headless=true")
     web.set_defaults(func=_cmd_web)
     sub.add_parser("bot", help="run the Telegram bot").set_defaults(func=_cmd_bot)
-    sub.add_parser("whatsapp", help="run the WhatsApp webhook (Meta Cloud API)").set_defaults(
-        func=_cmd_whatsapp)
+    wa = sub.add_parser("whatsapp", help="run the WhatsApp webhook (Meta Cloud API)")
+    wa.add_argument("--check", action="store_true",
+                    help="diagnose the setup instead of running: token, WABA subscription, "
+                         "webhook reachability, allowlist")
+    wa.add_argument("--subscribe", action="store_true",
+                    help="check, and repair the WABA subscription Meta's dashboard hides")
+    wa.add_argument("--url", metavar="HTTPS_URL",
+                    help="your public webhook URL, to test that Meta can actually reach it")
+    wa.set_defaults(func=_cmd_whatsapp)
     sub.add_parser("review", help="approve/reject pending community insights").set_defaults(
         func=_cmd_review)
     sub.add_parser("analytics", help="summarise recorded usage").set_defaults(func=_cmd_analytics)
