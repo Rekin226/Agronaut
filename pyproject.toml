@@ -65,6 +65,18 @@ exclude = ["*.tests", "*.tests.*"]
 [tool.setuptools.data-files]
 "share/agronaut" = ["urls.txt"]
 "share/agronaut/knowledge" = ["knowledge/*.md"]
+# The reference tables aqua_model and the price tools read at runtime. Listed one by one on
+# purpose: data/ in a checkout also holds the memory database, the analytics log and the
+# fetched-page cache, and a glob would ship a developer's own state to strangers.
+"share/agronaut/data" = [
+    "data/coefficient_sources.json",
+    "data/dataset_registry.json",
+    "data/empirical_envelope.json",
+    "data/price_book.json",
+    "data/reference_systems.json",
+    "data/tgc_calibration.json",
+    "data/twin_validation.json",
+]
 
 [tool.ruff]
 # Pinned here rather than passed on the CI command line, so a local `ruff check`
