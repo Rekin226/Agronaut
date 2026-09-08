@@ -311,11 +311,12 @@ WATER_SPINACH = Crop(
     ph_max=7.5,
     temp_min_c=20.0,
     temp_max_c=35.0,
-    source=("Prasad, R. & Singh, A. (2019), 'Ipomoea aquatica: A review on its cultivation "
-            "and nutritional value', Journal of Tropical Agriculture 57(2):123-130; "
-            "FRR placed in FAO 589 / UVI leafy band (not measured for this species). "
-            "Yield from tropical field trials (12-18 t/ha) through protected-culture "
-            "multiplier; temperature band from cultivation literature."),
+    source=("FAO Ecocrop (https://ecocrop.apps.fao.org/ecocrop/srv/en/dataSheet?id=1264) "
+        "for temperature band (15-35°C optimal, 10-40°C absolute); "
+        "USDA FoodData Central (https://fdc.nal.usda.gov/) for protein content "
+        "(2.6g/100g fresh). FRR placed in FAO 589 / UVI leafy band (not measured "
+        "for this species). Yield from tropical field trials (12-18 t/ha) through "
+        "protected-culture multiplier."),
 )
 
 CROPS: dict[str, Crop] = {

@@ -64,9 +64,9 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
 
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
-    assert leafy_above_30 == ["amaranth"], (
-        "amaranth should be the leafy crop that carries hot climates; if another "
-        f"joins it, widen this assertion deliberately. Found: {leafy_above_30}"
+    assert sorted(leafy_above_30) == ["amaranth", "water_spinach"], (
+        "amaranth and water_spinach should be the leafy crops that carry hot climates; "
+        f"if another joins them, widen this assertion deliberately. Found: {leafy_above_30}"
     )
 
 
@@ -98,6 +98,7 @@ def test_amaranth_has_the_burkina_price_it_was_waiting_on():
     assert "crop_amaranth" in revenue
     assert get_crop("amaranth").name == "amaranth"
 
+
 def test_water_spinach_is_heat_tolerant_and_semi_aquatic():
     """Water spinach (kangkong) is heat-tolerant and ideal for raft culture."""
     ws = get_crop("water_spinach")
@@ -107,3 +108,4 @@ def test_water_spinach_is_heat_tolerant_and_semi_aquatic():
     assert "FRR placed" in ws.source, "FRR placement must be clearly stated"
     assert ws.yield_kg_per_m2_year > 10.0
     assert ws.yield_kg_per_m2_year < 25.0
+
