@@ -31,6 +31,7 @@ import time
 import requests
 
 from ..core import AgronautAgent
+from . import commands
 from .base import ChannelAdapter, chunk, room_identity
 
 log = logging.getLogger(__name__)
@@ -225,6 +226,23 @@ class WhatsAppAdapter(ChannelAdapter):
             if not self._allowed(sender):
                 continue
             uid = room_identity(sender, "private", sender)   # WhatsApp is 1:1 by number
+
+            # Slash commands first. WhatsApp has no command menu — the Cloud API delivers
+            # "/log ammonia 0.5" as ordinary text — so without this every message went to
+            # the LLM and the whole deterministic command layer was missing on the channel
+            # most operators actually use. These are the paths with no model in them.
+            try:
+                cmd = commands.dispatch(self.agent, self.channel_name, uid, text)
+            except Exception:
+                log.exception("slash command failed (whatsapp)")
+                cmd = commands.Reply("That command didn't work just now — try again?")
+            if cmd is not None:
+                for part in chunk(cmd.text):
+                    self.send_text(sender, part)
+                if cmd.document:
+                    self.send_media(sender, cmd.document, cmd.document_mime)
+                continue
+
             try:
                 reply = self.agent.handle_message(self.channel_name, uid, text)
             except Exception:
