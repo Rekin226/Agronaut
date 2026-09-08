@@ -49,6 +49,13 @@ def _cmd_bot(args) -> int:
     return 0
 
 
+def _cmd_setup(args) -> int:
+    _root_importable()
+    from . import setup_wizard
+
+    return setup_wizard.run()
+
+
 def _cmd_whatsapp(args) -> int:
     _root_importable()
     if args.check or args.subscribe:
@@ -136,6 +143,8 @@ def _build_parser() -> argparse.ArgumentParser:
     web.add_argument("streamlit_args", nargs="*",
                      help="e.g. --server.port=9000 --server.headless=true")
     web.set_defaults(func=_cmd_web)
+    sub.add_parser("setup", help="interactive first-time setup (writes your .env)").set_defaults(
+        func=_cmd_setup)
     sub.add_parser("bot", help="run the Telegram bot").set_defaults(func=_cmd_bot)
     wa = sub.add_parser("whatsapp", help="run the WhatsApp webhook (Meta Cloud API)")
     wa.add_argument("--check", action="store_true",
