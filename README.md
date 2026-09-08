@@ -1,5 +1,6 @@
 # 🌱 Agronaut
 
+[![PyPI](https://img.shields.io/pypi/v/agronaut?color=blue)](https://pypi.org/project/agronaut/)
 [![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
 [![Advice-safety golden set](https://img.shields.io/badge/advice--safety-enforced%20in%20CI-brightgreen)](docs/dpg/safety_eval/golden_set.json)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
