@@ -1,0 +1,92 @@
+# Publish to PyPI when a GitHub Release is created.
+#
+# Trusted publishing (OIDC), so no API token is stored anywhere: PyPI verifies the workflow
+# identity itself. One-time setup at https://pypi.org/manage/account/publishing/ —
+# project `agronaut`, owner `Rekin226`, repository `Agronaut`, workflow `publish.yml`,
+# environment `pypi`.
+#
+# The gate matters more than the upload. A release is the one moment a broken package
+# reaches strangers who cannot see the repo, so this reruns the tests and the advice-safety
+# golden set, then installs the built wheel into a clean environment and runs the CLI from a
+# directory with no checkout in it. That last check is the one that catches what unit tests
+# cannot: a knowledge base that did not ship, an entry point that only worked because the
+# source tree happened to be on sys.path.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:          # a dry run without cutting a release
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -e .
+          pip install pytest ruff
+
+      - name: Test suite
+        run: python -m pytest -q
+
+      - name: Advice-safety golden set
+        run: python scripts/safety_eval.py
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Build
+        run: python -m build
+
+      - name: The version being released must match pyproject
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "tag=$TAG  pyproject=$PKG"
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG does not match pyproject version $PKG"; exit 1; }
+
+      - name: The wheel must work with no checkout present
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          cd /tmp                                   # nothing importable from the repo here
+          /tmp/fresh/bin/agronaut list
+          /tmp/fresh/bin/agronaut size --fish tilapia --crop lettuce \
+            --area 12 --temp 27 --water 3000
+          # The cited corpus is not optional decoration: without it every answer comes back
+          # KNOWLEDGE_UNAVAILABLE while the assistant still sounds confident.
+          /tmp/fresh/bin/python - <<'PY'
+          import os
+          from agronaut_agent import paths
+          kb = os.path.join(str(paths.corpus_root()), "knowledge")
+          docs = [f for f in os.listdir(kb) if f.endswith(".md")]
+          assert len(docs) >= 20, f"knowledge base did not ship: {len(docs)} docs"
+          print(f"corpus OK: {len(docs)} cited documents")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: verify
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # trusted publishing; no token secret
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
