@@ -30,10 +30,7 @@ The code is MIT, runs on open weights, and needs no proprietary API.
 ### 1. A real design in two minutes, with no API key and no account
 
 ```bash
-git clone https://github.com/Rekin226/Agronaut.git && cd Agronaut
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-
+pip install agronaut
 agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
 ```
 
@@ -45,6 +42,17 @@ Try `agronaut list` for the species and crops it knows, or `agronaut optimize --
 --temp 28 --water 5000 --objective food` to search fish × crop ratios.
 
 ### 2. Add the conversation, still on your own machine
+
+```bash
+agronaut setup
+```
+
+It asks which model and which channel you want, checks each key against the live service as
+you paste it, reads your Telegram id off a message you send your own bot, and writes
+`~/.config/agronaut/.env` itself. Nothing to hand-write.
+
+<details>
+<summary>Prefer to configure it by hand?</summary>
 
 Chat needs a language model. [Ollama](https://ollama.com) is the shortest path, and
 Agronaut already defaults to it:
@@ -61,6 +69,10 @@ Prefer a browser? `agronaut web` serves the Streamlit app on
 [localhost:8501](http://localhost:8501).
 
 Photos too, if you want them: `ollama pull llama3.2-vision` and set `VLM_PROVIDER=ollama`.
+
+Config lives in `~/.config/agronaut/.env` for an installed copy, or `./.env` in a checkout.
+
+</details>
 
 > No GPU? `qwen2.5:3b` runs on an ordinary laptop CPU. Would rather not run a model at all?
 > A free hosted key works instead: `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY` from
@@ -451,8 +463,20 @@ the one you use. The design/optimizer modes run with **no LLM dependency at all.
 
 ## Install and run: all the options
 
-The [Quick start](#quick-start) above is the short path. This section is the rest: Docker,
-a hosted demo, every CLI command, and the full environment-variable reference.
+The [Quick start](#quick-start) above is the short path. This section is the rest: working
+from a checkout, Docker, a hosted demo, every CLI command, and the full
+environment-variable reference.
+
+### From source
+
+To change Agronaut rather than just use it:
+
+```bash
+git clone https://github.com/Rekin226/Agronaut.git && cd Agronaut
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+python3 -m pytest        # 1235 tests, no model server needed
+```
 
 ### Docker (one command)
 
