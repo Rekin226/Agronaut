@@ -118,9 +118,16 @@ def test_font_prefers_a_font_the_base_system_actually_ships(monkeypatch):
 
 
 def test_font_sizes_stay_distinct_when_a_truetype_resolves():
+    from PIL import ImageFont
+
     from aqua_model.schematic import _font
 
     big, small = _font(18), _font(11)
-    if not hasattr(big, "size"):  # bitmap fallback: no fonts on this machine at all
-        pytest.skip("no TrueType font available on this system")
+    # The old guard was `hasattr(big, "size")`, written when load_default() returned a
+    # bitmap font with no size attribute. Pillow >= 9.2 returns a FreeTypeFont pinned at
+    # 10px instead, so the guard stopped firing and the test failed on every machine
+    # without DejaVu rather than skipping (issue #115). Ask the real question: can this
+    # font object carry a size at all?
+    if not isinstance(big, ImageFont.FreeTypeFont):
+        pytest.skip("Pillow fell back to a bitmap font: no scalable face on this system")
     assert big.size == 18 and small.size == 11
