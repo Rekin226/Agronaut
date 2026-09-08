@@ -11,11 +11,31 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Abdoul Rachid Ouédraogo", email = "abdoulrachid03@gmail.com" }]
 keywords = ["aquaponics", "hydroponics", "agriculture", "food security", "digital public good"]
+# The sidebar on a PyPI page is how someone decides whether to trust a package they have
+# never heard of: it is where they read the licence, the Python floor, and who it is for.
+# An empty one makes a real project look abandoned. No "License ::" classifier: PEP 639
+# supersedes it with the SPDX `license` field above, and setuptools now errors on both.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Hydrology",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Environment :: Console",
+]
 dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/Rekin226/Agronaut"
 Source = "https://github.com/Rekin226/Agronaut"
+Issues = "https://github.com/Rekin226/Agronaut/issues"
+Changelog = "https://github.com/Rekin226/Agronaut/releases"
 
 [project.scripts]
 agronaut = "agronaut_agent.cli:main"

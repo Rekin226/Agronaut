@@ -45,6 +45,14 @@ jobs:
       - name: Build
         run: python -m build
 
+      # PyPI validates metadata at upload time and rejects the whole release, so check it
+      # here instead: the last break was a "License ::" classifier that PEP 639 now forbids
+      # alongside an SPDX `license` field, which fails the build rather than a test.
+      - name: The metadata must be one PyPI will accept
+        run: |
+          pip install --quiet twine
+          python -m twine check dist/*
+
       - name: The version being released must match pyproject
         if: github.event_name == 'release'
         run: |
