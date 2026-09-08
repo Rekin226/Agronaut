@@ -15,7 +15,10 @@ dist/
 
 # Tooling / local agent state (machine-specific, do not commit)
 .gstack/
-.claude/settings.local.json
+.claude/
+# ^ the whole directory, not just settings.local.json: launch.json landed here too, and
+# editor/agent launch configs are a developer's own business. Nothing in Agronaut needs
+# Claude Code to build or run, and committing its config would imply otherwise.
 # uv resolves against requirement.txt; CI and the documented setup both use pip,
 # so this lockfile is one contributor's local resolution, not the project's.
 uv.lock
