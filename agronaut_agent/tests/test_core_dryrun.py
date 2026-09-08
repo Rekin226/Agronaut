@@ -549,3 +549,31 @@ def test_a_promise_without_action_is_nudged_into_the_call(tmp_path):
     reply = agent_.handle_message("cli", "u5", "what species do you support?")
     assert fake.calls >= 2, "the promise must trigger a corrective iteration"
     assert "tilapia" in reply.lower() or "species" in reply.lower()
+
+
+def test_text_of_handles_both_provider_content_shapes():
+    """OpenAI-shaped backends put a string on .content; Anthropic returns a LIST of typed
+    blocks, because tool calls and prose share that field there. Two places in the tool
+    loop read it as text, and a list reaching either raised
+    `TypeError: expected string or bytes-like object, got 'list'` — which is what adding
+    the Claude provider surfaced."""
+    from agronaut_agent.core import _text_of
+
+    assert _text_of("plain string") == "plain string"
+    assert _text_of(None) == ""
+    assert _text_of([{"type": "text", "text": "hello "},
+                     {"type": "text", "text": "world"}]) == "hello world"
+
+
+def test_text_of_drops_tool_use_blocks():
+    """A tool_use block is not prose. Stringifying it would feed the model's own JSON
+    back to the user as if it were an answer."""
+    from agronaut_agent.core import _text_of
+
+    out = _text_of([
+        {"type": "text", "text": "Sizing your system."},
+        {"type": "tool_use", "id": "x", "name": "size_aquaponics_system",
+         "input": {"fish_species": "tilapia"}},
+    ])
+    assert out == "Sizing your system."
+    assert "tilapia" not in out and "tool_use" not in out
