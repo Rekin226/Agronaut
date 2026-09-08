@@ -536,11 +536,12 @@ agronaut analytics               # usage summary: latency p50/p95, tokens, feedb
 agronaut traces                  # recent turns as pipeline traces (no message text)
 ```
 
-**Where it keeps things.** In a checkout, the knowledge base, the fetched-page cache and the
-SQLite memory DB all sit beside the source, as before. Installed non-editably, the cited
-corpus is read from `<prefix>/share/agronaut` and state goes to your XDG directories rather
-than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
-`AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
+**Where it keeps things.** In a checkout, the knowledge base, the reference tables, the
+fetched-page cache and the SQLite memory DB all sit beside the source, as before. Installed
+non-editably, the cited corpus and the reference tables (price book, growth calibration, the
+twin's validation record) are read from `<prefix>/share/agronaut` and state goes to your XDG
+directories rather than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
+`AGRONAUT_REFERENCE_DIR`, `AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
 
 | Command | Needs an LLM? |
 |---|---|
