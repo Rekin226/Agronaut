@@ -580,14 +580,33 @@ Business account. Set:
 | `WHATSAPP_VERIFY_TOKEN` | any string; also entered in Meta's webhook config |
 | `WHATSAPP_APP_SECRET` | app secret, used to verify inbound request signatures |
 
-```python
-from agronaut_agent.core import AgronautAgent
-from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
-WhatsAppAdapter(AgronautAgent()).run()   # serves the webhook + a follow-up poller
+```bash
+agronaut whatsapp          # serves the webhook + a follow-up poller (or: python whatsapp.py)
 ```
 
-Point Meta's webhook at `https://your-host/` (put the process behind HTTPS — a reverse
-proxy or tunnel). The same brain, memory, tools, and follow-ups as Telegram.
+It refuses to start half-configured and tells you which variable is missing and where in the
+Meta dashboard to find it.
+
+**WhatsApp is webhook-based, not long-poll.** Unlike the Telegram bot, Meta has to reach
+*your* machine over HTTPS, so a local run needs a tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8080     # or: ngrok http 8080
+```
+
+Paste the `https://…` URL it prints into Meta's webhook config together with your
+`WHATSAPP_VERIFY_TOKEN`, subscribe to the **messages** field, and message the number.
+
+Two things worth knowing before you start:
+
+- **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. A number
+  registered to it cannot be used in the normal WhatsApp app at the same time. Start with
+  the free test number Meta gives you and message it *from* your personal phone.
+- **Meta's test number can only reply to recipients you have verified** (up to five), and
+  the token on the API Setup page expires in 24 hours. Both are fine for trying it, and both
+  need replacing (a real number, a System User token) before anyone else uses it.
+
+The same brain, memory, tools, and follow-ups as Telegram.
 
 #### Keep it running (systemd)
 

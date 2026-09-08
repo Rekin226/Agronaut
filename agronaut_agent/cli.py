@@ -49,6 +49,13 @@ def _cmd_bot(args) -> int:
     return 0
 
 
+def _cmd_whatsapp(args) -> int:
+    _root_importable()
+    import whatsapp
+
+    return whatsapp.main()
+
+
 def _cmd_review(args) -> int:
     from . import review
 
@@ -121,6 +128,8 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="e.g. --server.port=9000 --server.headless=true")
     web.set_defaults(func=_cmd_web)
     sub.add_parser("bot", help="run the Telegram bot").set_defaults(func=_cmd_bot)
+    sub.add_parser("whatsapp", help="run the WhatsApp webhook (Meta Cloud API)").set_defaults(
+        func=_cmd_whatsapp)
     sub.add_parser("review", help="approve/reject pending community insights").set_defaults(
         func=_cmd_review)
     sub.add_parser("analytics", help="summarise recorded usage").set_defaults(func=_cmd_analytics)
