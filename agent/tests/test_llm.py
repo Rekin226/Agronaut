@@ -135,3 +135,83 @@ def test_the_local_provider_has_a_fallback_too():
     than it does for a provider with a big model behind it."""
     assert "ollama" in L.FALLBACK_MODELS
     assert L.FALLBACK_MODELS["ollama"] != L.DEFAULT_MODELS["ollama"]
+
+
+# --- the Anthropic provider ---------------------------------------------------------------
+
+def test_anthropic_is_a_supported_provider(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    provider, model = L.resolve()
+    assert provider == "anthropic"
+    assert model == L.DEFAULT_MODELS["anthropic"]
+    assert model.startswith("claude-")
+    assert not model[-1].isdigit() or "-20" not in model, "model ids carry no date suffix"
+
+
+def test_the_anthropic_branch_never_sends_temperature(monkeypatch):
+    """The Claude 5 family rejects sampling parameters outright: a request carrying
+    temperature comes back 400 "`temperature` is deprecated for this model." Every other
+    backend takes one, so the shared signature offers it and this branch must drop it."""
+    seen = {}
+
+    class _FakeChat:
+        def __init__(self, **kw):
+            seen.update(kw)
+
+    import langchain_anthropic
+    monkeypatch.setattr(langchain_anthropic, "ChatAnthropic", _FakeChat)
+    L._build_backend("anthropic", "claude-sonnet-5", 0.7)
+    assert "temperature" not in seen
+    assert seen["model"] == "claude-sonnet-5"
+
+
+def test_the_dead_nvidia_fallback_is_gone():
+    """meta/llama-3.1-8b-instruct returns 410 Gone (measured 2026-09-08), so the fallback
+    turned one failure into two. A fallback that cannot answer is worse than none."""
+    assert L.FALLBACK_MODELS.get("nvidia") != "meta/llama-3.1-8b-instruct"
+
+
+class _Echo:
+    """Minimal stand-in for a chat model: records what it was asked to send."""
+
+    def __init__(self):
+        self.got = None
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        self.got = messages
+        return "ok"
+
+
+def test_the_adapter_folds_interleaved_system_messages(monkeypatch):
+    """core.py uses SystemMessage as an operator channel INSIDE the transcript. Anthropic
+    models a single top-level system field and refuses the rest: "Received multiple
+    non-consecutive system messages." Leading ones stay system; later ones become tagged
+    operator notes so the instruction survives in position."""
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    inner = _Echo()
+    adapter = L._AnthropicSystemAdapter(inner)
+    adapter.invoke([
+        SystemMessage(content="PROMPT"),
+        SystemMessage(content="RECALL"),
+        HumanMessage(content="hello"),
+        AIMessage(content="hi"),
+        SystemMessage(content="now answer in plain text"),
+    ])
+    kinds = [type(m).__name__ for m in inner.got]
+    assert kinds == ["SystemMessage", "SystemMessage", "HumanMessage",
+                     "AIMessage", "HumanMessage"]
+    assert inner.got[-1].content.startswith(L._AnthropicSystemAdapter._OPERATOR)
+    assert "now answer in plain text" in inner.got[-1].content
+
+
+def test_the_adapter_survives_bind_tools_and_delegates_everything_else():
+    inner = _Echo()
+    bound = L._AnthropicSystemAdapter(inner).bind_tools([])
+    assert isinstance(bound, L._AnthropicSystemAdapter)
+    bound.invoke([])
+    assert inner.got == []

@@ -202,6 +202,33 @@ _TOOL_REPLAY_MAX_CHARS = 2000
 _PROMISE = re.compile(r"\b(i['’]ll|i will|let me|i am going to|i'm going to)\b", re.I)
 
 
+def _text_of(content) -> str:
+    """The assistant's words, whatever shape the provider returned them in.
+
+    OpenAI-shaped backends (NVIDIA, HF, openai_compat) put a plain string on `.content`.
+    Anthropic returns a LIST of typed blocks — {"type": "text", ...} beside
+    {"type": "tool_use", ...} — because tool calls and prose share one field there.
+
+    Two places in the tool loop read the content as text: the leaked-tool-call rescue,
+    which regexes it, and the final answer, which strips it. A list reaching either raises
+    `TypeError: expected string or bytes-like object, got 'list'`, which is what adding the
+    Claude provider surfaced. Anything that is not a text block is dropped on purpose: a
+    tool_use block is not prose, and stringifying it would feed the model's own JSON back
+    to the user.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text") or "")
+        return "".join(parts)
+    return "" if content is None else str(content)
+
+
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
@@ -446,13 +473,13 @@ class AgronautAgent:
                 # dies as gibberish text. Parse it ourselves and run the call: the leaked
                 # AIMessage is replaced with a well-formed one so the transcript stays
                 # valid for strict OpenAI-compatible templates.
-                rescued = self._rescue_leaked_tool_call(ai.content or "")
+                rescued = self._rescue_leaked_tool_call(_text_of(ai.content))
                 if rescued is not None:
                     messages.pop()
                     messages.append(AIMessage(content="", tool_calls=[rescued]))
                     tool_calls = [rescued]
             if not tool_calls:
-                text = (ai.content or "").strip()
+                text = _text_of(ai.content).strip()
                 # Tripwire: a reply that cites an "earlier result" is only honest if this
                 # conversation actually ran a tool. Measured failure (validation run,
                 # 2026-08): a model told to reuse earlier results started PREFIXING

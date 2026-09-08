@@ -415,3 +415,53 @@ def test_voice_notes_from_a_disallowed_sender_are_ignored(monkeypatch):
     monkeypatch.setattr(a, "download_media", lambda mid: b"oggbytes")
     a.handle_payload(_audio_payload())
     assert agent.voices == []
+
+
+# --- the entrypoint -----------------------------------------------------------------------
+
+def test_preflight_names_what_is_missing_and_why(monkeypatch):
+    """The adapter reads os.environ directly, so without a preflight a missing token is a
+    bare `KeyError: 'WHATSAPP_TOKEN'`. This is the step people get stuck on; the error has
+    to say where in the Meta dashboard to look."""
+    import whatsapp
+    for k in ("WHATSAPP_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"):
+        monkeypatch.delenv(k, raising=False)
+    problems = whatsapp.preflight()
+    assert len(problems) == 2
+    joined = " ".join(problems)
+    assert "WHATSAPP_TOKEN" in joined and "WHATSAPP_PHONE_NUMBER_ID" in joined
+    assert "API Setup" in joined, "the message must say where to find it, not just that it is absent"
+
+
+def test_preflight_passes_once_the_two_required_vars_exist(monkeypatch):
+    import whatsapp
+    monkeypatch.setenv("WHATSAPP_TOKEN", "x")
+    monkeypatch.setenv("WHATSAPP_PHONE_NUMBER_ID", "123")
+    assert whatsapp.preflight() == []
+
+
+def test_the_signature_secret_is_recommended_not_required(monkeypatch):
+    """Missing APP_SECRET must not block a first run, but it must warn: without it inbound
+    signatures are unverified and anyone who learns the webhook URL can talk to the bot."""
+    import whatsapp
+    monkeypatch.delenv("WHATSAPP_APP_SECRET", raising=False)
+    assert any("WHATSAPP_APP_SECRET" in w for w in whatsapp.warnings())
+    assert not any("WHATSAPP_APP_SECRET" in p for p in whatsapp.preflight())
+
+
+def test_main_exits_nonzero_rather_than_starting_a_half_configured_server(monkeypatch, capsys):
+    import whatsapp
+    for k in ("WHATSAPP_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"):
+        monkeypatch.delenv(k, raising=False)
+    assert whatsapp.main() == 2
+    assert "not configured yet" in capsys.readouterr().err
+
+
+def test_the_cli_exposes_whatsapp_beside_bot():
+    """Telegram had `agronaut bot` and WhatsApp had a three-line snippet in the README."""
+    from agronaut_agent.cli import _build_parser
+    actions = [a for a in _build_parser()._actions if hasattr(a, "choices") and a.choices]
+    names = set()
+    for a in actions:
+        names.update(a.choices)
+    assert "whatsapp" in names and "bot" in names

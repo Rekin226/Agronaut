@@ -16,10 +16,10 @@ A genuinely independent or private system can be added later by appending to
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA = _REPO_ROOT / "data" / "reference_systems.json"
+from .reference_data import reference_path
+
+DATA = reference_path("reference_systems.json")
 
 FEED_TOLERANCE = 0.15  # +/-15% on daily feed, matching the original calibration gate
 

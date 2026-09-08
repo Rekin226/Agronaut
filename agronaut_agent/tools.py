@@ -26,6 +26,7 @@ from aqua_model import (
     validate_hydroponic_input,
 )
 from aqua_model.crops import CROPS
+from aqua_model.reference_data import reference_path
 from aqua_model.species import SPECIES, get_species
 
 from . import profile as profile_mod
@@ -976,12 +977,11 @@ def estimate_system_cost(
     region (e.g. 'list') to get the available regions. greenhouse: 'poly' or 'shade'
     (prices the envelope the user will actually build)."""
     import json
-    from pathlib import Path
 
     from aqua_model.costing import estimate_cost, format_estimate
     from aqua_model.layout import plan_layout
 
-    book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
+    book_path = reference_path("price_book.json")
     if not book_path.exists():
         return ("No price book on disk yet (data/price_book.json). Tell the user cost "
                 "estimation is being set up and they should ask again soon.")
@@ -1566,7 +1566,6 @@ def business_case(
     earned with stalls, transport and hours.
     region: a price-book region; site: a climate slug."""
     import json
-    from pathlib import Path
 
     from aqua_model.business import build_case, format_case
     from aqua_model.costing import estimate_cost
@@ -1580,7 +1579,7 @@ def business_case(
         start_state_from_design,
     )
 
-    book_path = Path(__file__).resolve().parent.parent / "data" / "price_book.json"
+    book_path = reference_path("price_book.json")
     if not book_path.exists():
         return "No price book on disk yet (data/price_book.json)."
     book = json.loads(book_path.read_text())

@@ -31,6 +31,7 @@ import time
 import requests
 
 from ..core import AgronautAgent
+from . import commands
 from .base import ChannelAdapter, chunk, room_identity
 
 log = logging.getLogger(__name__)
@@ -225,6 +226,23 @@ class WhatsAppAdapter(ChannelAdapter):
             if not self._allowed(sender):
                 continue
             uid = room_identity(sender, "private", sender)   # WhatsApp is 1:1 by number
+
+            # Slash commands first. WhatsApp has no command menu — the Cloud API delivers
+            # "/log ammonia 0.5" as ordinary text — so without this every message went to
+            # the LLM and the whole deterministic command layer was missing on the channel
+            # most operators actually use. These are the paths with no model in them.
+            try:
+                cmd = commands.dispatch(self.agent, self.channel_name, uid, text)
+            except Exception:
+                log.exception("slash command failed (whatsapp)")
+                cmd = commands.Reply("That command didn't work just now — try again?")
+            if cmd is not None:
+                for part in chunk(cmd.text):
+                    self.send_text(sender, part)
+                if cmd.document:
+                    self.send_media(sender, cmd.document, cmd.document_mime)
+                continue
+
             try:
                 reply = self.agent.handle_message(self.channel_name, uid, text)
             except Exception:
@@ -309,27 +327,40 @@ class WhatsAppAdapter(ChannelAdapter):
         adapter = self
 
         class _Handler(BaseHTTPRequestHandler):
-            def log_message(self, *a):  # quiet default logging
+            def log_message(self, *a):
+                # BaseHTTPRequestHandler's default access log is noise, but total silence
+                # is worse: when Meta stops delivering, an operator sees a running process,
+                # a green webhook in the dashboard, and nothing else to distinguish
+                # "no message arrived" from "a message arrived and was dropped". Every
+                # inbound request is now logged at INFO, with a reason for each rejection.
                 pass
 
             def do_GET(self):
+                log.info("webhook GET from %s", self.client_address[0])
                 q = parse_qs(urlparse(self.path).query)
                 challenge = adapter.verify_webhook(
                     q.get("hub.mode", [""])[0], q.get("hub.verify_token", [""])[0],
                     q.get("hub.challenge", [""])[0])
                 if challenge is not None:
+                    log.info("webhook verification OK — echoing challenge")
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(challenge.encode())
                 else:
+                    log.warning("webhook verification REFUSED — hub.verify_token did not "
+                                "match WHATSAPP_VERIFY_TOKEN")
                     self.send_response(403)
                     self.end_headers()
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
+                log.info("webhook POST from %s, %d bytes", self.client_address[0], length)
                 if adapter.app_secret and not adapter.verify_signature(
                         body, self.headers.get("X-Hub-Signature-256")):
+                    log.warning("webhook POST REJECTED — bad X-Hub-Signature-256. The "
+                                "WHATSAPP_APP_SECRET does not match the app Meta signed "
+                                "with; a message DID arrive and was dropped.")
                     self.send_response(403)
                     self.end_headers()
                     return

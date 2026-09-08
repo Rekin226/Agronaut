@@ -1,0 +1,114 @@
+# Publish to PyPI when a GitHub Release is created.
+#
+# Trusted publishing (OIDC), so no API token is stored anywhere: PyPI verifies the workflow
+# identity itself. One-time setup at https://pypi.org/manage/account/publishing/ —
+# project `agronaut`, owner `Rekin226`, repository `Agronaut`, workflow `publish.yml`,
+# environment `pypi`.
+#
+# The gate matters more than the upload. A release is the one moment a broken package
+# reaches strangers who cannot see the repo, so this reruns the tests and the advice-safety
+# golden set, then installs the built wheel into a clean environment and runs the CLI from a
+# directory with no checkout in it. That last check is the one that catches what unit tests
+# cannot: a knowledge base that did not ship, an entry point that only worked because the
+# source tree happened to be on sys.path.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:          # a dry run without cutting a release
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -e .
+          pip install pytest ruff
+
+      - name: Test suite
+        run: python -m pytest -q
+
+      - name: Advice-safety golden set
+        run: python scripts/safety_eval.py
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Build
+        run: python -m build
+
+      # PyPI validates metadata at upload time and rejects the whole release, so check it
+      # here instead: the last break was a "License ::" classifier that PEP 639 now forbids
+      # alongside an SPDX `license` field, which fails the build rather than a test.
+      - name: The metadata must be one PyPI will accept
+        run: |
+          pip install --quiet twine
+          python -m twine check dist/*
+
+      - name: The version being released must match pyproject
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "tag=$TAG  pyproject=$PKG"
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG does not match pyproject version $PKG"; exit 1; }
+
+      - name: The wheel must work with no checkout present
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          cd /tmp                                   # nothing importable from the repo here
+          /tmp/fresh/bin/agronaut list
+          /tmp/fresh/bin/agronaut size --fish tilapia --crop lettuce \
+            --area 12 --temp 27 --water 3000
+          # The cited corpus is not optional decoration: without it every answer comes back
+          # KNOWLEDGE_UNAVAILABLE while the assistant still sounds confident.
+          /tmp/fresh/bin/python - <<'PY'
+          import os
+          from agronaut_agent import paths
+          kb = os.path.join(str(paths.corpus_root()), "knowledge")
+          docs = [f for f in os.listdir(kb) if f.endswith(".md")]
+          assert len(docs) >= 20, f"knowledge base did not ship: {len(docs)} docs"
+          print(f"corpus OK: {len(docs)} cited documents")
+
+          # The reference tables are the same class of failure and were shipped by nobody
+          # until v1.0.0: without them the price book is gone and the twin tells the user
+          # its skill is UNMEASURED, when in fact it has been measured and the record is
+          # what the README points at.
+          from aqua_model.reference_data import reference_dir, SHIPPED
+          d = reference_dir()
+          gone = [n for n in SHIPPED if not (d / n).is_file()]
+          assert not gone, f"reference tables did not ship: {gone}"
+          from aqua_model import validation_status
+          first = validation_status.validation_lines()[0]
+          assert not first.startswith("PREDICTIVE SKILL UNMEASURED"), \
+              "installed package cannot find its own validation record"
+          print(f"reference tables OK: {len(SHIPPED)} files")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: verify
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # trusted publishing; no token secret
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

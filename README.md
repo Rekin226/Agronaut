@@ -1,5 +1,6 @@
 # 🌱 Agronaut
 
+[![PyPI](https://img.shields.io/pypi/v/agronaut?color=blue)](https://pypi.org/project/agronaut/)
 [![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
 [![Advice-safety golden set](https://img.shields.io/badge/advice--safety-enforced%20in%20CI-brightgreen)](docs/dpg/safety_eval/golden_set.json)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
@@ -22,6 +23,88 @@ mixes for the ratio that grows the most food from the least water.
 
 The sizing method behind it is a granted Taiwan utility model patent (**TW M661364**).
 The code is MIT, runs on open weights, and needs no proprietary API.
+
+---
+
+## Quick start
+
+### 1. A real design in two minutes, with no API key and no account
+
+```bash
+pip install agronaut
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
+```
+
+That prints a sized system: tank and system volume, fish count, feed rate, biofilter media,
+pump duty, a bill of materials, a source for every number, and an explicit list of what it
+does **not** model. Nothing in that command touches a network.
+
+Try `agronaut list` for the species and crops it knows, or `agronaut optimize --area 10
+--temp 28 --water 5000 --objective food` to search fish × crop ratios.
+
+### 2. Add the conversation, still on your own machine
+
+```bash
+agronaut setup
+```
+
+It asks which model and which channel you want, checks each key against the live service as
+you paste it, reads your Telegram id off a message you send your own bot, and writes
+`~/.config/agronaut/.env` itself. Nothing to hand-write.
+
+<details>
+<summary>Prefer to configure it by hand?</summary>
+
+Chat needs a language model. [Ollama](https://ollama.com) is the shortest path, and
+Agronaut already defaults to it:
+
+```bash
+ollama pull qwen2.5        # ~5 GB, once. Any tool-calling model works.
+agronaut                   # chat in your terminal
+```
+
+Then just say what you have: *"I have a 20 m² greenhouse in Bobo-Dioulasso, water sits
+around 28 °C, I want tilapia and lettuce."*
+
+Prefer a browser? `agronaut web` serves the Streamlit app on
+[localhost:8501](http://localhost:8501).
+
+Photos too, if you want them: `ollama pull llama3.2-vision` and set `VLM_PROVIDER=ollama`.
+
+Config lives in `~/.config/agronaut/.env` for an installed copy, or `./.env` in a checkout.
+
+</details>
+
+> No GPU? `qwen2.5:3b` runs on an ordinary laptop CPU. Would rather not run a model at all?
+> A free hosted key works instead: `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY` from
+> [build.nvidia.com](https://build.nvidia.com).
+
+### 3. Put it on your phone (optional)
+
+```bash
+# .env in the project root
+TELEGRAM_BOT_TOKEN=...        # from @BotFather
+AGRONAUT_ALLOWED_IDS=...      # your Telegram user id, so it is yours alone
+```
+
+```bash
+agronaut bot
+```
+
+Message your bot. `/log ammonia 0.5 nitrate 40 temp 27` puts a reading into your live twin
+and `/forecast` tells you what the week ahead does to it — both with no model in the path,
+so they work even when the LLM is slow or unreachable.
+
+### What needs what
+
+| You want | You need |
+|---|---|
+| `size`, `size-hydro`, `optimize`, `list`, the web calculator | **Nothing.** Pure `aqua_model`: deterministic, offline, cited. |
+| Chat, the Telegram bot, photo understanding | A model — Ollama locally, or a hosted key |
+| `/log`, `/forecast`, `/advise`, `/approve` | A model for setup, then nothing: the twin commands never call one |
+
+Trouble, or want Docker, a hosted demo, or WhatsApp? See
+[Install and run: all the options](#install-and-run-all-the-options).
 
 ---
 
@@ -379,7 +462,22 @@ the one you use. The design/optimizer modes run with **no LLM dependency at all.
 
 ---
 
-## Quick start
+## Install and run: all the options
+
+The [Quick start](#quick-start) above is the short path. This section is the rest: working
+from a checkout, Docker, a hosted demo, every CLI command, and the full
+environment-variable reference.
+
+### From source
+
+To change Agronaut rather than just use it:
+
+```bash
+git clone https://github.com/Rekin226/Agronaut.git && cd Agronaut
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+python3 -m pytest        # 1235 tests, no model server needed
+```
 
 ### Docker (one command)
 
@@ -439,11 +537,12 @@ agronaut analytics               # usage summary: latency p50/p95, tokens, feedb
 agronaut traces                  # recent turns as pipeline traces (no message text)
 ```
 
-**Where it keeps things.** In a checkout, the knowledge base, the fetched-page cache and the
-SQLite memory DB all sit beside the source, as before. Installed non-editably, the cited
-corpus is read from `<prefix>/share/agronaut` and state goes to your XDG directories rather
-than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
-`AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
+**Where it keeps things.** In a checkout, the knowledge base, the reference tables, the
+fetched-page cache and the SQLite memory DB all sit beside the source, as before. Installed
+non-editably, the cited corpus and the reference tables (price book, growth calibration, the
+twin's validation record) are read from `<prefix>/share/agronaut` and state goes to your XDG
+directories rather than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
+`AGRONAUT_REFERENCE_DIR`, `AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
 
 | Command | Needs an LLM? |
 |---|---|
@@ -458,21 +557,36 @@ python3 -m pytest        # the aqua_model core suite is pure (no model server ne
 
 ### Run the Telegram bot
 
-The consultative agent is reachable over Telegram. Set these (in `.env` or the environment):
+The consultative agent is reachable over Telegram.
+
+**The two you actually need**, in `.env` or the environment:
 
 | Var | Purpose |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
 | `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
+
+Plus a model, which you have already if you followed the [Quick start](#quick-start):
+`LLM_PROVIDER=ollama` and a pulled model, or `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY`.
+
+<details>
+<summary><b>Everything else is optional</b> — retrieval tuning, voice, vision, caching. Skip
+this until something needs changing.</summary>
+
+| Var | Purpose |
+|---|---|
 | `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.50, `off` disables). Calibrated against the golden set; **not portable** — re-run `python -m scripts.retrieval_sweep --all` after any corpus or embedding-model change |
 | `AGRONAUT_HYBRID` / `AGRONAUT_HYBRID_BETA` | keyword+semantic fusion, on by default at β=0.90 (β is the semantic weight) |
 | `AGRONAUT_MAX_PER_SOURCE` | how many passages one source may contribute to a single answer (default 2; `1` favours breadth, `0` disables) |
 | `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
 | `AGRONAUT_RERANK` / `AGRONAUT_MD_HEADERS` / `AGRONAUT_PDF_SECTIONS` | techniques that measured *worse* on this corpus and ship disabled — kept because the verdict is corpus-dependent (see `docs/dpg/retrieval_eval/techniques.json`) |
-| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain — e.g. `nvidia` (free at [build.nvidia.com](https://build.nvidia.com)) |
-| `LLM_MODEL` | optional, e.g. `meta/llama-3.1-70b-instruct` |
+| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain. Defaults to `ollama` (local, no key); `nvidia` is free at [build.nvidia.com](https://build.nvidia.com) |
+| `LLM_MODEL` | optional. Local default `qwen2.5`. On NVIDIA, `mistralai/mistral-nemotron` measured ~20x faster than `llama-3.3-70b` with correct tool calls ([docs/telegram_twin_testing.md](docs/telegram_twin_testing.md)) |
 | `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model (`VLM_PROVIDER=nvidia`, needs `NVIDIA_API_KEY`); set `VLM_PROVIDER=ollama` and `ollama pull llama3.2-vision` to run it locally with no key and no connectivity. `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
 | `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
+
+
+</details>
 
 ```bash
 source .venv/bin/activate
@@ -492,14 +606,33 @@ Business account. Set:
 | `WHATSAPP_VERIFY_TOKEN` | any string; also entered in Meta's webhook config |
 | `WHATSAPP_APP_SECRET` | app secret, used to verify inbound request signatures |
 
-```python
-from agronaut_agent.core import AgronautAgent
-from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
-WhatsAppAdapter(AgronautAgent()).run()   # serves the webhook + a follow-up poller
+```bash
+agronaut whatsapp          # serves the webhook + a follow-up poller (or: python whatsapp.py)
 ```
 
-Point Meta's webhook at `https://your-host/` (put the process behind HTTPS — a reverse
-proxy or tunnel). The same brain, memory, tools, and follow-ups as Telegram.
+It refuses to start half-configured and tells you which variable is missing and where in the
+Meta dashboard to find it.
+
+**WhatsApp is webhook-based, not long-poll.** Unlike the Telegram bot, Meta has to reach
+*your* machine over HTTPS, so a local run needs a tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8080     # or: ngrok http 8080
+```
+
+Paste the `https://…` URL it prints into Meta's webhook config together with your
+`WHATSAPP_VERIFY_TOKEN`, subscribe to the **messages** field, and message the number.
+
+Two things worth knowing before you start:
+
+- **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. A number
+  registered to it cannot be used in the normal WhatsApp app at the same time. Start with
+  the free test number Meta gives you and message it *from* your personal phone.
+- **Meta's test number can only reply to recipients you have verified** (up to five), and
+  the token on the API Setup page expires in 24 hours. Both are fine for trying it, and both
+  need replacing (a real number, a System User token) before anyone else uses it.
+
+The same brain, memory, tools, and follow-ups as Telegram.
 
 #### Keep it running (systemd)
 

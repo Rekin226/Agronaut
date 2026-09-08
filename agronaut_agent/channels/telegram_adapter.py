@@ -22,7 +22,12 @@ from telegram.ext import (
 )
 
 from ..core import AgronautAgent
+from . import commands
 from .base import ChannelAdapter, chunk, delivery_chat_id, room_identity
+
+# Re-exported: these parsers moved to `commands` when both channels started
+# using them, and callers (and tests) still reach them by their old name.
+from .commands import parse_item_numbers, parse_log_args  # noqa: F401
 
 log = logging.getLogger(__name__)
 
@@ -31,49 +36,6 @@ POLL_SECONDS = 60
 
 def _parse_allowlist(raw: str | None) -> set[str]:
     return {x.strip() for x in (raw or "").split(",") if x.strip()}
-
-
-# Readings syntax /log accepts, deliberately forgiving:
-#   /log ammonia 0.5 nitrate 40 temp 27
-#   /log ammonia=0.5, no2: 0.3, weight 210, count 58, shade
-_LOG_KEYS = {
-    "ammonia": "ammonia_mg_l", "nh3": "ammonia_mg_l", "nh4": "ammonia_mg_l",
-    "nitrite": "nitrite_mg_l", "no2": "nitrite_mg_l",
-    "nitrate": "nitrate_mg_l", "no3": "nitrate_mg_l",
-    "temp": "water_temp_c", "temperature": "water_temp_c", "water": "water_temp_c",
-    "weight": "fish_avg_weight_g", "count": "fish_count", "fish": "fish_count",
-}
-
-
-def parse_log_args(text: str) -> dict:
-    """Parse a /log command's free-form readings into log_my_readings kwargs. Pure and
-    unit-tested — this is a farmer's data-entry path and must not surprise anyone."""
-    import re
-    text = (text or "").lower()
-    args: dict = {}
-    for key, val in re.findall(r"([a-z][a-z0-9_]*)\s*[:=]?\s*(-?\d+(?:\.\d+)?)", text):
-        field = _LOG_KEYS.get(key)
-        if field:
-            args[field] = int(float(val)) if field == "fish_count" else float(val)
-    for mode in ("shade", "poly", "heated"):
-        if mode in text:
-            args["greenhouse"] = mode
-    return args
-
-
-def parse_item_numbers(text: str) -> list[int]:
-    """Parse `/approve 1 3` or `/reject 2,4` into item numbers.
-
-    Accepts the separators people actually type (spaces, commas, "and") and nothing else:
-    no ranges, no "all". A range is one typo away from approving something unread, and this
-    is the path where a mis-parse gets recorded as a human decision about live fish. If the
-    operator wants four items they can type four numbers.
-
-    Pure and unit-tested. Order is dropped and duplicates collapse, because the store keys
-    by position and deciding the same item twice is not a second decision.
-    """
-    import re
-    return sorted({int(n) for n in re.findall(r"\d+", text or "") if 0 < int(n) < 1000})
 
 
 class TelegramAdapter(ChannelAdapter):
@@ -220,6 +182,32 @@ class TelegramAdapter(ChannelAdapter):
             self.agent.decide_direct, self.channel_name, self._identity(update),
             approve, numbers)
         await update.message.reply_text(reply)
+
+    async def _on_command(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """Every deterministic command, routed through the SHARED text dispatcher.
+
+        Telegram keeps its own CommandHandler registrations because they earn the platform
+        menu (`setMyCommands`), but the behaviour behind them lives in `channels.commands`
+        alongside WhatsApp's. One implementation, so `/log` cannot mean one thing here and
+        another there — a channel is a transport, not a different product.
+
+        The raw message text is handed to the router verbatim, including the leading slash
+        and any "@BotName" suffix Telegram appends in groups, because the router already
+        parses both.
+        """
+        if not self._allowed(update):
+            return await self._deny(update)
+        text = (update.message.text or "").strip()
+        reply = await asyncio.to_thread(
+            commands.dispatch, self.agent, self.channel_name, self._identity(update), text)
+        if reply is None:      # a mode switch or prose — nothing for the router to do
+            return
+        for part in chunk(reply.text):
+            await update.message.reply_text(part)
+        if reply.document:
+            with open(reply.document, "rb") as fh:
+                await update.message.reply_document(document=fh,
+                                                    filename="agronaut_my_data.json")
 
     async def _on_feedback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         """/good and /bad — the human-feedback signal, as two commands rather than inline
@@ -419,23 +407,23 @@ class TelegramAdapter(ChannelAdapter):
         """Single source of (command, handler, menu description) — drives both handler
         registration and the Telegram / command menu, so the two never drift."""
         return [
-            ("start", self._on_start, "What Agronaut is"),
-            ("help", self._on_help, "Show help"),
+            ("start", self._on_command, "What Agronaut is"),
+            ("help", self._on_command, "Show help"),
             ("design", self._on_design, "Mode: size a new system"),
             ("optimize", self._on_optimize, "Mode: best fish/crop ratio"),
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
-            ("log", self._on_log, "Log readings into your LIVE twin"),
-            ("forecast", self._on_forecast, "Your live twin: now + the week ahead"),
-            ("advise", self._on_advise, "What to do, as items you approve"),
-            ("approve", self._on_decide, "Approve proposal items by number"),
-            ("reject", self._on_decide, "Reject proposal items by number"),
-            ("good", self._on_feedback, "That last answer helped"),
-            ("bad", self._on_feedback, "That last answer missed"),
-            ("whoami", self._on_whoami, "What I remember about you"),
-            ("export", self._on_export, "Download all my data (JSON)"),
-            ("reset", self._on_reset, "Clear this conversation"),
-            ("forget", self._on_forget, "Wipe everything I know"),
-            ("delete_me", self._on_delete_me, "Permanently erase all my data"),
+            ("log", self._on_command, "Log readings into your LIVE twin"),
+            ("forecast", self._on_command, "Your live twin: now + the week ahead"),
+            ("advise", self._on_command, "What to do, as items you approve"),
+            ("approve", self._on_command, "Approve proposal items by number"),
+            ("reject", self._on_command, "Reject proposal items by number"),
+            ("good", self._on_command, "That last answer helped"),
+            ("bad", self._on_command, "That last answer missed"),
+            ("whoami", self._on_command, "What I remember about you"),
+            ("export", self._on_command, "Download all my data (JSON)"),
+            ("reset", self._on_command, "Clear this conversation"),
+            ("forget", self._on_command, "Wipe everything I know"),
+            ("delete_me", self._on_command, "Permanently erase all my data"),
         ]
 
     async def _post_init(self, app: Application) -> None:

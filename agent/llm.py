@@ -13,6 +13,10 @@ Select with the LLM_PROVIDER env var (or pass `provider=`):
     hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
                  after the first download). The simplest way to test the assistant with no
                  hosted backend or Ollama install — just `pip install -r requirement.txt`.
+    anthropic -> Claude (hosted; needs ANTHROPIC_API_KEY). The strongest tool caller of
+                 the supported backends, and the one to reach for when a free-tier model
+                 keeps dropping tool calls. Not open-weights: it is the one provider here
+                 that cannot be self-hosted, so it is opt-in rather than a default.
     openai_compat -> any self-hosted OpenAI-compatible server (vLLM, llama.cpp --server,
                  LM Studio, TGI). The zero-proprietary-API path for the tool-calling agent:
                  set OPENAI_COMPAT_BASE_URL (and OPENAI_COMPAT_API_KEY if your server needs one).
@@ -47,6 +51,10 @@ DEFAULT_MODELS = {
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
     "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
+    # Claude. Model ids carry no date suffix. Sonnet 5 is the default here: it calls
+    # tools reliably at a third of Opus pricing, which suits an agent whose job is
+    # routing to a deterministic engine rather than doing the reasoning itself.
+    "anthropic": "claude-sonnet-5",
     # Self-hostable OpenAI-compatible server (vLLM, llama.cpp --server, LM Studio, TGI...).
     # The zero-proprietary-API tool-calling path: point OPENAI_COMPAT_BASE_URL at your own
     # box and the agent runs with no hosted vendor. Tool-calling works (ChatOpenAI.bind_tools)
@@ -96,6 +104,17 @@ def _build_backend(provider: str, model: str, temperature: float):
         # has supported tool calling since 2024; only the class chosen here did not.
         from langchain_ollama import ChatOllama
         return ChatOllama(model=model, temperature=temperature)
+    if provider == "anthropic":
+        # ChatAnthropic wraps the official Anthropic SDK and reads ANTHROPIC_API_KEY from
+        # the environment. Tool calling is native, so no bind_tools caveat applies here.
+        #
+        # `temperature` is deliberately NOT passed. The Claude 5 family rejects sampling
+        # parameters outright — `claude-opus-5` answers a request carrying temperature with
+        # 400 "`temperature` is deprecated for this model." Every other backend here takes
+        # one, so the shared signature offers it; this branch drops it rather than let a
+        # caller's harmless-looking default break the provider.
+        from langchain_anthropic import ChatAnthropic
+        return _AnthropicSystemAdapter(ChatAnthropic(model=model, max_tokens=4096))
     if provider == "nvidia":
         # OpenAI-compatible NVIDIA API Catalog / NIM. Reads NVIDIA_API_KEY from env.
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -158,11 +177,68 @@ class ToolCallingUnsupported(RuntimeError):
 # times out — so a starved/slow primary (as llama-3.3-70b was) never leaves the user with
 # nothing. The fallback is weaker but responsive; a real answer beats a dead turn.
 FALLBACK_MODELS: dict[str, str] = {
-    "nvidia": "meta/llama-3.1-8b-instruct",
+    # NVIDIA retires catalog models without notice, and a fallback that 410s is worse than
+    # none: it turns one failure into two and hides which one mattered. Measured
+    # 2026-09-08: meta/llama-3.1-8b-instruct, meta/llama-3.3-70b-instruct,
+    # qwen/qwen2.5-coder-32b-instruct and nvidia/llama-3.3-nemotron-super-49b-v1 all
+    # return 410 Gone, while mistralai/mistral-nemotron still serves. Until a second live
+    # NVIDIA model is confirmed, the honest entry is no entry — build_fallback_chat
+    # returns None and a failed turn says so instead of failing twice.
+    "anthropic": "claude-sonnet-5",
     # Local fallback too: a grower self-hosting has no hosted tier to lean on, so a stalled
     # 7B on a laptop should drop to something that fits in RAM rather than lose the turn.
     "ollama": "qwen2.5:3b",
 }
+
+
+class _AnthropicSystemAdapter:
+    """Fold the agent's interleaved system messages into a shape Anthropic accepts.
+
+    `core.py` uses SystemMessage as an operator channel *inside* the transcript — a recall
+    block after the prompt, a nudge before the final answer, a note after a rescued tool
+    call. On an OpenAI-shaped API that is just another message role and it works. Anthropic
+    models a single top-level `system` field instead, and ChatAnthropic refuses the
+    transcript outright: "Received multiple non-consecutive system messages."
+
+    Mid-conversation system messages do exist on Claude, but not on every model — Sonnet 5,
+    the default here, is one that does not take them — so relying on them would make the
+    provider work or fail depending on which Claude was configured.
+
+    So: the leading system messages stay system, and every later one becomes a HumanMessage
+    tagged as an operator note. That keeps the instruction in the transcript, in position,
+    and visible to the model, without inventing a role the API does not have. The wrapper
+    only rewrites what it must; everything else is delegated untouched.
+    """
+
+    _OPERATOR = "[operator note] "
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def bind_tools(self, tools):
+        return _AnthropicSystemAdapter(self._inner.bind_tools(tools))
+
+    def invoke(self, messages, *args, **kwargs):
+        return self._inner.invoke(self._fold(messages), *args, **kwargs)
+
+    def _fold(self, messages):
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        out, leading = [], True
+        for m in messages:
+            if isinstance(m, SystemMessage):
+                if leading:
+                    out.append(m)
+                    continue
+                text = m.content if isinstance(m.content, str) else str(m.content)
+                out.append(HumanMessage(content=self._OPERATOR + text))
+            else:
+                leading = False
+                out.append(m)
+        return out
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
 
 
 class ResilientChat:

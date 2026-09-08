@@ -20,8 +20,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-ARTIFACT = _REPO_ROOT / "data" / "twin_validation.json"
+from .reference_data import reference_path
+
+ARTIFACT = reference_path("twin_validation.json")
 
 _UNKNOWN = (
     "PREDICTIVE SKILL UNMEASURED: no validation record was found, so nothing here has been "
@@ -73,7 +74,9 @@ def validation_lines(path: Path | str | None = None) -> tuple[str, ...]:
         + (f" (median correlation {float(r_med):.2f})" if isinstance(r_med, (int, float)) else "")
         + ". So use it to compare options, never to predict a level."
     )
-    return (head, mid, f"Evidence: {ARTIFACT.relative_to(_REPO_ROOT)} "
+    # Named, not pathed: under a wheel the artifact sits somewhere under sys.prefix, and
+    # a site-packages path is no use to a reader trying to find the evidence in the repo.
+    return (head, mid, f"Evidence: data/{ARTIFACT.name} "
                        f"(regenerate with scripts/validate_twin.py).")
 
 

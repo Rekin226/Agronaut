@@ -11,11 +11,31 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Abdoul Rachid Ouédraogo", email = "abdoulrachid03@gmail.com" }]
 keywords = ["aquaponics", "hydroponics", "agriculture", "food security", "digital public good"]
+# The sidebar on a PyPI page is how someone decides whether to trust a package they have
+# never heard of: it is where they read the licence, the Python floor, and who it is for.
+# An empty one makes a real project look abandoned. No "License ::" classifier: PEP 639
+# supersedes it with the SPDX `license` field above, and setuptools now errors on both.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Hydrology",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Environment :: Console",
+]
 dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/Rekin226/Agronaut"
 Source = "https://github.com/Rekin226/Agronaut"
+Issues = "https://github.com/Rekin226/Agronaut/issues"
+Changelog = "https://github.com/Rekin226/Agronaut/releases"
 
 [project.scripts]
 agronaut = "agronaut_agent.cli:main"
@@ -27,7 +47,7 @@ dependencies = { file = ["requirement.txt"] }
 [tool.setuptools]
 # bot.py and app.py sit at the project root as scripts, not inside a package; `agronaut bot`
 # and `agronaut web` need them installed alongside the packages.
-py-modules = ["bot", "app"]
+py-modules = ["bot", "app", "whatsapp"]
 # Explicitly off. Left on, it combines with a stale agronaut.egg-info/SOURCES.txt in the
 # working tree to sweep everything under a package dir into the wheel — that is how 54 test
 # files ended up shipped to site-packages.
@@ -45,6 +65,18 @@ exclude = ["*.tests", "*.tests.*"]
 [tool.setuptools.data-files]
 "share/agronaut" = ["urls.txt"]
 "share/agronaut/knowledge" = ["knowledge/*.md"]
+# The reference tables aqua_model and the price tools read at runtime. Listed one by one on
+# purpose: data/ in a checkout also holds the memory database, the analytics log and the
+# fetched-page cache, and a glob would ship a developer's own state to strangers.
+"share/agronaut/data" = [
+    "data/coefficient_sources.json",
+    "data/dataset_registry.json",
+    "data/empirical_envelope.json",
+    "data/price_book.json",
+    "data/reference_systems.json",
+    "data/tgc_calibration.json",
+    "data/twin_validation.json",
+]
 
 [tool.ruff]
 # Pinned here rather than passed on the CI command line, so a local `ruff check`
