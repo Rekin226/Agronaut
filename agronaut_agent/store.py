@@ -167,6 +167,43 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# The version of the layout above, stamped into the file's `PRAGMA user_version`.
+#
+# `CREATE TABLE IF NOT EXISTS` opens an old database happily and then reads columns that
+# are not there, so without a stamp the first schema change after 1.0.0 would surface as an
+# OperationalError deep inside a turn, on a stranger's machine, holding the only copy of
+# their system's history. `mirror.py` already refuses to guess at a migration for exactly
+# this reason; the store deserves the same contract.
+#
+# Bump this whenever `_SCHEMA` changes shape, and add the matching step to `_migrate`.
+SCHEMA_VERSION = 1
+
+
+class SchemaTooNewError(RuntimeError):
+    """The database was written by a newer Agronaut than the one now opening it."""
+
+
+def _migrate(conn: sqlite3.Connection, found: int) -> None:
+    """Bring a database at version `found` up to `SCHEMA_VERSION`, or refuse.
+
+    Version 0 means one of two things and they are handled the same way: a brand new file,
+    or a database written before this stamp existed. Both hold exactly the v1 layout once
+    `_SCHEMA` has run (every statement in it is `IF NOT EXISTS`), so adopting them is
+    correct rather than merely convenient. A file from the future is refused outright: a
+    newer Agronaut may have dropped or repurposed a column, and reading it with old code
+    would corrupt an operator's history rather than fail.
+    """
+    if found > SCHEMA_VERSION:
+        raise SchemaTooNewError(
+            f"this database is schema v{found} but this Agronaut understands v"
+            f"{SCHEMA_VERSION}. It was written by a newer version — upgrade Agronaut "
+            f"(`pip install -U agronaut`) rather than letting an older build write to it."
+        )
+    # No historical migrations yet: v0 adopts to v1 by stamping. Later versions add their
+    # ALTER TABLE steps here, one `if found < N` block each, in order.
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 class _Db:
     """Shared connection + lock. One file, opened once per path."""
 
@@ -178,6 +215,11 @@ class _Db:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         with self._lock:
+            found = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
+            # Version check BEFORE the schema runs. On a database from the future,
+            # `_SCHEMA` could otherwise re-create a table that version deliberately
+            # changed, so the refusal has to come first to mean anything.
+            _migrate(self._conn, found)
             self._conn.executescript(_SCHEMA)
             self._conn.commit()
 

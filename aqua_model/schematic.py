@@ -179,12 +179,14 @@ def _font(size: int, bold: bool = False):
 
     # DejaVu first: it ships with the base system on Debian/Ubuntu, where the bot runs.
     # Arial is the Windows fallback, and is only present on Linux if someone installed
-    # msttcorefonts by hand. If every candidate misses we land on load_default(), which
-    # ignores the requested size and flattens the whole type hierarchy to one bitmap.
+    # msttcorefonts by hand. macOS has neither, so it used to fall all the way through to
+    # load_default() and render the title, the box labels and the arrows at one identical
+    # size: the type hierarchy silently flattened on every Mac that drew a schematic.
     candidates = (
-        ("DejaVuSans-Bold.ttf", "C:/Windows/Fonts/arialbd.ttf", "DejaVuSans.ttf")
+        ("DejaVuSans-Bold.ttf", "C:/Windows/Fonts/arialbd.ttf", "Arial Bold.ttf",
+         "HelveticaNeue.ttc", "DejaVuSans.ttf")
         if bold
-        else ("DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf")
+        else ("DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf", "Arial.ttf", "Helvetica.ttc")
     )
 
     for name in candidates:
@@ -193,7 +195,14 @@ def _font(size: int, bold: bool = False):
         except OSError:
             continue
 
-    return ImageFont.load_default()
+    # Last resort. Pillow >= 10.1 honours `size` here and returns a scalable face; older
+    # versions ignore it and hand back a single 10px bitmap, which is the flattening this
+    # function exists to avoid. Ask for the size, and accept the bitmap if that is all
+    # there is: a readable drawing at one size beats no drawing at all.
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def _center_text(draw, cx, y, text, font, fill):

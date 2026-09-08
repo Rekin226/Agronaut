@@ -59,7 +59,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # Every version the package actually admits. `requires-python = ">=3.11"` lets pip
+        # install onto anything from 3.11 up, and the classifiers advertise through 3.14, so
+        # testing a subset of that means shipping a promise nothing checks. 3.14 is also the
+        # maintainer's daily interpreter: leaving it out meant the machine the code is
+        # written on was the one CI never saw.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
