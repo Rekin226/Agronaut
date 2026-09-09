@@ -297,6 +297,28 @@ AMARANTH = Crop(
             "leafy band, not measured for this species"),
 )
 
+# WATER SPINACH / KANGKONG (Ipomoea aquatica) — semi-aquatic, ideal for raft culture, heat-tolerant
+WATER_SPINACH = Crop(
+    name="water_spinach",
+    category="leafy",
+    frr_g_per_m2_day=65.0,
+    frr_low=45.0,
+    frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    yield_kg_per_m2_year=16.0,
+    edible_protein_pct=2.6,
+    ph_min=5.5,
+    ph_max=7.5,
+    temp_min_c=20.0,
+    temp_max_c=35.0,
+    source=("FAO Ecocrop (https://ecocrop.apps.fao.org/ecocrop/srv/en/dataSheet?id=1264) "
+        "for temperature band (15-35°C optimal, 10-40°C absolute); "
+        "USDA FoodData Central (https://fdc.nal.usda.gov/) for protein content "
+        "(2.6g/100g fresh). FRR placed in FAO 589 / UVI leafy band (not measured "
+        "for this species). Yield from tropical field trials (12-18 t/ha) through "
+        "protected-culture multiplier."),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -308,6 +330,7 @@ CROPS: dict[str, Crop] = {
         BROCCOLI, CAULIFLOWER, STRAWBERRY, EGGPLANT, GREEN_BEAN, OKRA, ZUCCHINI, PEA,
         # heat-tolerant
         AMARANTH,
+        WATER_SPINACH,
     )
 }
 
