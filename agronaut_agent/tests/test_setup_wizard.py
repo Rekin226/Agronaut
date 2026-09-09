@@ -232,3 +232,34 @@ def test_a_run_that_configures_nothing_still_tells_you_what_works(tmp_path, monk
     out = capsys.readouterr().out
     assert "agronaut size" in out
     assert "README" not in out, "setup must not end by pointing at the README"
+
+
+def test_option_two_really_reaches_the_telegram_branch(tmp_path, monkeypatch):
+    """`run()` switches on the menu's numbers, so reordering the menu silently reassigns the
+    branches. Nothing caught that: every other test either skips the channel step or asserts
+    on labels. This one drives the number and checks the token actually lands."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    calls = iter([4, 2])                                     # skip model, Telegram
+    monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
+    monkeypatch.setattr("builtins.input", lambda *a: "111:abc")
+    monkeypatch.setattr(W, "check_telegram_token", lambda t: (True, "@AgronautBOT"))
+    monkeypatch.setattr(W, "_capture_telegram_id", lambda t: "424242")
+    W.run()
+    written = (tmp_path / "cfg" / "agronaut" / ".env").read_text()
+    assert "TELEGRAM_BOT_TOKEN=111:abc" in written
+    assert "AGRONAUT_ALLOWED_IDS=424242" in written
+
+
+def test_option_three_really_reaches_the_whatsapp_branch(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    calls = iter([4, 3])                                     # skip model, WhatsApp
+    monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
+    monkeypatch.setattr("builtins.input", lambda *a: "")
+    monkeypatch.setattr(W.getpass, "getpass", lambda *a: "")
+    W.run()
+    out = capsys.readouterr().out
+    # The tunnel is the part that actually blocks people, so it has to be said out loud.
+    assert "cloudflared" in out and "/webhook" in out
+    assert "developers.facebook.com" in out
