@@ -127,9 +127,8 @@ def test_the_written_file_is_not_world_readable(tmp_path, monkeypatch):
     """It holds API keys. Nobody else on the machine needs them."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    monkeypatch.setattr(W, "_ask", lambda *a, **k: 4)        # skip model
     monkeypatch.setattr("builtins.input", lambda *a: "")
-    calls = iter([4, 3])                                     # skip model, terminal only
+    calls = iter([4, 1])                                     # skip model, this terminal
     monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
     W.run()
     # nothing chosen -> nothing written; assert we did not create a stray file
@@ -143,3 +142,93 @@ def test_the_cli_exposes_setup():
         if getattr(a, "choices", None):
             names.update(a.choices)
     assert "setup" in names
+
+
+# --- what to run next ----------------------------------------------------------------------
+#
+# The wizard shipped able to end on a README pointer: model configured, WhatsApp chosen, and
+# not one runnable command. These pin the rule that replaced it.
+
+def test_there_is_always_something_to_run():
+    """Even with nothing configured at all. The sizing engine needs no model and no channel,
+    so a first run has no excuse to end empty-handed."""
+    assert W.next_steps({}), "setup must never end without a command"
+    assert any("agronaut size" in s for s in W.next_steps({}))
+
+
+def test_a_configured_model_offers_the_terminal_chat_first():
+    steps = W.next_steps({"LLM_PROVIDER": "ollama"})
+    assert steps[0].startswith("agronaut ") or steps[0].startswith("agronaut#")
+    assert "agronaut  " in steps[0], f"expected the bare REPL first, got {steps[0]!r}"
+
+
+def test_choosing_whatsapp_still_ends_with_a_working_command():
+    """The exact reported failure: WhatsApp was picked, so no Telegram token exists, and the
+    old ending offered nothing that used the model that had just been configured."""
+    steps = W.next_steps({"LLM_PROVIDER": "anthropic", "WHATSAPP_TOKEN": "t"})
+    assert any(s.startswith("agronaut  ") for s in steps), "no terminal chat offered"
+    assert any("agronaut whatsapp" in s for s in steps)
+    assert not any("bot" in s for s in steps), "offered the Telegram bot without a token"
+
+
+def test_a_channel_is_only_offered_once_its_credentials_exist():
+    steps = W.next_steps({"LLM_PROVIDER": "ollama"})
+    assert not any("agronaut bot" in s for s in steps)
+    assert not any("agronaut whatsapp" in s for s in steps)
+
+
+def test_the_whole_configuration_counts_not_just_this_run():
+    """Someone who set their model last week and adds Telegram today still has a model."""
+    config = {**W.parse_env("LLM_PROVIDER=ollama\n"), "TELEGRAM_BOT_TOKEN": "t"}
+    steps = W.next_steps(config)
+    assert any(s.startswith("agronaut  ") for s in steps)
+    assert any("agronaut bot" in s for s in steps)
+
+
+def test_parse_env_ignores_comments_and_blanks():
+    parsed = W.parse_env("# a note\n\nLLM_PROVIDER=ollama\nnot a pair\nB = 2\n")
+    assert parsed == {"LLM_PROVIDER": "ollama", "B": "2"}
+
+
+def test_the_terminal_is_the_first_channel_offered(tmp_path, monkeypatch):
+    """Ordering is load-bearing, not cosmetic. The terminal works the moment setup exits;
+    WhatsApp needs a business account and a public address. Offering them in the other order
+    is what sent the maintainer down a dead end on his own first run.
+
+    This also pins the option numbers that `run()`'s branches switch on, which is what broke
+    when they were last reordered.
+    """
+    seen: list[list[tuple[str, str]]] = []
+
+    def _spy(prompt, options, default=1):
+        seen.append(options)
+        return 4 if "model" in prompt else 1
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("builtins.input", lambda *a: "")
+    monkeypatch.setattr(W, "_ask", _spy)
+    W.run()
+
+    channel_options = seen[-1]
+    labels = [label for label, _ in channel_options]
+    assert "terminal" in labels[0].lower(), f"terminal must be offered first, got {labels}"
+    assert "whatsapp" in labels[-1].lower(), f"WhatsApp must be offered last, got {labels}"
+    # The price people actually trip over is the address, not the account.
+    whatsapp_note = channel_options[-1][1].lower()
+    assert "https" in whatsapp_note or "address" in whatsapp_note, whatsapp_note
+
+
+def test_a_run_that_configures_nothing_still_tells_you_what_works(tmp_path, monkeypatch,
+                                                                  capsys):
+    """The old dead end read 'Nothing to save. Run `agronaut setup` again when you have your
+    keys', which is wrong: the sizing engine needs no keys and works right then."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("builtins.input", lambda *a: "")
+    calls = iter([4, 1])                                     # skip model, this terminal
+    monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
+    W.run()
+    out = capsys.readouterr().out
+    assert "agronaut size" in out
+    assert "README" not in out, "setup must not end by pointing at the README"
