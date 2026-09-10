@@ -35,6 +35,7 @@ class Install:
     version: str
     code_dir: Path
     editable_from: Path | None      # the checkout, when installed with `pip install -e`
+    recorded_version: str | None = None   # what pip has on file, when it has gone stale
 
     @property
     def is_editable(self) -> bool:
@@ -46,6 +47,9 @@ class Install:
             lines.append(f"  code    {self.code_dir}")
             lines.append(f"          editable install, tracking {self.editable_from}")
             lines.append("          so `git pull` there is what updates it, not `agronaut update`")
+            if self.recorded_version:
+                lines.append(f"          version read from that checkout; pip still records "
+                             f"{self.recorded_version} until you reinstall")
         else:
             lines.append(f"  code    {self.code_dir}")
         lines.append(f"  python  {sys.executable}")
@@ -91,6 +95,26 @@ def _editable_target() -> Path | None:
         return None
 
 
+def _checkout_version(root: Path) -> str | None:
+    """The version in a checkout's pyproject.toml, which is the one actually running.
+
+    An editable install writes its dist-info once, at install time, and never again. Bump
+    pyproject and the recorded metadata stays behind until someone reinstalls, so
+    `importlib.metadata.version` answers a question about the past. That is precisely the
+    lie this module was written to stop, and it caught this module out: shipped as 1.1.0,
+    `agronaut --version` reported 1.0.0 on the machine the release was cut from, and
+    `agronaut update` then offered an upgrade that was already installed.
+    """
+    try:
+        import tomllib
+
+        with (root / "pyproject.toml").open("rb") as f:
+            value = tomllib.load(f)["project"]["version"]
+        return str(value) if value else None
+    except Exception:      # noqa: BLE001 — no pyproject, unreadable, or a dynamic version
+        return None
+
+
 def current() -> Install:
     """Describe the running install. Never raises: this is what you run when things are odd."""
     try:
@@ -99,9 +123,17 @@ def current() -> Install:
         ver = _v(PACKAGE)
     except Exception:      # noqa: BLE001 — a source checkout with nothing installed
         ver = "unknown (not installed as a package)"
+
+    editable = _editable_target()
+    recorded = None
+    if editable is not None:
+        live = _checkout_version(editable)
+        if live and live != ver:
+            ver, recorded = live, ver
     return Install(version=ver,
                    code_dir=Path(__file__).resolve().parent,
-                   editable_from=_editable_target())
+                   editable_from=editable,
+                   recorded_version=recorded)
 
 
 def latest_on_pypi(timeout: int = TIMEOUT) -> tuple[str | None, str]:
