@@ -155,3 +155,65 @@ def test_version_output_keeps_its_line_breaks(capsys):
     out = capsys.readouterr().out
     assert out.count("\n") >= 3, f"version output was flattened: {out!r}"
     assert "code" in out and "config" in out
+
+
+# --- the stale-metadata bug this module was written to prevent, and then had ----------------
+
+def _checkout(tmp_path, version="1.1.0"):
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nname = "agronaut"\nversion = "{version}"\n')
+    return tmp_path
+
+
+def test_an_editable_install_reports_the_checkout_not_the_frozen_metadata(tmp_path,
+                                                                          monkeypatch):
+    """An editable install writes its dist-info once and never again, so bumping pyproject
+    leaves `importlib.metadata.version` answering a question about the past. Shipped as
+    1.1.0, this reported 1.0.0 on the machine the release was cut from."""
+    root = _checkout(tmp_path, "1.1.0")
+    monkeypatch.setattr(V, "_editable_target", lambda: root)
+    monkeypatch.setattr("importlib.metadata.version", lambda p: "1.0.0")
+
+    install = V.current()
+    assert install.version == "1.1.0", "reported the frozen metadata, not the running code"
+    assert install.recorded_version == "1.0.0"
+    assert "pip still records 1.0.0" in install.render()
+
+
+def test_no_drift_note_when_the_metadata_is_current(tmp_path, monkeypatch):
+    root = _checkout(tmp_path, "1.1.0")
+    monkeypatch.setattr(V, "_editable_target", lambda: root)
+    monkeypatch.setattr("importlib.metadata.version", lambda p: "1.1.0")
+
+    install = V.current()
+    assert install.version == "1.1.0"
+    assert install.recorded_version is None
+    assert "pip still records" not in install.render()
+
+
+def test_a_normal_install_still_trusts_its_metadata(monkeypatch):
+    """Only editable installs go stale. A wheel's metadata is written from the same build."""
+    monkeypatch.setattr(V, "_editable_target", lambda: None)
+    monkeypatch.setattr("importlib.metadata.version", lambda p: "1.1.0")
+    assert V.current().version == "1.1.0"
+    assert V.current().recorded_version is None
+
+
+def test_an_unreadable_checkout_falls_back_rather_than_failing(tmp_path, monkeypatch):
+    """No pyproject, or a dynamic version. A diagnostic must never be what breaks."""
+    monkeypatch.setattr(V, "_editable_target", lambda: tmp_path)   # empty dir
+    monkeypatch.setattr("importlib.metadata.version", lambda p: "1.0.0")
+    assert V.current().version == "1.0.0"
+
+
+def test_update_compares_the_running_version_not_the_stale_one(tmp_path, monkeypatch, capsys):
+    """The visible consequence: `agronaut update` offered an upgrade that was installed."""
+    root = _checkout(tmp_path, "1.1.0")
+    monkeypatch.setattr(V, "_editable_target", lambda: root)
+    monkeypatch.setattr("importlib.metadata.version", lambda p: "1.0.0")
+    monkeypatch.setattr(V, "latest_on_pypi", lambda timeout=0: ("1.1.0", ""))
+
+    assert V.run_update() == 0
+    out = capsys.readouterr().out
+    assert "Up to date" in out
+    assert "1.0.0 -> 1.1.0" not in out, "offered an upgrade the checkout already has"
