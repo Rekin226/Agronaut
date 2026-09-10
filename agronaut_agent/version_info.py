@@ -72,27 +72,49 @@ def _config_path() -> str:
         return "unknown"
 
 
+def distributions() -> list:
+    """Every discoverable distribution named `agronaut`, not just the first one found.
+
+    More than one is possible and is itself a symptom: a checkout on sys.path carries a
+    legacy `agronaut.egg-info` beside whatever pip installed, and `importlib.metadata` returns
+    them in sys.path order. `agronaut_agent/cli.py` puts the project root on sys.path while
+    building its parser, so the egg-info can win, and it carries no `direct_url.json`.
+
+    That is not hypothetical. It silently disabled the shadowed-install check in `doctor`:
+    the checkout's egg-info was found first, editability came back False, and the one check
+    written to catch a stale copy never ran. Scanning them all is the fix.
+    """
+    try:
+        from importlib.metadata import distributions as _all
+
+        return [d for d in _all()
+                if (d.metadata.get("Name") or "").lower() == PACKAGE]
+    except Exception:      # noqa: BLE001
+        return []
+
+
 def _editable_target() -> Path | None:
     """The checkout an editable install points at, or None for a normal install.
 
     Read from the installer's own `direct_url.json` (PEP 610) rather than guessed from paths,
-    so it says what pip recorded rather than what the layout suggests.
+    so it says what pip recorded rather than what the layout suggests. Checks every
+    distribution, because the first one found is not reliably the installed one.
     """
-    try:
-        from importlib.metadata import distribution
-
-        dist = distribution(PACKAGE)
-        raw = dist.read_text("direct_url.json")
-        if not raw:
-            return None
-        data = json.loads(raw)
-        if not (data.get("dir_info") or {}).get("editable"):
-            return None
-        url = data.get("url", "")
-        prefix = "file://"
-        return Path(url[len(prefix):]) if url.startswith(prefix) else None
-    except Exception:      # noqa: BLE001
-        return None
+    for dist in distributions():
+        try:
+            raw = dist.read_text("direct_url.json")
+            if not raw:
+                continue
+            data = json.loads(raw)
+            if not (data.get("dir_info") or {}).get("editable"):
+                continue
+            url = data.get("url", "")
+            prefix = "file://"
+            if url.startswith(prefix):
+                return Path(url[len(prefix):])
+        except Exception:  # noqa: BLE001 — a broken sibling must not hide a good one
+            continue
+    return None
 
 
 def _checkout_version(root: Path) -> str | None:

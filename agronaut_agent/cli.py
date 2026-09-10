@@ -10,6 +10,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
     agronaut design ...                             # alias for `size`
     agronaut web                                    # the Streamlit app
     agronaut bot                                    # the Telegram bot
+    agronaut doctor                                 # what is configured, and what is broken
     agronaut --version                              # which build is this, and from where
     agronaut update                                 # check PyPI and upgrade
 """
@@ -122,6 +123,12 @@ def _cmd_traces(args) -> int:
     return 0
 
 
+def _cmd_doctor(args) -> int:
+    from . import doctor
+
+    return doctor.main()
+
+
 def _cmd_update(args) -> int:
     from . import version_info
 
@@ -189,6 +196,8 @@ def _build_parser() -> argparse.ArgumentParser:
     wa.add_argument("--url", metavar="HTTPS_URL",
                     help="your public webhook URL, to test that Meta can actually reach it")
     wa.set_defaults(func=_cmd_whatsapp)
+    sub.add_parser("doctor", help="check your install, config, provider, corpus and data"
+                   ).set_defaults(func=_cmd_doctor)
     up = sub.add_parser("update", help="check for a newer release and install it")
     up.add_argument("--check", action="store_true",
                     help="report whether an update exists without installing it")
