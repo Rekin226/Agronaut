@@ -87,8 +87,22 @@ def distributions() -> list:
     try:
         from importlib.metadata import distributions as _all
 
-        return [d for d in _all()
-                if (d.metadata.get("Name") or "").lower() == PACKAGE]
+        seen: set[str] = set()
+        out = []
+        for d in _all():
+            if (d.metadata.get("Name") or "").lower() != PACKAGE:
+                continue
+            # Deduplicate by location. The same site-packages can appear more than once on
+            # sys.path, and `distributions()` then yields the same install repeatedly. Left
+            # raw, the doctor reported "2 installs of agronaut are visible at once" and
+            # printed one path twice, sending a reader hunting for a conflict that was not
+            # there. A duplicate is not a second install.
+            where = str(getattr(d, "_path", "") or d.metadata.get("Name"))
+            if where in seen:
+                continue
+            seen.add(where)
+            out.append(d)
+        return out
     except Exception:      # noqa: BLE001
         return []
 

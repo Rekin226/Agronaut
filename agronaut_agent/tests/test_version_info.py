@@ -217,3 +217,21 @@ def test_update_compares_the_running_version_not_the_stale_one(tmp_path, monkeyp
     out = capsys.readouterr().out
     assert "Up to date" in out
     assert "1.0.0 -> 1.1.0" not in out, "offered an upgrade the checkout already has"
+
+
+def test_the_same_install_seen_twice_is_not_two_installs(monkeypatch):
+    """A site-packages directory can appear more than once on sys.path, and
+    `importlib.metadata.distributions()` then yields the same install repeatedly. Reported
+    raw, doctor said "2 installs of agronaut are visible at once" and printed one path twice,
+    sending a reader hunting for a conflict that did not exist."""
+    class _D:
+        def __init__(self, path):
+            self._path = path
+            self.metadata = {"Name": "agronaut"}
+
+    same = "/usr/lib/python3/site-packages/agronaut-1.1.0.dist-info"
+    monkeypatch.setattr("importlib.metadata.distributions",
+                        lambda: [_D(same), _D(same), _D("/other/agronaut.egg-info")])
+    found = V.distributions()
+    assert len(found) == 2, [str(d._path) for d in found]
+    assert len({str(d._path) for d in found}) == 2
