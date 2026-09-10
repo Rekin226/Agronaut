@@ -535,7 +535,13 @@ agronaut bot                     # the Telegram bot
 agronaut review                  # approve/reject pending community insights
 agronaut analytics               # usage summary: latency p50/p95, tokens, feedback
 agronaut traces                  # recent turns as pipeline traces (no message text)
+agronaut --version               # version, the code path it loaded, and the .env it reads
+agronaut update                  # check PyPI for a newer release and install it
 ```
+
+`--version` prints where the code came from, not just a number. If you have both a checkout
+and a `pip install`, that path is the only way to tell which one you are running, and getting
+it wrong is how you end up debugging a bug you already fixed.
 
 **Where it keeps things.** In a checkout, the knowledge base, the reference tables, the
 fetched-page cache and the SQLite memory DB all sit beside the source, as before. Installed
