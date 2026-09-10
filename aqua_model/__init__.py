@@ -106,4 +106,6 @@ __all__ = [
     "to_scene",
 ]
 
-__version__ = "0.1.0"
+# No __version__ here on purpose. It sat at "0.1.0" through the 1.0.0 release because nothing
+# read it and nothing could notice it was wrong. One version, in pyproject.toml, reported by
+# `agronaut --version`, which reads the installed metadata rather than a second copy.
