@@ -10,6 +10,8 @@ owns it, so this module stays a dispatcher and only a dispatcher.
     agronaut design ...                             # alias for `size`
     agronaut web                                    # the Streamlit app
     agronaut bot                                    # the Telegram bot
+    agronaut --version                              # which build is this, and from where
+    agronaut update                                 # check PyPI and upgrade
 """
 
 from __future__ import annotations
@@ -120,12 +122,44 @@ def _cmd_traces(args) -> int:
     return 0
 
 
+def _cmd_update(args) -> int:
+    from . import version_info
+
+    return version_info.run_update(check_only=args.check)
+
+
+class _ShowVersion(argparse.Action):
+    """Print the install description verbatim, then exit.
+
+    Not argparse's built-in "version" action: that one hands the string to the help formatter,
+    which re-wraps it into a paragraph and destroys the alignment that makes the paths
+    readable. A bare version number is also what misled a maintainer holding both a checkout
+    and a pip install, reading 1.0.0 for a stale copy and for the live code alike, so the
+    layout here is the feature.
+
+    Importing `version_info` inside __call__ keeps it off the path of every other command.
+    """
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS,
+                 default=argparse.SUPPRESS, help=None):
+        super().__init__(option_strings=option_strings, dest=dest, default=default,
+                         nargs=0, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from . import version_info
+
+        print(version_info.current().render())
+        parser.exit()
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agronaut",
         description="Aquaponics assistant: chat, computed sizing, web app, bot.",
         epilog="Run with no arguments to start chatting.",
     )
+    p.add_argument("--version", "-V", action=_ShowVersion,
+                   help="show the version, where it is installed, and which .env it reads")
     p.set_defaults(func=_cmd_chat)  # bare `agronaut` -> chat
     sub = p.add_subparsers(dest="cmd")
 
@@ -155,6 +189,10 @@ def _build_parser() -> argparse.ArgumentParser:
     wa.add_argument("--url", metavar="HTTPS_URL",
                     help="your public webhook URL, to test that Meta can actually reach it")
     wa.set_defaults(func=_cmd_whatsapp)
+    up = sub.add_parser("update", help="check for a newer release and install it")
+    up.add_argument("--check", action="store_true",
+                    help="report whether an update exists without installing it")
+    up.set_defaults(func=_cmd_update)
     sub.add_parser("review", help="approve/reject pending community insights").set_defaults(
         func=_cmd_review)
     sub.add_parser("analytics", help="summarise recorded usage").set_defaults(func=_cmd_analytics)
