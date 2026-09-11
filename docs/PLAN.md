@@ -125,8 +125,7 @@ The two defects that undermine "consultative agent with memory" for every user, 
   - **Deliberately still open:** the Tier-2 photo corpus (`data/vision_corpus/`) is empty —
     it needs the operator's own field photographs and cannot be synthesised. Until it is
     populated, the guard and the triage table are verified against handwritten strings, not
-    against real photographs. Also unbuilt: a specialist image classifier, and voice input on
-    WhatsApp.
+    against real photographs. Also unbuilt: a specialist image classifier (#71).
 
 ---
 
