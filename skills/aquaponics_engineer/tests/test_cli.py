@@ -4,6 +4,7 @@ cited sizing out; the trust gate is preserved (bad input exits non-zero)."""
 
 import contextlib
 import io
+import json
 
 from skills.aquaponics_engineer import cli
 
@@ -56,3 +57,13 @@ def test_skill_manifest_has_agentskills_frontmatter():
     text = md.read_text()
     assert text.startswith("---")
     assert "name:" in text and "description:" in text
+
+
+def test_size_aquaponics_json_keeps_caveats():
+    code, out = _run(["size-aquaponics", "--fish", "tilapia", "--crop", "lettuce",
+                      "--area", "12", "--temp", "27", "--water", "3000", "--json"])
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["not_modeled"]
+    assert payload["coefficients_used"]
+    assert payload["bill_of_materials"]

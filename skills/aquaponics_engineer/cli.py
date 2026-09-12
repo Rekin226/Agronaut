@@ -15,6 +15,8 @@ a bad argument is rejected loudly (non-zero exit) rather than producing a wrong 
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import json
 import sys
 from pathlib import Path
 
@@ -37,6 +39,10 @@ from aqua_model.species import SPECIES  # noqa: E402
 from aqua_model.system_types import SYSTEM_TYPES  # noqa: E402
 
 
+def _print_json(payload) -> None:
+    print(json.dumps(payload, indent=2))
+
+
 def _cmd_size_aquaponics(a) -> int:
     try:
         design = validate_design_input(a.fish, a.crop, a.area, a.temp, a.water,
@@ -44,7 +50,11 @@ def _cmd_size_aquaponics(a) -> int:
     except ValidationError as err:
         print(serialize.serialize_validation_error(err.errors))
         return 2
-    print(serialize.serialize_design_output(size_system(design)))
+    out = size_system(design)
+    if a.json:
+        _print_json(dataclasses.asdict(out))
+        return 0
+    print(serialize.serialize_design_output(out))
     return 0
 
 
@@ -54,7 +64,11 @@ def _cmd_size_hydroponics(a) -> int:
     except ValidationError as err:
         print(serialize.serialize_validation_error(err.errors))
         return 2
-    print(serialize.serialize_hydroponic_output(size_hydroponic_system(design)))
+    out = size_hydroponic_system(design)
+    if a.json:
+        _print_json(dataclasses.asdict(out))
+        return 0
+    print(serialize.serialize_hydroponic_output(out))
     return 0
 
 
@@ -69,14 +83,25 @@ def _cmd_optimize(a) -> int:
     except ValidationError as err:
         print(serialize.serialize_validation_error(err.errors))
         return 2
+    if a.json:
+        _print_json(dataclasses.asdict(res))
+        return 0
     print(serialize.serialize_optimize_result(res))
     return 0
 
 
 def _cmd_list(a) -> int:
-    print("Fish species: " + ", ".join(sorted(SPECIES)))
-    print("Crops: " + ", ".join(sorted(CROPS)))
-    print("Optimization objectives: " + ", ".join(OBJECTIVES))
+    payload = {
+        "fish_species": sorted(SPECIES),
+        "crops": sorted(CROPS),
+        "objectives": list(OBJECTIVES),
+    }
+    if a.json:
+        _print_json(payload)
+        return 0
+    print("Fish species: " + ", ".join(payload["fish_species"]))
+    print("Crops: " + ", ".join(payload["crops"]))
+    print("Optimization objectives: " + ", ".join(payload["objectives"]))
     return 0
 
 
@@ -103,6 +128,8 @@ def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
     # is offered here the same day, instead of being reachable only through the web form.
     sa.add_argument("--system-type", default="raft", choices=sorted(SYSTEM_TYPES),
                     help="grow-bed method (default: raft)")
+    sa.add_argument("--json", action="store_true",
+                    help="emit the design as JSON instead of the human-readable report")
     sa.set_defaults(func=_cmd_size_aquaponics)
 
     sh = _add("size-hydroponics", help="size a plant-only (no fish) system")
@@ -110,6 +137,8 @@ def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
     sh.add_argument("--area", type=float, required=True)
     sh.add_argument("--temp", type=float, required=True)
     sh.add_argument("--water", type=float, required=True)
+    sh.add_argument("--json", action="store_true",
+                    help="emit the design as JSON instead of the human-readable report")
     sh.set_defaults(func=_cmd_size_hydroponics)
 
     so = _add("optimize", help="best fish/crop ratio under a constraint")
@@ -117,9 +146,13 @@ def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
     so.add_argument("--temp", type=float, required=True)
     so.add_argument("--water", type=float, required=True)
     so.add_argument("--objective", default="water_efficiency")
+    so.add_argument("--json", action="store_true",
+                    help="emit the optimizer result as JSON instead of the human-readable report")
     so.set_defaults(func=_cmd_optimize)
 
     sl = _add("list", help="list supported species, crops, objectives")
+    sl.add_argument("--json", action="store_true",
+                    help="emit species, crops, and objectives as JSON")
     sl.set_defaults(func=_cmd_list)
 
 
