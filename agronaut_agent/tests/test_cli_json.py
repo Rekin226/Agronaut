@@ -42,6 +42,7 @@ def test_optimize_json_parses_and_keeps_caveats():
     payload = json.loads(out)
     assert payload["not_modeled"]
     assert payload["best"] is not None
+    assert len(payload["ranked"]) <= 10
 
 
 def test_list_json_is_parseable():

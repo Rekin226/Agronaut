@@ -84,7 +84,11 @@ def _cmd_optimize(a) -> int:
         print(serialize.serialize_validation_error(err.errors))
         return 2
     if a.json:
-        _print_json(dataclasses.asdict(res))
+        payload = dataclasses.asdict(res)
+        # Full `ranked` is tens/hundreds of MB; keep the winner plus a short tail.
+        payload["ranked"] = payload.get("ranked") or []
+        payload["ranked"] = payload["ranked"][:10]
+        _print_json(payload)
         return 0
     print(serialize.serialize_optimize_result(res))
     return 0
