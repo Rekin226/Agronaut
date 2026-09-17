@@ -144,7 +144,13 @@ certification requirement (the funding ladder's first rung).
   - **Accept:** `agronaut_agent` imports nothing from `python-telegram-bot`; a group chat
     doesn't collapse all members into one profile.
 
-- [x] **2.2 WhatsApp adapter.** (M) — built + unit-tested; live test needs owner Meta creds. **Depends:** 2.1.
+- [ ] **2.2 WhatsApp adapter.** (M) — code built and unit-tested: text, voice, inbound images,
+  follow-up delivery, the shared command layer, and `agronaut whatsapp --check`. **No live round
+  trip has ever completed.** The credentials entered on 2026-09-08 used Meta's API Setup token,
+  which expires after 24 h, so the channel was dead from 2026-09-09 and nothing reported it
+  (see #158). Unblocking it is a Meta-side action, not code: a System User token with no expiry,
+  carrying `whatsapp_business_messaging` and `whatsapp_business_management`, with the WABA
+  assigned to it. **Depends:** 2.1.
   - **Accept:** full consultation (incl. follow-ups) over WhatsApp against a test number.
 
 - [x] **2.3 Documented open-weights path for the tool-calling brain.** (M)
