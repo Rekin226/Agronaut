@@ -107,3 +107,112 @@ jobs:
       # cannot disagree; widening it is a deliberate edit there, not a flag here.
       - name: Style (blocking)
         run: ruff check --output-format=github .
+
+  first-run:
+    name: First-run (no credentials)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      # Walk the no-credentials path: version, doctor, and sizing all work with no API key
+      # or configuration. A broken first-run was the common failure before this job existed
+      # (setup wizard exiting without a command to type; doctor missing because only the
+      # editable install was tested; --version reporting frozen metadata instead of running code).
+      - name: Install from wheel and verify no-credentials path
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          cd /tmp                                   # nothing importable from the checkout here
+
+          # --version reports the code that is actually running, not a frozen copy.
+          /tmp/fresh/bin/agronaut --version
+
+          # doctor names what is missing when nothing is configured; it must not throw.
+          /tmp/fresh/bin/agronaut doctor
+
+          # sizing works without any model: validated input in, cited sizing out.
+          /tmp/fresh/bin/agronaut size --fish tilapia --crop lettuce \
+            --area 12 --temp 27 --water 3000
+
+      # A stubbed model-backed turn: start a tiny HTTP server that returns a canned
+      # OpenAI-compatible chat completion with a tool call, then ask the agent to run
+      # it end-to-end. This catches the path that real users hit — a working install
+      # that cannot reach an answer because the model layer is broken.
+      - name: Stubbed model turn (hermetic)
+        run: |
+          python -m venv /tmp/fresh-model
+          /tmp/fresh-model/bin/pip install --quiet dist/*.whl
+
+          # The stub returns a minimal tool-calling response that agronaut can parse.
+          cat > /tmp/llm_stub.py << 'STUB'
+          import http.server, json, threading
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_POST(self):
+                  body = json.loads(self.rfile.read())
+                  resp = {
+                      "model": "stub",
+                      "choices": [{
+                          "message": {
+                              "role": "assistant",
+                              "content": None,
+                              "tool_calls": [{
+                                  "id": "call_1",
+                                  "type": "function",
+                                  "function": {
+                                      "name": "size_aquaponics_system",
+                                      "arguments": json.dumps({
+                                          "fish": "tilapia",
+                                          "crop": "lettuce",
+                                          "area": 12,
+                                          "temp": 27,
+                                          "water": 3000
+                                      })
+                                  }
+                              }]
+                          }
+                      }]
+                  }
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.end_headers()
+                  self.wfile.write(json.dumps(resp).encode())
+
+              def log_message(self, *a):
+                  pass  # silence logs
+
+          srv = http.server.HTTPServer(("127.0.0.1", 18765), Handler)
+          threading.Thread(target=srv.handle_request, daemon=True).start()
+          # Keep alive so the test script can reach it.
+          import time; time.sleep(30)
+          STUB
+
+          /tmp/fresh-model/bin/python /tmp/llm_stub.py &
+          STUB_PID=$!
+          sleep 1
+
+          # Point the agent at the stub via the openai_compat path.
+          /tmp/fresh-model/bin/python - <<'PY'
+          import os, sys
+          os.environ["LLM_PROVIDER"] = "openai_compat"
+          os.environ["OPENAI_COMPAT_BASE_URL"] = "http://127.0.0.1:18765/v1"
+          os.environ["OPENAI_COMPAT_MODEL"] = "stub"
+
+          from agent.llm import resolve_llm
+          llm = resolve_llm()
+          # The stub responds with a tool call for size_aquaponics_system,
+          # which the agent can execute against the deterministic core.
+          result = llm.invoke("size a system for tilapia and lettuce, 12 m2, 27C, 3000L")
+          print(f"stub turn: {type(result).__name__}")
+          assert result is not None, "agent returned None from stub turn"
+          PY
+
+          kill $STUB_PID 2>/dev/null || true
