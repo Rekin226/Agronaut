@@ -231,6 +231,7 @@ jobs:
           reply = agent.handle_message("cli", "ci", "size a system for tilapia and lettuce, 12 m2, 27C, 3000 L")
           print(f"agent reply: {reply[:200]}")
           assert "Sizing complete" in reply, f"no real turn happened; reply was: {reply!r}"
+          assert "FEASIBLE" in reply, f"sizing did not succeed; reply was: {reply!r}"
           assert "TOOL_ERROR" not in reply, f"tool call failed inside the turn: {reply!r}"
           PY
 
