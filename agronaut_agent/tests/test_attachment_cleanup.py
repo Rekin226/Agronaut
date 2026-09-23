@@ -11,8 +11,6 @@ import asyncio
 import os
 import unittest.mock
 
-import pytest
-
 from agronaut_agent.channels.telegram_adapter import TelegramAdapter
 from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
 
@@ -41,7 +39,11 @@ def test_telegram_deletes_file_after_photo_send(tmp_path):
     adapter = TelegramAdapter(agent=agent, token="x:y", allowed_ids=[])
 
     class MockMessage:
-        async def reply_photo(self, *, photo): pass
+        photos = []
+
+        async def reply_photo(self, *, photo):
+            MockMessage.photos.append(getattr(photo, "name", str(photo)))
+
         async def reply_document(self, *, document): pass
         async def reply_text(self, *a, **kw): pass
 
@@ -52,9 +54,10 @@ def test_telegram_deletes_file_after_photo_send(tmp_path):
 
     async def run():
         await adapter._deliver(update, "chat", "Here is your diagram")
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
 
     assert not os.path.exists(png_path), "temp file must be deleted after send"
+    assert MockMessage.photos == [png_path], "the PNG must actually be sent as a photo"
 
 
 def test_telegram_deletes_file_even_when_send_fails(tmp_path):
@@ -81,7 +84,7 @@ def test_telegram_deletes_file_even_when_send_fails(tmp_path):
 
     async def run():
         await adapter._deliver(update, "chat", "oops")
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
 
     assert not os.path.exists(html_path), "temp must be cleaned even on send failure"
 
