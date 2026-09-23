@@ -133,86 +133,105 @@ jobs:
           cd /tmp                                   # nothing importable from the checkout here
 
           # --version reports the code that is actually running, not a frozen copy.
-          /tmp/fresh/bin/agronaut --version
+          # Assert the site-packages path: an editable/frozen install would not print one.
+          VERSION_OUT=$(/tmp/fresh/bin/agronaut --version 2>&1)
+          echo "$VERSION_OUT"
+          echo "$VERSION_OUT" | grep -q "site-packages" \
+            || { echo "--version did not report a site-packages install:"; echo "$VERSION_OUT"; exit 1; }
 
           # doctor names what is missing when nothing is configured; it must not throw.
-          /tmp/fresh/bin/agronaut doctor
+          DOCTOR_OUT=$(/tmp/fresh/bin/agronaut doctor 2>&1)
+          echo "$DOCTOR_OUT"
+          echo "$DOCTOR_OUT" | grep -q "no model provider configured" \
+            || { echo "doctor did not name the missing model provider:"; echo "$DOCTOR_OUT"; exit 1; }
 
           # sizing works without any model: validated input in, cited sizing out.
           /tmp/fresh/bin/agronaut size --fish tilapia --crop lettuce \
             --area 12 --temp 27 --water 3000
-
-      # A stubbed model-backed turn: start a tiny HTTP server that returns a canned
-      # OpenAI-compatible chat completion with a tool call, then ask the agent to run
-      # it end-to-end. This catches the path that real users hit — a working install
-      # that cannot reach an answer because the model layer is broken.
+      # A stubbed model-backed turn: a tiny HTTP server answers the OpenAI-compatible
+      # requests the agent makes. A real turn is TWO requests — the tool call, then the
+      # final answer after the tool result — so the stub switches on whether the request
+      # already carries a `role: "tool"` message. The second response quotes the tool's
+      # own output, so the assertion checks the deterministic core actually ran (a bare
+      # `is not None` would pass on any debris).
       - name: Stubbed model turn (hermetic)
         run: |
           python -m venv /tmp/fresh-model
           /tmp/fresh-model/bin/pip install --quiet dist/*.whl
+          # openai_compat is the self-hosted backend path, so langchain-openai is an
+          # optional extra, not a wheel dependency — install it into this venv directly.
+          /tmp/fresh-model/bin/pip install --quiet langchain-openai
 
-          # The stub returns a minimal tool-calling response that agronaut can parse.
           cat > /tmp/llm_stub.py << 'STUB'
-          import http.server, json, threading
+          import json
+          import threading
+          from http.server import BaseHTTPRequestHandler, HTTPServer
 
-          class Handler(http.server.BaseHTTPRequestHandler):
+          ARGS = {
+              "fish_species": "tilapia",
+              "crop": "lettuce",
+              "grow_area_m2": 12,
+              "temperature_c": 27,
+              "water_budget_lpd": 3000,
+          }
+
+          class Handler(BaseHTTPRequestHandler):
               def do_POST(self):
-                  body = json.loads(self.rfile.read())
-                  resp = {
-                      "model": "stub",
-                      "choices": [{
-                          "message": {
-                              "role": "assistant",
-                              "content": None,
-                              "tool_calls": [{
-                                  "id": "call_1",
-                                  "type": "function",
-                                  "function": {
-                                      "name": "size_aquaponics_system",
-                                      "arguments": json.dumps({
-                                          "fish": "tilapia",
-                                          "crop": "lettuce",
-                                          "area": 12,
-                                          "temp": 27,
-                                          "water": 3000
-                                      })
-                                  }
-                              }]
-                          }
-                      }]
-                  }
+                  body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                  msgs = body.get("messages", [])
+                  has_tool_result = any(m.get("role") == "tool" for m in msgs)
+                  if has_tool_result:
+                      # Second request: the tool already ran. Echo a string only the
+                      # deterministic sizing core would produce.
+                      tool_text = next(m["content"] for m in msgs if m.get("role") == "tool")
+                      marker = "grow_area" if "grow_area" in tool_text else tool_text[:60]
+                      content = f"Sizing complete for your tilapia + lettuce raft: {marker}"
+                  else:
+                      content = None
+                  resp = {"model": "stub", "choices": [{"message": {
+                      "role": "assistant",
+                      "content": content,
+                      **({} if content is not None else {
+                          "tool_calls": [{
+                              "id": "call_1",
+                              "type": "function",
+                              "function": {
+                                  "name": "size_aquaponics_system",
+                                  "arguments": json.dumps(ARGS),
+                              },
+                          }]
+                      }),
+                  }}]}
+                  payload = json.dumps(resp).encode()
                   self.send_response(200)
                   self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(payload)))
                   self.end_headers()
-                  self.wfile.write(json.dumps(resp).encode())
+                  self.wfile.write(payload)
 
               def log_message(self, *a):
-                  pass  # silence logs
+                  pass
 
-          srv = http.server.HTTPServer(("127.0.0.1", 18765), Handler)
-          threading.Thread(target=srv.handle_request, daemon=True).start()
-          # Keep alive so the test script can reach it.
-          import time; time.sleep(30)
+          HTTPServer(("127.0.0.1", 18923), Handler).serve_forever()
           STUB
 
           /tmp/fresh-model/bin/python /tmp/llm_stub.py &
           STUB_PID=$!
           sleep 1
 
-          # Point the agent at the stub via the openai_compat path.
+          # Run the turn from outside the checkout so the installed wheel is what imports.
+          cd /tmp
+          LLM_PROVIDER=openai_compat \
+          OPENAI_COMPAT_BASE_URL=http://127.0.0.1:18923/v1 \
+          OPENAI_COMPAT_MODEL=stub \
           /tmp/fresh-model/bin/python - <<'PY'
-          import os, sys
-          os.environ["LLM_PROVIDER"] = "openai_compat"
-          os.environ["OPENAI_COMPAT_BASE_URL"] = "http://127.0.0.1:18765/v1"
-          os.environ["OPENAI_COMPAT_MODEL"] = "stub"
+          from agronaut_agent.core import AgronautAgent
 
-          from agent.llm import resolve_llm
-          llm = resolve_llm()
-          # The stub responds with a tool call for size_aquaponics_system,
-          # which the agent can execute against the deterministic core.
-          result = llm.invoke("size a system for tilapia and lettuce, 12 m2, 27C, 3000L")
-          print(f"stub turn: {type(result).__name__}")
-          assert result is not None, "agent returned None from stub turn"
+          agent = AgronautAgent()
+          reply = agent.handle_message("cli", "ci", "size a system for tilapia and lettuce, 12 m2, 27C, 3000 L")
+          print(f"agent reply: {reply[:200]}")
+          assert "Sizing complete" in reply, f"no real turn happened; reply was: {reply!r}"
+          assert "TOOL_ERROR" not in reply, f"tool call failed inside the turn: {reply!r}"
           PY
 
           kill $STUB_PID 2>/dev/null || true
