@@ -43,6 +43,13 @@ def _print_json(payload) -> None:
     print(json.dumps(payload, indent=2))
 
 
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be an integer >= 1")
+    return n
+
+
 def _cmd_size_aquaponics(a) -> int:
     try:
         design = validate_design_input(a.fish, a.crop, a.area, a.temp, a.water,
@@ -85,11 +92,10 @@ def _cmd_optimize(a) -> int:
         return 2
     top_n = a.top
     if a.json:
-        payload = dataclasses.asdict(res)
-        # Full `ranked` is tens/hundreds of MB. Bound it the same way the human
-        # report does (default top 5); --top N lets a consumer ask for more.
-        payload["ranked"] = (payload.get("ranked") or [])[:top_n]
-        _print_json(payload)
+        # Bound ranked before asdict so serialization does not walk hundreds
+        # of thousands of unused candidates.
+        trimmed = dataclasses.replace(res, ranked=res.ranked[:top_n])
+        _print_json(dataclasses.asdict(trimmed))
         return 0
     print(serialize.serialize_optimize_result(res, top_n=top_n))
     return 0
@@ -153,7 +159,7 @@ def add_sizing_subcommands(sub, aliases: dict | None = None) -> None:
     so.add_argument("--objective", default="water_efficiency")
     so.add_argument("--json", action="store_true",
                     help="emit the optimizer result as JSON instead of the human-readable report")
-    so.add_argument("--top", type=int, default=5, metavar="N",
+    so.add_argument("--top", type=_positive_int, default=5, metavar="N",
                     help="how many ranked alternatives to include (default: 5, same as human output)")
     so.set_defaults(func=_cmd_optimize)
 

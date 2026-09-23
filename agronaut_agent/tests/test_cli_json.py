@@ -42,7 +42,15 @@ def test_optimize_json_parses_and_keeps_caveats():
     payload = json.loads(out)
     assert payload["not_modeled"]
     assert payload["best"] is not None
-    assert len(payload["ranked"]) <= 10
+    assert len(payload["ranked"]) == 5
+
+
+def test_optimize_json_respects_top():
+    code, out = _run(["optimize", "--area", "10", "--temp", "28", "--water", "5000",
+                      "--objective", "food", "--json", "--top", "2"])
+    assert code == 0
+    payload = json.loads(out)
+    assert len(payload["ranked"]) == 2
 
 
 def test_list_json_is_parseable():
