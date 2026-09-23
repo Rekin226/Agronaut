@@ -153,17 +153,15 @@ def test_handle_payload_sends_html_attachment_with_html_mime(monkeypatch, tmp_pa
     html_file.write_text("<!DOCTYPE html><html><body>3D Scene</body></html>", encoding="utf-8")
     agent = _FakeAgent(attachments=[str(html_file)])
     a = _adapter(agent)
-    sent_media = []
-    monkeypatch.setattr(a, "send_text", lambda to, text: None)
-    monkeypatch.setattr(
-        a, "send_media",
-        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
-    )
+    sent_text = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, **kw: True)
 
     a.handle_payload(_incoming_payload("show 3d scene"))
-    assert sent_media == [("15551234567", str(html_file), "text/html")]
-    assert sent_media[0][2] != "image/png"
-
+    assert sent_text == [
+        ("15551234567", "reply to show 3d scene"),
+        ("15551234567", "The 3D scene is not available on WhatsApp yet (Telegram has it).")
+    ]
 
 def test_handle_payload_sends_png_attachment_with_png_mime(monkeypatch, tmp_path):
     png_file = tmp_path / "diagram.png"
@@ -192,8 +190,7 @@ def test_flush_attachments_notifies_user_on_send_failure(monkeypatch, tmp_path):
 
     a._flush_attachments("15551234567", "15551234567")
     assert len(sent_text) == 1
-    assert "couldn't send" in sent_text[0][1].lower()
-    assert "scene.html" in sent_text[0][1]
+    assert "the 3d scene is not available on whatsapp yet (telegram has it)." in sent_text[0][1].lower()
 
 
 def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path):
@@ -211,8 +208,7 @@ def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path
 
     a._flush_attachments("15551234567", "15551234567")
     assert len(sent_text) == 1
-    assert "couldn't send" in sent_text[0][1].lower()
-    assert "scene.html" in sent_text[0][1]
+    assert "the 3d scene is not available on whatsapp yet (telegram has it)." in sent_text[0][1].lower()
 
 
 def test_send_media_posts_document_payload_for_html(monkeypatch, tmp_path):
@@ -238,27 +234,13 @@ def test_send_media_posts_document_payload_for_html(monkeypatch, tmp_path):
 
     monkeypatch.setattr("requests.post", _fake_post)
     ok = a.send_media("15551234567", str(html_file), mime="text/html")
-    assert ok is True
-    assert len(posts) == 2
-
-    # Check upload call
-    upload_call = posts[0]
-    assert upload_call["url"].endswith("/media")
-    assert upload_call["data"]["type"] == "text/html"
-    assert upload_call["files"]["file"][0] == "scene.html"
-    assert upload_call["files"]["file"][2] == "text/html"
-
-    # Check messages call
-    msg_call = posts[1]
-    assert msg_call["url"].endswith("/messages")
-    assert msg_call["json"]["type"] == "document"
-    assert msg_call["json"]["document"]["id"] == "DOC_MEDIA_123"
-    assert msg_call["json"]["document"]["filename"] == "scene.html"
+    assert ok is False
+    assert len(posts) == 0
 
 
 def test_send_media_returns_false_on_media_upload_failure(monkeypatch, tmp_path):
-    html_file = tmp_path / "scene.html"
-    html_file.write_text("<html></html>", encoding="utf-8")
+    pdf_file = tmp_path / "report.pdf"
+    pdf_file.write_text("PDF content", encoding="utf-8")
     a = _adapter()
 
     class _Resp:
@@ -269,12 +251,12 @@ def test_send_media_returns_false_on_media_upload_failure(monkeypatch, tmp_path)
             return {}
 
     monkeypatch.setattr("requests.post", lambda *args, **kw: _Resp())
-    assert a.send_media("15551234567", str(html_file), mime="text/html") is False
+    assert a.send_media("15551234567", str(pdf_file), mime="application/pdf") is False
 
 
 def test_send_media_returns_false_on_message_send_failure(monkeypatch, tmp_path):
-    html_file = tmp_path / "scene.html"
-    html_file.write_text("<html></html>", encoding="utf-8")
+    pdf_file = tmp_path / "report.pdf"
+    pdf_file.write_text("PDF content", encoding="utf-8")
     a = _adapter()
     calls = []
 
@@ -294,7 +276,7 @@ def test_send_media_returns_false_on_message_send_failure(monkeypatch, tmp_path)
         return _Resp(400, text='{"error": "recipient cannot receive documents"}')
 
     monkeypatch.setattr("requests.post", _fake_post)
-    assert a.send_media("15551234567", str(html_file), mime="text/html") is False
+    assert a.send_media("15551234567", str(pdf_file), mime="application/pdf") is False
     assert len(calls) == 2
 
 

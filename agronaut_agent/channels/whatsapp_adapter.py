@@ -201,6 +201,8 @@ class WhatsAppAdapter(ChannelAdapter):
         """Send a local file (e.g. a rendered schematic or a 3D scene). WhatsApp Cloud API
         is two steps: upload the media to get an id, then send a message referencing it.
         Returns True on success, False on upload or message failure."""
+        if mime == "text/html":
+            return False  # WhatsApp does not support HTML documents
         try:
             with open(path, "rb") as fh:
                 up = requests.post(
@@ -336,6 +338,12 @@ class WhatsAppAdapter(ChannelAdapter):
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
             mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+            # The 3D scene (HTML) is not available on WhatsApp yet.
+            if mime == "text/html":
+                self.send_text(sender, "The 3D scene is not available on WhatsApp yet (Telegram has it).")
+                continue
+
             try:
                 ok = self.send_media(sender, path, mime=mime)
             except Exception:
