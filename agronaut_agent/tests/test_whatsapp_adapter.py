@@ -148,6 +148,156 @@ def test_handle_payload_sends_schematic_attachment(monkeypatch, tmp_path):
     assert sent_media == [("15551234567", str(png))]        # image sent after the text
 
 
+def test_handle_payload_sends_html_attachment_with_html_mime(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<!DOCTYPE html><html><body>3D Scene</body></html>", encoding="utf-8")
+    agent = _FakeAgent(attachments=[str(html_file)])
+    a = _adapter(agent)
+    sent_media = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: None)
+    monkeypatch.setattr(
+        a, "send_media",
+        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
+    )
+
+    a.handle_payload(_incoming_payload("show 3d scene"))
+    assert sent_media == [("15551234567", str(html_file), "text/html")]
+    assert sent_media[0][2] != "image/png"
+
+
+def test_handle_payload_sends_png_attachment_with_png_mime(monkeypatch, tmp_path):
+    png_file = tmp_path / "diagram.png"
+    png_file.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png_file)])
+    a = _adapter(agent)
+    sent_media = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: None)
+    monkeypatch.setattr(
+        a, "send_media",
+        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
+    )
+
+    a.handle_payload(_incoming_payload("draw diagram"))
+    assert sent_media == [("15551234567", str(png_file), "image/png")]
+
+
+def test_flush_attachments_notifies_user_on_send_failure(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<html></html>", encoding="utf-8")
+    agent = _FakeAgent(attachments=[str(html_file)])
+    a = _adapter(agent)
+    sent_text = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, **kw: False)
+
+    a._flush_attachments("15551234567", "15551234567")
+    assert len(sent_text) == 1
+    assert "couldn't send" in sent_text[0][1].lower()
+    assert "scene.html" in sent_text[0][1]
+
+
+def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<html></html>", encoding="utf-8")
+    agent = _FakeAgent(attachments=[str(html_file)])
+    a = _adapter(agent)
+    sent_text = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+
+    def _raise(*args, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(a, "send_media", _raise)
+
+    a._flush_attachments("15551234567", "15551234567")
+    assert len(sent_text) == 1
+    assert "couldn't send" in sent_text[0][1].lower()
+    assert "scene.html" in sent_text[0][1]
+
+
+def test_send_media_posts_document_payload_for_html(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<html><body>3D model</body></html>", encoding="utf-8")
+    a = _adapter()
+    posts = []
+
+    class _Resp:
+        def __init__(self, status_code=200, payload=None):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    def _fake_post(url, headers=None, files=None, data=None, json=None, timeout=None):
+        posts.append({"url": url, "headers": headers, "files": files, "data": data, "json": json})
+        if "/media" in url:
+            return _Resp(200, {"id": "DOC_MEDIA_123"})
+        return _Resp(200, {"messages": [{"id": "wamid.DOC"}]})
+
+    monkeypatch.setattr("requests.post", _fake_post)
+    ok = a.send_media("15551234567", str(html_file), mime="text/html")
+    assert ok is True
+    assert len(posts) == 2
+
+    # Check upload call
+    upload_call = posts[0]
+    assert upload_call["url"].endswith("/media")
+    assert upload_call["data"]["type"] == "text/html"
+    assert upload_call["files"]["file"][0] == "scene.html"
+    assert upload_call["files"]["file"][2] == "text/html"
+
+    # Check messages call
+    msg_call = posts[1]
+    assert msg_call["url"].endswith("/messages")
+    assert msg_call["json"]["type"] == "document"
+    assert msg_call["json"]["document"]["id"] == "DOC_MEDIA_123"
+    assert msg_call["json"]["document"]["filename"] == "scene.html"
+
+
+def test_send_media_returns_false_on_media_upload_failure(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<html></html>", encoding="utf-8")
+    a = _adapter()
+
+    class _Resp:
+        status_code = 400
+        text = '{"error": {"message": "Invalid MIME type"}}'
+
+        def json(self):
+            return {}
+
+    monkeypatch.setattr("requests.post", lambda *args, **kw: _Resp())
+    assert a.send_media("15551234567", str(html_file), mime="text/html") is False
+
+
+def test_send_media_returns_false_on_message_send_failure(monkeypatch, tmp_path):
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<html></html>", encoding="utf-8")
+    a = _adapter()
+    calls = []
+
+    class _Resp:
+        def __init__(self, status_code=200, payload=None, text=""):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = text
+
+        def json(self):
+            return self._payload
+
+    def _fake_post(url, **kw):
+        calls.append(url)
+        if "/media" in url:
+            return _Resp(200, {"id": "DOC123"})
+        return _Resp(400, text='{"error": "recipient cannot receive documents"}')
+
+    monkeypatch.setattr("requests.post", _fake_post)
+    assert a.send_media("15551234567", str(html_file), mime="text/html") is False
+    assert len(calls) == 2
+
+
 def test_deliver_due_followups_sends_and_marks(monkeypatch):
     agent = _FakeAgent()
     a = _adapter(agent)
