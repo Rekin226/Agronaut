@@ -24,6 +24,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import threading
 import time
@@ -196,29 +197,56 @@ class WhatsAppAdapter(ChannelAdapter):
             if resp.status_code >= 400:
                 log.warning("whatsapp send failed (%s): %s", resp.status_code, resp.text[:200])
 
-    def send_media(self, to: str, path: str, mime: str = "image/png") -> None:
-        """Send a local file (e.g. a rendered schematic). WhatsApp Cloud API is two steps:
-        upload the media to get an id, then send a message referencing it."""
-        import os
-        with open(path, "rb") as fh:
-            up = requests.post(
-                f"{GRAPH}/{self.phone_number_id}/media",
-                headers={"Authorization": f"Bearer {self.token}"},
-                files={"file": (os.path.basename(path), fh, mime)},
-                data={"messaging_product": "whatsapp", "type": mime},
-                timeout=60,
-            )
+    def send_media(self, to: str, path: str, mime: str = "image/png") -> bool:
+        """Send a local file (e.g. a rendered schematic or a 3D scene). WhatsApp Cloud API
+        is two steps: upload the media to get an id, then send a message referencing it.
+        Returns True on success, False on upload or message failure."""
+        try:
+            with open(path, "rb") as fh:
+                up = requests.post(
+                    f"{GRAPH}/{self.phone_number_id}/media",
+                    headers={"Authorization": f"Bearer {self.token}"},
+                    files={"file": (os.path.basename(path), fh, mime)},
+                    data={"messaging_product": "whatsapp", "type": mime},
+                    timeout=60,
+                )
+        except Exception:
+            log.warning("whatsapp media upload failed for %s", path, exc_info=True)
+            return False
+
         if up.status_code >= 400:
             log.warning("whatsapp media upload failed (%s): %s", up.status_code, up.text[:200])
-            return
+            return False
+
         media_id = up.json().get("id")
+        if not media_id:
+            log.warning("whatsapp media upload missing id: %s", up.text[:200])
+            return False
+
         kind = "image" if mime.startswith("image/") else "document"
-        requests.post(
-            f"{GRAPH}/{self.phone_number_id}/messages",
-            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
-            json={"messaging_product": "whatsapp", "to": to, "type": kind, kind: {"id": media_id}},
-            timeout=30,
-        )
+        body = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": kind,
+            kind: {"id": media_id},
+        }
+        if kind == "document":
+            body[kind]["filename"] = os.path.basename(path)
+
+        try:
+            resp = requests.post(
+                f"{GRAPH}/{self.phone_number_id}/messages",
+                headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
+                json=body,
+                timeout=30,
+            )
+            if resp.status_code >= 400:
+                log.warning("whatsapp media send failed (%s): %s", resp.status_code, resp.text[:200])
+                return False
+            return True
+        except Exception:
+            log.warning("whatsapp media send failed for %s", path, exc_info=True)
+            return False
 
     # --- routing ---------------------------------------------------------
     def handle_payload(self, payload: dict) -> None:
@@ -240,7 +268,14 @@ class WhatsAppAdapter(ChannelAdapter):
                 for part in chunk(cmd.text):
                     self.send_text(sender, part)
                 if cmd.document:
-                    self.send_media(sender, cmd.document, cmd.document_mime)
+                    doc_mime = cmd.document_mime or mimetypes.guess_type(cmd.document)[0] or "application/octet-stream"
+                    ok = self.send_media(sender, cmd.document, doc_mime)
+                    if ok is False:
+                        filename = os.path.basename(cmd.document)
+                        self.send_text(
+                            sender,
+                            f"I couldn't send the attachment ({filename}) — try asking again?",
+                        )
                 continue
 
             try:
@@ -301,9 +336,27 @@ class WhatsAppAdapter(ChannelAdapter):
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
             try:
-                self.send_media(sender, path)
+                if path.lower().endswith((".html", ".htm")):
+                    self.send_text(
+                        sender,
+                        "The 3D view isn't available on WhatsApp yet (Telegram has it).",
+                    )
+                else:
+                    mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+                    ok = self.send_media(sender, path, mime=mime)
+                    if ok is False:
+                        filename = os.path.basename(path)
+                        self.send_text(
+                            sender,
+                            f"I couldn't send the attachment ({filename}), try asking again?",
+                        )
             except Exception:
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
+                filename = os.path.basename(path)
+                self.send_text(
+                    sender,
+                    f"I couldn't send the attachment ({filename}), try asking again?",
+                )
             finally:
                 try:
                     os.unlink(path)
