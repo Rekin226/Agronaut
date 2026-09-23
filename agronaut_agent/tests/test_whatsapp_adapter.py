@@ -148,6 +148,74 @@ def test_handle_payload_sends_schematic_attachment(monkeypatch, tmp_path):
     assert sent_media == [("15551234567", str(png))]        # image sent after the text
 
 
+def test_handle_payload_sends_html_attachment_with_correct_mime(monkeypatch, tmp_path):
+    """Test that _flush_attachments uses mimetypes.guess_type to determine MIME type.
+    HTML files (3D scenes) should be sent with text/html, not the default image/png."""
+    html = tmp_path / "scene.html"
+    html.write_bytes(b"<html><body>3D Scene</body></html>")
+    agent = _FakeAgent(attachments=[str(html)])
+    a = _adapter(agent)
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, mime=None, **kw: sent_media.append((to, path, mime)))
+
+    a.handle_payload(_incoming_payload("draw my system"))
+    assert sent_text == [("15551234567", "reply to draw my system")]
+    # HTML should be sent with text/html, not the default image/png
+    assert sent_media == [("15551234567", str(html), "text/html")]
+
+
+def test_handle_payload_sends_png_attachment_with_correct_mime(monkeypatch, tmp_path):
+    """Test that _flush_attachments uses mimetypes.guess_type for PNG files."""
+    png = tmp_path / "image.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png)])
+    a = _adapter(agent)
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, mime=None, **kw: sent_media.append((to, path, mime)))
+
+    a.handle_payload(_incoming_payload("draw my system"))
+    assert sent_text == [("15551234567", "reply to draw my system")]
+    # PNG should be sent with image/png
+    assert sent_media == [("15551234567", str(png), "image/png")]
+
+
+def test_handle_payload_sends_unknown_mime_as_octet_stream(monkeypatch, tmp_path):
+    """Test that files with no known extension default to application/octet-stream."""
+    unknown = tmp_path / "scene"
+    unknown.write_bytes(b"some data")
+    agent = _FakeAgent(attachments=[str(unknown)])
+    a = _adapter(agent)
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(a, "send_media", lambda to, path, mime=None, **kw: sent_media.append((to, path, mime)))
+
+    a.handle_payload(_incoming_payload("draw my system"))
+    assert sent_text == [("15551234567", "reply to draw my system")]
+    # Extensionless file should default to application/octet-stream
+    assert sent_media == [("15551234567", str(unknown), "application/octet-stream")]
+
+
+def test_handle_payload_sends_text_on_upload_failure(monkeypatch, tmp_path):
+    """Test that when send_media raises an exception, a text message is sent to the user."""
+    html = tmp_path / "scene.html"
+    html.write_bytes(b"<html><body>3D Scene</body></html>")
+    agent = _FakeAgent(attachments=[str(html)])
+    a = _adapter(agent)
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    # Make send_media raise an exception
+    def _raise_error(to, path, **kw):
+        raise RuntimeError("upload failed")
+    monkeypatch.setattr(a, "send_media", _raise_error)
+
+    a.handle_payload(_incoming_payload("draw my system"))
+    # The agent reply + the upload failure message = 2 texts
+    assert len(sent_text) == 2
+    assert "upload" in sent_text[1][1].lower() or "failed" in sent_text[1][1].lower()
+
+
 def test_deliver_due_followups_sends_and_marks(monkeypatch):
     agent = _FakeAgent()
     a = _adapter(agent)

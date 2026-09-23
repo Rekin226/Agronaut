@@ -24,6 +24,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import threading
 import time
@@ -300,10 +301,14 @@ class WhatsAppAdapter(ChannelAdapter):
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
+            mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
             try:
-                self.send_media(sender, path)
+                self.send_media(sender, path, mime=mime)
             except Exception:
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
+                self.send_text(sender, "I tried to send a file but the upload didn't "
+                                       "go through — try again, or I can describe it "
+                                       "in text.")
 
     def deliver_due_followups(self) -> None:
         try:
