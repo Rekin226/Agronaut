@@ -64,9 +64,10 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
 
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
-    assert sorted(leafy_above_30) == ["amaranth", "water_spinach"], (
-        "amaranth and water_spinach should be the leafy crops that carry hot climates; "
-        f"if another joins them, widen this assertion deliberately. Found: {leafy_above_30}"
+    assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "water_spinach"], (
+        "amaranth, water_spinach and malabar_spinach (#125) are the leafy crops that "
+        f"carry hot climates; if another joins them, widen this assertion deliberately. "
+        f"Found: {leafy_above_30}"
     )
 
 
@@ -108,4 +109,32 @@ def test_water_spinach_is_heat_tolerant_and_semi_aquatic():
     assert "FRR placed" in ws.source, "FRR placement must be clearly stated"
     assert ws.yield_kg_per_m2_year > 10.0
     assert ws.yield_kg_per_m2_year < 25.0
+
+
+def test_malabar_spinach_is_heat_tolerant_and_cold_sensitive():
+    """#125: malabar spinach (Basella alba), the sixth of the six wanted crops.
+
+    Its identity in the database is the pairing of a 35 °C ceiling with a 20 °C
+    floor: it carries hot climates the way amaranth and water spinach do, but it
+    is also the leafy entry that most refuses cool weather (poor growth below
+    ~27 °C, UF/IFAS HS1371). If a future edit narrows the band, the reason this
+    crop was added reopens silently.
+    """
+    ms = get_crop("malabar_spinach")
+    assert ms.category == "leafy"
+    assert ms.temp_max_c >= 35.0
+    assert ms.temp_min_c >= 20.0
+    assert "FRR placed" in ms.source, "FRR placement must be clearly stated"
+    assert ms.yield_kg_per_m2_year > 10.0
+    assert ms.yield_kg_per_m2_year < 25.0
+
+
+def test_malabar_spinach_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "malabar_spinach", 12.0, 29.0, 3000.0))
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
 

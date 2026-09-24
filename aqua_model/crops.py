@@ -319,6 +319,46 @@ WATER_SPINACH = Crop(
         "protected-culture multiplier."),
 )
 
+# MALABAR SPINACH (Basella alba) — climbing vine grown as a leafy green, the most
+# heat-tolerant leafy entry in the database (#125: the sixth of the six wanted).
+MALABAR_SPINACH = Crop(
+    name="malabar_spinach",
+    category="leafy",
+    # No Basella-specific feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) alongside amaranth and water
+    # spinach, the closest analogues: fast-growing tropical cut-and-come-again greens.
+    frr_g_per_m2_day=65.0,
+    frr_low=45.0,
+    frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    # Edible leaf fresh yield 344-385 g/m2 per season at 100 kg/ha N (Palada et al.
+    # 1996 / Palada & Crossman 1998, UVI germplasm trials; Palada, Davis & Crossman
+    # 1999 report leaf yields rising to 306.8 g/plant at 40 t/ha manure). A tropical
+    # vine cycles three-plus leaf harvests a year (55-180 day cycle, FAO Ecocrop),
+    # which puts field leaf yield at roughly 10-15 kg/m2/yr; protected raft culture
+    # runs several times field for leafy greens, and the result sits under water
+    # spinach's 16 to stay inside what the measured base supports. The multiplier,
+    # not the trial, is the soft link in that chain.
+    yield_kg_per_m2_year=14.0,
+    edible_protein_pct=1.8,
+    ph_min=5.5,
+    ph_max=7.0,
+    # Grows between 10 and 35 °C with ideal 23-27 °C (FAO Ecocrop 2022); disappointing
+    # below 27 °C and best above it (UF/IFAS HS1371, Cornell). temp_max 35 ties water
+    # spinach and amaranth for the heat ceiling; its floor is what makes it distinct —
+    # it refuses cool weather rather than merely surviving heat.
+    temp_min_c=20.0,
+    temp_max_c=35.0,
+    source=("FAO Ecocrop (GAEZ v4, 2022; via ECHO EDN #172) for the 10-35 °C growth "
+        "band, 23-27 °C optimum and pH 5.5-7 preference; "
+        "UF/IFAS 'Florida Cultivation Guide for Malabar Spinach' (HS1371) and "
+        "Cornell Home Gardening guide for heat preference and poor cool-season "
+        "growth; USDA FoodData Central (fdc 119643, malabar spinach raw, 1.8 g "
+        "protein/100 g fresh); UVI leaf-yield trials (Palada et al. 1996; Palada & "
+        "Crossman 1998; Palada, Davis & Crossman 1999, CFCS 35:178-182) for yield "
+        "base. FRR placed in FAO 589 / UVI leafy band (not measured for this species)."),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -331,6 +371,7 @@ CROPS: dict[str, Crop] = {
         # heat-tolerant
         AMARANTH,
         WATER_SPINACH,
+        MALABAR_SPINACH,
     )
 }
 
