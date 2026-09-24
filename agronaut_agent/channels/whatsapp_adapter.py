@@ -304,6 +304,11 @@ class WhatsAppAdapter(ChannelAdapter):
                 self.send_media(sender, path)
             except Exception:
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
+            finally:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
     def deliver_due_followups(self) -> None:
         try:

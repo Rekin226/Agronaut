@@ -276,6 +276,11 @@ class TelegramAdapter(ChannelAdapter):
                         await update.message.reply_document(document=fh)
             except Exception:
                 log.warning("failed to send attachment %s", path, exc_info=True)
+            finally:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
