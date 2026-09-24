@@ -274,7 +274,7 @@ class WhatsAppAdapter(ChannelAdapter):
                         filename = os.path.basename(cmd.document)
                         self.send_text(
                             sender,
-                            f"I couldn't send the attachment ({filename}) — try asking again?",
+                            f"I couldn't send the attachment ({filename}), try asking again?",
                         )
                 continue
 

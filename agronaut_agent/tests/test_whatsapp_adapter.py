@@ -148,10 +148,30 @@ def test_handle_payload_sends_schematic_attachment(monkeypatch, tmp_path):
     assert sent_media == [("15551234567", str(png))]        # image sent after the text
 
 
-def test_handle_payload_sends_html_attachment_with_html_mime(monkeypatch, tmp_path):
+def test_handle_payload_skips_html_attachment_and_explains_availability(monkeypatch, tmp_path):
     html_file = tmp_path / "scene.html"
     html_file.write_text("<!DOCTYPE html><html><body>3D Scene</body></html>", encoding="utf-8")
     agent = _FakeAgent(attachments=[str(html_file)])
+    a = _adapter(agent)
+    sent_media = []
+    sent_text = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(
+        a, "send_media",
+        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
+    )
+
+    a.handle_payload(_incoming_payload("show 3d scene"))
+    assert sent_media == []  # HTML upload is skipped for WhatsApp
+    assert any("3d view isn't available on whatsapp yet" in text.lower() for _, text in sent_text)
+    assert any("telegram has it" in text.lower() for _, text in sent_text)
+    assert not html_file.exists()  # verified finally block unlinks the temp file
+
+
+def test_handle_payload_sends_document_attachment_with_guessed_mime(monkeypatch, tmp_path):
+    pdf_file = tmp_path / "report.pdf"
+    pdf_file.write_bytes(b"%PDF-1.4")
+    agent = _FakeAgent(attachments=[str(pdf_file)])
     a = _adapter(agent)
     sent_media = []
     monkeypatch.setattr(a, "send_text", lambda to, text: None)
@@ -160,9 +180,8 @@ def test_handle_payload_sends_html_attachment_with_html_mime(monkeypatch, tmp_pa
         lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
     )
 
-    a.handle_payload(_incoming_payload("show 3d scene"))
-    assert sent_media == [("15551234567", str(html_file), "text/html")]
-    assert sent_media[0][2] != "image/png"
+    a.handle_payload(_incoming_payload("get report"))
+    assert sent_media == [("15551234567", str(pdf_file), "application/pdf")]
 
 
 def test_handle_payload_sends_png_attachment_with_png_mime(monkeypatch, tmp_path):
@@ -182,9 +201,9 @@ def test_handle_payload_sends_png_attachment_with_png_mime(monkeypatch, tmp_path
 
 
 def test_flush_attachments_notifies_user_on_send_failure(monkeypatch, tmp_path):
-    html_file = tmp_path / "scene.html"
-    html_file.write_text("<html></html>", encoding="utf-8")
-    agent = _FakeAgent(attachments=[str(html_file)])
+    pdf_file = tmp_path / "report.pdf"
+    pdf_file.write_bytes(b"%PDF-1.4")
+    agent = _FakeAgent(attachments=[str(pdf_file)])
     a = _adapter(agent)
     sent_text = []
     monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
@@ -193,13 +212,14 @@ def test_flush_attachments_notifies_user_on_send_failure(monkeypatch, tmp_path):
     a._flush_attachments("15551234567", "15551234567")
     assert len(sent_text) == 1
     assert "couldn't send" in sent_text[0][1].lower()
-    assert "scene.html" in sent_text[0][1]
+    assert "report.pdf" in sent_text[0][1]
+    assert "—" not in sent_text[0][1]  # house style avoids em dash
 
 
 def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path):
-    html_file = tmp_path / "scene.html"
-    html_file.write_text("<html></html>", encoding="utf-8")
-    agent = _FakeAgent(attachments=[str(html_file)])
+    pdf_file = tmp_path / "report.pdf"
+    pdf_file.write_bytes(b"%PDF-1.4")
+    agent = _FakeAgent(attachments=[str(pdf_file)])
     a = _adapter(agent)
     sent_text = []
     monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
@@ -212,7 +232,8 @@ def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path
     a._flush_attachments("15551234567", "15551234567")
     assert len(sent_text) == 1
     assert "couldn't send" in sent_text[0][1].lower()
-    assert "scene.html" in sent_text[0][1]
+    assert "report.pdf" in sent_text[0][1]
+    assert "—" not in sent_text[0][1]
 
 
 def test_send_media_posts_document_payload_for_html(monkeypatch, tmp_path):
