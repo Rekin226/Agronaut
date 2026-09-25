@@ -207,7 +207,13 @@ def check_database() -> list[Check]:
 
 
 def check_channels() -> list[Check]:
-    """Telegram and WhatsApp, only as far as their configuration goes."""
+    """Telegram and WhatsApp, verified as far as their credentials allow.
+
+    Like the Telegram branch, the WhatsApp token is probed against its live API
+    (the same Graph call `agronaut whatsapp --check` starts with): "configured"
+    and "working" are different words, and an expired 24 h API Setup token must
+    read as a failure here, not as a pass.
+    """
     out: list[Check] = []
     token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
@@ -224,8 +230,34 @@ def check_channels() -> list[Check]:
     if not (os.getenv("WHATSAPP_TOKEN") or "").strip():
         out.append(Check(SKIP, "WhatsApp not configured", "no WHATSAPP_TOKEN"))
     else:
-        out.append(Check(OK, "WhatsApp is configured",
-                         "run `agronaut whatsapp --check` for the full chain"))
+        from . import whatsapp_doctor as wd
+
+        phone_id = (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
+        wa_token = (os.getenv("WHATSAPP_TOKEN") or "").strip()
+        if not phone_id:
+            out.append(Check(WARN, "WhatsApp: configured, not verified",
+                             "WHATSAPP_PHONE_NUMBER_ID is not set",
+                             "copy the phone number id from WhatsApp > API Setup"))
+            return out
+        status, body = wd._get(
+            f"{wd.GRAPH}/{phone_id}?fields=display_phone_number,verified_name", wa_token)
+        if status == 0 or status == 429 or status >= 500:
+            out.append(Check(WARN, "WhatsApp: configured, not verified", wd._err(body),
+                             "check connectivity and retry `agronaut doctor`"))
+        elif status in (401, 403):
+            out.append(Check(
+                wd.FAIL, "WhatsApp: token rejected by the Graph API",
+                wd._err(body),
+                "the API Setup token expires in 24 h — generate a new one"))
+        elif status != 200:
+            out.append(Check(
+                wd.FAIL, "WhatsApp: the Graph API rejected the check",
+                wd._err(body),
+                "usually a wrong WHATSAPP_PHONE_NUMBER_ID — copy it from WhatsApp > API Setup"))
+        else:
+            out.append(Check(
+                wd.OK, "WhatsApp: token accepted",
+                "run `agronaut whatsapp --check` for the full chain"))
     return out
 
 
