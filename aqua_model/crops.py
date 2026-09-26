@@ -354,10 +354,11 @@ MALABAR_SPINACH = Crop(
         "UF/IFAS 'Florida Cultivation Guide for Malabar Spinach' (HS1371) and "
         "Cornell Home Gardening guide for heat preference and poor cool-season "
         "growth; USDA FoodData Central (fdc 119643, malabar spinach raw, 1.8 g "
-        "protein/100 g fresh); UVI leaf-yield trials (Palada et al. 1996; Palada & "
-        "Crossman 1998; Palada, Davis & Crossman 1999, CFCS 35:178-182: 344 g/m2 "
-        "over 57 days, 6.04 g/m2/day, about 2.2 kg/m2/yr in the field) for yield "
-        "base. Yield 14 assumes about a 6x protected-culture multiplier under raft "
+        "protein/100 g fresh); UVI leaf-yield trials (Palada & Crossman 1999, "
+        "Perspectives on New Crops, Table 1: 344 g/m2 over 57 days, 6.04 g/m2/day, "
+        "about 2.2 kg/m2/yr in the field; also Palada et al. 1996; Palada & Crossman "
+        "1998; Palada, Davis & Crossman 1999, CFCS 35:178-182) for yield base. "
+        "Yield 14 assumes about a 6x protected-culture multiplier under raft "
         "culture; the multiplier, not the trial, is the soft link. FRR placed in "
         "FAO 589 / UVI leafy band (not measured for this species)."),
 )
