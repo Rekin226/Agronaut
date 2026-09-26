@@ -39,6 +39,25 @@ log = logging.getLogger(__name__)
 GRAPH = "https://graph.facebook.com/v20.0"
 POLL_SECONDS = 60
 
+# Supported outbound attachment types and their MIME types.
+# Any extension absent from this map is unsupported and must NOT be uploaded.
+_ATTACHMENT_MIME: dict[str, str] = {
+    ".png":  "image/png",
+    ".jpg":  "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".pdf":  "application/pdf",
+    ".mp4":  "video/mp4",
+}
+
+_HTML_FALLBACK_MSG = (
+    "The interactive 3D scene can't be sent over WhatsApp. "
+    "Reply \u2018summary\u2019 for a plain-text summary, or \u2018pdf\u2019 to request a PDF export."
+)
+_MEDIA_FAILURE_MSG = (
+    "I wasn't able to send the file just now \u2014 "
+    "please try again or ask for a text summary."
+)
+
 
 class WhatsAppAdapter(ChannelAdapter):
     channel_name = "whatsapp"
@@ -299,11 +318,35 @@ class WhatsAppAdapter(ChannelAdapter):
                                    "I'll take a look.")
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
+        """Deliver agent-generated attachments to the sender.
+
+        MIME type is derived from the file extension so WhatsApp receives the correct
+        media type (fixes #164). HTML and any other unsupported type are never uploaded —
+        instead the user receives a text message explaining the 3D scene is unavailable
+        and offering a summary/PDF alternative (fixes #167). Any upload failure is caught
+        and replaced with a text fallback so the user is never silently left without a
+        response.
+        """
         for path in self.agent.take_attachments(self.channel_name, uid):
             try:
-                self.send_media(sender, path)
-            except Exception:
-                log.warning("whatsapp media send failed for %s", path, exc_info=True)
+                ext = os.path.splitext(path)[1].lower()
+                mime = _ATTACHMENT_MIME.get(ext)
+
+                if mime is None:
+                    # .html or any unsupported extension — do NOT attempt to upload
+                    log.warning(
+                        "whatsapp: skipping unsupported attachment type %r (%s)", ext, path
+                    )
+                    self.send_text(sender, _HTML_FALLBACK_MSG)
+                    continue
+
+                try:
+                    self.send_media(sender, path, mime)
+                except Exception:
+                    log.error(
+                        "whatsapp media send failed for %s", path, exc_info=True
+                    )
+                    self.send_text(sender, _MEDIA_FAILURE_MSG)
             finally:
                 try:
                     os.unlink(path)
