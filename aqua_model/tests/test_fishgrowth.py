@@ -83,6 +83,43 @@ def test_an_unknown_species_gets_the_default_seed_not_a_crash():
     assert tgc_for("no_such_fish").name == "generic.tgc"
 
 
+def test_pangasius_has_its_own_seed_not_the_generic_default():
+    # Issue #106: five species silently fell back to the generic warm-water default;
+    # pangasius is the first to get a real seed. This fails while the key is missing.
+    assert "pangasius" in TGC
+    assert tgc_for("pangasius").name == "pangasius.tgc"
+
+
+def test_pangasius_seed_comes_from_the_cited_pond_trial():
+    # Da, Lundh & Lindberg (2016) Table 4: 16.1 -> 229.4 g in 112 d at 28.6 C avg.
+    # Reference diet computes to TGC 1.12; the seven diets span 0.80-1.20.
+    c = TGC["pangasius"]
+    assert c.name == "pangasius.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.1)
+    assert c.low == pytest.approx(0.8) and c.high == pytest.approx(1.2)
+    assert "Da" in c.source and "2016" in c.source
+    # sits inside the published juvenile envelope (Marquez et al. 2024)
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_pangasius_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute the reference-diet TGC from the paper's numbers inside the test, so the
+    # seed and the citation can not drift apart silently.
+    wi, wf, days, temp_c = 16.1, 229.4, 112.0, 28.6
+    tgc_ref = 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (temp_c * days)
+    assert tgc_ref == pytest.approx(1.12, abs=0.005)
+    assert TGC["pangasius"].low <= tgc_ref <= TGC["pangasius"].high
+
+
+def test_pangasius_days_to_weight_lands_in_a_plausible_farm_range():
+    # The issue's sanity anchor: a value implying harvest in weeks is wrong. Mekong pond
+    # culture runs a 20 g fingerling to ~1 kg in roughly 8 months at ~28 C; the seed must
+    # land in that neighbourhood, not in weeks and not in years.
+    days = days_to_weight(20.0, 1000.0, "pangasius", 28.0)
+    assert 150.0 <= days <= 330.0, f"20 g -> 1 kg at 28 C took {days:.0f} days"
+
+
 def test_limits_are_declared():
     assert any("mortality" in x for x in NOT_MODELLED)
     assert any("spawn" in x.lower() for x in NOT_MODELLED)

@@ -72,6 +72,17 @@ TGC = {
         source="ALkhafaji et al. (2023), Egypt. J. Aquat. Biol. Fish. 27(4): juvenile TGC "
                "0.37 at 20 C lab; upper range back-computed from FAO 589 pond timelines "
                "(600 g in 9-11 months at 25-30 C)"),
+    "pangasius": Coefficient(
+        name="pangasius.tgc", value=1.1, low=0.8, high=1.2, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Da, Lundh & Lindberg (2016), Int. Aquat. Res. 8:309-321 "
+               "(DOI 10.1007/s40071-016-0144-z), Table 4 — pond hapa-net-cage fingerlings, "
+               "16.1->229.4 g over 112 d (4 months) at 28.6 C avg: TGC = 1000 x "
+               "(229.4^(1/3) - 16.1^(1/3)) / (28.6 x 112) = 1.12 on the reference diet; the "
+               "trial's seven diets span 0.80 (soybean meal) to 1.20 (shrimp head meal), "
+               "cross-checked per diet against the paper's own DWG and SGR columns. Seeds at "
+               "1.1; consistent with ~1 kg in 8 months at 28 C from a 20 g fingerling "
+               "(back-computed 1.07). Low/high are the trial's diet-range, not a "
+               "population range; calibrate against farm records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",
