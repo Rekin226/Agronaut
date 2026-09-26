@@ -465,3 +465,61 @@ def test_the_cli_exposes_whatsapp_beside_bot():
     for a in actions:
         names.update(a.choices)
     assert "whatsapp" in names and "bot" in names
+
+
+# --- _flush_attachments regression tests (issues #164, #167) ----------------------------
+
+def test_flush_attachments_sends_png_with_correct_mime(monkeypatch, tmp_path):
+    """PNG attachment must be sent with MIME type image/png — not a hardcoded default.
+    Regression for issue #164."""
+    png = tmp_path / "schematic.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png)])
+    a = _adapter(agent)
+    sent_media = []
+    monkeypatch.setattr(a, "send_media", lambda to, path, mime: sent_media.append((to, path, mime)))
+    monkeypatch.setattr(a, "send_text", lambda to, text: None)
+
+    a._flush_attachments("15551234567", "15551234567")
+
+    assert len(sent_media) == 1
+    assert sent_media[0][2] == "image/png"
+
+
+def test_flush_attachments_html_sends_fallback_text_not_upload(monkeypatch, tmp_path):
+    """HTML files must never be uploaded; user must receive a descriptive fallback text.
+    Regression for issue #167."""
+    html = tmp_path / "scene.html"
+    html.write_text("<html><body>3D scene</body></html>")
+    agent = _FakeAgent(attachments=[str(html)])
+    a = _adapter(agent)
+    sent_media, sent_text = [], []
+    monkeypatch.setattr(a, "send_media", lambda to, path, mime: sent_media.append((to, path, mime)))
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+
+    a._flush_attachments("15551234567", "15551234567")
+
+    assert sent_media == [], "HTML must never be uploaded to WhatsApp"
+    assert len(sent_text) == 1
+    assert "WhatsApp" in sent_text[0][1] or "3D" in sent_text[0][1]
+
+
+def test_flush_attachments_media_failure_sends_text_fallback(monkeypatch, tmp_path):
+    """If send_media raises, the user must receive a text fallback — no silent failure.
+    Regression for issue #164."""
+    png = tmp_path / "result.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png)])
+    a = _adapter(agent)
+    sent_text = []
+
+    def _boom(to, path, mime):
+        raise RuntimeError("Graph API 500")
+
+    monkeypatch.setattr(a, "send_media", _boom)
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+
+    a._flush_attachments("15551234567", "15551234567")
+
+    assert len(sent_text) == 1, "user must not be silently left without a response"
+    assert "try again" in sent_text[0][1].lower() or "summary" in sent_text[0][1].lower()
