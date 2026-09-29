@@ -67,3 +67,49 @@ def test_size_without_json_is_unchanged_prose():
     assert code == 0
     assert out.lstrip().startswith("FEASIBLE")
     assert not out.lstrip().startswith("{")
+
+
+# A rejection under --json must still be JSON. It used to be the prose report, so a
+# script calling json.loads on stdout crashed instead of learning why it was refused.
+
+def _assert_json_rejection(code, out, needle):
+    assert code == 2
+    payload = json.loads(out)
+    assert payload["error"] == "VALIDATION_FAILED"
+    assert any(needle in e for e in payload["errors"])
+    assert "do not guess" in payload["instruction"]
+
+
+def test_size_json_rejection_is_json():
+    code, out = _run(["size", "--fish", "tilapia", "--crop", "lettuce",
+                      "--area", "-5", "--temp", "27", "--water", "3000", "--json"])
+    _assert_json_rejection(code, out, "grow_area_m2")
+
+
+def test_size_hydro_json_rejection_is_json():
+    code, out = _run(["size-hydro", "--crop", "lettuce",
+                      "--area", "10", "--temp", "99", "--water", "500", "--json"])
+    _assert_json_rejection(code, out, "temperature_c")
+
+
+def test_optimize_json_rejection_is_json():
+    code, out = _run(["optimize", "--area", "-1", "--temp", "28", "--water", "5000",
+                      "--objective", "food", "--json"])
+    _assert_json_rejection(code, out, "grow_area_m2")
+
+
+def test_optimize_json_unknown_objective_is_json():
+    code, out = _run(["optimize", "--area", "10", "--temp", "28", "--water", "5000",
+                      "--objective", "vibes", "--json"])
+    _assert_json_rejection(code, out, "vibes")
+
+
+def test_rejection_without_json_is_unchanged_prose():
+    code, out = _run(["size", "--fish", "tilapia", "--crop", "lettuce",
+                      "--area", "-5", "--temp", "27", "--water", "3000"])
+    assert code == 2
+    assert out.startswith("VALIDATION_FAILED")
+    code, out = _run(["optimize", "--area", "10", "--temp", "28", "--water", "5000",
+                      "--objective", "vibes"])
+    assert code == 2
+    assert out.startswith("Unknown objective")
