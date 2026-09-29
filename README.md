@@ -536,12 +536,31 @@ agronaut review                  # approve/reject pending community insights
 agronaut analytics               # usage summary: latency p50/p95, tokens, feedback
 agronaut traces                  # recent turns as pipeline traces (no message text)
 agronaut --version               # version, the code path it loaded, and the .env it reads
+agronaut doctor                  # check the install, config, provider, corpus, data, channels
 agronaut update                  # check PyPI for a newer release and install it
 ```
 
 `--version` prints where the code came from, not just a number. If you have both a checkout
 and a `pip install`, that path is the only way to tell which one you are running, and getting
 it wrong is how you end up debugging a bug you already fixed.
+
+**When something is off, run `agronaut doctor`.** It checks the install (including whether a
+stale copy is shadowing it), the config, the model provider, the knowledge corpus, the seven
+reference tables, the validation record, the database and the channels, and every failure
+comes with a `fix:` line. It exits 0 when nothing is broken and 1 when something is, so it
+works in a script. Being offline shows as skipped, not failed. It checks your setup, not the
+accuracy of the advice: for that, see `data/twin_validation.json`.
+
+**Scripting it.** `size`, `size-hydro`, `optimize` and `list` take `--json`. A sizing result
+carries the same `coefficients_used`, `assumptions`, `warnings` and `not_modeled` as the human
+report, so the caveats travel with the numbers, and `optimize` carries its `assumptions` and
+`not_modeled`. `optimize --json` includes 5 ranked alternatives and `--top N` changes that.
+Input the trust gate rejects exits 2 and is JSON too, `{"error": "VALIDATION_FAILED",
+"errors": [...]}`, so check for `error` before reading a result.
+
+```bash
+agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000 --json > design.json
+```
 
 **Where it keeps things.** In a checkout, the knowledge base, the reference tables, the
 fetched-page cache and the SQLite memory DB all sit beside the source, as before. Installed
@@ -553,6 +572,7 @@ directories rather than into `site-packages` — override any of it with `AGRONA
 | Command | Needs an LLM? |
 |---|---|
 | `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |
+| `doctor` / `--version` / `update` | **No.** `--version` is offline. `doctor` makes one call per configured provider or channel to check the key actually works, and `update` asks PyPI. |
 | `chat` (the default) / `bot` | Yes — a tool-calling provider (see above). |
 | `web` | Only for the app's chat mode; the calculator and optimizer run without one. |
 
