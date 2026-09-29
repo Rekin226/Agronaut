@@ -554,8 +554,9 @@ accuracy of the advice: for that, see `data/twin_validation.json`.
 **Scripting it.** `size`, `size-hydro`, `optimize` and `list` take `--json`. A sizing result
 carries the same `coefficients_used`, `assumptions`, `warnings` and `not_modeled` as the human
 report, so the caveats travel with the numbers, and `optimize` carries its `assumptions` and
-`not_modeled`. `optimize --json` includes 5 ranked alternatives and `--top N` changes that. Check the exit code before parsing: input the trust gate rejects exits
-2 and prints the rejection as plain text, not JSON.
+`not_modeled`. `optimize --json` includes 5 ranked alternatives and `--top N` changes that.
+Input the trust gate rejects exits 2 and is JSON too, `{"error": "VALIDATION_FAILED",
+"errors": [...]}`, so check for `error` before reading a result.
 
 ```bash
 agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000 --json > design.json
