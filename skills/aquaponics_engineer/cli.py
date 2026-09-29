@@ -43,6 +43,25 @@ def _print_json(payload) -> None:
     print(json.dumps(payload, indent=2))
 
 
+def _reject(a, errors: list[str]) -> int:
+    """Refuse the input, in the format the caller asked for. Always exit 2.
+
+    Under --json the rejection is JSON too. It used to be the prose report, so a script
+    parsing stdout got a decode error instead of the reason, and the trust gate's refusal
+    reached it as a crash rather than as a refusal.
+    """
+    if getattr(a, "json", False):
+        _print_json({
+            "error": "VALIDATION_FAILED",
+            "errors": list(errors),
+            "instruction": "Inputs rejected by the trust gate; no design was computed. "
+                           "Ask the user for corrected values; do not guess or proceed.",
+        })
+    else:
+        print(serialize.serialize_validation_error(errors))
+    return 2
+
+
 def _positive_int(value: str) -> int:
     n = int(value)
     if n < 1:
@@ -55,8 +74,7 @@ def _cmd_size_aquaponics(a) -> int:
         design = validate_design_input(a.fish, a.crop, a.area, a.temp, a.water,
                                        system_type=a.system_type)
     except ValidationError as err:
-        print(serialize.serialize_validation_error(err.errors))
-        return 2
+        return _reject(a, err.errors)
     out = size_system(design)
     if a.json:
         _print_json(dataclasses.asdict(out))
@@ -69,8 +87,7 @@ def _cmd_size_hydroponics(a) -> int:
     try:
         design = validate_hydroponic_input(a.crop, a.area, a.temp, a.water)
     except ValidationError as err:
-        print(serialize.serialize_validation_error(err.errors))
-        return 2
+        return _reject(a, err.errors)
     out = size_hydroponic_system(design)
     if a.json:
         _print_json(dataclasses.asdict(out))
@@ -82,14 +99,16 @@ def _cmd_size_hydroponics(a) -> int:
 def _cmd_optimize(a) -> int:
     obj = (a.objective or "water_efficiency").strip().lower()
     if obj not in OBJECTIVES:
-        print(f"Unknown objective {a.objective!r}. Use one of: {', '.join(OBJECTIVES)}.")
+        msg = f"Unknown objective {a.objective!r}. Use one of: {', '.join(OBJECTIVES)}."
+        if a.json:
+            return _reject(a, [msg])
+        print(msg)
         return 2
     try:
         res = optimize(OptimizeInput(grow_area_m2=a.area, temperature_c=a.temp,
                                      water_budget_lpd=a.water, objective=obj))
     except ValidationError as err:
-        print(serialize.serialize_validation_error(err.errors))
-        return 2
+        return _reject(a, err.errors)
     top_n = a.top
     if a.json:
         # Bound ranked before asdict so serialization does not walk hundreds

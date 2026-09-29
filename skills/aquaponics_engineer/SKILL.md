@@ -54,6 +54,12 @@ Each command prints a compact, cited result. A bad input (unknown species/crop, 
 value) is rejected at the trust gate with `VALIDATION_FAILED` and a non-zero exit — ask the
 user for a corrected value rather than working around it.
 
+Add `--json` to any command for machine-readable output. The sizing result keeps its
+`coefficients_used`, `assumptions`, `warnings` and `not_modeled` fields, so relay those with
+the numbers. A rejection under `--json` is JSON as well, still with exit code 2:
+`{"error": "VALIDATION_FAILED", "errors": [...], "instruction": "..."}`. Check for the
+`error` key before reading any sizing field.
+
 ## What you get
 
 - Sizing: tank/reservoir volume, fish count & biomass, feed/day, pump turnover, biofilter
