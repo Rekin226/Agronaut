@@ -269,13 +269,8 @@ class WhatsAppAdapter(ChannelAdapter):
                     self.send_text(sender, part)
                 if cmd.document:
                     doc_mime = cmd.document_mime or mimetypes.guess_type(cmd.document)[0] or "application/octet-stream"
-                    ok = self.send_media(sender, cmd.document, doc_mime)
-                    if ok is False:
-                        filename = os.path.basename(cmd.document)
-                        self.send_text(
-                            sender,
-                            f"I couldn't send the attachment ({filename}), try asking again?",
-                        )
+                    if self.send_media(sender, cmd.document, doc_mime) is False:
+                        self._notify_send_failed(sender, cmd.document)
                 continue
 
             try:
@@ -343,25 +338,32 @@ class WhatsAppAdapter(ChannelAdapter):
                     )
                 else:
                     mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
-                    ok = self.send_media(sender, path, mime=mime)
-                    if ok is False:
-                        filename = os.path.basename(path)
-                        self.send_text(
-                            sender,
-                            f"I couldn't send the attachment ({filename}), try asking again?",
-                        )
+                    if self.send_media(sender, path, mime=mime) is False:
+                        self._notify_send_failed(sender, path)
             except Exception:
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
-                filename = os.path.basename(path)
-                self.send_text(
-                    sender,
-                    f"I couldn't send the attachment ({filename}), try asking again?",
-                )
+                self._notify_send_failed(sender, path)
             finally:
                 try:
                     os.unlink(path)
                 except OSError:
                     pass
+
+    def _notify_send_failed(self, sender: str, path: str) -> None:
+        """Tell the grower an attachment didn't arrive. Never raises.
+
+        It runs exactly when sending is already failing, often because the network is down,
+        and `send_text` does not catch its own errors. Left unguarded, the notice raised
+        out of `_flush_attachments`, so the attachments after it were never tried and
+        their temp files were never deleted: the leak #124 fixed, back by another door.
+        """
+        filename = os.path.basename(path)
+        try:
+            self.send_text(sender, f"I couldn't send the attachment ({filename}), "
+                                   "try asking again?")
+        except Exception:
+            log.warning("whatsapp could not send the failure notice for %s", filename,
+                        exc_info=True)
 
     def deliver_due_followups(self) -> None:
         try:

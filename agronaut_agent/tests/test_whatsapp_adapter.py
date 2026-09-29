@@ -236,6 +236,41 @@ def test_flush_attachments_notifies_user_on_send_exception(monkeypatch, tmp_path
     assert "—" not in sent_text[0][1]
 
 
+def test_flush_attachments_survives_the_network_being_down(monkeypatch, tmp_path):
+    """Every attachment is tried and every temp file deleted, even when the failure notice
+    cannot be sent either. The notice used to raise out of the loop, so the files after the
+    first failure were never tried and stayed on disk (the #124 leak by another door)."""
+    import requests
+
+    files = [tmp_path / "schematic.png", tmp_path / "scene.html", tmp_path / "plan.pdf"]
+    for f in files:
+        f.write_bytes(b"x")
+    a = _adapter(_FakeAgent(attachments=[str(f) for f in files]))
+    posts = []
+
+    def _down(*args, **kwargs):
+        posts.append(args[0])
+        raise requests.ConnectionError("network down")
+
+    monkeypatch.setattr("requests.post", _down)
+
+    a._flush_attachments("15551234567", "15551234567")  # must not raise
+
+    assert [f.name for f in files if f.exists()] == []
+    uploads = [u for u in posts if u.endswith("/media")]
+    assert len(uploads) == 2, "the PDF after the failed PNG was never tried"
+
+
+def test_slash_command_document_failure_notice_does_not_raise(monkeypatch, tmp_path):
+    a = _adapter()
+
+    def _raise(to, text):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(a, "send_text", _raise)
+    a._notify_send_failed("15551234567", str(tmp_path / "export.json"))  # must not raise
+
+
 def test_send_media_posts_document_payload_for_html(monkeypatch, tmp_path):
     html_file = tmp_path / "scene.html"
     html_file.write_text("<html><body>3D model</body></html>", encoding="utf-8")
