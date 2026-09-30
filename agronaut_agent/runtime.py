@@ -151,6 +151,13 @@ def record_tool_call() -> None:
         m["tool_calls"] += 1
 
 
+def record_grounding(ungrounded_numbers: int) -> None:
+    """How many figures in the turn's reply no tool or user gave (#180). A count only."""
+    m = _metrics.get()
+    if m is not None:
+        m["ungrounded_numbers"] = int(ungrounded_numbers)
+
+
 def turn_metrics() -> dict:
     """Totals accumulated during the current turn; {} outside a turn."""
     return dict(_metrics.get() or {})

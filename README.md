@@ -420,6 +420,30 @@ unparseable verdict counts as **unjudged** rather than being folded into either 
 `n_unjudged` is printed beside every score. It calls the network, so it is opt-in and never runs
 in CI; the scoring arithmetic is pure and unit-tested without a model.
 
+### Does the reply repeat the engine's numbers correctly?
+
+Most turns never retrieve anything: the model calls the sizing engine and explains the result.
+The validation gate guards the numbers going *into* the engine; `agronaut_agent/grounding.py`
+guards the ones coming *out*. After every reply, each number-with-a-unit is checked against
+what the model was shown that turn (tool results, earlier results, what you said), after unit
+conversion and within rounding. It is code, no model, so it runs on every live turn and in CI.
+
+It exists because of a real slip: `qwen3.5:2b` relayed a 6,666.7 L/h pump as **"6.7 L/h"**,
+having converted the volume to 6.7 m³ correctly and then kept the old unit on the flow. The
+check flags that and passes the correct "6.7 m³" and "~6,700 L/h". Sample answers inside a
+question ("e.g. 200 L/day") are not claims and are skipped; numbers without a unit are not
+checked.
+
+- Every turn records how many figures no tool or user gave; `agronaut analytics` prints how
+  many replies had one. The figures themselves go only to the local log, never to analytics.
+- The [Local model check](.github/workflows/local-model-check.yml) now fails a model whose
+  reply misquotes the engine, even when it called the right tool.
+
+Passing means every figure the reply quotes traces to a source, not that the advice is right.
+On the maintainer's own history, 3 of 15 Claude replies with quantities quoted figures from
+memory: a stress temperature, a water budget the user never gave, and Ouagadougou's seasonal
+highs.
+
 ### Human feedback
 
 `/good` and `/bad` on Telegram record a bare rating, 1 or -1. There is no comment field on

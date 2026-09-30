@@ -46,10 +46,13 @@ from . import paths as _paths
 # `provider` and `model` name the backend that produced an llm_call, which is configuration,
 # not content. Without them every latency and token figure above was unattributable, and a
 # turn that silently fell back to the smaller model looked identical to one that did not.
+#
+# `ungrounded_numbers` counts the figures in a reply that no tool or user gave (#180). The
+# figures themselves never enter this log, only how many there were.
 _ALLOWED_FIELDS = {"tool", "goal", "channel", "ok",
                    "outcome", "n_results", "k", "latency_ms", "top_score", "hybrid",
                    "filtered", "stage", "llm_ms", "llm_calls", "tokens_in", "tokens_out",
-                   "tool_calls", "rating", "provider", "model"}
+                   "tool_calls", "rating", "provider", "model", "ungrounded_numbers"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
 
@@ -164,6 +167,7 @@ class Analytics:
         tokens_in = tokens_out = 0
         ratings: dict[str, int] = {"up": 0, "down": 0}
         models: dict[str, dict] = {}
+        grounding = {"turns_checked": 0, "turns_with_ungrounded": 0, "ungrounded_numbers": 0}
         for r in self.rows():
             events[r["event"]] = events.get(r["event"], 0) + 1
             if r.get("uid"):
@@ -177,6 +181,10 @@ class Analytics:
                     llm_ms.append(r["llm_ms"])
                 tokens_in += r.get("tokens_in") or 0
                 tokens_out += r.get("tokens_out") or 0
+                if r.get("ungrounded_numbers") is not None:
+                    grounding["turns_checked"] += 1
+                    grounding["ungrounded_numbers"] += r["ungrounded_numbers"]
+                    grounding["turns_with_ungrounded"] += 1 if r["ungrounded_numbers"] else 0
             elif r["event"] == "retrieval" and r.get("latency_ms") is not None:
                 retrieval_ms.append(r["latency_ms"])
             elif r["event"] == "feedback":
@@ -202,6 +210,7 @@ class Analytics:
             "tokens": {"in": tokens_in, "out": tokens_out},
             "feedback": ratings,
             "models": models,
+            "grounding": grounding,
         }
 
 
@@ -225,6 +234,10 @@ def main() -> int:  # pragma: no cover - CLI convenience
         for name, m in sorted(s["models"].items(), key=lambda kv: -kv[1]["calls"]):
             label = f"{m['provider']}/{name}" if m["provider"] else name
             print(f"  {label:32s} {m['calls']:>5}   {m['tokens_in']} / {m['tokens_out']}")
+    g = s["grounding"]
+    if g["turns_checked"]:
+        print(f"Replies with a figure no tool or user gave: {g['turns_with_ungrounded']} of "
+              f"{g['turns_checked']} ({g['ungrounded_numbers']} figures in all)")
     print("Events:")
     for ev, n in sorted(s["events"].items(), key=lambda kv: -kv[1]):
         print(f"  {ev:16s} {n}")
