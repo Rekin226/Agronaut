@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
 from agent.vision import sanitize_observation
 
-from . import memory_extract, profile, runtime, semantic, style, twin_view
+from . import grounding, memory_extract, profile, runtime, semantic, style, twin_view
 from .store import (
     CalibrationStore,
     CommunityStore,
@@ -684,6 +684,8 @@ class AgronautAgent:
         if m.get("usage_seen"):     # omit entirely when the provider reported no usage
             fields["tokens_in"] = m.get("tokens_in")
             fields["tokens_out"] = m.get("tokens_out")
+        if m.get("ungrounded_numbers") is not None:   # absent when no reply was checked
+            fields["ungrounded_numbers"] = m["ungrounded_numbers"]
         self._analytics.record("turn", **fields)
 
     def _handle_message_inner(self, channel: str, channel_user: str, text: str,
@@ -726,9 +728,34 @@ class AgronautAgent:
         # Polished BEFORE it is stored: history is replayed to the model every turn, and a
         # model copies the style of its own earlier replies.
         reply = style.polish_reply(reply, channel)
+        self._check_grounding(reply, messages)
         self._conv.append_message(user_id, "assistant", reply)
         self._schedule_summary(user_id)
         return reply
+
+    @staticmethod
+    def _check_grounding(reply: str, messages: list) -> None:
+        """Count the figures in the reply that nothing the model saw supports (#180).
+
+        Sources are everything in the turn's context except the system prompt and the
+        model's own words: tool results from this turn, earlier results replayed as
+        reference, recalled facts, and what the user said. The model's messages are left out
+        on purpose; the loop appends the final reply to this same list, and a first version
+        let every reply ground itself. Only the COUNT is recorded, with the turn; the figures
+        themselves stay in the local log, never in analytics. Never raises: a checker bug
+        must not cost a reply.
+        """
+        try:
+            sources = [_text_of(m.content) for m in messages[1:]
+                       if not isinstance(m, AIMessage)]
+            flagged = grounding.ungrounded(reply, sources)
+        except Exception:  # noqa: BLE001
+            log.debug("grounding check failed", exc_info=True)
+            return
+        runtime.record_grounding(len(flagged))
+        if flagged:
+            log.warning("reply quotes %d figure(s) no tool or user gave: %s",
+                        len(flagged), ", ".join(flagged))
 
     def record_feedback(self, channel: str, channel_user: str, positive: bool) -> str:
         """Record a thumbs up/down on the last reply and acknowledge it.
