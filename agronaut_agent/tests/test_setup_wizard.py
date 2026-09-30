@@ -200,7 +200,7 @@ def test_the_terminal_is_the_first_channel_offered(tmp_path, monkeypatch):
     """
     seen: list[list[tuple[str, str]]] = []
 
-    def _spy(prompt, options, default=1):
+    def _spy(prompt, options, default=1, recommend=True):
         seen.append(options)
         return 4 if "model" in prompt else 1
 

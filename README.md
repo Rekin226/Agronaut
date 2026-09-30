@@ -52,6 +52,18 @@ It asks which model and which channel you want, checks each key against the live
 you paste it, reads your Telegram id off a message you send your own bot, and writes
 `~/.config/agronaut/.env` itself. Nothing to hand-write.
 
+The model is your choice: Claude or NVIDIA with your own key, or a local model through
+Ollama with no key at all. Run `agronaut setup` again later and it shows what you have and
+asks what to change, so switching from Claude to a local model (or back) or adding a
+channel touches only that part. Saved keys are kept, so switching back needs nothing
+re-typed. To jump straight to one part:
+
+```bash
+agronaut setup model       # switch between Claude, a local model and NVIDIA
+agronaut setup telegram    # connect, keep, or allow another Telegram account
+agronaut setup whatsapp    # add or update WhatsApp; saved values are kept on Enter
+```
+
 <details>
 <summary>Prefer to configure it by hand?</summary>
 
