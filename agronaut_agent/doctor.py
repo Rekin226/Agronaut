@@ -183,7 +183,10 @@ def check_validation_record() -> list[Check]:
         return [Check(FAIL, "the validation record did not ship",
                       "every projection will disclaim itself as unmeasured",
                       "reinstall: pip install --force-reinstall agronaut")]
-    return [Check(OK, "validation record present", first[:88])]
+    # Printed whole. It used to be cut at 88 characters, which stopped mid-sentence at "It beat
+    # both a flat and a tren" and dropped the "0 of 7" that followed: truncation turned the
+    # record's result into its opposite. The count is the point of the line, so it never gets cut.
+    return [Check(OK, "validation record present", first)]
 
 
 def check_database() -> list[Check]:
