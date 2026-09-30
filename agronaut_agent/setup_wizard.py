@@ -166,10 +166,73 @@ def check_ollama() -> tuple[bool, str]:
 
 # --- the interactive parts ----------------------------------------------------------------
 
-def _ask(prompt: str, options: list[tuple[str, str]], default: int = 1) -> int:
+def _keep_hint(existing: dict[str, str], key: str) -> str:
+    """For a secret prompt: say a value is already saved, never show it."""
+    return "saved, press Enter to keep it" if (existing or {}).get(key) else "blank to skip"
+
+
+def _shown(existing: dict[str, str], key: str) -> str:
+    """For a non-secret prompt: show the saved value, kept on Enter."""
+    value = (existing or {}).get(key)
+    return f" [{value}, Enter keeps it]" if value else ""
+
+
+def merge_allowed(current: str, new: str) -> str:
+    """Add ids to AGRONAUT_ALLOWED_IDS instead of replacing the list.
+
+    Telegram user ids and WhatsApp numbers share this one variable. Setup used to overwrite
+    it, so configuring WhatsApp after Telegram silently locked the Telegram user out, and
+    the other way round.
+    """
+    seen, out = set(), []
+    for part in f"{current or ''},{new or ''}".split(","):
+        part = part.strip()
+        if part and part not in seen:
+            seen.add(part)
+            out.append(part)
+    return ",".join(out)
+
+
+_PROVIDER_LABELS = {"anthropic": "Claude", "ollama": "Local (Ollama)", "nvidia": "NVIDIA",
+                    "openai_compat": "Self-hosted (OpenAI-compatible)", "hf": "Hugging Face",
+                    "hf_local": "Local (transformers)"}
+_PROVIDER_KEYS = {"anthropic": "ANTHROPIC_API_KEY", "nvidia": "NVIDIA_API_KEY",
+                  "hf": "HUGGINGFACEHUB_API_TOKEN"}
+
+
+def summarize(config: dict[str, str]) -> list[str]:
+    """What is configured, one line per part, with no secret shown. Pure, so testable."""
+    provider = config.get("LLM_PROVIDER", "")
+    if provider:
+        key = _PROVIDER_KEYS.get(provider)
+        key_note = "" if not key else (", key saved" if config.get(key) else ", KEY MISSING")
+        label = _PROVIDER_LABELS.get(provider, provider)
+        model = f"{label} ({config.get('LLM_MODEL') or 'default model'}){key_note}"
+    else:
+        model = "none yet (the calculator still works)"
+    allowed = [x for x in config.get("AGRONAUT_ALLOWED_IDS", "").split(",") if x.strip()]
+    telegram = "token saved" if config.get("TELEGRAM_BOT_TOKEN") else "not set up"
+    wa_parts = [name for key, name in (("WHATSAPP_TOKEN", "access token"),
+                                       ("WHATSAPP_PHONE_NUMBER_ID", "phone id"),
+                                       ("WHATSAPP_VERIFY_TOKEN", "verify token"))
+                if config.get(key)]
+    whatsapp = f"{', '.join(wa_parts)} saved" if wa_parts else "not set up"
+    return [f"Model      {model}",
+            f"Telegram   {telegram}",
+            f"WhatsApp   {whatsapp}",
+            f"Allowed    {len(allowed)} user id(s) / number(s)" if allowed else
+            "Allowed    anyone (AGRONAUT_ALLOWED_IDS is empty)"]
+
+
+def is_configured(config: dict[str, str]) -> bool:
+    return any(config.get(k) for k in ("LLM_PROVIDER", "TELEGRAM_BOT_TOKEN", "WHATSAPP_TOKEN"))
+
+
+def _ask(prompt: str, options: list[tuple[str, str]], default: int = 1,
+         recommend: bool = True) -> int:
     print(f"\n{prompt}")
     for i, (label, note) in enumerate(options, 1):
-        mark = " (recommended)" if i == default else ""
+        mark = " (recommended)" if i == default and recommend else ""
         print(f"  {i}) {label}{mark}")
         if note:
             print(f"     {note}")
@@ -284,15 +347,18 @@ def _prompt_whatsapp(existing: dict[str, str] | None = None) -> dict[str, str]:
     print("\n  1. ACCESS token: the long one (starts EAA...) under 'Access token' >")
     print("     'Generate token'. Meta's test token expires daily; replace it any time with")
     print("     `agronaut whatsapp --token`.", flush=True)
-    token = getpass.getpass("     Access token (hidden, blank to skip): ").strip()
+    token = getpass.getpass("     Access token (hidden, "
+                            + _keep_hint(existing, "WHATSAPP_TOKEN") + "): ").strip()
     if token:
         out["WHATSAPP_TOKEN"] = token
 
     print("\n  2. The two IDs printed beside the test number on the same screen.")
-    phone_id = input("     Phone Number ID (a long id, NOT the phone number): ").strip()
+    phone_id = input("     Phone Number ID (a long id, NOT the phone number)"
+                     + _shown(existing, "WHATSAPP_PHONE_NUMBER_ID") + ": ").strip()
     if phone_id:
         out["WHATSAPP_PHONE_NUMBER_ID"] = phone_id
-    waba = input("     WhatsApp Business account ID: ").strip()
+    waba = input("     WhatsApp Business account ID"
+                 + _shown(existing, "WHATSAPP_WABA_ID") + ": ").strip()
     if waba:
         out["WHATSAPP_WABA_ID"] = waba
 
@@ -308,7 +374,7 @@ def _prompt_whatsapp(existing: dict[str, str] | None = None) -> dict[str, str]:
 
     secret = getpass.getpass(
         "\n  4. App secret, from App settings > Basic > App secret > Show\n"
-        "     (hidden, blank to skip): ").strip()
+        "     (hidden, " + _keep_hint(existing, "WHATSAPP_APP_SECRET") + "): ").strip()
     if secret:
         out["WHATSAPP_APP_SECRET"] = secret
 
@@ -316,7 +382,8 @@ def _prompt_whatsapp(existing: dict[str, str] | None = None) -> dict[str, str]:
     print("     Also add it on the Step 1 screen under 'To' (recipient list) and verify it;")
     print("     Meta's test number only talks to numbers listed there.")
     print("     Country code first, no leading 0: Taiwan 0912 345 678 -> 886912345678.")
-    allowed = input("     Allowed number(s), comma separated (blank to skip): ").strip()
+    allowed = input("     Number(s) to allow, comma separated (blank to skip; numbers"
+                    " already allowed stay): ").strip()
     if allowed:
         digits, warns = normalize_wa_numbers(allowed)
         for w in warns:
@@ -403,40 +470,120 @@ def _run_whatsapp_doctor(collected: dict[str, str]) -> None:
     print("\n".join("  " + line for line in text.splitlines()))
 
 
-def run() -> int:
-    print("\n  Agronaut setup\n  " + "-" * 40)
+def _setup_model(config: dict[str, str]) -> dict[str, str]:
+    """Choose or switch the model. Saved keys are reused and never deleted, so switching from
+    Claude to a local model and back later needs nothing re-typed: the key stays in .env."""
     updates: dict[str, str] = {}
-
-    # 1. the model
+    current = config.get("LLM_PROVIDER")
+    order = ["anthropic", "ollama", "nvidia"]
+    default = order.index(current) + 1 if current in order else 1
     choice = _ask("Which model should power the chat?", [
         ("Claude", "best tool calling; needs an API key from console.anthropic.com"),
         ("Local, via Ollama", "no key, no internet, runs on this machine"),
         ("NVIDIA", "free key from build.nvidia.com"),
-        ("Skip", "the calculator works with no model at all"),
-    ])
+        ("Skip", "keep what you have" if current else "the calculator works with no model"),
+    ], default=default, recommend=not current)
     if choice == 1:
+        saved = config.get("ANTHROPIC_API_KEY")
         while True:
-            key = getpass.getpass("  Paste your Anthropic API key (hidden): ").strip()
+            key = getpass.getpass("  Anthropic API key (hidden, "
+                                  + _keep_hint({"k": saved} if saved else {}, "k")
+                                  + "): ").strip()
+            if not key and saved:
+                key = saved
+                print("  keeping the saved key")
             if not key:
                 break
             ok, msg = check_anthropic_key(key)
             print(f"  {'OK' if ok else 'x'} {msg}")
             if ok:
-                updates.update(LLM_PROVIDER="anthropic", LLM_MODEL="claude-sonnet-5",
-                               ANTHROPIC_API_KEY=key)
+                model = (config.get("LLM_MODEL") if current == "anthropic" else None) \
+                    or "claude-sonnet-5"
+                updates.update(LLM_PROVIDER="anthropic", LLM_MODEL=model)
+                if key != config.get("ANTHROPIC_API_KEY"):
+                    updates["ANTHROPIC_API_KEY"] = key
                 break
+            if key == saved:
+                saved = None     # the saved one failed: ask for a new one, never loop on it
     elif choice == 2:
         ok, msg = check_ollama()
         print(f"  {'OK' if ok else 'x'} {msg}")
-        updates.update(LLM_PROVIDER="ollama", LLM_MODEL=_ollama_default())
+        model = (config.get("LLM_MODEL") if current == "ollama" else None) or _ollama_default()
+        updates.update(LLM_PROVIDER="ollama", LLM_MODEL=model)
     elif choice == 3:
-        key = getpass.getpass("  Paste your NVIDIA API key (hidden): ").strip()
-        if key:
-            updates.update(LLM_PROVIDER="nvidia", NVIDIA_API_KEY=key,
-                           LLM_MODEL="mistralai/mistral-nemotron")
+        saved = config.get("NVIDIA_API_KEY")
+        key = getpass.getpass("  NVIDIA API key (hidden, "
+                              + _keep_hint(config, "NVIDIA_API_KEY") + "): ").strip()
+        if key or saved:
+            updates.update(LLM_PROVIDER="nvidia", LLM_MODEL="mistralai/mistral-nemotron")
+            if key:
+                updates["NVIDIA_API_KEY"] = key
+    return updates
 
-    # 2. the channel
-    #
+
+def _capture_id_safely(token: str) -> str | None:
+    try:
+        return _capture_telegram_id(token)
+    except KeyboardInterrupt:
+        print("\r  Skipped." + " " * 30)
+        return None
+
+
+def _setup_telegram(config: dict[str, str]) -> dict[str, str]:
+    updates: dict[str, str] = {}
+    saved = config.get("TELEGRAM_BOT_TOKEN")
+    if saved:
+        ok, msg = check_telegram_token(saved)
+        print(f"\n  Telegram is connected: {'OK ' if ok else 'x '}{msg}")
+        what = _ask("What would you like to do?", [
+            ("Keep it", "nothing changes"),
+            ("Allow my Telegram account", "message the bot once; your id is added to the list"),
+            ("Use a different bot", "paste a new token from BotFather"),
+        ], recommend=False)
+        if what == 1:
+            return updates
+        if what == 2:
+            uid = _capture_id_safely(saved)
+            if uid:
+                updates["AGRONAUT_ALLOWED_IDS"] = merge_allowed(
+                    config.get("AGRONAUT_ALLOWED_IDS", ""), uid)
+            return updates
+    print("\n  Open https://t.me/BotFather, send /newbot, and follow the prompts.")
+    while True:
+        token = input("  Paste the bot token it gives you: ").strip()
+        if not token:
+            break
+        ok, msg = check_telegram_token(token)
+        print(f"  {'OK' if ok else 'x'} {msg}")
+        if ok:
+            updates["TELEGRAM_BOT_TOKEN"] = token
+            uid = _capture_id_safely(token)
+            if uid:
+                updates["AGRONAUT_ALLOWED_IDS"] = merge_allowed(
+                    config.get("AGRONAUT_ALLOWED_IDS", ""), uid)
+            break
+    return updates
+
+
+def _setup_whatsapp(config: dict[str, str]) -> dict[str, str]:
+    wa = _prompt_whatsapp(config)
+    if wa.get("AGRONAUT_ALLOWED_IDS"):
+        wa["AGRONAUT_ALLOWED_IDS"] = merge_allowed(config.get("AGRONAUT_ALLOWED_IDS", ""),
+                                                  wa["AGRONAUT_ALLOWED_IDS"])
+    if wa.get("WHATSAPP_TOKEN") or config.get("WHATSAPP_TOKEN"):
+        relevant = {k: v for k, v in config.items()
+                    if k.startswith(("WHATSAPP_", "AGRONAUT_ALLOWED"))}
+        _run_whatsapp_doctor({**relevant, **wa})
+    _whatsapp_reachability_help()
+    return wa
+
+
+SECTIONS = {"model": _setup_model, "telegram": _setup_telegram, "whatsapp": _setup_whatsapp}
+
+
+def _first_run(config: dict[str, str]) -> dict[str, str]:
+    """The walkthrough for someone with nothing configured: a model, then one channel."""
+    updates = _setup_model(config)
     # Ordered by what it costs the person answering, not by how impressive it sounds. The
     # terminal is first because it is the only one that works the second this wizard exits,
     # and WhatsApp is last with its real price on the label: the Meta account is the part
@@ -448,34 +595,53 @@ def run() -> int:
         ("WhatsApp", "more setup: a Meta developer app and a public address; "
                      "`agronaut whatsapp --tunnel` handles the address on a laptop"),
     ])
+    merged = {**config, **updates}
     if channel == 2:
-        print("\n  Open https://t.me/BotFather, send /newbot, and follow the prompts.")
-        while True:
-            token = input("  Paste the bot token it gives you: ").strip()
-            if not token:
-                break
-            ok, msg = check_telegram_token(token)
-            print(f"  {'OK' if ok else 'x'} {msg}")
-            if ok:
-                updates["TELEGRAM_BOT_TOKEN"] = token
-                try:
-                    uid = _capture_telegram_id(token)
-                except KeyboardInterrupt:
-                    uid = None
-                    print("\r  Skipped." + " " * 30)
-                if uid:
-                    updates["AGRONAUT_ALLOWED_IDS"] = uid
-                break
+        updates.update(_setup_telegram(merged))
     elif channel == 3:
-        current = env_path()
-        wa = _prompt_whatsapp(parse_env(current.read_text()) if current.is_file() else {})
-        updates.update(wa)
-        if wa.get("WHATSAPP_TOKEN"):
-            _run_whatsapp_doctor(wa)
-        _whatsapp_reachability_help()
+        updates.update(_setup_whatsapp(merged))
+    return updates
 
+
+def _edit_menu(config: dict[str, str]) -> dict[str, str]:
+    """Change one part of an existing setup without walking through all of it again.
+
+    Running `agronaut setup` on a working install used to restart the whole walkthrough:
+    re-pick the model, re-paste the key, re-connect the channel. Now it shows what is there
+    and asks what to change, and only that part is asked.
+    """
+    updates: dict[str, str] = {}
+    while True:
+        merged = {**config, **updates}
+        print("\n  Your current setup")
+        for line in summarize(merged):
+            print(f"    {line}")
+        choice = _ask("What would you like to change?", [
+            ("Done, save" if updates else "Nothing",
+             "" if updates else "keep everything; `agronaut doctor` checks it all works"),
+            ("The model", "switch between Claude, a local model (Ollama) and NVIDIA; "
+                          "saved keys are kept"),
+            ("Telegram", ""),
+            ("WhatsApp", ""),
+        ], recommend=False)
+        if choice == 1:
+            return updates
+        section = ("model", "telegram", "whatsapp")[choice - 2]
+        updates.update(SECTIONS[section](merged))
+
+
+def run(section: str | None = None) -> int:
+    print("\n  Agronaut setup\n  " + "-" * 40)
     dest = env_path()
     existing = dest.read_text() if dest.is_file() else ""
+    config = parse_env(existing)
+
+    if section:
+        updates = SECTIONS[section](config)
+    elif is_configured(config):
+        updates = _edit_menu(config)
+    else:
+        updates = _first_run(config)
 
     if updates:
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -486,19 +652,22 @@ def run() -> int:
             pass
         print(f"\n  Saved to {dest}")
         print("  " + ", ".join(sorted(updates)))
+        if is_configured(config):
+            print("  Restart anything already running (`agronaut bot`, `agronaut whatsapp`)"
+                  " so it picks this up.")
     else:
-        print("\n  Nothing new to save.")
+        print("\n  Nothing changed.")
 
     # Always ends on something runnable. `next_steps` reads the whole configuration rather
     # than this run's changes, so someone who set their model last week and only added a
     # channel today still gets told about the chat they already have.
-    config = {**parse_env(existing), **updates}
+    config = {**config, **updates}
     print("\n  Try it:")
     for step in next_steps(config):
         print(f"    {step}")
     if not config.get("LLM_PROVIDER"):
         print("\n  No model configured, so chat is off, but the sizing engine above needs")
-        print("  none. Run `agronaut setup` again when you have a key, or pick Ollama to")
+        print("  none. Run `agronaut setup model` when you have a key, or pick Ollama to")
         print("  run one on this machine with no key at all.")
     print()
     return 0

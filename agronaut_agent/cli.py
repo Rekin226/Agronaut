@@ -56,7 +56,7 @@ def _cmd_setup(args) -> int:
     _root_importable()
     from . import setup_wizard
 
-    return setup_wizard.run()
+    return setup_wizard.run(getattr(args, "section", None))
 
 
 def _cmd_whatsapp(args) -> int:
@@ -188,8 +188,11 @@ def _build_parser() -> argparse.ArgumentParser:
     web.add_argument("streamlit_args", nargs="*",
                      help="e.g. --server.port=9000 --server.headless=true")
     web.set_defaults(func=_cmd_web)
-    sub.add_parser("setup", help="interactive first-time setup (writes your .env)").set_defaults(
-        func=_cmd_setup)
+    st = sub.add_parser("setup", help="set up, or change one part of, your .env "
+                                      "(model, Telegram, WhatsApp)")
+    st.add_argument("section", nargs="?", choices=["model", "telegram", "whatsapp"],
+                    help="jump straight to one part; saved values are kept")
+    st.set_defaults(func=_cmd_setup)
     sub.add_parser("bot", help="run the Telegram bot").set_defaults(func=_cmd_bot)
     wa = sub.add_parser("whatsapp", help="run the WhatsApp webhook (Meta Cloud API)")
     wa.add_argument("--check", action="store_true",
