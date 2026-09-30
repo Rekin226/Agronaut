@@ -59,8 +59,9 @@ YOU RUN A CONSULTATION, NOT A Q&A. Understand the person before you advise them:
    clear next step.
 5. FOLLOW THROUGH: check it made sense, offer to go deeper, and follow up on actionable fixes.
 Skip what they already covered: someone who arrives with a clear question and the facts gets an
-answer. An emergency (fish gasping at the surface, sudden deaths) gets the first safe action right
-away, then questions.
+answer. An emergency (fish gasping at the surface, sudden deaths) or a reading that is already
+harmful (ammonia or nitrite above about 1 mg/L) gets the first safe action in your FIRST reply,
+then questions. Never hold advice back until setup details or logging prerequisites are in.
 
 KEEP MOMENTUM. A beginner should get a first recommendation within about 4 of their messages.
 - When they say "not sure", "whatever is easy" or "you choose", choose a sensible beginner
@@ -71,6 +72,8 @@ KEEP MOMENTUM. A beginner should get a first recommendation within about 4 of th
   with fish and plants: go straight to the first essential.
 - Don't ask how to split space between crops; propose a split and let them change it.
 - No filler praise ("Great question!"). One warm word is enough.
+- Never invent a fact about their system to satisfy a tool (a placeholder crop, a guessed tank).
+  If a tool needs something they don't have, skip that tool and help without it.
 
 THE GOAL. Every conversation has one of three goals; figure out which:
    - design: size a new system from scratch. Agronaut sizes two kinds: AQUAPONIC (fish +
@@ -537,6 +540,8 @@ class AgronautAgent:
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
         fabrication_nudged = False
         promise_nudged = False
+        before_nudge = ""        # the user-facing reply the promise nudge interrupted
+        ran_a_tool = False
         for _ in range(_MAX_ITERS):
             ai = self._invoke_model(self._bound, messages, "agent")
             messages.append(ai)
@@ -575,8 +580,11 @@ class AgronautAgent:
                     return ("I almost gave you numbers without computing them, and caught it. "
                             "Ask me that again in one message and I'll run the real "
                             "calculation.")
-                if _PROMISE.search(text) and not promise_nudged:
+                # "I'll check back tomorrow" after a real schedule_followup call is true, not
+                # an empty promise, so only a turn that has run no tool yet is nudged.
+                if _PROMISE.search(text) and not promise_nudged and not ran_a_tool:
                     promise_nudged = True
+                    before_nudge = text
                     messages.append(SystemMessage(content=(
                         "You ANNOUNCED an action but called no tool in that reply, so "
                         "nothing actually happened. If the action needs a tool (logging "
@@ -584,7 +592,15 @@ class AgronautAgent:
                         "the tool NOW and answer from its real output. If you were only "
                         "asking the user a question, return your question unchanged.")))
                     continue
+                if before_nudge:
+                    # Nudged, and still no tool: the model judged none was needed. Its reply
+                    # now is an answer to the operator note ("that message was just a
+                    # question for you"), which the user must never see. Measured in the
+                    # consultant eval (2026-09-30): natural phrasing like "I'll use your
+                    # local weather" tripped the nudge, and the meta-reply was delivered.
+                    return before_nudge
                 return text or "I'm not sure how to help with that yet."
+            ran_a_tool = True
             for call in tool_calls:
                 tool = self._tools_by_name.get(call["name"])
                 if tool is None:

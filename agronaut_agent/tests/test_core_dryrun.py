@@ -577,3 +577,59 @@ def test_text_of_drops_tool_use_blocks():
     ])
     assert out == "Sizing your system."
     assert "tilapia" not in out and "tool_use" not in out
+
+
+class _AskingFake:
+    """Asks the user a question with "I'll" in it, then answers the nudge ABOUT the nudge,
+    the way Sonnet did in the consultant eval."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="Where are you based? I'll use your local weather.")
+        return AIMessage(content="Got it, no action needed there, that message was just a "
+                                 "question for you.")
+
+
+def test_a_reply_to_the_nudge_itself_never_reaches_the_user(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _AskingFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "n.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u6", "I want to start aquaponics")
+    assert fake.calls == 2                                    # still nudged once
+    assert reply == "Where are you based? I'll use your local weather."
+
+
+class _FollowupThenPromiseFake:
+    """Schedules a check-in, then says it will check back: true, so no nudge."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        from langchain_core.messages import AIMessage
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(content="", tool_calls=[{
+                "name": "list_supported_species_and_crops", "args": {}, "id": "c1"}])
+        return AIMessage(content="Done. I'll check back tomorrow.")
+
+
+def test_no_nudge_once_a_tool_has_run_this_turn(tmp_path):
+    from agronaut_agent.core import AgronautAgent
+
+    fake = _FollowupThenPromiseFake()
+    agent_ = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=fake)
+    reply = agent_.handle_message("cli", "u7", "which fish can I use?")
+    assert fake.calls == 2 and reply == "Done. I'll check back tomorrow."
