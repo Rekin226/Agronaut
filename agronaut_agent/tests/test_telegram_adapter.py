@@ -200,3 +200,28 @@ def test_media_handlers_registered_in_run():
     assert "filters.PHOTO" in src
     assert "Document" in src
     assert "filters.VOICE" in src
+
+
+def test_bot_token_never_reaches_the_logs(caplog, monkeypatch):
+    # httpx logs each request URL at INFO, and a Bot API URL carries the token in its path.
+    import logging
+
+    from agronaut_agent.channels import telegram_adapter
+
+    for name in ("httpx", "httpcore"):
+        monkeypatch.setattr(logging.getLogger(name), "level", logging.NOTSET)
+    caplog.set_level(logging.INFO)
+
+    telegram_adapter.quiet_http_logs()
+    logging.getLogger("httpx").info(
+        'HTTP Request: POST https://api.telegram.org/bot123:SECRET/getUpdates "HTTP/1.1 200 OK"')
+    logging.getLogger("httpx").warning("still see httpx warnings")
+
+    assert "SECRET" not in caplog.text
+    assert "still see httpx warnings" in caplog.text
+
+
+def test_run_quiets_http_logs_before_polling():
+    import inspect
+    src = inspect.getsource(TelegramAdapter.run)
+    assert src.index("quiet_http_logs()") < src.index("run_polling")
