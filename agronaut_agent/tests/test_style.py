@@ -21,9 +21,11 @@ def test_no_em_dash_survives_on_any_channel(channel):
     assert out == "Tilapia, hardy fish, suit you.\nThe plan:\n- step one"
 
 
-def test_number_ranges_read_as_to():
+def test_number_ranges_use_a_plain_hyphen_in_every_language():
     assert polish_reply(f"Keep pH 6.8{EN}7.2 and 24 {EN} 30 C.", "whatsapp") == \
-        "Keep pH 6.8 to 7.2 and 24 to 30 C."
+        "Keep pH 6.8-7.2 and 24-30 C."
+    # "to" once landed in French replies: "EC 1,2 to 1,8"
+    assert polish_reply(f"Cible EC : 1,2{EN}1,8 mS/cm", "whatsapp") == "Cible EC : 1,2-1,8 mS/cm"
 
 
 def test_flags_rules_and_hyphens_are_left_alone():

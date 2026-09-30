@@ -7,7 +7,7 @@ deterministic, so they hold on every model and every channel.
 
 Two jobs:
 - `polish_reply` rewrites text: no em dashes anywhere, en dashes in number ranges become
-  "to", and Markdown is converted to what each chat app actually renders (Telegram is sent
+  a plain hyphen (not "to": a French or Chinese reply would get an English word), and Markdown is converted to what each chat app actually renders (Telegram is sent
   with no parse mode, so `**bold**` would show its asterisks; WhatsApp bolds with `*x*`).
 - `to_bubbles` splits a reply into a few chat bubbles on blank lines, so a phone shows
   "Nice, love that." and "Is this for home food or to sell?" as two messages, the way a
@@ -49,7 +49,7 @@ def _dedash(text: str) -> str:
     text = _EM_AT_LINE_END.sub(":", text)
     text = _EM_AT_LINE_START.sub(r"\1- ", text)
     text = _EM_INLINE.sub(", ", text)
-    text = _EN_RANGE.sub(r"\1 to ", text)
+    text = _EN_RANGE.sub(r"\1-", text)
     text = _EN_INLINE.sub(", ", text)
     text = text.replace(_EN, "-")
     text = _DOUBLE_COMMA.sub(",", text)
