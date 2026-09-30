@@ -260,8 +260,10 @@ def test_option_three_really_reaches_the_whatsapp_branch(tmp_path, monkeypatch, 
     monkeypatch.setattr(W.getpass, "getpass", lambda *a: "")
     W.run()
     out = capsys.readouterr().out
-    # The tunnel is the part that actually blocks people, so it has to be said out loud.
-    assert "cloudflared" in out and "/webhook" in out
+    # The tunnel is the part that actually blocks people, so it has to be said out loud:
+    # now as the one command that starts it and prints the /webhook address for Meta.
+    assert "cloudflared" in out and "agronaut whatsapp --tunnel" in out
+    assert "Configure" in out and "Webhooks" in out
     assert "developers.facebook.com" in out
 
 

@@ -83,7 +83,7 @@ def next_steps(config: dict[str, str]) -> list[str]:
     if config.get("TELEGRAM_BOT_TOKEN"):
         steps.append("agronaut bot        # then message your bot")
     if config.get("WHATSAPP_TOKEN"):
-        steps.append("agronaut whatsapp   # with your tunnel running, see above")
+        steps.append("agronaut whatsapp --tunnel   # WhatsApp + a public address; paste what it prints into Meta")
     return steps
 
 
@@ -220,50 +220,109 @@ def _capture_telegram_id(token: str) -> str | None:
     return None
 
 
-def _prompt_whatsapp() -> dict[str, str]:
+def _calling_codes() -> set[str]:
+    """ITU country calling codes, as ranges. Used only to decide whether a "0" sits right
+    after a country code; a few unassigned codes inside the ranges cost nothing here."""
+    codes = {"1", "7", "20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41",
+             "43", "44", "45", "46", "47", "48", "49", "81", "82", "84", "86", "98",
+             "850", "852", "853", "855", "856", "880", "886", "420", "421", "423"}
+    for lo, hi in ((51, 58), (60, 66), (90, 95), (211, 299), (350, 359), (370, 389),
+                   (500, 509), (590, 599), (670, 692), (960, 968), (970, 977), (992, 998)):
+        codes |= {str(n) for n in range(lo, hi + 1)}
+    return codes
+
+
+def normalize_wa_numbers(raw: str) -> tuple[str, list[str]]:
+    """Allowed numbers in the form Meta sends them, plus warnings about likely mistakes.
+
+    Meta writes a sender as digits only, country code first, with no local trunk "0"
+    (Taiwan 0912 345 678 arrives as 886912345678). People type "+886 0912-345-678". Both
+    the "+" and the kept "0" silently dropped every message on 2026-09-30, so the "+",
+    spaces and dashes are removed here, and a "0" right after a likely country code is
+    flagged. It is only flagged, not removed: Italy keeps it, and a number's shape is not
+    proof. The 0 counts only right after a real calling code, so a US 1-202 number is fine.
+    """
+    out, warnings = [], []
+    for part in (raw or "").split(","):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        if not digits:
+            continue
+        codes = _calling_codes()
+        if any(digits[:i] in codes and digits[:i] != "39" and digits[i] == "0"
+               for i in (1, 2, 3) if i < len(digits)):
+            warnings.append(
+                f"{digits}: there is a 0 near the start. If it is your local trunk 0 (the "
+                "one you drop when dialling from abroad), remove it: Taiwan 0912... is "
+                "886912..., Burkina Faso 70... is 22670.... The bot tolerates this mistake, "
+                "but Meta's own tools will not.")
+        out.append(digits)
+    return ",".join(out), warnings
+
+
+def _prompt_whatsapp(existing: dict[str, str] | None = None) -> dict[str, str]:
     """Collect the WhatsApp Cloud API values, in the order Meta's dashboard shows them.
 
-    The branch this replaces printed two lines and pointed at the README, so it collected
-    nothing at all: someone could choose WhatsApp, finish setup, and have a .env with no
-    WhatsApp variable in it. Every value here is one the adapter reads at startup, and
-    `whatsapp_doctor` already knows how to check each one, so the wizard asks and then lets
-    the doctor answer.
+    Every value here is one the adapter reads at startup, and `whatsapp_doctor` checks each
+    one right after, so a typo shows up now rather than as a bot that never answers.
 
     Empty input skips a value. A half-filled WhatsApp config is a normal state, because
-    these come from three different screens and people genuinely do stop halfway.
+    these come from different screens and people genuinely do stop halfway.
+
+    The verify token is KEPT when one exists. It used to be regenerated on every run, which
+    silently broke the copy already saved in Meta's form.
     """
-    print("\n  WhatsApp needs a Meta app with WhatsApp added to it. From")
+    existing = existing or {}
     # flush: getpass writes straight to the terminal, while stdout is block-buffered as soon
     # as this is piped or logged. Without the flush the explanation lands after the prompt it
     # explains, which is exactly the kind of small confusion this wizard exists to remove.
-    print("  developers.facebook.com > your app > WhatsApp > API Setup:", flush=True)
+    print("\n  WhatsApp needs a Meta app with the 'Connect on WhatsApp' use case. Open:")
+    print("    developers.facebook.com > My Apps > your app > Use cases > Connect on WhatsApp")
+    print("    > Customize > Step 1. Try it out", flush=True)
+    print("  Every screen, step by step: github.com/Rekin226/Agronaut/blob/main/docs/whatsapp_setup.md", flush=True)
     out: dict[str, str] = {}
 
-    token = getpass.getpass("\n  Temporary access token (hidden, blank to skip): ").strip()
+    print("\n  1. ACCESS token: the long one (starts EAA...) under 'Access token' >")
+    print("     'Generate token'. Meta's test token expires daily; replace it any time with")
+    print("     `agronaut whatsapp --token`.", flush=True)
+    token = getpass.getpass("     Access token (hidden, blank to skip): ").strip()
     if token:
         out["WHATSAPP_TOKEN"] = token
 
-    phone_id = input("  Phone number ID (a long number, NOT the phone number): ").strip()
+    print("\n  2. The two IDs printed beside the test number on the same screen.")
+    phone_id = input("     Phone Number ID (a long id, NOT the phone number): ").strip()
     if phone_id:
         out["WHATSAPP_PHONE_NUMBER_ID"] = phone_id
+    waba = input("     WhatsApp Business account ID: ").strip()
+    if waba:
+        out["WHATSAPP_WABA_ID"] = waba
 
-    # Invented by you, not issued by Meta. People routinely hunt for it in the dashboard,
-    # so generate one and say plainly where it goes.
-    verify = secrets.token_urlsafe(16)
-    print(f"\n  Verify token (you invent this one, so here is one): {verify}")
-    print("  Paste that same string into Meta's webhook form when it asks.", flush=True)
+    # Invented by you, not issued by Meta. Kept across runs so Meta's saved copy stays valid.
+    verify = (existing.get("WHATSAPP_VERIFY_TOKEN") or "").strip()
+    if verify:
+        print(f"\n  3. VERIFY token: keeping the one you already have: {verify}")
+    else:
+        verify = secrets.token_urlsafe(16)
+        print(f"\n  3. VERIFY token: you invent this one, so here is one: {verify}")
+    print("     It goes into Meta's webhook form (Step 2), NOT the access token.", flush=True)
     out["WHATSAPP_VERIFY_TOKEN"] = verify
 
     secret = getpass.getpass(
-        "\n  App secret from Settings > Basic (hidden, blank to skip): ").strip()
+        "\n  4. App secret, from App settings > Basic > App secret > Show\n"
+        "     (hidden, blank to skip): ").strip()
     if secret:
         out["WHATSAPP_APP_SECRET"] = secret
 
-    print("\n  Which numbers may talk to the bot? Without this, anyone who finds your")
-    print("  webhook URL can. Use the full international form, e.g. 22670000000.")
-    allowed = input("  Allowed numbers, comma separated (blank to skip): ").strip()
+    print("\n  5. Your own WhatsApp number, the phone you will message the bot FROM.")
+    print("     Also add it on the Step 1 screen under 'To' (recipient list) and verify it;")
+    print("     Meta's test number only talks to numbers listed there.")
+    print("     Country code first, no leading 0: Taiwan 0912 345 678 -> 886912345678.")
+    allowed = input("     Allowed number(s), comma separated (blank to skip): ").strip()
     if allowed:
-        out["AGRONAUT_ALLOWED_IDS"] = allowed
+        digits, warns = normalize_wa_numbers(allowed)
+        for w in warns:
+            print(f"     ! {w}")
+        if digits:
+            out["AGRONAUT_ALLOWED_IDS"] = digits
     return out
 
 
@@ -272,19 +331,55 @@ def _whatsapp_reachability_help(port: int = 8080) -> None:
 
     Telegram long-polls, so a laptop behind NAT works. WhatsApp is the other way round:
     Meta POSTs to you, over HTTPS, at an address it can resolve. That single difference is
-    why one channel takes two minutes and the other defeats people, and not saying it out
-    loud is what left the maintainer stuck after a successful install.
+    why one channel takes two minutes and the other defeats people.
     """
-    print("\n  One more thing, and it is the part that actually blocks people.")
-    print("\n  Meta delivers messages by POSTing to YOUR machine over HTTPS. A laptop")
-    print("  has no public address, so you need a tunnel running beside the bot:")
-    print(f"\n    cloudflared tunnel --url http://localhost:{port}")
-    print(f"    ngrok http {port}")
-    print("\n  Either prints an https:// address. Your webhook URL is that address with")
-    print("  /webhook on the end. Paste it, and the verify token above, into")
-    print("  Meta > WhatsApp > Configuration, then subscribe to the 'messages' field.")
-    print("\n  The tunnel address changes each restart on the free plans, so for anything")
-    print("  lasting, run this on a host with a real certificate instead of a laptop.")
+    print("\n  Last step, and the one that actually blocks people: Meta has to reach YOUR")
+    print("  machine over HTTPS. On a laptop, one command does it:")
+    print("\n    agronaut whatsapp --tunnel")
+    print("\n  It starts the bot and a tunnel together and prints the exact Callback URL and")
+    print("  verify token to paste into Meta (Step 2. Production setup > Configure")
+    print("  Webhooks). It needs cloudflared (`brew install cloudflared` on a Mac).")
+    print("\n  The address changes every time it starts, and Meta's test token expires daily,")
+    print("  so for a bot that stays up, run it on a server. Telegram has neither problem.")
+
+
+def replace_whatsapp_token() -> int:
+    """`agronaut whatsapp --token`: swap in a new access token without editing .env by hand.
+
+    Meta's test token expires daily, and pasting a 300-character secret into a file with
+    sed was the step that failed on 2026-09-30 (run from a chat prompt, `read` got nothing).
+    The token is checked against the Graph API before anything is written, so a bad paste
+    cannot replace a working token.
+    """
+    import agent  # noqa: F401 (loads .env so the phone number id is known)
+
+    from . import whatsapp_doctor as doc
+
+    phone_id = (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
+    if not phone_id:
+        print("WHATSAPP_PHONE_NUMBER_ID is not set yet; run `agronaut setup` first.")
+        return 2
+    print("Meta: Use cases > Connect on WhatsApp > Customize > Step 1. Try it out >")
+    print("Access token > Generate token, then copy it.", flush=True)
+    token = getpass.getpass("Paste the new access token (hidden): ").strip()
+    if not token:
+        print("Nothing pasted; the current token is unchanged.")
+        return 1
+    status, body = doc._get(f"{doc.GRAPH}/{phone_id}?fields=display_phone_number", token)
+    if status != 200:
+        print(f"Meta rejected that token {doc._err(body)}; the current one is unchanged.")
+        return 1
+    dest = env_path()
+    existing = dest.read_text() if dest.is_file() else ""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(merge_env(existing, {"WHATSAPP_TOKEN": token}))
+    try:
+        dest.chmod(0o600)
+    except OSError:
+        pass
+    print(f"Token valid for {body.get('display_phone_number', 'your number')}; saved to "
+          f"{dest}.\nRestart `agronaut whatsapp` so the bot uses it.")
+    return 0
 
 
 def _run_whatsapp_doctor(collected: dict[str, str]) -> None:
@@ -348,9 +443,10 @@ def run() -> int:
     # people expect, and the public HTTPS address is the part that actually stops them.
     channel = _ask("Where do you want to talk to Agronaut?", [
         ("This terminal", "works as soon as setup finishes, nothing else needed"),
-        ("Telegram", "about two minutes, one token from BotFather"),
-        ("WhatsApp", "a Meta business account AND a public HTTPS address; "
-                     "best on a server, not a laptop"),
+        ("Telegram (recommended for a phone)", "about two minutes, one token from "
+                     "BotFather, nothing expires"),
+        ("WhatsApp", "more setup: a Meta developer app and a public address; "
+                     "`agronaut whatsapp --tunnel` handles the address on a laptop"),
     ])
     if channel == 2:
         print("\n  Open https://t.me/BotFather, send /newbot, and follow the prompts.")
@@ -371,7 +467,8 @@ def run() -> int:
                     updates["AGRONAUT_ALLOWED_IDS"] = uid
                 break
     elif channel == 3:
-        wa = _prompt_whatsapp()
+        current = env_path()
+        wa = _prompt_whatsapp(parse_env(current.read_text()) if current.is_file() else {})
         updates.update(wa)
         if wa.get("WHATSAPP_TOKEN"):
             _run_whatsapp_doctor(wa)

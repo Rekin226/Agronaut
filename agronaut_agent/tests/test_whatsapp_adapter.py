@@ -8,6 +8,8 @@ import hashlib
 import hmac
 import json
 
+import pytest
+
 from agronaut_agent.channels import base
 from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
 
@@ -76,6 +78,26 @@ def test_verify_handshake_returns_challenge_on_match():
     a = _adapter()
     assert a.verify_webhook("subscribe", "myverify", "CH4LL3NGE") == "CH4LL3NGE"
     assert a.verify_webhook("subscribe", "wrong", "CH4LL3NGE") is None
+
+
+# --- why a verify token was refused (never what it was) -------------------------------------
+
+@pytest.mark.parametrize("received, says", [
+    ("", "empty"),
+    (" myverify ", "spaces"),
+    ("MYVERIFY", "capitals"),
+    ("EAAGm0PX4ZCpsBAAtoken", "ACCESS token"),
+    ("an-old-token-from-setup", "23 characters"),
+])
+def test_a_refused_token_is_explained(received, says):
+    assert says in _adapter().describe_token_mismatch(received)
+
+
+def test_the_explanation_never_contains_either_token():
+    a = _adapter()
+    for received in ("an-old-token-from-setup", "EAAGm0PX4ZCpsBAAtoken", " myverify "):
+        msg = a.describe_token_mismatch(received)
+        assert received.strip() not in msg and "myverify" not in msg
 
 
 def test_parse_incoming_extracts_sender_and_text():
@@ -636,3 +658,36 @@ def test_the_cli_exposes_whatsapp_beside_bot():
     for a in actions:
         names.update(a.choices)
     assert "whatsapp" in names and "bot" in names
+
+
+# --- the allowlist, in the form people actually type (found live 2026-09-30) ---------------
+
+def test_an_allowed_number_written_with_plus_and_spaces_still_matches_meta_digits():
+    """Setup accepted "+886 ..." while Meta sends "886...": every message was dropped."""
+    a = _adapter(allowed_ids=["+886 912-345 678"])
+    assert a._allowed("886912345678")
+
+
+def test_a_number_not_on_the_list_is_dropped_out_loud(caplog):
+    a = _adapter(allowed_ids=["886912345678"])
+    with caplog.at_level("WARNING"):
+        assert not a._allowed("22670000099")
+    assert "DROPPED" in caplog.text and "ending 99" in caplog.text
+    assert "22670000099" not in caplog.text
+
+
+def test_describe_payload_names_kinds_never_content():
+    msg = {"entry": [{"changes": [{"value": {"messages": [
+        {"from": "886912345678", "type": "text", "text": {"body": "my tilapia are gasping"}}]}}]}]}
+    out = WhatsAppAdapter.describe_payload(msg)
+    assert "1 message(s): text" in out
+    assert "tilapia" not in out and "886912345678" not in out
+    status = {"entry": [{"changes": [{"value": {"statuses": [{"status": "read"}]}}]}]}
+    assert "status update" in WhatsAppAdapter.describe_payload(status)
+
+
+def test_a_failed_status_names_metas_error():
+    st = {"entry": [{"changes": [{"value": {"statuses": [{"status": "failed", "errors": [
+        {"code": 131047, "title": "Re-engagement message"}]}]}}]}]}
+    out = WhatsAppAdapter.describe_payload(st)
+    assert "failed" in out and "131047" in out
