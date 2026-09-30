@@ -32,6 +32,7 @@ import time
 import requests
 
 from ..core import AgronautAgent
+from ..style import to_bubbles
 from . import commands
 from .base import ChannelAdapter, chunk, room_identity
 
@@ -265,6 +266,12 @@ class WhatsAppAdapter(ChannelAdapter):
             return None
 
     # --- outbound --------------------------------------------------------
+    def send_reply(self, to: str, text: str) -> None:
+        """Send a MODEL reply as a few short bubbles, the way a person texts. Fixed texts
+        (command output, error lines) go through send_text as one message."""
+        for bubble in to_bubbles(text, self.channel_name):
+            self.send_text(to, bubble)
+
     def send_text(self, to: str, text: str) -> None:
         for part in chunk(text):
             resp = requests.post(
@@ -344,7 +351,7 @@ class WhatsAppAdapter(ChannelAdapter):
                 cmd = commands.dispatch(self.agent, self.channel_name, uid, text)
             except Exception:
                 log.exception("slash command failed (whatsapp)")
-                cmd = commands.Reply("That command didn't work just now — try again?")
+                cmd = commands.Reply("That command didn't work just now. Try again?")
             if cmd is not None:
                 for part in chunk(cmd.text):
                     self.send_text(sender, part)
@@ -364,7 +371,7 @@ class WhatsAppAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_message failed (whatsapp)")
                 reply = "Something went wrong on my side. Try again, or rephrase?"
-            self.send_text(sender, reply)
+            self.send_reply(sender, reply)
             self._flush_attachments(sender, uid)
 
         # Photos: the same agent seam Telegram uses, so the observation guard, memory, and
@@ -375,7 +382,7 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             image_bytes = self.download_media(media_id)
             if not image_bytes:
-                self.send_text(sender, "I couldn't download that photo — could you send it "
+                self.send_text(sender, "I couldn't download that photo. Could you send it "
                                        "again, or describe what you see?")
                 continue
             try:
@@ -383,7 +390,7 @@ class WhatsAppAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_image failed (whatsapp)")
                 reply = "Something went wrong reading that photo. Try again, or describe what you see?"
-            self.send_text(sender, reply)
+            self.send_reply(sender, reply)
             self._flush_attachments(sender, uid)
 
         # Voice notes: the same agent seam Telegram uses, so the transcript runs through a
@@ -394,7 +401,7 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             audio_bytes = self.download_media(media_id)
             if not audio_bytes:
-                self.send_text(sender, "I couldn't download that voice note — could you send "
+                self.send_text(sender, "I couldn't download that voice note. Could you send "
                                        "it again, or type your message?")
                 continue
             try:
@@ -403,14 +410,14 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("agent.handle_voice failed (whatsapp)")
                 reply = ("Something went wrong with that voice note. Try again, or type your "
                          "message?")
-            self.send_text(sender, reply)
+            self.send_reply(sender, reply)
             self._flush_attachments(sender, uid)
 
         for sender, what in self.parse_unsupported_files(payload):
             if not self._allowed(sender):
                 continue
             log.info("whatsapp: declined unsupported inbound %r", what)
-            self.send_text(sender, "I can't read files like that yet — I work with text and "
+            self.send_text(sender, "I can't read files like that yet. I work with text and "
                                    "photos. Send a photo of the plants, fish, or water and "
                                    "I'll take a look.")
 

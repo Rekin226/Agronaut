@@ -13,6 +13,7 @@ report is fully unit-testable. `to_markdown` is the contract; PDF is downstream.
 from __future__ import annotations
 
 from .types import DesignInput, DesignOutput
+from .validate import WATER_NOT_LIMITING
 
 
 def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = None) -> str:
@@ -29,7 +30,11 @@ def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = No
     lines.append(f"- Growing method: **{out.grow_bed_label}**")
     lines.append(f"- Grow area: **{design.grow_area_m2} m²**")
     lines.append(f"- Mean water temperature: **{design.temperature_c} °C**")
-    lines.append(f"- Water budget: **{design.water_budget_lpd} L/day**")
+    if design.water_budget_lpd >= WATER_NOT_LIMITING:
+        lines.append("- Water budget: **not given** (treated as not limiting; check the makeup "
+                     "water below against your source)")
+    else:
+        lines.append(f"- Water budget: **{design.water_budget_lpd} L/day**")
     if design.source_water_note:
         lines.append(f"- Source-water note: {design.source_water_note}")
     lines.append("")

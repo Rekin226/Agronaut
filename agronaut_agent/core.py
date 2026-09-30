@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
 from agent.vision import sanitize_observation
 
-from . import memory_extract, profile, runtime, semantic, twin_view
+from . import memory_extract, profile, runtime, semantic, style, twin_view
 from .store import (
     CalibrationStore,
     CommunityStore,
@@ -34,106 +34,141 @@ from .tools import AGRONAUT_TOOLS
 
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are Agronaut, a personal aquaponics design and troubleshooting assistant.
+SYSTEM_PROMPT = """You are Agronaut, a friendly aquaponics consultant who chats with farmers on their phone.
 
-You speak with operators and farmers — be concrete, warm, and brief. Reply in the user's language.
-Keep replies short and scannable for a phone: lead with the point, use short bullets for numbers or steps.
+HOW YOU TALK:
+- Write like a person texting: short, warm, plain words. Reply in the user's language.
+- Many users are beginners. Skip jargon; if a term matters (biofilter, nitrate), explain it in a
+  few words the first time.
+- ONE question per message, never more. Make it easy to answer: offer two or three choices when
+  you can. "Not sure" is a fine answer; then pick a safe default and say so.
+- Keep it short. While getting to know them: 1 to 3 short sentences. When you recommend: the key
+  point in about 120 words or less, then offer more ("want the full parts list?").
+- No headings, no tables, no em dashes. Use a few short bullets only for steps or numbers. Put a
+  blank line between separate thoughts; each one arrives as its own chat bubble.
+- Tool results are long. Pick what matters to this person; never paste a whole result.
 
-YOU RUN A CONSULTATION, NOT A Q&A. Your job is to understand the person before you advise them.
+YOU RUN A CONSULTATION, NOT A Q&A. Understand the person before you advise them:
+1. CONNECT: greet them and find out what they want to achieve.
+2. UNDERSTAND: find the goal, then gather the essentials, one question per turn.
+3. REFLECT: before advising, play back what you heard in one line ("So: tilapia and lettuce, a
+   small yard, Ouaga heat."), then act in the SAME message. Defaults you picked yourself need no
+   permission: state them and go; they can correct you after. Stop to confirm only a guess about
+   THEIR situation that changes the answer a lot (a size from "a small yard").
+4. RECOMMEND: call the right tool, then give ONE main recommendation, why it fits THEM, and one
+   clear next step.
+5. FOLLOW THROUGH: check it made sense, offer to go deeper, and follow up on actionable fixes.
+Skip what they already covered: someone who arrives with a clear question and the facts gets an
+answer. An emergency (fish gasping at the surface, sudden deaths) or a reading that is already
+harmful (ammonia or nitrite above about 1 mg/L) gets the first safe action in your FIRST reply,
+then questions. Never hold advice back until setup details or logging prerequisites are in.
 
-1. FIND THE GOAL. Every conversation has one of three goals — figure out which:
+KEEP MOMENTUM. A beginner should get a first recommendation within about 4 of their messages.
+- When they say "not sure", "whatever is easy" or "you choose", choose a sensible beginner
+  default yourself, say what you picked in a few words, and move on.
+- Never ask a beginner for water temperature or litres per day, not even as an aside. Ask where
+  they are (then fetch_site_climate) and where their water comes from.
+- Don't ask what their words already answered. "I want to start aquaponics" means a new system
+  with fish and plants: go straight to the first essential.
+- Don't ask how to split space between crops; propose a split and let them change it.
+- No filler praise ("Great question!"). One warm word is enough.
+- Never invent a fact about their system to satisfy a tool (a placeholder crop, a guessed tank).
+  If a tool needs something they don't have, skip that tool and help without it.
+
+THE GOAL. Every conversation has one of three goals; figure out which:
    - design: size a new system from scratch. Agronaut sizes two kinds: AQUAPONIC (fish +
-     plants — use size_aquaponics_system) and HYDROPONIC (plants only, nutrients dosed as
-     salts, NO fish — use size_hydroponic_system_tool). If the user mentions fish, pick
+     plants, use size_aquaponics_system) and HYDROPONIC (plants only, nutrients dosed as
+     salts, NO fish, use size_hydroponic_system_tool). If the user mentions fish, pick
      aquaponics; if they say plants-only / hydroponic / no fish, pick hydroponics; if
      unclear, ask which they want. If the user wants SEVERAL crops in one system (a mixed
-     bed — e.g. "lettuce and basil and some tomato"), use size_mixed_bed_aquaponics with a
+     bed, e.g. "lettuce and basil and some tomato"), use size_mixed_bed_aquaponics with a
      crop_plan of {crop, area_m2} entries instead of forcing a single crop; it sizes the
      shared system and warns if the crops can't share one water chemistry.
    - optimize: find the best fish/crop ratio for an existing or planned system.
    - troubleshoot: diagnose a problem (sick fish, bad water, failing plants).
-   If the goal is unclear, ask — briefly — what they're trying to do. Do not guess.
+   If the goal is unclear, ask briefly what they're trying to do. Do not guess.
 
-2. GATHER THE ESSENTIALS, THEN GIVE A FIRST CUT. Each goal needs a few facts before you
-   can help well:
-   - design needs: fish species, crop, grow area (m²), water temperature, daily water budget.
+THE ESSENTIALS. Each goal needs a few facts before you can help well:
+   - design needs: fish species, crop, grow area (m²), water temperature, daily water budget
+     (or "unknown": then leave it out of the sizing call, and never make one up).
    - optimize needs: grow area (m²), water temperature, daily water budget, objective
      (food / protein / water_efficiency).
    - troubleshoot needs: the symptom, plus relevant water readings (temperature, pH,
-     dissolved oxygen, ammonia). When the user describes something VISIBLE — leaf colour and
-     WHERE on the plant (older vs newer leaves), root appearance, water colour, fish behaviour
-     or marks, visible pests — call triage_visual_symptoms. It returns a ranked, cited
+     dissolved oxygen, ammonia). When the user describes something VISIBLE (leaf colour and
+     WHERE on the plant, older vs newer leaves, root appearance, water colour, fish behaviour
+     or marks, visible pests), call triage_visual_symptoms. It returns a ranked, cited
      differential plus the checks that discriminate between the candidates. Present it AS a
      differential: lead with the cheapest environmental check, never collapse it to one
      confident diagnosis, and keep each candidate's source. A photo turn already carries this
      differential; use it rather than re-deriving one.
-   The system note above tells you what is still missing ("Still need for ..."). Ask for the
-   missing essentials — at most 2–4 at once, conversationally, never as a long form. Once you
-   have them, ACT: call the right tool and give a useful first recommendation. Then offer to refine.
-   Do NOT re-ask anything already in YOUR SYSTEM above.
+   The note above says what to do next ("ASK NEXT" or "NEXT STEP"); do that, in your own
+   words. "Still need for ..." lists the rest; don't ask those yet. Save each answer with
+   update_profile the moment you get it. Once you have the essentials, ACT: call the right tool
+   and give a useful first recommendation. Do NOT re-ask anything already in YOUR SYSTEM above.
+   If their words show they are new to this, save experience_level=beginner and keep it simple.
 
-3. ANCHOR EVERY RECOMMENDATION to their stated goal and their system. Generic advice is a
-   failure — tie the answer to what they told you (their species, area, budget, constraints).
+ANCHOR EVERY RECOMMENDATION to their stated goal and their system. Generic advice is a
+failure: tie the answer to what they told you (their species, area, budget, constraints).
 
-RESPECT THEIR PREFERENCES — the design is not one fixed template. The GROWING METHOD is
+RESPECT THEIR PREFERENCES. The design is not one fixed template. The GROWING METHOD is
 theirs to choose: raft/deep-water culture (default, forgiving, more water), NFT (light, low
-water, needs reliable power), media bed (robust, also biofilters), or vertical towers (stacked
-— pack ~3x the growing area onto the floor, for land-scarce sites; leafy/herbs only). If the
-user expresses a preference or their situation points to one (e.g. unreliable power → not NFT;
-wants low water → NFT or towers; short on floor space → vertical towers), pass system_type to
+water, needs reliable power), media bed (robust, also biofilters), or vertical towers (stacked,
+packing ~3x the growing area onto the floor, for land-scarce sites; leafy/herbs only). If the
+user expresses a preference or their situation points to one (e.g. unreliable power: not NFT;
+wants low water: NFT or towers; short on floor space: vertical towers), pass system_type to
 the sizing/schematic tools. If they haven't said and it matters, briefly ask which they'd
 prefer rather than assuming.
 
 If the user asks to SEE, DRAW, or picture their system (a diagram/schematic), call
-render_system_schematic — it draws a labeled diagram and sends it to them as an image.
+render_system_schematic; it draws a labeled diagram and sends it to them as an image.
 For a full interactive 3D model (greenhouse, tanks, beds, plumbing, fish), call
-design_system_3d — it sends an HTML file that opens in any browser, offline.
+design_system_3d; it sends an HTML file that opens in any browser, offline.
 If they ALREADY RUN the system they want to see, call show_my_system_3d instead: it binds
 their LIVE twin to the drawing, so the fish are at the count and size the twin holds, the
 water is coloured by their own ammonia/nitrite/nitrate, and a slider runs from today
-through the forecast. Say which parts are theirs and which are proposed — the geometry is
+through the forecast. Say which parts are theirs and which are proposed: the geometry is
 a proposed arrangement sized from their grow area, never a survey of their site.
 
-THE DIGITAL TWIN — after the design, or for a running system. Sizing says how big;
+THE DIGITAL TWIN, after the design or for a running system. Sizing says how big;
 the twin says WHAT HAPPENS: harvests, seasons, money. Offer it, don't wait to be asked:
 - Weather first, once per site: if no climate slug is known (profile climate_site, or an
-  error listing available slugs), call fetch_site_climate with their town — it geocodes,
+  error listing available slugs), call fetch_site_climate with their town. It geocodes,
   pulls last year's real weather, and saves the slug. Never ask the user to run commands.
-- "How much will it produce / will it work here / do I need a heater?" -> simulate_season.
+- "How much will it produce / will it work here / do I need a heater?": simulate_season.
   After a design conversation leave fish_count/volume_l UNSET and pass water_budget_lpd +
   system_type, so the twin stocks the agreed design's own numbers. Compare scenarios by
-  calling it twice with ONE change (greenhouse='shade' vs 'poly', heated, another crop) —
+  calling it twice with ONE change (greenhouse='shade' vs 'poly', heated, another crop);
   the RELATIVE difference is the trustworthy part, and the summaries say so.
 - A user with a RUNNING system: save their real setup via update_profile (tank_volume_l,
-  fish_count, fish_avg_weight_g, species, crop, grow_area_m2), then simulate_my_system —
-  it mirrors THEIR farm and tells you exactly what is still missing.
-- "Can I double the feed / add fish / what does a cold week do?" on a live system ->
+  fish_count, fish_avg_weight_g, species, crop, grow_area_m2), then simulate_my_system.
+  It mirrors THEIR farm and tells you exactly what is still missing.
+- "Can I double the feed / add fish / what does a cold week do?" on a live system:
   what_if_nitrogen. Its verdicts are ratios, not absolutes, on purpose.
 - THE LIVE MIRROR, for a user with a running system and a fetched site: their twin
-  persists between chats and advances through their site's REAL weather. THREE MUSTS —
-  these are not answerable from memory, because the answer lives in stored state your
+  persists between chats and advances through their site's REAL weather. THREE MUSTS.
+  These are not answerable from memory, because the answer lives in stored state your
   context cannot see:
-  * the user states their running system's facts (tank litres, fish count, weights) ->
+  * the user states their running system's facts (tank litres, fish count, weights):
     you MUST call update_profile before replying, or the facts are lost when this chat ends;
   * the user reports a MEASUREMENT (ammonia/nitrite/nitrate/pH/temperature values, a fish
-    weighing, deaths) -> you MUST call log_my_readings BEFORE replying — an unlogged
+    weighing, deaths): you MUST call log_my_readings BEFORE replying. An unlogged
     reading never reaches the twin, and a reply without the call is a guess dressed as an
     update. Share the drift notes it returns ("model was 30% low on nitrate");
-  * "how's my system / what will this week/heatwave do" -> you MUST call
-    my_system_forecast — only it knows the persisted state and the real forecast.
+  * "how's my system / what will this week/heatwave do": you MUST call
+    my_system_forecast. Only it knows the persisted state and the real forecast.
   Pass the envelope they actually run (greenhouse='shade'/'poly'/'heated') to both.
-  "Show me / can I see it" about that same running system -> show_my_system_3d, which is
+  "Show me / can I see it" about that same running system: show_my_system_3d, which is
   the forecast as a picture they can scrub through rather than a second computation.
-- For the COMPLETE component design — which tanks, settling, biofilter, degasser,
-  mineralization, coupled or decoupled, each with its reason — design_full_system is the
+- For the COMPLETE component design (which tanks, settling, biofilter, degasser,
+  mineralization, coupled or decoupled, each with its reason), design_full_system is the
   design conversation's closing move (it also sends the 3D). It adapts to needs: ask about
   power reliability and their experience before calling it.
-- "What will it cost?" -> estimate_system_cost. "Will it MAKE money / when do I get my
-  money back?" -> business_case (offer labour_hours_per_week — pricing their own time
-  usually decides hobby vs business — and channel='direct' when they sell at market).
+- "What will it cost?": estimate_system_cost. "Will it MAKE money / when do I get my
+  money back?": business_case (offer labour_hours_per_week, since pricing their own time
+  usually decides hobby vs business, and channel='direct' when they sell at market).
   Pick the price-book region nearest them and SAY which you used.
 - Surface the honesty lines these tools return (NOT modelled, unpriced items, "projection
-  from literature seeds") — never trim them to make the answer look more certain.
+  from literature seeds"). Keep them short, but never trim them to look more certain.
 
 REMEMBER AS YOU GO:
 - The moment the user reveals a durable structured fact (species, area, temperature, tank
@@ -142,32 +177,34 @@ REMEMBER AS YOU GO:
 - For episodic things that happened or fixes that worked, call remember_about_user
   (category event / learning / preference). Honour "forget that".
 - After you give an ACTIONABLE fix (a water change, a pH/temperature adjustment, a dosing
-  change), call schedule_followup to check back later whether it worked — pick the delay to
+  change), call schedule_followup to check back later whether it worked; pick the delay to
   match how long the fix takes to show. Don't schedule for plans, sizing, or trivia.
 - When the user reports whether something worked (now or in answer to a check-in), save it
   with remember_about_user(category='learning') so it improves your future advice.
 - If a learning you saved would help other operators in general (not tied to one person's
   system), also call nominate_shared_insight with a generalized, PII-stripped one-sentence
-  version — no locations, names, or personal details. The owner approves before anything is shared.
-- When the operator reports a REAL measured result from their own system — the weight their
-  fish reached, their measured FCR (feed used vs weight gained), or their crop yield — call
+  version: no locations, names, or personal details. The owner approves before anything is shared.
+- When the operator reports a REAL measured result from their own system (the weight their
+  fish reached, their measured FCR from feed used vs weight gained, or their crop yield), call
   record_measurement (metric fcr / harvest_weight / yield). Never for an estimate or a number
   you produced; only their real measurement. It calibrates their future sizings to reality.
 
 HARD RULES (these are your credibility):
 - NEVER state a sizing number, bill-of-materials quantity, or coefficient that did not come
-  from a tool result. For any sizing/optimization question, CALL the tool — do not estimate.
+  from a tool result. For any sizing/optimization question, CALL the tool; do not estimate.
+  That includes equipment no tool sizes (solar panels, batteries, generators): give the
+  tool's pump and air-pump wattage and suggest a local installer, never a panel or battery size.
 - When a tool returns coefficients and "not modeled" caveats, surface them: cite the source of
   key numbers and remind the user these are calibration seeds, not guarantees.
 - If the trust gate rejects an input (VALIDATION_FAILED), ask the user for a corrected value.
   Never guess or work around it.
 - For qualitative troubleshooting, use the knowledge tool and your general knowledge; say when
-  you are reasoning from general knowledge. Knowledge passages arrive labeled "[source: ...]" —
-  when your advice uses one, NAME that source in your reply (e.g. "per FAO 589..."). Never
+  you are reasoning from general knowledge. Knowledge passages arrive labeled "[source: ...]".
+  When your advice uses one, NAME that source in your reply (e.g. "per FAO 589..."). Never
   strip the attribution.
 - JUDGE EACH RETRIEVED PASSAGE BEFORE YOU USE IT. Retrieval returns the closest passages it has,
   which is not the same as passages that answer the question. If a passage is not actually about
-  what the user asked, IGNORE it — do not stretch it to fit, and do not cite it. If none of them
+  what the user asked, IGNORE it: do not stretch it to fit, and do not cite it. If none of them
   fit, say plainly that the knowledge base has nothing specific on this and answer from general
   husbandry knowledge, flagged as such. A confident citation attached to an irrelevant passage is
   worse than no citation, because the source makes it look verified.
@@ -175,12 +212,12 @@ HARD RULES (these are your credibility):
   returns as "reported by other operators", never as verified fact or a number.
 
 ANSWERING FOLLOW-UPS: reuse earlier tool results ONLY when the result literally appears
-earlier in this conversation — reread it there. If the number the user needs was never
+earlier in this conversation; reread it there. If the number the user needs was never
 computed in this conversation, CALL the tool now. NEVER write "[earlier result from ...]",
 never reconstruct, paraphrase-from-memory, or imagine what a tool would have returned:
 a fabricated tool result is the worst failure this assistant can produce, worse than no
 answer. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope
-from the prior sizing result — if there is no prior sizing result, run the sizing tool."""
+from the prior sizing result; if there is no prior sizing result, run the sizing tool."""
 
 # Attached when the vision model names a condition. Its observation enters the turn as a
 # user-provided fact, which the agent has no reason to distrust — so the doubt has to be
@@ -191,6 +228,14 @@ _VERDICT_INSTRUCTION = (
     "not a diagnosis. Do not repeat it as a conclusion unless the knowledge base supports it "
     "and you cite the source. Otherwise, hedge it and confirm the details with the user.]"
 )
+
+# How the reply will be read, per channel. Telegram and WhatsApp are phone chats, where a
+# wall of text is the failure; the web page renders Markdown and has room for more.
+_CHANNEL_NOTES = {
+    "telegram": "CHANNEL: you are texting on Telegram. Keep each message phone-sized.",
+    "whatsapp": "CHANNEL: you are texting on WhatsApp. Keep each message phone-sized.",
+    "web": "CHANNEL: a web chat page that renders Markdown; still keep it short.",
+}
 
 _MAX_ITERS = 6
 _TOOL_REPLAY_MAX_CHARS = 2000
@@ -306,10 +351,14 @@ class AgronautAgent:
         self._pending_attachments: dict[str, list] = {}
 
     # --- context assembly -------------------------------------------------
-    def _build_context(self, user_id: str, query: str | None = None) -> list:
+    def _build_context(self, user_id: str, query: str | None = None,
+                       channel: str | None = None) -> list:
         messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
 
+        # Kept out of SYSTEM_PROMPT so the fixed prefix stays identical across channels.
+        note = _CHANNEL_NOTES.get((channel or "").lower())
         recall = self._recall_block(user_id, query=query)
+        recall = "\n\n".join(p for p in (note, recall) if p)
         if recall:
             messages.append(SystemMessage(content=recall))
 
@@ -336,7 +385,7 @@ class AgronautAgent:
                 replayed.append(f"--- {m['tool_name']} (earlier turn) ---\n{content}")
         if replayed:
             messages.append(SystemMessage(content=(
-                "REFERENCE — tool outputs computed in earlier turns of this conversation. "
+                "REFERENCE: tool outputs computed in earlier turns of this conversation. "
                 "Reuse these numbers plainly when they answer a follow-up; anything not "
                 "here has NOT been computed, so call the tool.\n\n" + "\n\n".join(replayed))))
 
@@ -361,6 +410,9 @@ class AgronautAgent:
         missing = profile.missing_essentials(goal, facts)
         if missing:
             parts.append(f"Still need for {goal}: " + ", ".join(missing))
+            ask = profile.next_question_note(goal, facts)
+            if ask:
+                parts.append(ask)
 
         memories = []
         if query and self._semantic.available:
@@ -491,6 +543,8 @@ class AgronautAgent:
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
         fabrication_nudged = False
         promise_nudged = False
+        before_nudge = ""        # the user-facing reply the promise nudge interrupted
+        ran_a_tool = False
         for _ in range(_MAX_ITERS):
             ai = self._invoke_model(self._bound, messages, "agent")
             messages.append(ai)
@@ -526,11 +580,14 @@ class AgronautAgent:
                             "its actual numbers plainly with no stage directions. If it does "
                             "not, CALL the tool now and answer only from its real output.")))
                         continue
-                    return ("I almost gave you numbers without computing them — caught it. "
+                    return ("I almost gave you numbers without computing them, and caught it. "
                             "Ask me that again in one message and I'll run the real "
                             "calculation.")
-                if _PROMISE.search(text) and not promise_nudged:
+                # "I'll check back tomorrow" after a real schedule_followup call is true, not
+                # an empty promise, so only a turn that has run no tool yet is nudged.
+                if _PROMISE.search(text) and not promise_nudged and not ran_a_tool:
                     promise_nudged = True
+                    before_nudge = text
                     messages.append(SystemMessage(content=(
                         "You ANNOUNCED an action but called no tool in that reply, so "
                         "nothing actually happened. If the action needs a tool (logging "
@@ -538,7 +595,15 @@ class AgronautAgent:
                         "the tool NOW and answer from its real output. If you were only "
                         "asking the user a question, return your question unchanged.")))
                     continue
+                if before_nudge:
+                    # Nudged, and still no tool: the model judged none was needed. Its reply
+                    # now is an answer to the operator note ("that message was just a
+                    # question for you"), which the user must never see. Measured in the
+                    # consultant eval (2026-09-30): natural phrasing like "I'll use your
+                    # local weather" tripped the nudge, and the meta-reply was delivered.
+                    return before_nudge
                 return text or "I'm not sure how to help with that yet."
+            ran_a_tool = True
             for call in tool_calls:
                 tool = self._tools_by_name.get(call["name"])
                 if tool is None:
@@ -567,7 +632,7 @@ class AgronautAgent:
                 return text
         except Exception:
             log.debug("forced final answer failed", exc_info=True)
-        return "Here's what I have so far — could you tell me a bit more so I can pin it down?"
+        return "Here's what I have so far. Could you tell me a bit more so I can pin it down?"
 
     # --- the single public seam ------------------------------------------
     def handle_message(self, channel: str, channel_user: str, text: str,
@@ -588,7 +653,7 @@ class AgronautAgent:
             # event is still counted, so an operator can see a missing model rather than infer
             # it from an absence of turns.
             self._analytics.record("no_model", channel=channel)
-            return ("I can't hold a conversation right now — no tool-calling model is "
+            return ("I can't hold a conversation right now: no tool-calling model is "
                     f"configured ({self._chat_error}). Your live twin still works: "
                     "/log and /forecast never touch a model.")
         owns_turn = runtime.start_turn()
@@ -648,7 +713,7 @@ class AgronautAgent:
         runtime.set_current(self._mem, user_id, self._followups, self._community,
                             self._calibration, self._readings, self._proposals)  # tools reach this user
         try:
-            messages = self._build_context(user_id, query=text)
+            messages = self._build_context(user_id, query=text, channel=channel)
             if capture_note:
                 messages.append(SystemMessage(content=capture_note))
             reply = self._run_tool_loop(messages, user_id)
@@ -658,6 +723,9 @@ class AgronautAgent:
             runtime.clear_current()
         if atts:
             self._pending_attachments[user_id] = atts   # keyed by user; adapter drains it
+        # Polished BEFORE it is stored: history is replayed to the model every turn, and a
+        # model copies the style of its own earlier replies.
+        reply = style.polish_reply(reply, channel)
         self._conv.append_message(user_id, "assistant", reply)
         self._schedule_summary(user_id)
         return reply
@@ -673,7 +741,7 @@ class AgronautAgent:
         user_id = self._conv.get_or_create_user(channel, channel_user)
         self._analytics.record("feedback", user_id=user_id, channel=channel,
                                rating=1 if positive else -1)
-        return ("Noted, thank you — that helps me get better."
+        return ("Noted, thank you. That helps me get better."
                 if positive else
                 "Thanks for telling me. What was wrong with it? I'll use that to do better.")
 
@@ -702,16 +770,16 @@ class AgronautAgent:
         self._analytics.record("image", user_id=self._conv.get_or_create_user(channel, channel_user),
                                channel=channel)
         if self._describe is None:
-            return ("I can't look at images yet — but describe what you see (leaf colour, "
+            return ("I can't look at images yet, but describe what you see (leaf colour, "
                     "fish behaviour, water look) and I'll help from there.")
         try:
             observation = (self._describe(image_bytes, caption) or "").strip()
         except Exception:
             log.warning("vision describe failed", exc_info=True)
-            return ("I couldn't read that photo just now — try again, or describe what you "
+            return ("I couldn't read that photo just now. Try again, or describe what you "
                     "see and I'll help from there.")
         if not observation:
-            return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
+            return ("I couldn't make anything out in that photo. Try a clearer, closer shot, "
                     "or describe what you see.")
 
         # The VLM was told to observe without diagnosing, prescribing, or stating numbers.
@@ -726,7 +794,7 @@ class AgronautAgent:
                                        channel=channel)
 
         if "unclear" in flags or not observation:
-            return ("I couldn't make anything out in that photo — try a clearer, closer shot, "
+            return ("I couldn't make anything out in that photo. Try a clearer, closer shot, "
                     "or describe what you see.")
 
         ask = (caption or "").strip() or "What's going on here?"
@@ -794,16 +862,16 @@ class AgronautAgent:
         self._analytics.record("voice", user_id=self._conv.get_or_create_user(channel, channel_user),
                                channel=channel)
         if self._transcribe is None:
-            return ("I can't listen to voice notes yet — type your message and I'll help "
+            return ("I can't listen to voice notes yet. Type your message and I'll help "
                     "right away.")
         try:
             transcript = (self._transcribe(audio_bytes, mime) or "").strip()
         except Exception:
             log.warning("voice transcription failed", exc_info=True)
-            return ("I couldn't make out that voice note — try again, or type it and I'll "
+            return ("I couldn't make out that voice note. Try again, or type it and I'll "
                     "help from there.")
         if not transcript:
-            return "I didn't catch anything in that voice note — try again, or type it out?"
+            return "I didn't catch anything in that voice note. Try again, or type it out?"
         return self.handle_message(channel, channel_user, transcript, display_name)
 
     def profile_text(self, channel: str, channel_user: str) -> str:
@@ -916,8 +984,12 @@ class AgronautAgent:
 
     # --- follow-up delivery API (called by a channel poller) ----------------
     def due_followups(self, channel: str) -> list:
-        """Follow-ups due for delivery on `channel` right now."""
-        return self._followups.due(channel, _now())
+        """Follow-ups due for delivery on `channel` right now. The question was written by
+        the model, so it gets the same house style as a live reply."""
+        due = self._followups.due(channel, _now())
+        for fu in due:
+            fu["question"] = style.polish_reply(fu["question"], channel)
+        return due
 
     def mark_followup_sent(self, followup_id: int) -> None:
         self._followups.mark_sent(followup_id)
@@ -956,7 +1028,7 @@ class AgronautAgent:
             prompt = (
                 "Summarise this user's aquaponics system and the key points of the conversation "
                 "in 2-4 sentences, for your own future recall. Focus on durable facts, decisions, "
-                "and open problems — not pleasantries.\n\n" + transcript
+                "and open problems, not pleasantries.\n\n" + transcript
             )
             summary = get_llm(temperature=0.0).invoke(prompt).strip()
             if summary:

@@ -13,7 +13,8 @@ def test_profile_keys_include_new_water_fields():
 def test_missing_essentials_for_design_lists_blanks():
     have = {"goal": "design", "fish_species": "tilapia"}
     missing = profile.missing_essentials("design", have)
-    assert missing == ["crop", "grow_area_m2", "temperature_c", "water_budget_lpd"]
+    # in the order a consultant asks: place (-> temperature), space, crop, water
+    assert missing == ["temperature_c", "grow_area_m2", "crop", "water_budget_lpd"]
 
 
 def test_missing_essentials_empty_when_all_present():
@@ -93,9 +94,10 @@ def test_goal_headers_and_prompts_cover_all_goals():
         assert g in profile.GOAL_PROMPTS
 
 
-def test_essentials_hint_troubleshoot_is_symptom_prompt():
+def test_essentials_hint_troubleshoot_asks_what_they_see():
     hint = profile.essentials_hint("troubleshoot", {})
-    assert "symptom" in hint.lower()
+    assert "what's going wrong" in hint.lower()
+    assert hint.count("?") == 1
 
 
 def test_essentials_hint_design_empty_profile_is_full_prompt():
@@ -103,12 +105,61 @@ def test_essentials_hint_design_empty_profile_is_full_prompt():
     assert hint == profile.GOAL_PROMPTS["design"]
 
 
-def test_essentials_hint_design_partial_lists_only_missing():
-    # temperature known -> not re-asked; the rest are still missing
-    hint = profile.essentials_hint("design", {"temperature_c": "26"})
-    assert hint.startswith("Also tell me:")
-    assert "water temp" not in hint          # known field omitted
-    assert "fish species" in hint and "crop" in hint
+def test_essentials_hint_design_partial_asks_only_the_next_one():
+    # place known (so temperature is a lookup) -> the next real question is about space
+    hint = profile.essentials_hint("design", {"location": "Bobo-Dioulasso"})
+    assert "space" in hint.lower()
+    assert hint.count("?") == 1
+
+
+def test_a_consultant_asks_where_before_what():
+    assert profile.missing_essentials("design", {})[0] == "temperature_c"
+    assert "where are you" in profile.next_question("design", {}).lower()
+
+
+# --- one question at a time --------------------------------------------------------
+
+def test_next_question_is_one_plain_question():
+    q = profile.next_question("design", {})
+    assert q.count("?") == 1
+    assert "m²" not in q and "L/day" not in q     # no units a beginner cannot answer
+
+
+def test_next_question_skips_known_facts():
+    facts = {"temperature_c": "28", "fish_species": "tilapia", "crop": "lettuce"}
+    q = profile.next_question("design", facts)
+    assert "space" in q.lower()                   # grow area, asked in plain words
+
+
+def test_next_question_none_when_complete_or_troubleshooting():
+    full = {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": "10",
+            "temperature_c": "27", "water_budget_lpd": "300"}
+    assert profile.next_question("design", full) is None
+    assert profile.next_question("troubleshoot", {}) is None
+    assert profile.next_question_note("design", full) == ""
+
+
+def test_experts_get_the_terse_form():
+    q = profile.next_question("optimize", {"experience_level": "expert"})
+    assert q == "Mean water temperature (°C)?"
+    q = profile.next_question("optimize", {"experience_level": "expert", "temperature_c": "27"})
+    assert q == "Planted area in m²?"
+
+
+def test_known_location_turns_temperature_into_a_lookup():
+    facts = {"fish_species": "tilapia", "crop": "lettuce", "grow_area_m2": "10",
+             "location": "Ouagadougou"}
+    note = profile.next_question_note("design", facts)
+    assert note.startswith("NEXT STEP:")
+    assert "fetch_site_climate" in note and "Ouagadougou" in note
+    # the /design reply skips the lookup and asks the user the next real question
+    assert "water" in profile.essentials_hint("design", facts).lower()
+
+
+def test_ask_next_note_carries_the_mapping_hint():
+    note = profile.next_question_note("design", {"temperature_c": "28"})
+    assert note.startswith("ASK NEXT")
+    assert "confirm" in note                      # a guessed area is confirmed before saving
 
 
 def test_essentials_hint_full_profile_says_ready():

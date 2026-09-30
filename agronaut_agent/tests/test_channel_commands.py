@@ -43,6 +43,10 @@ class _FakeAgent:
         self.calls.append(("profile",))
         return "tilapia, 20 m2"
 
+    def set_goal(self, channel, identity, goal):
+        self.calls.append(("goal", goal))
+        return f"{goal} mode"
+
     def export_user_data(self, channel, identity):
         self.calls.append(("export",))
         return {"profile": {"crop": "lettuce"}}
@@ -205,3 +209,12 @@ def test_every_telegram_command_exists_on_the_text_router():
         if reply is not None and reply.text.startswith("I don't know"):
             missing.append(name)
     assert not missing, f"commands Telegram has and the text router does not: {sorted(missing)}"
+
+
+def test_goal_commands_set_the_goal_on_the_text_router():
+    """On WhatsApp, /design once reached the model as the bare text "/design" and the goal
+    was never saved, so the one-question consultation had nothing to steer by."""
+    for goal in ("design", "optimize", "troubleshoot"):
+        reply, agent = _run(f"/{goal}")
+        assert agent.calls == [("goal", goal)]
+        assert reply.text == f"{goal} mode"

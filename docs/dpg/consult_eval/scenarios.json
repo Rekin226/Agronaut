@@ -1,0 +1,145 @@
+{
+  "about": "Personas for scripts/consult_eval.py. `facts` are hidden from the agent: the simulated user reveals them only when asked. `experience` tells the judge who the audience was. Mostly beginners, because that is who gives up on a form-like bot.",
+  "scenarios": [
+    {
+      "id": "burkina-first-timer",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 8,
+      "opening": "hi i want to start aquaponics",
+      "persona": "A young man in Ouagadougou who saw aquaponics on YouTube. Never kept fish. Wants to sell some vegetables at the market. Types short, informal messages.",
+      "facts": {"location": "Ouagadougou", "space": "a yard about 5 by 4 metres", "water": "borehole shared with neighbours, sometimes short in March-April", "fish": "no idea, whatever is easy", "crop": "lettuce and some tomatoes", "budget": "small, around 300,000 FCFA"}
+    },
+    {
+      "id": "burkina-fr-debutante",
+      "channel": "whatsapp", "language": "French", "experience": "beginner", "max_turns": 8,
+      "opening": "Bonjour, je veux faire de l'aquaponie chez moi",
+      "persona": "A schoolteacher in Bobo-Dioulasso who wants fresh vegetables and fish for her family. Has never done any farming.",
+      "facts": {"location": "Bobo-Dioulasso", "space": "une petite cour, peut-être 10 m²", "water": "robinet de l'ONEA, parfois des coupures", "fish": "tilapia", "crop": "salade et amarante"}
+    },
+    {
+      "id": "taiwan-balcony-zh",
+      "channel": "telegram", "language": "Traditional Chinese", "experience": "beginner", "max_turns": 8,
+      "opening": "你好，我想在陽台做魚菜共生",
+      "persona": "An office worker in Taichung with a balcony. Wants a hobby system for herbs. Worried about smell and noise for the neighbours.",
+      "facts": {"location": "Taichung", "space": "陽台大約 2 平方公尺", "water": "自來水", "fish": "不確定，想要好養的", "crop": "九層塔和薄荷"}
+    },
+    {
+      "id": "confused-dont-know",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 9,
+      "opening": "my uncle says fish and plants together can make money. how?",
+      "persona": "Someone with almost no background who answers 'I don't know' to anything technical. Needs choices, not open questions.",
+      "facts": {"location": "Koudougou", "space": "don't know, some land behind the house", "water": "don't know, there is a well", "fish": "don't know", "crop": "don't know, maybe vegetables"}
+    },
+    {
+      "id": "everything-up-front",
+      "channel": "telegram", "language": "English", "experience": "intermediate", "max_turns": 5,
+      "opening": "Size me a tilapia + lettuce raft system: 20 m2 grow area, water around 27C, I can spare 400 L/day.",
+      "persona": "Someone who already did their homework and wants numbers now, not a chat. Gets impatient if asked things they already said.",
+      "facts": {"location": "Ouagadougou", "power": "grid, occasional cuts"}
+    },
+    {
+      "id": "emergency-gasping",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 6,
+      "opening": "HELP my fish are all at the top gasping what do i do",
+      "persona": "Panicking owner of a small tilapia system. The pump stopped overnight during a power cut. Replies fast and short.",
+      "facts": {"system": "1000 L tank, about 60 tilapia", "cause": "power cut last night, air pump off", "water": "looks a bit cloudy", "readings": "no test kit"}
+    },
+    {
+      "id": "yellow-leaves",
+      "channel": "telegram", "language": "English", "experience": "beginner", "max_turns": 7,
+      "opening": "my lettuce leaves are going yellow",
+      "persona": "Has a small media-bed system running for two months. Only knows pH from a cheap strip test.",
+      "facts": {"where": "older outer leaves yellow first", "pH": "around 7.8 on the strip", "fish": "tilapia, eating well", "system_age": "2 months", "iron": "never added anything"}
+    },
+    {
+      "id": "make-money",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 8,
+      "opening": "can aquaponics actually make money or is it a hobby",
+      "persona": "A small trader thinking of investing savings. Cares about payback time and selling price. Sells at a local market.",
+      "facts": {"location": "Ouagadougou", "space": "about 50 m2", "fish": "clarias sells well here", "crop": "leafy greens", "time": "can work 10 hours a week", "sells": "direct at the market"}
+    },
+    {
+      "id": "plants-only",
+      "channel": "telegram", "language": "English", "experience": "beginner", "max_turns": 7,
+      "opening": "I don't want fish, just plants in water. possible?",
+      "persona": "Vegetarian who dislikes the idea of keeping fish. Wants to grow salad greens on a rooftop.",
+      "facts": {"location": "Taipei", "space": "rooftop, about 8 m2", "water": "tap", "crop": "lettuce", "power": "reliable"}
+    },
+    {
+      "id": "expert-optimize",
+      "channel": "telegram", "language": "English", "experience": "expert", "max_turns": 5,
+      "opening": "Running 30 m2 DWC with tilapia at 28C, 500 L/day makeup. Want the fish:crop ratio that maximises protein.",
+      "persona": "An experienced operator who dislikes hand-holding. Wants the answer and the assumptions, nothing else.",
+      "facts": {"crop": "lettuce", "objective": "protein"}
+    },
+    {
+      "id": "no-reliable-power",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 8,
+      "opening": "we have light only some hours a day. can I still do this?",
+      "persona": "A farmer in a village with only a few hours of grid power a day, considering solar. Grows vegetables in soil today.",
+      "facts": {"location": "Dédougou", "power": "about 6 hours a day", "space": "plenty, 100 m2", "water": "well", "fish": "tilapia", "crop": "cabbage and okra"}
+    },
+    {
+      "id": "running-system-readings",
+      "channel": "telegram", "language": "English", "experience": "intermediate", "max_turns": 6,
+      "opening": "ammonia 1.5 today, nitrite 0.5. is that bad?",
+      "persona": "Has a running 2000 L system that is six weeks old. Measured with an API test kit this morning.",
+      "facts": {"tank": "2000 L", "fish": "80 tilapia about 100 g", "system_age": "6 weeks", "feeding": "twice a day, a handful", "pH": "7.4"}
+    },
+    {
+      "id": "fr-poissons-malades",
+      "channel": "whatsapp", "language": "French", "experience": "beginner", "max_turns": 7,
+      "opening": "Mes poissons ont des taches blanches, c'est grave ?",
+      "persona": "Owner of a small clarias system near Banfora. Worried and wants to know what to do today.",
+      "facts": {"fish": "clarias", "symptom": "petits points blancs sur le corps, ils se frottent", "water_temp": "a baissé ces derniers jours, environ 22", "new_fish": "j'ai ajouté des poissons du marché la semaine dernière"}
+    },
+    {
+      "id": "budget-starter",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 8,
+      "opening": "what is the cheapest way to start",
+      "persona": "A student with very little money who wants to try on a small scale first, using recycled containers.",
+      "facts": {"location": "Ouagadougou", "space": "corner of a courtyard, 2 m2", "budget": "very small", "water": "tap", "fish": "whatever is cheap", "crop": "herbs"}
+    },
+    {
+      "id": "cold-winter-taiwan",
+      "channel": "telegram", "language": "English", "experience": "intermediate", "max_turns": 6,
+      "opening": "my tilapia stop eating every winter, what can I do",
+      "persona": "Hobbyist in northern Taiwan with an outdoor system. Winters get cold at night.",
+      "facts": {"location": "Taoyuan", "water_temp": "drops to about 15 at night in January", "system": "outdoor, 1500 L", "heater": "none", "greenhouse": "no"}
+    },
+    {
+      "id": "algae-green-water",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 6,
+      "opening": "my water is very green",
+      "persona": "Has a sunny outdoor system with an uncovered fish tank. Not sure whether green water is dangerous.",
+      "facts": {"tank_cover": "no cover, full sun", "fish": "tilapia, seem fine", "plants": "growing slower lately"}
+    },
+    {
+      "id": "general-ag-neighbour",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 6,
+      "opening": "besides aquaponics, what vegetables grow well in the hot season here?",
+      "persona": "A market gardener near Ouagadougou who is curious about aquaponics but mostly grows in soil today.",
+      "facts": {"location": "Ouagadougou", "season": "March to May, very hot and dry", "current": "onions and tomatoes in soil", "water": "well, gets low"}
+    },
+    {
+      "id": "vague-small-yard",
+      "channel": "telegram", "language": "English", "experience": "beginner", "max_turns": 8,
+      "opening": "i have a small yard, what system should I build",
+      "persona": "A homeowner in Kaohsiung who wants food for the family and does not think in square metres.",
+      "facts": {"location": "Kaohsiung", "space": "small yard, maybe like two parking spaces", "water": "tap, never short", "fish": "tilapia is fine", "crop": "pak choi", "power": "reliable"}
+    },
+    {
+      "id": "cycling-new-system",
+      "channel": "whatsapp", "language": "English", "experience": "beginner", "max_turns": 6,
+      "opening": "I just filled my system with water yesterday, when can I add fish?",
+      "persona": "Just built a small system from a kit. Does not know what cycling is.",
+      "facts": {"tank": "500 L", "fish_plan": "20 tilapia fingerlings", "test_kit": "none yet", "plants": "not planted yet"}
+    },
+    {
+      "id": "zh-roi-question",
+      "channel": "telegram", "language": "Traditional Chinese", "experience": "intermediate", "max_turns": 7,
+      "opening": "做魚菜共生多久可以回本？",
+      "persona": "A retired engineer in Tainan considering a small commercial greenhouse. Asks about payback and labour.",
+      "facts": {"location": "Tainan", "space": "溫室大約 100 平方公尺", "fish": "吳郭魚", "crop": "萵苣", "labour": "每週大約 15 小時", "sells": "直接賣給鄰居和市場"}
+    }
+  ]
+}
