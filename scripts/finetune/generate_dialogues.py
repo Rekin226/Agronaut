@@ -122,18 +122,39 @@ def persona_grid(n: int, seed: int = 7) -> list[dict]:
 
 # --- recording ---------------------------------------------------------------------------
 
-class RecordingChat:
-    """Wraps a chat model; every invoke(messages) -> reply is kept for training."""
+_TRANSIENT = ("503", "429", "overloaded", "rate limit", "temporarily", "timed out")
 
-    def __init__(self, inner, calls: list | None = None):
+
+def with_retries(call, attempts: int = 5, base_delay: float = 5.0, sleep=None):
+    """Run `call()`, retrying transient provider errors (free tiers answer 503 or 429 when
+    busy) with exponential backoff. Anything else is raised at once."""
+    import time
+    sleep = sleep or time.sleep
+    for n in range(attempts):
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001
+            if n == attempts - 1 or not any(t in str(exc).lower() for t in _TRANSIENT):
+                raise
+            sleep(min(120.0, base_delay * 2 ** n))
+
+
+class RecordingChat:
+    """Wraps a chat model; every invoke(messages) -> reply is kept for training.
+
+    `invoke_kwargs` ride along on every call (e.g. switching a reasoning model's thinking
+    off), and transient provider errors are retried rather than losing the dialogue."""
+
+    def __init__(self, inner, calls: list | None = None, invoke_kwargs: dict | None = None):
         self._inner = inner
         self.calls = calls if calls is not None else []
+        self._kw = invoke_kwargs or {}
 
     def bind_tools(self, tools):
-        return RecordingChat(self._inner.bind_tools(tools), self.calls)
+        return RecordingChat(self._inner.bind_tools(tools), self.calls, self._kw)
 
     def invoke(self, messages, *args, **kwargs):
-        reply = self._inner.invoke(messages, *args, **kwargs)
+        reply = with_retries(lambda: self._inner.invoke(messages, *args, **{**self._kw, **kwargs}))
         self.calls.append((list(messages), reply))
         return reply
 
@@ -203,18 +224,31 @@ def examples_from_calls(calls: list, channel: str, tools: list[dict]) -> list[di
     return examples
 
 
-def dialogue_passes(conv: dict, max_median_words: int = 80,
-                    min_one_question_share: float = 0.9) -> bool:
-    """consult_eval's code metrics, as a keep/drop rule for a whole dialogue."""
+def rejection_reasons(conv: dict, max_median_words: int = 80,
+                      min_one_question_share: float = 0.9, min_replies: int = 2) -> list[str]:
+    """Why a dialogue fails consult_eval's code metrics; empty when it passes. A dialogue
+    shorter than `min_replies` teaches nothing about running a consultation."""
     msgs = conv["messages"]
-    if not msgs:
-        return False
+    if len(msgs) < min_replies:
+        return [f"only {len(msgs)} assistant replies"]
     words = sorted(m["words"] for m in msgs)
     one_q = sum(1 for m in msgs if m["questions"] <= 1) / len(msgs)
-    return (all(m["em_dashes"] == 0 for m in msgs)
-            and words[len(words) // 2] <= max_median_words
-            and one_q >= min_one_question_share
-            and not any(m["reasked"] for m in msgs))
+    out = []
+    if any(m["em_dashes"] for m in msgs):
+        out.append("em dashes")
+    if words[len(words) // 2] > max_median_words:
+        out.append(f"median {words[len(words) // 2]} words")
+    if one_q < min_one_question_share:
+        out.append(f"{one_q:.0%} of replies ask at most one question")
+    if any(m["reasked"] for m in msgs):
+        out.append("re-asked a known fact")
+    if any(m.get("untraced") for m in msgs):
+        out.append("untraced numbers: " + ", ".join(u for m in msgs for u in m["untraced"])[:80])
+    return out
+
+
+def dialogue_passes(conv: dict, **kw) -> bool:
+    return not rejection_reasons(conv, **kw)
 
 
 # --- the run -----------------------------------------------------------------------------
@@ -226,17 +260,28 @@ def tool_schemas() -> list[dict]:
     return [convert_to_openai_tool(t) for t in AGRONAUT_TOOLS]
 
 
-def generate(personas: list[dict], teacher_factory, simulate, out_path: Path) -> dict:
+def teacher_invoke_kwargs(provider: str | None) -> dict:
+    """Per-call options for the teacher. NVIDIA's Nemotron 3 models reason before answering
+    unless told not to; the reasoning is slow, costs tokens, and must never become a
+    training target. TEACHER_THINKING=on keeps it."""
+    if (provider or "").lower() == "nvidia" and os.getenv("TEACHER_THINKING", "off") != "on":
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    return {}
+
+
+def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
+             invoke_kwargs: dict | None = None) -> dict:
     from agronaut_agent.core import AgronautAgent
 
     tools = tool_schemas()
     tmp = Path(tempfile.mkdtemp(prefix="finetune_gen_"))
     stats = {"dialogues": 0, "kept": 0, "examples": 0, "tokens_in": 0, "tokens_out": 0}
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("a", encoding="utf-8") as fh:
+    log_path = out_path.with_suffix(".dialogues.jsonl")
+    with out_path.open("a", encoding="utf-8") as fh, log_path.open("a", encoding="utf-8") as log:
         for i, p in enumerate(personas):
             print(f"  {p['id']} ({i + 1}/{len(personas)})", file=sys.stderr, flush=True)
-            rec = RecordingChat(teacher_factory())
+            rec = RecordingChat(teacher_factory(), invoke_kwargs=invoke_kwargs)
             agent_factory = lambda: AgronautAgent(db_path=tmp / f"{p['id']}.sqlite3",  # noqa: E731
                                                   chat_model=rec)
             try:
@@ -249,7 +294,15 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path) ->
                 usage = getattr(reply, "usage_metadata", None) or {}
                 stats["tokens_in"] += usage.get("input_tokens", 0)
                 stats["tokens_out"] += usage.get("output_tokens", 0)
-            if not dialogue_passes(conv):
+            reasons = rejection_reasons(conv)
+            log.write(json.dumps({"persona": p["id"], "kept": not reasons, "reasons": reasons,
+                                  "turns_to_advice": conv["turns_to_advice"],
+                                  "transcript": conv["transcript"]}, ensure_ascii=False) + "\n")
+            if reasons:
+                stats.setdefault("rejected_for", {})
+                for r in reasons:
+                    key = r.split(":")[0].split(" ", 1)[-1] if r[0].isdigit() else r.split(":")[0]
+                    stats["rejected_for"][key] = stats["rejected_for"].get(key, 0) + 1
                 continue
             stats["kept"] += 1
             for ex in examples_from_calls(rec.calls, p.get("channel", "whatsapp"), tools):
@@ -274,23 +327,25 @@ def main() -> int:  # pragma: no cover - CLI
         print("This calls a paid teacher model many times. Set AGRONAUT_FINETUNE_GEN=1 to run.")
         return 2
 
-    from agent.llm import get_chat_model, get_llm
+    from agent.llm import get_chat_model
 
     provider = os.getenv("TEACHER_PROVIDER")
     model = os.getenv("TEACHER_MODEL")
-    actor = get_llm(provider=provider, model=model, temperature=0.8)
+    kw = teacher_invoke_kwargs(provider)
+    actor = get_chat_model(provider, model, temperature=0.8)
 
     def simulate(scenario, turns):
-        return actor.invoke(ce._USER_SIM.format(
+        prompt = ce._USER_SIM.format(
             done=ce.DONE, persona=scenario["persona"], facts=json.dumps(scenario["facts"]),
-            language=scenario.get("language", "English"), transcript=ce._transcript(turns)))
+            language=scenario.get("language", "English"), transcript=ce._transcript(turns))
+        return _text(with_retries(lambda: actor.invoke(prompt, **kw)).content).strip()
 
     personas = persona_grid(args.n, args.seed)
     if args.with_scenarios:
         personas = json.loads(ce._SCENARIOS.read_text())["scenarios"] + personas
     with ce._RestoreClimateFiles():
         stats = generate(personas, lambda: get_chat_model(provider, model), simulate,
-                         Path(args.out))
+                         Path(args.out), invoke_kwargs=kw)
     print(json.dumps(stats, indent=1))
     if stats["dialogues"]:
         per = {k: stats[k] / stats["dialogues"] for k in ("tokens_in", "tokens_out")}

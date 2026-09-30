@@ -55,9 +55,9 @@ def test_targets_are_polished_and_corrected_replies_dropped():
     assert ex[0]["tools"] == [{"t": 1}]
 
 
-def _conv(words=20, questions=1, dashes=0, reasked=()):
+def _conv(words=20, questions=1, dashes=0, reasked=(), untraced=()):
     return {"messages": [{"words": words, "questions": questions, "em_dashes": dashes,
-                          "reasked": list(reasked)}] * 4}
+                          "reasked": list(reasked), "untraced": list(untraced)}] * 4}
 
 
 def test_dialogue_filter_uses_the_consult_metrics():
@@ -67,6 +67,8 @@ def test_dialogue_filter_uses_the_consult_metrics():
     assert not gd.dialogue_passes(_conv(dashes=1))
     assert not gd.dialogue_passes(_conv(reasked=["crop"]))
     assert not gd.dialogue_passes({"messages": []})
+    assert not gd.dialogue_passes(_conv(untraced=["400 W"]))
+    assert gd.rejection_reasons({"messages": _conv()["messages"][:1]}) == ["only 1 assistant replies"]
 
 
 class _Teacher:
@@ -85,6 +87,8 @@ def test_generate_writes_examples_and_counts_tokens(tmp_path):
     stats = gd.generate(personas, _Teacher,
                         lambda s, turns: gd.ce.DONE if len(turns) >= 4 else "Ouaga", out)
     assert stats["dialogues"] == 2 and stats["kept"] == 2
+    log = [json.loads(x) for x in out.with_suffix(".dialogues.jsonl").read_text().splitlines()]
+    assert [r["kept"] for r in log] == [True, True] and "Nice." in log[0]["transcript"]
     assert stats["tokens_in"] == 100 * 4                 # two turns per dialogue, two dialogues
     rows = [json.loads(x) for x in out.read_text().splitlines()]
     assert len(rows) == stats["examples"] == 4
@@ -108,3 +112,44 @@ def test_lora_config_and_modelfile(tmp_path):
     assert cfg["iters"] == 800 and cfg["mask_prompt"] is True
     mf = tl.modelfile(tmp_path / "fused")
     assert mf.startswith("FROM /") and "num_ctx 32768" in mf
+
+
+def test_transient_provider_errors_are_retried_and_others_are_not():
+    import pytest
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("[503] Service temporarily overloaded")
+        return "ok"
+    assert gd.with_retries(flaky, sleep=lambda s: None) == "ok" and len(calls) == 3
+
+    def broken():
+        raise ValueError("bad request: unknown model")
+    with pytest.raises(ValueError):
+        gd.with_retries(broken, sleep=lambda s: None)
+
+
+def test_nvidia_teachers_answer_without_thinking(monkeypatch):
+    monkeypatch.delenv("TEACHER_THINKING", raising=False)
+    assert gd.teacher_invoke_kwargs("nvidia") == {
+        "chat_template_kwargs": {"enable_thinking": False}}
+    assert gd.teacher_invoke_kwargs("anthropic") == {}
+    monkeypatch.setenv("TEACHER_THINKING", "on")
+    assert gd.teacher_invoke_kwargs("nvidia") == {}
+
+
+def test_invoke_kwargs_reach_the_teacher():
+    seen = {}
+
+    class _Inner:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages, **kw):
+            seen.update(kw)
+            return AIMessage(content="hi")
+    rec = gd.RecordingChat(_Inner(), invoke_kwargs={"chat_template_kwargs": {"x": 1}})
+    rec.bind_tools([]).invoke([HumanMessage(content="q")])
+    assert seen == {"chat_template_kwargs": {"x": 1}} and len(rec.calls) == 1
