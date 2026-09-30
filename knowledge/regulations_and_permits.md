@@ -6,10 +6,10 @@ legal advice. Confirm every item with your local authority before building or se
 ## What is commonly regulated
 
 - **Aquaculture / fish-keeping.** Many jurisdictions require a permit to raise fish, restrict
-  which **species** you may keep (invasive-species law is strict — e.g. some tilapia and catfish
+  which **species** you may keep (invasive-species law is strict, e.g. some tilapia and catfish
   species are banned or permit-only in certain regions), and regulate sourcing of fingerlings.
 - **Water use and discharge.** Abstraction (how much water you may draw) and, importantly,
-  **effluent discharge** — releasing nutrient-rich water to drains, ground, or waterways is often
+  **effluent discharge**, releasing nutrient-rich water to drains, ground, or waterways is often
   controlled. A well-run recirculating system discharges little, which helps.
 - **Food business / produce sales.** Selling food usually triggers registration as a food business,
   a food-safety scheme (GAP-style), labelling rules, and sometimes inspection.
@@ -17,7 +17,7 @@ legal advice. Confirm every item with your local authority before building or se
   determine whether food production is allowed at your site (urban and residential zones often
   restrict it).
 - **Organic claims.** "Organic" is a legally protected term in many markets, and several
-  **do not allow hydroponic/soil-less produce to be certified organic** — check before marketing.
+  **do not allow hydroponic/soil-less produce to be certified organic**, check before marketing.
 
 ## Species: the sharpest trap
 
@@ -37,7 +37,7 @@ local ecosystems. Verify legality *before* sizing a system around a species.
 ## What Agronaut does NOT do
 
 Agronaut does not track or enforce regulations, and its species/crop list reflects what the
-engineering model supports — **not** what is legal in your location. Always confirm with the
+engineering model supports, **not** what is legal in your location. Always confirm with the
 relevant authority. See also `food_safety_and_hygiene`.
 
 _Sources: national aquaculture and invasive-species regulations; FAO legal-frameworks guidance
