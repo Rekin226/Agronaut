@@ -122,7 +122,8 @@ def persona_grid(n: int, seed: int = 7) -> list[dict]:
 
 # --- recording ---------------------------------------------------------------------------
 
-_TRANSIENT = ("503", "429", "overloaded", "rate limit", "temporarily", "timed out")
+_TRANSIENT = ("500", "502", "503", "504", "429", "overloaded", "internal server error",
+              "rate limit", "temporarily", "timed out")
 
 
 def with_retries(call, attempts: int = 5, base_delay: float = 5.0, sleep=None):
