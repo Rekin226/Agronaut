@@ -74,7 +74,7 @@ TGC = {
                "(600 g in 9-11 months at 25-30 C)"),
     "pangasius": Coefficient(
         name="pangasius.tgc", value=1.1, low=0.8, high=1.2, unit="g^1/3/(C·d) x1000",
-        source="TRIAL: computed from Da, Lundh & Lindberg (2016), Int. Aquat. Res. 8:309-321 "
+        source="TRIAL: computed from Da, Lundh, Lindberg & Berg (2016), Int. Aquat. Res. 8:309-321 "
                "(DOI 10.1007/s40071-016-0144-z), Table 4 — pond hapa-net-cage fingerlings, "
                "16.1->229.4 g over 112 d (4 months) at 28.6 C avg: TGC = 1000 x "
                "(229.4^(1/3) - 16.1^(1/3)) / (28.6 x 112) = 1.12 on the reference diet; the "

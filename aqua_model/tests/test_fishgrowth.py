@@ -91,7 +91,7 @@ def test_pangasius_has_its_own_seed_not_the_generic_default():
 
 
 def test_pangasius_seed_comes_from_the_cited_pond_trial():
-    # Da, Lundh & Lindberg (2016) Table 4: 16.1 -> 229.4 g in 112 d at 28.6 C avg.
+    # Da, Lundh, Lindberg & Berg (2016) Table 4: 16.1 -> 229.4 g in 112 d at 28.6 C avg.
     # Reference diet computes to TGC 1.12; the seven diets span 0.80-1.20.
     c = TGC["pangasius"]
     assert c.name == "pangasius.tgc"
