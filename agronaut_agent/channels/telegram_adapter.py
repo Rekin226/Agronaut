@@ -35,6 +35,17 @@ log = logging.getLogger(__name__)
 POLL_SECONDS = 60
 
 
+def quiet_http_logs() -> None:
+    """Keep the bot token out of the logs.
+
+    The Bot API puts the token in the URL path, and httpx logs every request URL at INFO, so a
+    bot started with INFO logging wrote its token to the terminal and the journal every ten
+    seconds. Warnings and errors from httpx still get through.
+    """
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
 def _parse_allowlist(raw: str | None) -> set[str]:
     return {x.strip() for x in (raw or "").split(",") if x.strip()}
 
@@ -446,6 +457,7 @@ class TelegramAdapter(ChannelAdapter):
         app.job_queue.run_repeating(self._followup_tick, interval=POLL_SECONDS, first=5)
 
     def run(self) -> None:
+        quiet_http_logs()
         app = Application.builder().token(self.token).post_init(self._post_init).build()
         for name, handler, _desc in self._command_specs():
             app.add_handler(CommandHandler(name, handler))
