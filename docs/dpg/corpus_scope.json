@@ -1,0 +1,82 @@
+{
+ "about": "What scripts/harvest_sources.py searches for. Each entry is one OpenAlex title+abstract query (boolean AND/OR, quoted phrases) tagged with the `domain` its sources carry into the index. `cap` bounds how many candidates one domain can propose, so no neighbour topic floods the aquaponics core. Scope decided 2026-09-30: aquaponics plus its neighbours, open licences only. A `topic` pins the scope to an OpenAlex topic, which is what keeps e.g. hydroponics to production papers rather than lab studies that merely USE hydroponics as a growth method (measured: without it, 'hydroponic nutrient solution' returned cadmium-uptake and Arabidopsis papers).",
+ "licences": [
+  "cc-by",
+  "cc-by-sa",
+  "cc0",
+  "public-domain"
+ ],
+ "scopes": [
+  {
+   "domain": "aquaponics",
+   "cap": 40,
+   "topic": "T13391",
+   "query": "aquaponic OR aquaponics"
+  },
+  {
+   "domain": "aquaponics",
+   "cap": 15,
+   "query": "aquaponic AND (smallholder OR \"small-scale\" OR backyard OR household)"
+  },
+  {
+   "domain": "hydroponics",
+   "cap": 25,
+   "query": "hydroponic AND (\"nutrient solution\" OR \"electrical conductivity\" OR NFT OR \"deep water culture\")",
+   "topic": "T13391"
+  },
+  {
+   "domain": "soilless_nutrition",
+   "cap": 15,
+   "query": "(soilless OR hydroponic) AND (\"nutrient deficiency\" OR iron OR potassium OR calcium) AND (lettuce OR tomato OR leafy)",
+   "topic": "T13391"
+  },
+  {
+   "domain": "ras",
+   "cap": 20,
+   "query": "\"recirculating aquaculture\" AND (biofilter OR nitrification OR \"water quality\" OR \"solids removal\")"
+  },
+  {
+   "domain": "fish_husbandry",
+   "cap": 20,
+   "query": "(tilapia OR \"Oreochromis niloticus\" OR \"Clarias gariepinus\" OR \"African catfish\") AND (culture OR farming OR \"stocking density\" OR feeding)",
+   "topic": "T10450"
+  },
+  {
+   "domain": "fish_health",
+   "cap": 20,
+   "query": "(tilapia OR catfish OR carp) AND (disease OR parasite OR \"Ichthyophthirius\" OR Streptococcus OR biosecurity)",
+   "topic": "T10506"
+  },
+  {
+   "domain": "protected_cropping",
+   "cap": 15,
+   "query": "(greenhouse OR \"screen house\" OR \"shade net\") AND (cooling OR shading OR heat) AND (tropical OR arid OR hot)",
+   "topic": "T12093"
+  },
+  {
+   "domain": "energy_water",
+   "cap": 10,
+   "query": "(\"solar pump\" OR \"solar-powered pump\" OR \"solar irrigation\") AND (smallholder OR farm OR aquaculture)"
+  },
+  {
+   "domain": "farm_economics",
+   "cap": 15,
+   "query": "(aquaponic OR aquaculture OR hydroponic) AND (\"economic feasibility\" OR profitability OR \"cost-benefit\" OR \"business model\")"
+  },
+  {
+   "domain": "food_safety",
+   "cap": 10,
+   "query": "(aquaponic OR hydroponic OR aquaculture) AND (\"food safety\" OR \"Escherichia coli\" OR Salmonella OR pathogen)"
+  },
+  {
+   "domain": "west_africa",
+   "cap": 15,
+   "query": "(\"Burkina Faso\" OR Sahel OR \"West Africa\" OR Niger OR Mali) AND (aquaculture OR \"fish farming\" OR \"vegetable production\" OR \"market gardening\" OR irrigation)"
+  },
+  {
+   "domain": "east_asia",
+   "cap": 10,
+   "query": "(Taiwan OR \"subtropical Asia\") AND (aquaculture OR aquaponic OR \"leafy vegetable\" OR greenhouse)"
+  }
+ ]
+}

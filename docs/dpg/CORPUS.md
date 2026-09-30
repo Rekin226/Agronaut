@@ -85,6 +85,42 @@ when a declared source has gone dead or drifted:
 python -m scripts.corpus_report
 ```
 
+## Finding sources at scale: the harvester
+
+Vetting one URL at a time found four sources in a year. `scripts/harvest_sources.py` does the
+search half in bulk and keeps the judgement half with a person:
+
+```bash
+python -m scripts.harvest_sources --dry-run --domain hydroponics   # see what it would propose
+python -m scripts.harvest_sources                                  # query + vet every scope
+python -m scripts.harvest_sources --add <doi>,<doi>                # append the ones you chose
+```
+
+- **Scope.** `docs/dpg/corpus_scope.json` lists one OpenAlex title/abstract query per domain
+  (aquaponics first, then hydroponics, RAS, fish husbandry and health, protected cropping,
+  energy and water, farm economics, food safety, West Africa, East Asia), each with a `cap` so no
+  neighbouring topic can flood the aquaponics core. A `topic` pins a query to an OpenAlex topic;
+  without it, "hydroponic nutrient solution" returned cadmium-uptake and Arabidopsis studies that
+  use hydroponics as a lab method, which is the IoT/ML lesson above in a new form.
+- **Only open licences** (CC BY, CC BY-SA, CC0, public domain), and OpenAlex's licence field is
+  treated as a hint: the gate must find the licence in the source itself.
+- **Europe PMC first.** When a paper is open in PubMed Central, the harvester fetches Europe PMC's
+  JATS full text instead of the publisher PDF. MDPI answers 403 to the PDF of the same paper that
+  Europe PMC serves freely, and the JATS loader (`srcs.chatbot._jats_documents`) keeps the body
+  while dropping the reference list, affiliations and funding notes, which in a PDF would be
+  chunked as body text.
+- **Every candidate goes through `vet()`**, and `--add` refuses anything that was not ACCEPTED.
+  The report (`docs/dpg/harvest/candidates.md`) is sorted by citations and labelled like a
+  reference list, because the useful question ("does this fill a gap an operator has?") is still
+  a human one.
+- **Metadata travels with the chunks.** A harvested line carries a fifth field,
+  `domain=...;year=...;doi=...`, and every chunk of that source gets those keys plus its
+  `licence`. Hand-written guides get `domain=aquaponics` unless they carry a `_Domain: x_` line.
+  `domain`, `licence` and `year` are filterable in `agronaut_agent.rag` (see `_FILTERABLE`).
+
+Adding any source changes `urls.txt`, which `test_corpus_fingerprint` notices on purpose: re-run
+the retrieval sweep and save a new baseline before merging.
+
 ## Sources evaluated and not added
 
 Corpus breadth is the real weakness — 22 hand-written files still answer most queries. A survey

@@ -275,7 +275,11 @@ _RERANK_TRIED = False
 #   url_category   the curated category from urls.txt
 #   chapter        FAO 589 chapter, forward-filled to ~95% page coverage
 #   page           page number within a PDF source
-_FILTERABLE = {"source_type", "kb_tag", "url_category", "chapter", "page"}
+#   domain         aquaponics | hydroponics | ras | fish_health | ...  (every chunk has one)
+#   licence        the source's licence, as declared in urls.txt       (web chunks)
+#   year           publication year, from urls.txt metadata            (harvested sources)
+_FILTERABLE = {"source_type", "kb_tag", "url_category", "chapter", "page", "domain",
+               "licence", "year"}
 
 
 def _matches(metadata: dict, filters: dict) -> bool:

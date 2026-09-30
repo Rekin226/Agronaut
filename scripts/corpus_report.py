@@ -120,7 +120,10 @@ def _fetch_http_metadata(url: str) -> dict:
             m = re.search(r"<title[^>]*>(.*?)</title>", r.text, re.S | re.I)
             if m:
                 title = re.sub(r"\s+", " ", m.group(1)).strip()[:200]
-        licence = detect_licence(r.text) if "html" in ctype.lower() else ""
+        # JATS XML (Europe PMC full text) declares its licence as a creativecommons.org link,
+        # exactly like an HTML page, so the same detector reads both.
+        markup = "html" in ctype.lower() or "xml" in ctype.lower()
+        licence = detect_licence(r.text) if markup else ""
         return {"status": str(r.status_code), "final_url": r.url, "title": title,
                 "content_type": ctype.split(";")[0], "licence": licence}
     except Exception as exc:
