@@ -15,7 +15,7 @@ import time
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm
+from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
 from agent.vision import sanitize_observation
 
 from . import memory_extract, profile, runtime, semantic, twin_view
@@ -238,6 +238,15 @@ class AgronautAgent:
         dashboard) reaches no model, so a missing NVIDIA_API_KEY must not deny an operator
         their own system. Chat then reports `chat_error` instead of answering."""
         self._chat_error: str | None = None
+        # What the config asked for, recorded on every llm_call. Left None for an injected
+        # chat_model, whose provider this agent cannot know. Never raises: an unknown
+        # provider is reported by get_chat_model below, not here.
+        self._provider = self._configured_model = None
+        if chat_model is None:
+            try:
+                self._provider, self._configured_model = resolve(llm_provider, llm_model)
+            except Exception:  # noqa: BLE001
+                pass
         try:
             # chat_model injectable for tests (a fake bindable model); else build from config.
             base = chat_model if chat_model is not None else get_chat_model(llm_provider, llm_model)
@@ -453,9 +462,30 @@ class AgronautAgent:
             elapsed = int((time.perf_counter() - t0) * 1000)
         tin, tout = self._usage(ai)
         runtime.record_llm_call(elapsed, tin, tout)
+        attribution = {}
+        if self._provider:
+            attribution["provider"] = self._provider
+        model_name = self._answering_model(ai) or self._configured_model
+        if model_name:
+            attribution["model"] = model_name
         self._analytics.record("llm_call", stage=stage, latency_ms=elapsed,
-                               tokens_in=tin, tokens_out=tout)
+                               tokens_in=tin, tokens_out=tout, **attribution)
         return ai
+
+    @staticmethod
+    def _answering_model(ai) -> str | None:
+        """The model the provider says produced this reply, or None.
+
+        Read from the reply rather than the config because of ResilientChat: when the primary
+        fails twice the SMALLER fallback answers, and recording the configured name would hide
+        exactly the degradation this field exists to show. Capped in length and taken only
+        from response_metadata, which providers fill with configuration, never with content.
+        """
+        meta = getattr(ai, "response_metadata", None)
+        if not isinstance(meta, dict):
+            return None
+        name = meta.get("model_name") or meta.get("model")
+        return str(name)[:80] if name else None
 
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:

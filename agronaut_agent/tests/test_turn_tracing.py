@@ -184,3 +184,89 @@ def test_summarize_reports_latency_percentiles_and_tokens(agent):
     assert s["latency"]["turn"]["n"] == 3
     assert s["latency"]["llm"]["p50"] is not None
     assert s["tokens"]["in"] == 3600 and s["tokens"]["out"] == 180
+
+
+# --- which model answered (#185) ---------------------------------------------
+
+class _NamedChat:
+    """Answers in one call, reporting its model the way providers do in response_metadata,
+    alongside metadata that is NOT allowed into the log."""
+
+    def __init__(self, name, fail=False):
+        self.name, self.fail = name, fail
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages):
+        if self.fail:
+            raise TimeoutError("primary down")
+        return AIMessage(content="Done.",
+                         response_metadata={"model_name": self.name,
+                                            "system_fingerprint": "fp_secret"},
+                         usage_metadata={"input_tokens": 10, "output_tokens": 2,
+                                         "total_tokens": 12})
+
+
+def _agent_with(tmp_path, monkeypatch, chat):
+    monkeypatch.setenv("AGRONAUT_ANALYTICS_PATH", str(tmp_path / "a.jsonl"))
+    a = AgronautAgent(chat_model=chat, db_path=str(tmp_path / "db.sqlite"))
+    a._analytics = Analytics(path=tmp_path / "a.jsonl")
+    return a
+
+
+def test_llm_call_records_the_model_that_answered(tmp_path, monkeypatch):
+    a = _agent_with(tmp_path, monkeypatch, _NamedChat("claude-test-1"))
+    a.handle_message("test", "u1", "hello")
+    calls = [r for r in _rows(a) if r["event"] == "llm_call"]
+    assert calls and all(r["model"] == "claude-test-1" for r in calls)
+
+
+def test_a_fallback_turn_records_the_fallback_model_not_the_configured_one(tmp_path, monkeypatch):
+    """The reason this field reads the reply: ResilientChat's silent fallback to a smaller
+    model is the degradation the log must be able to show."""
+    import time
+
+    from agent.llm import ResilientChat
+
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    chat = ResilientChat(_NamedChat("big-model", fail=True), _NamedChat("small-model"))
+    a = _agent_with(tmp_path, monkeypatch, chat)
+    a._provider, a._configured_model = "nvidia", "big-model"
+    a.handle_message("test", "u1", "hello")
+    calls = [r for r in _rows(a) if r["event"] == "llm_call"]
+    assert calls and all(r["model"] == "small-model" for r in calls)
+    assert all(r["provider"] == "nvidia" for r in calls)
+
+
+def test_the_configured_model_is_used_when_the_reply_does_not_name_one(agent):
+    agent._provider, agent._configured_model = "ollama", "qwen2.5"
+    agent.handle_message("test", "u1", "size me a 12 m2 tilapia system")
+    calls = [r for r in _rows(agent) if r["event"] == "llm_call"]
+    assert calls and all((r["provider"], r["model"]) == ("ollama", "qwen2.5") for r in calls)
+
+
+def test_an_injected_model_with_no_name_records_no_attribution(agent):
+    """A guess would be worse than a gap: an unattributed row is honest, a wrong one is not."""
+    agent.handle_message("test", "u1", "size me a 12 m2 tilapia system")
+    calls = [r for r in _rows(agent) if r["event"] == "llm_call"]
+    assert calls and not any("model" in r or "provider" in r for r in calls)
+
+
+def test_only_the_model_name_leaves_response_metadata(tmp_path, monkeypatch):
+    a = _agent_with(tmp_path, monkeypatch, _NamedChat("claude-test-1"))
+    a.handle_message("test", "u1", "hello")
+    assert "fp_secret" not in json.dumps(_rows(a))
+
+
+def test_summarize_breaks_calls_and_tokens_down_by_model(tmp_path, monkeypatch):
+    a = _agent_with(tmp_path, monkeypatch, _NamedChat("claude-test-1"))
+    a._provider = "anthropic"
+    a.handle_message("test", "u1", "hello")
+    a.handle_message("test", "u1", "hello again")
+    a._analytics.record("llm_call", stage="agent", tokens_in=5)  # an old, unattributed row
+    models = a._analytics.summarize()["models"]
+    assert models["claude-test-1"]["provider"] == "anthropic"
+    assert models["claude-test-1"]["calls"] == 2
+    assert models["claude-test-1"]["tokens_in"] == 20
+    assert models["unrecorded"]["calls"] == 1
