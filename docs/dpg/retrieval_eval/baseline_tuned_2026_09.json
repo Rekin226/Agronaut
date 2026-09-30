@@ -1,4 +1,12 @@
 {
+  "corpus": {
+    "urls_sha256": "7308c04153448bd601f33ca3b7f3892af720ea1fe4e0c7ad6b5c925900f03abe",
+    "knowledge_sha256": "69a6de7f55664aa3568ad88def888a0b87a693731e8c0112f5b7615bc6d8a2bd",
+    "knowledge_files": 22,
+    "knowledge_bytes": 52957,
+    "chunks": 3941,
+    "stamped": "added 2026-09-30, after the run. knowledge/ and urls.txt last changed in 0b53aae (2026-08-30), before this baseline was measured (140e92d, 2026-09-01), so this is the corpus it measured. chunks is the count the 2026-09-01 re-sweep recorded in agronaut_agent/rag.py and the README."
+  },
   "summary": {
     "queries": 33,
     "k": 3,

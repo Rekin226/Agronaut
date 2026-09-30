@@ -331,6 +331,13 @@ this work was in review the corpus moved *again* (a 22nd knowledge file, 3935 â†
 re-running was one command rather than an afternoon. Run it after any corpus or embedding-model
 change.
 
+"Run it after any corpus change" was still a rule someone had to remember, so CI now enforces it.
+The baseline records a fingerprint of the corpus it measured (`urls.txt` plus the guides in
+`knowledge/`), and `test_corpus_fingerprint.py` fails when the shipped corpus has moved away
+from it: always when a source is added or removed, and once the guides have drifted more than
+10% in size, so one contributed guide does not block its author. It cannot see a change to the
+chunking code or to a page behind a URL.
+
 Three of the four failures share one mechanism: they add topic words to chunks in a corpus where
 every document already shares a vocabulary domain, which dilutes rather than disambiguates. What
 worked was structural â€” refusing irrelevant passages, refusing error pages, refusing to let one

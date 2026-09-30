@@ -20,6 +20,7 @@ Run it:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -27,7 +28,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
+_ROOT = Path(__file__).resolve().parents[1]
+_GOLDEN = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
+
+# The baseline the shipped retrieval constants (floor, cap, beta in agronaut_agent/rag.py) were
+# tuned against. When a re-sweep moves them, save a new baseline and point this at it.
+CURRENT_BASELINE = _ROOT / "docs" / "dpg" / "retrieval_eval" / "baseline_tuned_2026_09.json"
+
+# How far the knowledge/ guides may drift, in bytes, before the constants must be re-measured.
+# This is a trigger to re-measure, NOT a measured tolerance: nobody has measured how much drift
+# the constants survive. It is set where it is because the hand-written guides are a small
+# share of the index (two books hold ~98% of the chunks, per the 2026-09-01 re-sweep), so 10%
+# of guide bytes is a small fraction of chunks, and one contributed guide should not fail a
+# contributor's CI. Several should, cumulatively, since the comparison is against the baseline.
+_KNOWLEDGE_DRIFT_LIMIT = 0.10
 
 
 # --- pure metrics (no index, no model — unit-testable) -----------------------
@@ -102,6 +116,66 @@ def aggregate(per_query: list[dict], k: int) -> dict:
         "MRR": sum(r["rr"] for r in per_query) / n,
         "MAP@k": sum(r["ap"] for r in per_query) / n,
     }
+
+
+# --- what the baseline was measured on (pure, no index, unit-testable) ------
+
+def corpus_fingerprint(root: Path = _ROOT) -> dict:
+    """What goes INTO the index: the source list and the hand-written guides.
+
+    Hashes `urls.txt` and every .md/.txt file under `knowledge/` (the same set
+    srcs/chatbot.py loads), with their sizes. Needs no index, model or network, so CI can run
+    it on every PR.
+
+    What it does NOT cover: the chunking code, and the fetched pages behind each URL. A change
+    to either can move the constants without changing this fingerprint.
+    """
+    urls = root / "urls.txt"
+    kb = root / "knowledge"
+    files = sorted(p for p in kb.rglob("*") if p.is_file() and p.suffix.lower() in {".md", ".txt"})
+    h = hashlib.sha256()
+    total = 0
+    for p in files:
+        data = p.read_bytes()
+        total += len(data)
+        h.update(p.relative_to(kb).as_posix().encode() + b"\0" + data + b"\0")
+    return {
+        "urls_sha256": hashlib.sha256(urls.read_bytes() if urls.exists() else b"").hexdigest(),
+        "knowledge_sha256": h.hexdigest(),
+        "knowledge_files": len(files),
+        "knowledge_bytes": total,
+    }
+
+
+def corpus_drift(recorded: dict | None, current: dict,
+                 limit: float = _KNOWLEDGE_DRIFT_LIMIT) -> list[str]:
+    """Reasons the baseline no longer describes the corpus that ships. Empty means it still does.
+
+    A changed source list always counts: a new source is how the corpus tripled on 2026-08-26
+    and left every constant wrong for six days. Edits to the guides count once their total size
+    has moved past `limit` of what the baseline measured.
+    """
+    if not recorded:
+        return ["the baseline records no corpus fingerprint, so what it measured is unknown"]
+    reasons = []
+    if recorded.get("urls_sha256") != current["urls_sha256"]:
+        reasons.append("urls.txt changed: sources were added, removed or edited")
+    before = recorded.get("knowledge_bytes") or 0
+    after = current["knowledge_bytes"]
+    if before and abs(after - before) / before > limit:
+        reasons.append(f"knowledge/ grew or shrank {abs(after - before) / before:.0%} "
+                       f"({before} -> {after} bytes), past the {limit:.0%} re-measure trigger")
+    return reasons
+
+
+def _chunk_count() -> int | None:
+    """Chunks in the live index, or None when there is no index to count."""
+    try:
+        from agronaut_agent import rag
+        idx = rag._get_index()
+        return int(idx.index.ntotal) if idx is not None else None
+    except Exception:  # noqa: BLE001 (a count is a nice-to-have, never a reason to fail)
+        return None
 
 
 # --- the live run ------------------------------------------------------------
@@ -238,7 +312,14 @@ def main() -> int:
     else:
         _print(report, baseline)
 
+    if baseline:
+        drift = corpus_drift(baseline.get("corpus"), corpus_fingerprint())
+        for reason in drift:
+            print(f"  ! corpus differs from the baseline: {reason}")
+
     if args.save:
+        # First key, so a reader sees what was measured before the numbers measured on it.
+        report = {"corpus": {**corpus_fingerprint(), "chunks": _chunk_count()}, **report}
         Path(args.save).write_text(json.dumps(report, indent=2))
         print(f"\nbaseline saved -> {args.save}")
     return 0
