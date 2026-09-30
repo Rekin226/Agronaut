@@ -185,3 +185,17 @@ def test_distributions_returns_every_visible_agronaut():
     assert isinstance(found, list)
     for d in found:
         assert (d.metadata.get("Name") or "").lower() == "agronaut"
+
+
+# --- what the model is entitled to claim ---------------------------------------------------
+
+def test_the_validation_line_is_printed_whole():
+    """It was cut at 88 characters, which stopped at "It beat both a flat and a tren" and hid
+    the "0 of 7" after it: a record saying the twin lost to both baselines read like a win.
+    The line doctor shows must be the line the record produces, count included."""
+    from aqua_model import validation_status as vs
+
+    first = vs.validation_lines()[0]
+    [check] = D.check_validation_record()
+    assert check.status == OK
+    assert first in check.render()
