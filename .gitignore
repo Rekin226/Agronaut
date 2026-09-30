@@ -61,3 +61,5 @@ data/*.jsonl
 
 # Built knowledge index — derived from knowledge/ + urls.txt, rebuilt on demand
 data/.index_cache/
+# Synthetic fine-tuning dialogues, adapters and fused weights (scripts/finetune/)
+data/finetune/
