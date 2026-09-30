@@ -17,8 +17,10 @@ class WhatsAppDoctorTests(unittest.TestCase):
             checks = D.check_channels()
         failed = [c for c in checks if c.status == W.FAIL]
         self.assertEqual(len(failed), 1)
-        self.assertIn("24 h", failed[0].fix)
-        self.assertIn("API Setup", failed[0].fix)
+        # The fix points at the token that does not expire, and at the command that saves
+        # it, rather than at another short-lived test token.
+        self.assertIn("permanent System User token", failed[0].fix)
+        self.assertIn("agronaut whatsapp --token", failed[0].fix)
         self.assertIn("expired", failed[0].detail)
         get.assert_called_once()
         self.assertEqual(D.report(checks)[1], 1)

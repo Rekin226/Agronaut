@@ -33,8 +33,10 @@ from agronaut_agent.core import AgronautAgent
 # and this is the setup step people get stuck on.
 REQUIRED = {
     "WHATSAPP_TOKEN":
-        "access token — Meta app dashboard > WhatsApp > API Setup. The temporary one there "
-        "expires in 24 h; generate a permanent token from a System User for anything real.",
+        "access token. Best: a permanent System User token (business.facebook.com > Settings "
+        "> System users > Generate token, expiration Never). The test token from the app's "
+        "Step 1. Try it out can die within an hour. Save either with `agronaut whatsapp "
+        "--token`; docs/whatsapp_setup.md has every screen.",
     "WHATSAPP_PHONE_NUMBER_ID":
         "the SENDER's phone number ID, on the same API Setup page. It is a long number, not "
         "a phone number — do not paste the +country digits.",

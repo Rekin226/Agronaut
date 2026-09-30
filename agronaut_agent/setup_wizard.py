@@ -345,8 +345,9 @@ def _prompt_whatsapp(existing: dict[str, str] | None = None) -> dict[str, str]:
     out: dict[str, str] = {}
 
     print("\n  1. ACCESS token: the long one (starts EAA...) under 'Access token' >")
-    print("     'Generate token'. Meta's test token expires daily; replace it any time with")
-    print("     `agronaut whatsapp --token`.", flush=True)
+    print("     'Generate token'. That test token is short-lived (one lasted about an hour")
+    print("     on 2026-09-30). For a bot that keeps working, make a permanent System User")
+    print("     token (guide above) and save it with `agronaut whatsapp --token`.", flush=True)
     token = getpass.getpass("     Access token (hidden, "
                             + _keep_hint(existing, "WHATSAPP_TOKEN") + "): ").strip()
     if token:
@@ -406,15 +407,16 @@ def _whatsapp_reachability_help(port: int = 8080) -> None:
     print("\n  It starts the bot and a tunnel together and prints the exact Callback URL and")
     print("  verify token to paste into Meta (Step 2. Production setup > Configure")
     print("  Webhooks). It needs cloudflared (`brew install cloudflared` on a Mac).")
-    print("\n  The address changes every time it starts, and Meta's test token expires daily,")
-    print("  so for a bot that stays up, run it on a server. Telegram has neither problem.")
+    print("\n  The address changes every time the tunnel starts, so for a bot that stays up,")
+    print("  run it on a server or a named tunnel. Telegram has no such problem.")
 
 
 def replace_whatsapp_token() -> int:
     """`agronaut whatsapp --token`: swap in a new access token without editing .env by hand.
 
-    Meta's test token expires daily, and pasting a 300-character secret into a file with
-    sed was the step that failed on 2026-09-30 (run from a chat prompt, `read` got nothing).
+    Meta's test token is short-lived (one lasted about an hour on 2026-09-30), and pasting a
+    300-character secret into a file with sed was the step that failed that day (run from a
+    chat prompt, `read` got nothing). A permanent System User token goes in the same way.
     The token is checked against the Graph API before anything is written, so a bad paste
     cannot replace a working token.
     """
@@ -426,8 +428,15 @@ def replace_whatsapp_token() -> int:
     if not phone_id:
         print("WHATSAPP_PHONE_NUMBER_ID is not set yet; run `agronaut setup` first.")
         return 2
-    print("Meta: Use cases > Connect on WhatsApp > Customize > Step 1. Try it out >")
-    print("Access token > Generate token, then copy it.", flush=True)
+    # The permanent token first: pointing people at the test token here sent the maintainer
+    # to a token that died within the hour, one step before the permanent one existed.
+    print("Permanent token (recommended, never expires): business.facebook.com > Settings >")
+    print("  System users > your system user > Generate token (app: yours, expiration: Never,")
+    print("  permissions: whatsapp_business_messaging + whatsapp_business_management).")
+    print("Or a short-lived test token: developers.facebook.com > your app > Connect on")
+    print("  WhatsApp > Customize > Step 1. Try it out > Access token > Generate token.")
+    print("Full steps: github.com/Rekin226/Agronaut/blob/main/docs/whatsapp_setup.md",
+          flush=True)
     token = getpass.getpass("Paste the new access token (hidden): ").strip()
     if not token:
         print("Nothing pasted; the current token is unchanged.")

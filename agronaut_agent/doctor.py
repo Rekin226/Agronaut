@@ -234,8 +234,8 @@ def check_channels() -> list[Check]:
 
     Like the Telegram branch, the WhatsApp token is probed against its live API
     (the same Graph call `agronaut whatsapp --check` starts with): "configured"
-    and "working" are different words, and an expired 24 h API Setup token must
-    read as a failure here, not as a pass.
+    and "working" are different words, and an expired test token (they can die within
+    the hour) must read as a failure here, not as a pass.
     """
     out: list[Check] = []
     token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -271,7 +271,8 @@ def check_channels() -> list[Check]:
             out.append(Check(
                 wd.FAIL, "WhatsApp: token rejected by the Graph API",
                 wd._err(body),
-                "the API Setup token expires in 24 h — generate a new one"))
+                "make a permanent System User token (expiration Never) and save it with "
+                "`agronaut whatsapp --token`; docs/whatsapp_setup.md has the steps"))
         elif status != 200:
             out.append(Check(
                 wd.FAIL, "WhatsApp: the Graph API rejected the check",
