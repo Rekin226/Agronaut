@@ -148,18 +148,18 @@ def to_markdown(candidates: list[dict]) -> str:
 
 # --- network ----------------------------------------------------------------------------
 
-def _get_json(url: str, params: dict, attempts: int = 4) -> dict:
+def _get_json(url: str, params: dict, attempts: int = 6) -> dict:
     import requests
     headers = {"User-Agent": "AgronautHarvester/1.0 (+https://github.com/Rekin226/Agronaut)"}
     for n in range(attempts):
         r = requests.get(url, params=params, headers=headers, timeout=30)
-        if r.status_code == 429 or (r.status_code == 503 and n < attempts - 1):
-            time.sleep(2 ** n * 3)
+        if r.status_code in (429, 503) and n < attempts - 1:
+            time.sleep(min(90, 2 ** n * 5))
             continue
         r.raise_for_status()
         data = r.json()
         if "rate-limited" in str(data.get("message", "")) and n < attempts - 1:
-            time.sleep(2 ** n * 3)
+            time.sleep(min(90, 2 ** n * 5))
             continue
         return data
     raise RuntimeError(f"gave up on {url} after {attempts} attempts (rate limited)")
@@ -193,11 +193,24 @@ def lookup_pmc(doi: str) -> dict | None:
 
 
 def harvest(scopes: list[dict], licences: list[str], known: set[str],
-            query=query_openalex, pmc=lookup_pmc) -> list[dict]:
+            query=query_openalex, pmc=lookup_pmc, pause: float = 2.0,
+            failed: list | None = None) -> list[dict]:
+    """Candidates for every scope. A scope whose query fails (OpenAlex rate-limits anonymous
+    search when busy) is recorded in `failed` and skipped, so one busy minute does not
+    discard the scopes that already came back."""
     candidates = []
-    for scope in scopes:
+    for i, scope in enumerate(scopes):
         print(f"  {scope['domain']}: {scope['query'][:70]}", file=sys.stderr, flush=True)
-        works = query(scope, licences)
+        if i and pause:
+            time.sleep(pause)
+        try:
+            works = query(scope, licences)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    skipped: {exc}", file=sys.stderr)
+            if failed is not None:
+                failed.append({"domain": scope["domain"], "query": scope["query"],
+                               "error": str(exc)})
+            continue
         picked = 0
         for w in works:
             if picked >= int(scope.get("cap", 20)):
@@ -275,18 +288,23 @@ def main() -> int:  # pragma: no cover - CLI
     scope = json.loads(SCOPE_FILE.read_text())
     scopes = [s for s in scope["scopes"] if not args.domain or s["domain"] == args.domain]
     known = existing_keys(URLS_FILE.read_text(encoding="utf-8"))
-    candidates = harvest(scopes, scope["licences"], known)
+    failed: list = []
+    candidates = harvest(scopes, scope["licences"], known, failed=failed)
     if not args.dry_run:
         print(f"vetting {len(candidates)} candidates through the gate...", file=sys.stderr)
         candidates = vet_all(candidates)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    report_json.write_text(json.dumps({"candidates": candidates}, indent=1, ensure_ascii=False))
+    report_json.write_text(json.dumps({"candidates": candidates, "failed_scopes": failed},
+                                      indent=1, ensure_ascii=False))
     (REPORT_DIR / "candidates.md").write_text(to_markdown(candidates))
     by = {}
     for c in candidates:
         by.setdefault(c.get("verdict", "unvetted"), 0)
         by[c.get("verdict", "unvetted")] += 1
     print(f"{len(candidates)} candidates: {by}. Report: {REPORT_DIR / 'candidates.md'}")
+    if failed:
+        print(f"{len(failed)} scope(s) failed and were skipped: "
+              f"{', '.join(f['domain'] for f in failed)}. Re-run them with --domain.")
     return 0
 
 

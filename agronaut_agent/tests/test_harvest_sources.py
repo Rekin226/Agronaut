@@ -67,7 +67,8 @@ def test_harvest_respects_caps_and_skips_known(monkeypatch):
               "best_oa_location": {"license": "cc-by", "pdf_url": f"https://p/{i}.pdf"}}
              for i in range(10)]
     got = hs.harvest([{"domain": "aquaponics", "query": "q", "cap": 3}], ["cc-by"],
-                     known={"10.1/0"}, query=lambda s, lic: works, pmc=lambda doi: None)
+                     known={"10.1/0"}, query=lambda s, lic: works, pmc=lambda doi: None,
+                     pause=0)
     assert [c["doi"] for c in got] == ["10.1/1", "10.1/2", "10.1/3"]
     assert all(c["domain"] == "aquaponics" and c["route"] == "pdf" for c in got)
 
@@ -91,3 +92,17 @@ def test_scope_file_is_well_formed():
     scope = json.loads(hs.SCOPE_FILE.read_text())
     assert set(scope["licences"]) <= {"cc-by", "cc-by-sa", "cc0", "public-domain"}
     assert all(s["domain"] and s["query"] and s["cap"] > 0 for s in scope["scopes"])
+
+
+def test_a_failed_scope_is_skipped_and_reported():
+    def query(scope, lic):
+        if scope["domain"] == "ras":
+            raise RuntimeError("rate limited")
+        return [{**_WORK, "doi": f"https://doi.org/10.2/{scope['domain']}",
+                 "best_oa_location": {"license": "cc-by", "pdf_url": f"https://p/{scope['domain']}"}}]
+    failed = []
+    got = hs.harvest([{"domain": "ras", "query": "a", "cap": 2},
+                      {"domain": "hydroponics", "query": "b", "cap": 2}], ["cc-by"], set(),
+                     query=query, pmc=lambda d: None, pause=0, failed=failed)
+    assert [c["domain"] for c in got] == ["hydroponics"]
+    assert failed[0]["domain"] == "ras" and "rate limited" in failed[0]["error"]
