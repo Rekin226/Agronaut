@@ -6,8 +6,8 @@ via config; correctness of any design is unaffected.
 
 Select with the LLM_PROVIDER env var (or pass `provider=`):
     ollama    -> local open model via Ollama (offline; default). Tool calling works, so
-                 this drives the full agent — pick a tool-capable model (qwen2.5,
-                 llama3.1, mistral-nemo); older ones like llama3 will not call tools.
+                 this drives the full agent: pick a tool-capable model (qwen3.5,
+                 qwen2.5, llama3.1); older ones like llama3 will not call tools.
     nvidia    -> NVIDIA hosted open models (OpenAI-compatible; needs NVIDIA_API_KEY)
     hf        -> Hugging Face Inference (hosted; needs HUGGINGFACEHUB_API_TOKEN)
     hf_local  -> Hugging Face open model run LOCALLY via transformers (no token, offline
@@ -42,10 +42,13 @@ log = logging.getLogger(__name__)
 #   - Qwen/Qwen2.5-1.5B-Instruct         (Apache-2.0, tiny — for low-resource/edge field use)
 #   - microsoft/Phi-4-mini-instruct      (small, multilingual)
 DEFAULT_MODELS = {
-    # qwen2.5 rather than llama3: llama3 predates Ollama's tool-calling support, so it
-    # cannot drive the agent. Apache-2.0, good at structured output, and `ollama pull
-    # qwen2.5` is the whole install for a grower self-hosting with no API key.
-    "ollama": "qwen2.5",
+    # qwen3.5:4b, checked 2026-09-30 against ollama.com and the Hugging Face model cards:
+    # Apache-2.0 like qwen2.5 before it, tool calling in Ollama, 256K native context
+    # (qwen2.5 had 32K), 201 languages, and a 3.4 GB tag that fits a grower's laptop. The
+    # newer qwen3.6 and qwen3.8 ship only at 27B and up (18 GB+), too big for that laptop.
+    # llama3 is still out: it predates Ollama's tool calling and cannot drive the agent.
+    # Not yet run end to end against Agronaut's 30 tools; qwen2.5 still works via LLM_MODEL.
+    "ollama": "qwen3.5:4b",
     "nvidia": "meta/llama-3.1-8b-instruct",
     "hf": "Qwen/Qwen2.5-7B-Instruct",
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
@@ -63,6 +66,50 @@ DEFAULT_MODELS = {
 }
 
 SUPPORTED = tuple(DEFAULT_MODELS)
+
+# The context window Agronaut asks Ollama for (#181). Left unset, Ollama picks one from
+# memory: 4K on any machine under 24 GiB, which is every laptop a grower is likely to own.
+# Agronaut's system prompt and 30 tool schemas are about 11.3K tokens before any history,
+# and a real turn runs 17K to 26K. Measured 2026-09-30 on Ollama 0.34.4: a prompt that fits
+# the window is read whole, and one that overflows is cut to about half the window, keeping
+# the first 24 tokens and the end. At 4K that kept 2,060 of 11,287 tokens and silently
+# dropped the middle, which is where the honesty rules and the tool definitions live.
+#
+# 32K holds a real turn. It costs memory, so a small machine can lower it with
+# AGRONAUT_OLLAMA_NUM_CTX, and `agronaut doctor` warns below OLLAMA_MIN_NUM_CTX. A model
+# whose own maximum is smaller is capped at that maximum by Ollama.
+DEFAULT_OLLAMA_NUM_CTX = 32768
+OLLAMA_MIN_NUM_CTX = 16384
+
+
+def ollama_num_ctx() -> int:
+    """The context window to request from Ollama: AGRONAUT_OLLAMA_NUM_CTX, else the default.
+
+    An unreadable value falls back to the default rather than raising, because a typo in
+    .env must not stop the agent starting; `agronaut doctor` reports what was actually used.
+    """
+    raw = (os.getenv("AGRONAUT_OLLAMA_NUM_CTX") or "").strip()
+    if raw:
+        try:
+            value = int(raw)
+            if value >= 2048:
+                return value
+        except ValueError:
+            pass
+        log.warning("AGRONAUT_OLLAMA_NUM_CTX=%r is not a usable context size; using %d",
+                    raw, DEFAULT_OLLAMA_NUM_CTX)
+    return DEFAULT_OLLAMA_NUM_CTX
+
+
+def ollama_thinking() -> bool:
+    """Whether to let a thinking model (qwen3.5 is one) reason before it answers.
+
+    Off by default: on a laptop the reasoning tokens cost minutes and context, and this
+    agent's job is routing to a deterministic engine, not working the answer out itself.
+    AGRONAUT_OLLAMA_THINK=on turns it back on. Asking for it OFF is safe on a model that
+    cannot think (checked on llama3: accepted); asking for it ON makes such a model error.
+    """
+    return (os.getenv("AGRONAUT_OLLAMA_THINK") or "").strip().lower() in {"1", "on", "true", "yes"}
 
 
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
@@ -103,7 +150,10 @@ def _build_backend(provider: str, model: str, temperature: float):
         # popular local-model runtime out of the tool-calling agent entirely. Ollama itself
         # has supported tool calling since 2024; only the class chosen here did not.
         from langchain_ollama import ChatOllama
-        return ChatOllama(model=model, temperature=temperature)
+        # num_ctx is explicit because Ollama's own default truncates Agronaut's prompt on
+        # any machine under 24 GiB (#181); see DEFAULT_OLLAMA_NUM_CTX.
+        return ChatOllama(model=model, temperature=temperature, num_ctx=ollama_num_ctx(),
+                          reasoning=ollama_thinking())
     if provider == "anthropic":
         # ChatAnthropic wraps the official Anthropic SDK and reads ANTHROPIC_API_KEY from
         # the environment. Tool calling is native, so no bind_tools caveat applies here.
@@ -186,8 +236,8 @@ FALLBACK_MODELS: dict[str, str] = {
     # returns None and a failed turn says so instead of failing twice.
     "anthropic": "claude-sonnet-5",
     # Local fallback too: a grower self-hosting has no hosted tier to lean on, so a stalled
-    # 7B on a laptop should drop to something that fits in RAM rather than lose the turn.
-    "ollama": "qwen2.5:3b",
+    # model on a laptop should drop to something smaller rather than lose the turn.
+    "ollama": "qwen3.5:2b",
 }
 
 

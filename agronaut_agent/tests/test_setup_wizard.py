@@ -263,3 +263,13 @@ def test_option_three_really_reaches_the_whatsapp_branch(tmp_path, monkeypatch, 
     # The tunnel is the part that actually blocks people, so it has to be said out loud.
     assert "cloudflared" in out and "/webhook" in out
     assert "developers.facebook.com" in out
+
+
+def test_setup_points_at_the_same_ollama_model_the_agent_defaults_to(monkeypatch):
+    """Setup hard-coded qwen2.5 while agent/llm.py moved on; one source now (#181)."""
+    from agent.llm import DEFAULT_MODELS
+
+    monkeypatch.setattr(W.urllib.request, "urlopen",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
+    ok, msg = W.check_ollama()
+    assert not ok and DEFAULT_MODELS["ollama"] in msg

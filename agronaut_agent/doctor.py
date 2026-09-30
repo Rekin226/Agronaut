@@ -129,6 +129,7 @@ def check_provider() -> list[Check]:
         ok, msg = W.check_ollama()
         out.append(Check(OK if ok else FAIL, f"ollama: {msg}",
                          fix="" if ok else "start it with `ollama serve`"))
+        out.append(_ollama_context_check())
     elif provider == "anthropic":
         key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
         if not key:
@@ -142,6 +143,25 @@ def check_provider() -> list[Check]:
         out.append(Check(SKIP, f"reachability of {provider} not checked",
                          "doctor only probes ollama and anthropic so far"))
     return out
+
+
+def _ollama_context_check() -> Check:
+    """The context window Agronaut will ask Ollama for, and whether the prompt fits it (#181).
+
+    Below OLLAMA_MIN_NUM_CTX, Ollama cuts the middle out of the prompt without an error:
+    the reply still arrives, it was just written without most of its instructions.
+    """
+    from agent.llm import DEFAULT_OLLAMA_NUM_CTX, OLLAMA_MIN_NUM_CTX, ollama_num_ctx
+
+    ctx = ollama_num_ctx()
+    if ctx < OLLAMA_MIN_NUM_CTX:
+        return Check(WARN, f"ollama context {ctx} tokens is smaller than Agronaut's prompt",
+                     "the system prompt and tools alone are about 11K tokens, so Ollama will "
+                     "silently drop the middle of every prompt, instructions included",
+                     f"raise AGRONAUT_OLLAMA_NUM_CTX to at least {OLLAMA_MIN_NUM_CTX} "
+                     f"(default {DEFAULT_OLLAMA_NUM_CTX})")
+    return Check(OK, f"ollama context {ctx} tokens",
+                 "enough for the prompt and a conversation; lower it only if memory runs out")
 
 
 def check_knowledge() -> list[Check]:
