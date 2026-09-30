@@ -378,15 +378,18 @@ MORINGA = Crop(
     frr_high=90.0,
     n_uptake_g_per_m2_day=0.9,
     # Field yield from the only multi-harvest density trial we could reach: aboveground
-    # dry biomass 527-2867 kg/ha per cutting across four harvests over ~14 months
-    # (Mabapa & Ayisi 2017, Int. J. Agronomy 2941432, northern South Africa; no
-    # fertilizer, dryland — smallholder conditions). That is ~2-11 t/ha/yr of dry shoot
-    # depending on density. Leaf is a fraction of the shoot — take ~40% for cut
-    # green-matter culture — and dry leaf is ~20-25% of fresh mass, so the field
-    # fresh-leaf equivalent sits around 3.5-5 t/ha/yr. The registered 14 assumes
-    # roughly a 3-4x protected-culture multiplier under raft culture, the same kind of
-    # step water spinach and malabar spinach take, and sits under water spinach's 16.
-    # The multiplier, not the trial, is the soft link in that chain.
+    # dry biomass 527-2867 kg/ha per cutting, across four harvests in ~14 months
+    # (Mabapa et al. 2017, Int. J. Agronomy 2941432, northern South Africa; no
+    # fertilizer, dryland — smallholder conditions; per-harvest ranges in Fig. 2,
+    # e.g. Ofcolaco harvest 1: 1185-2867 kg/ha, harvest 3: 527-1035 kg/ha).
+    # Annualized: 4 cuttings / (14/12 yr) ≈ 3.4 cuts/yr → ~1.8-9.8 t/ha/yr of dry
+    # shoot. Leaf is a fraction of the shoot — take ~40% for cut green-matter
+    # culture — and dry leaf is ~20-25% of fresh mass, so the field fresh-leaf
+    # equivalent sits around ~2.9-19.7 t/ha/yr. The registered 14 (=140 t/ha/yr)
+    # therefore sits roughly 7-48x above the field trial — a step of the same
+    # order as the intensification steps its leafy siblings take, and it lands
+    # under water spinach's 16. The multiplier, not the trial, is the soft link
+    # in that chain.
     yield_kg_per_m2_year=14.0,
     # Highest-protein leafy entry in the database: USDA FDC "Drumstick leaves, raw"
     # carries 9.4 g protein/100 g fresh — about triple the leafy greens around it.
@@ -400,15 +403,17 @@ MORINGA = Crop(
     # belongs to the tree, not to a leaf-growth band, so it is not modelled.
     temp_min_c=20.0,
     temp_max_c=35.0,
-    source=("Mabapa & Ayisi 2017, Int. J. Agronomy 2941432 (northern South Africa, four "
-        "harvests over ~14 months): aboveground dry biomass 527-2867 kg/ha per cutting, "
+    source=("Mabapa et al. 2017 (Mabapa, Ayisi & Mariga), Int. J. Agronomy 2941432 "
+        "(northern South Africa, four harvests in ~14 months): aboveground dry biomass "
+        "527-2867 kg/ha per cutting (per-harvest ranges in the paper's Fig. 2), "
         "no fertilizer, dryland, for the yield base; "
         "Trigo et al. 2021, Foods 10(1):31: 'The optimum temperature range is 25-35 °C "
         "and it can even withstand 48 °C for a limited period of time', 3-5 leaf cuts "
         "per season; USDA FoodData Central 'Drumstick leaves, raw' (9.4 g protein/100 g "
         "fresh) for protein. FRR placed in FAO 589 / UVI leafy band (not measured for "
-        "this species). Yield 14 assumes a ~40% leaf share of the dry shoot, a "
-        "20-25% dry-to-fresh conversion and a ~3-4x protected-culture multiplier; the "
+        "this species). Yield 14: the trial's ~2.9-19.7 t/ha/yr field fresh-leaf "
+        "equivalent (4 cuttings in ~14 months, ~40% leaf share, 20-25% dry-to-fresh) "
+        "times a ~7-48x protected-culture multiplier; the "
         "multiplier, not the trial, is the soft link. pH 5.5-7.0 placed: the cited "
         "trial ran on soils of pH(KCl) 5.1-7.0 across its two sites and produced "
         "throughout; no species-level pH requirement was reached in the sources above. "
