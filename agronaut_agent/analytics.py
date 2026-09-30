@@ -42,10 +42,14 @@ from . import paths as _paths
 #
 # `rating` is a thumbs up/down and nothing else: an integer 1 or -1, with no free-text
 # comment field, so the human-feedback signal cannot become a content leak.
+#
+# `provider` and `model` name the backend that produced an llm_call, which is configuration,
+# not content. Without them every latency and token figure above was unattributable, and a
+# turn that silently fell back to the smaller model looked identical to one that did not.
 _ALLOWED_FIELDS = {"tool", "goal", "channel", "ok",
                    "outcome", "n_results", "k", "latency_ms", "top_score", "hybrid",
                    "filtered", "stage", "llm_ms", "llm_calls", "tokens_in", "tokens_out",
-                   "tool_calls", "rating"}
+                   "tool_calls", "rating", "provider", "model"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
 
@@ -159,6 +163,7 @@ class Analytics:
         retrieval_ms: list[int] = []
         tokens_in = tokens_out = 0
         ratings: dict[str, int] = {"up": 0, "down": 0}
+        models: dict[str, dict] = {}
         for r in self.rows():
             events[r["event"]] = events.get(r["event"], 0) + 1
             if r.get("uid"):
@@ -176,6 +181,15 @@ class Analytics:
                 retrieval_ms.append(r["latency_ms"])
             elif r["event"] == "feedback":
                 ratings["up" if (r.get("rating") or 0) > 0 else "down"] += 1
+            elif r["event"] == "llm_call":
+                # Rows written before the model was recorded are grouped as "unrecorded"
+                # rather than dropped, so the per-model counts still add up to every call.
+                key = r.get("model") or "unrecorded"
+                m = models.setdefault(key, {"provider": r.get("provider"), "calls": 0,
+                                            "tokens_in": 0, "tokens_out": 0})
+                m["calls"] += 1
+                m["tokens_in"] += r.get("tokens_in") or 0
+                m["tokens_out"] += r.get("tokens_out") or 0
         return {
             "events": events,
             "distinct_users": len(users),
@@ -187,6 +201,7 @@ class Analytics:
             },
             "tokens": {"in": tokens_in, "out": tokens_out},
             "feedback": ratings,
+            "models": models,
         }
 
 
@@ -205,6 +220,11 @@ def main() -> int:  # pragma: no cover - CLI convenience
     tok = s["tokens"]
     if tok["in"] or tok["out"]:
         print(f"Tokens: {tok['in']} in / {tok['out']} out")
+    if s["models"]:
+        print("Model calls (calls, tokens in / out):")
+        for name, m in sorted(s["models"].items(), key=lambda kv: -kv[1]["calls"]):
+            label = f"{m['provider']}/{name}" if m["provider"] else name
+            print(f"  {label:32s} {m['calls']:>5}   {m['tokens_in']} / {m['tokens_out']}")
     print("Events:")
     for ev, n in sorted(s["events"].items(), key=lambda kv: -kv[1]):
         print(f"  {ev:16s} {n}")
