@@ -171,3 +171,73 @@ def test_a_failing_relevancy_judge_does_not_void_the_other_metrics(capsys):
                          ask=_ask, embed=_fake_embed)
     assert row["response_relevancy"] is None
     assert row["faithfulness"] == 0.5 and row["citation_accuracy"] == 1.0
+
+
+# --- #182: judges checked against each other, themselves, and a person --------------------
+
+def test_kappa_is_one_for_perfect_agreement_and_undefined_for_one_label_everywhere():
+    assert fe.cohen_kappa([True, False, True], [True, False, True]) == 1.0
+    assert fe.cohen_kappa([True, True], [True, True]) is None      # nothing to chance-correct
+    assert fe.cohen_kappa([], []) is None
+
+
+def test_high_raw_agreement_can_still_mean_little():
+    """90% raw agreement from a judge that says SUPPORTED to nearly everything."""
+    person = [True] * 9 + [False]
+    judge = [True] * 10
+    assert fe.agreement(dict(enumerate(person)), dict(enumerate(judge)))["raw"] == 0.9
+    assert fe.cohen_kappa(person, judge) == 0.0
+
+
+def test_agreement_only_counts_claims_both_sides_judged():
+    a = {"q1:1": True, "q1:2": None, "q2:1": False}
+    b = {"q1:1": True, "q1:2": True, "q3:1": False}
+    assert fe.agreement(a, b)["n"] == 1
+
+
+def _report():
+    return {"meta": {"judge": "anthropic/claude"}, "per_query": [
+        {"query": "q", "context": "Tilapia stop feeding below 20 C.",
+         "claims": [{"id": "g1:1", "claim": "below 20 C they stop feeding", "verdict": True},
+                    {"id": "g1:2", "claim": "below 25 C they stop feeding", "verdict": False}]}]}
+
+
+def test_rejudging_rules_on_the_saved_claims_against_the_saved_context():
+    seen = []
+    verdicts = fe.rejudge(_report(), lambda p: seen.append(p) or "SUPPORTED")
+    assert verdicts == {"g1:1": True, "g1:2": True}
+    assert all("Tilapia stop feeding below 20 C." in p for p in seen)
+
+
+def test_score_query_keeps_claims_with_stable_ids_and_the_context():
+    row = fe.score_query("q", "A. B.", "ctx", [], lambda p: "1. a\n2. b" if "Break" in p
+                         else "SUPPORTED", lambda t: [1.0], qid="g7")
+    assert [c["id"] for c in row["claims"]] == ["g7:1", "g7:2"]
+    assert row["context"] == "ctx" and row["answer"] == "A. B."
+
+
+def test_rejudging_with_the_same_judge_is_its_run_two():
+    r = _report()
+    assert fe.next_run_name(r, "anthropic/claude") == "anthropic/claude (run 2)"
+    assert fe.next_run_name(r, "nvidia/gpt-oss") == "nvidia/gpt-oss (run 1)"
+    r["judgements"] = {"anthropic/claude (run 2)": {}}
+    assert fe.next_run_name(r, "anthropic/claude") == "anthropic/claude (run 3)"
+
+
+def test_the_agreement_table_pairs_every_judge_with_the_person_and_each_other():
+    r = _report()
+    r["judgements"] = {"nvidia/gpt-oss (run 1)": {"g1:1": True, "g1:2": False}}
+    rows = fe.agreement_table(r, {"g1:1": True, "g1:2": False})
+    assert {(x["a"], x["b"]) for x in rows} == {
+        ("human", "anthropic/claude (run 1)"), ("human", "nvidia/gpt-oss (run 1)"),
+        ("anthropic/claude (run 1)", "nvidia/gpt-oss (run 1)")}
+
+
+def test_labelling_samples_both_verdicts_and_skips_what_is_done():
+    from scripts.label_claims import sample
+    r = {"per_query": [{"query": "q", "context": "c", "claims": [
+        {"id": f"s{i}", "claim": "x", "verdict": True} for i in range(20)] + [
+        {"id": f"u{i}", "claim": "x", "verdict": False} for i in range(3)]}]}
+    picked = [c["id"] for _, c in sample(r, 10, done={"u0"})]
+    assert len(picked) == 10 and "u0" not in picked
+    assert sum(p.startswith("u") for p in picked) == 2      # every remaining UNSUPPORTED
