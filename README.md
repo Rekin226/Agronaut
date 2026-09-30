@@ -104,7 +104,8 @@ so they work even when the LLM is slow or unreachable.
 | Chat, the Telegram bot, photo understanding | A model — Ollama locally, or a hosted key |
 | `/log`, `/forecast`, `/advise`, `/approve` | A model for setup, then nothing: the twin commands never call one |
 
-Trouble, or want Docker, a hosted demo, or WhatsApp? See
+On a phone, Telegram is the recommended channel; WhatsApp works too but takes more setup
+([guide](docs/whatsapp_setup.md)). Trouble, or want Docker or a hosted demo? See
 [Install and run: all the options](#install-and-run-all-the-options).
 
 ---
@@ -600,7 +601,9 @@ python3 -m pytest        # the aqua_model core suite is pure (no model server ne
 
 ### Run the Telegram bot
 
-The consultative agent is reachable over Telegram.
+The consultative agent is reachable over Telegram. **This is the recommended way to talk to
+Agronaut from a phone**: one token from BotFather, it works on a laptop behind any router,
+and nothing expires. `agronaut setup` walks you through it in about two minutes.
 
 **The two you actually need**, in `.env` or the environment:
 
@@ -640,42 +643,42 @@ agronaut bot             # long-polls Telegram; Ctrl-C to stop (same as `python 
 
 ### Run on WhatsApp (Cloud API)
 
-Agronaut also speaks WhatsApp — the channel most smallholder-facing programs reach farmers
-on. It uses Meta's WhatsApp Cloud API (webhook in, Graph API out) and needs a WhatsApp
-Business account. Set:
+Agronaut also speaks WhatsApp, the channel most smallholder-facing programs reach farmers
+on. It is optional and takes more setup than Telegram: Meta's developer dashboard, two
+different tokens, and a public HTTPS address, because Meta calls your machine rather than
+the other way round. **[docs/whatsapp_setup.md](docs/whatsapp_setup.md) walks through
+every screen.** The short version:
+
+```bash
+agronaut setup                 # choose WhatsApp; paste the values from Meta's Step 1
+agronaut whatsapp --tunnel     # starts the bot + a public address, prints what to paste
+```
+
+`--tunnel` needs [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+(`brew install cloudflared` on a Mac). It prints the **Callback URL** and **verify token** to
+paste into Meta at *Step 2. Production setup > Configure Webhooks*, then you message the test
+number from WhatsApp on your phone.
 
 | Var | Purpose |
 |---|---|
-| `WHATSAPP_TOKEN` | permanent access token |
-| `WHATSAPP_PHONE_NUMBER_ID` | the sender phone-number id |
-| `WHATSAPP_VERIFY_TOKEN` | any string; also entered in Meta's webhook config |
-| `WHATSAPP_APP_SECRET` | app secret, used to verify inbound request signatures |
+| `WHATSAPP_TOKEN` | the **access** token (long, `EAA…`), Meta Step 1 > Generate token |
+| `WHATSAPP_PHONE_NUMBER_ID` | the sender phone-number id, Meta Step 1 |
+| `WHATSAPP_WABA_ID` | WhatsApp Business account id, Meta Step 1 (used by `--check`) |
+| `WHATSAPP_VERIFY_TOKEN` | the **verify** token (short); setup makes it, you paste it into Meta's webhook form |
+| `WHATSAPP_APP_SECRET` | App settings > Basic; verifies that messages really come from Meta |
+| `AGRONAUT_ALLOWED_IDS` | your own number, country code first, no leading 0 (Taiwan 0912… is 886912…) |
 
-```bash
-agronaut whatsapp          # serves the webhook + a follow-up poller (or: python whatsapp.py)
-```
-
-It refuses to start half-configured and tells you which variable is missing and where in the
-Meta dashboard to find it.
-
-**WhatsApp is webhook-based, not long-poll.** Unlike the Telegram bot, Meta has to reach
-*your* machine over HTTPS, so a local run needs a tunnel:
-
-```bash
-cloudflared tunnel --url http://localhost:8080     # or: ngrok http 8080
-```
-
-Paste the `https://…` URL it prints into Meta's webhook config together with your
-`WHATSAPP_VERIFY_TOKEN`, subscribe to the **messages** field, and message the number.
+When it does not answer, `agronaut whatsapp --check --url <callback url>` says which link is
+broken, and the bot window says why it refused or dropped anything. Meta's test access token
+expires daily: generate a new one and run `agronaut whatsapp --token` to swap it in.
 
 Two things worth knowing before you start:
 
-- **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. A number
-  registered to it cannot be used in the normal WhatsApp app at the same time. Start with
-  the free test number Meta gives you and message it *from* your personal phone.
-- **Meta's test number can only reply to recipients you have verified** (up to five), and
-  the token on the API Setup page expires in 24 hours. Both are fine for trying it, and both
-  need replacing (a real number, a System User token) before anyone else uses it.
+- **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. Start
+  with the free test number Meta gives you and message it *from* your personal phone.
+- **A laptop setup is temporary by nature.** The tunnel address changes on every start and
+  the test token expires daily. For a bot other people rely on, use a permanent System User
+  token and a server with a fixed address (both covered in the guide).
 
 The same brain, memory, tools, and follow-ups as Telegram.
 

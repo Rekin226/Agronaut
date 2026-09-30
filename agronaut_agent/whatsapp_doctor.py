@@ -91,7 +91,8 @@ def run_checks(*, subscribe: bool = False, public_url: str | None = None) -> lis
     status, body = _get(f"{GRAPH}/{phone_id}?fields=display_phone_number,verified_name", token)
     if status != 200:
         out.append(Check(FAIL, "token rejected by the Graph API", _err(body),
-                         "the API Setup token expires in 24 h — generate a new one"))
+                         "Meta's test token expires daily: generate a new one (Step 1. Try "
+                         "it out > Access token) and run `agronaut whatsapp --token`"))
         return out
     number = body.get("display_phone_number", "?")
     out.append(Check(OK, f"token valid — {body.get('verified_name','?')} {number}"))
@@ -167,6 +168,8 @@ def run_checks(*, subscribe: bool = False, public_url: str | None = None) -> lis
         out.append(Check(WARN, "AGRONAUT_ALLOWED_IDS is empty — the bot is open to anyone",
                          fix="set it to your own number, digits only, no +"))
     else:
+        # Normalised first: the bot now reads "+886 912..." as 886912..., so the check must too.
+        allowed = ["".join(ch for ch in a if ch.isdigit()) or a for a in allowed]
         digits = [a for a in allowed if a.isdigit() and len(a) >= 8]
         out.append(Check(OK if digits else WARN,
                          f"allowlist has {len(allowed)} entry(ies)",
@@ -175,6 +178,14 @@ def run_checks(*, subscribe: bool = False, public_url: str | None = None) -> lis
                          "same variable, so a WhatsApp number must be added alongside them, "
                          "or your messages arrive and are silently refused.",
                          "" if digits else "append your WhatsApp number, digits only, no +"))
+        from .setup_wizard import normalize_wa_numbers
+
+        _, warns = normalize_wa_numbers(",".join(digits))
+        if warns:
+            out.append(Check(WARN, "an allowed number may keep its local trunk 0",
+                             "Meta sends numbers without it (Taiwan 0912... arrives as "
+                             "886912...). The bot tolerates this, but it is worth fixing.",
+                             "remove the 0 after the country code in AGRONAUT_ALLOWED_IDS"))
     return out
 
 

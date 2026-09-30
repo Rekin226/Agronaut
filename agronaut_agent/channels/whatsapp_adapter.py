@@ -37,6 +37,19 @@ from .base import ChannelAdapter, chunk, room_identity
 
 log = logging.getLogger(__name__)
 
+
+def _digits(value) -> str:
+    """A phone number as Meta writes it: digits only, no "+", spaces or dashes."""
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def _same_but_trunk_zero(allowed: str, sender: str) -> bool:
+    """True when `allowed` is `sender` with one extra 0 just after a 1-4 digit country code."""
+    if len(allowed) != len(sender) + 1:
+        return False
+    return any(allowed[i] == "0" and allowed[:i] + allowed[i + 1:] == sender
+               for i in (1, 2, 3, 4) if i < len(allowed))
+
 GRAPH = "https://graph.facebook.com/v20.0"
 POLL_SECONDS = 60
 
@@ -54,18 +67,86 @@ class WhatsAppAdapter(ChannelAdapter):
         self.verify_token = verify_token or os.getenv("WHATSAPP_VERIFY_TOKEN", "")
         self.app_secret = app_secret or os.getenv("WHATSAPP_APP_SECRET")
         self.host, self.port = host, port
-        self.allowed_ids = set(map(str, allowed_ids)) if allowed_ids is not None else \
-            {x.strip() for x in (os.getenv("AGRONAUT_ALLOWED_IDS") or "").split(",") if x.strip()}
+        raw_ids = list(map(str, allowed_ids)) if allowed_ids is not None else \
+            [x for x in (os.getenv("AGRONAUT_ALLOWED_IDS") or "").split(",") if x.strip()]
+        # Digits only, because Meta sends `from` as digits ("88691...") while people write
+        # "+886 912 ..." in .env, and setup accepted that form. Compared as typed, every
+        # message from the one allowed number was dropped without a word.
+        self.allowed_ids = {_digits(x) for x in raw_ids if _digits(x)}
 
     # --- pure helpers (unit-tested) --------------------------------------
     def _allowed(self, sender: str) -> bool:
-        return not self.allowed_ids or str(sender) in self.allowed_ids
+        if not self.allowed_ids or _digits(sender) in self.allowed_ids:
+            return True
+        # The second silent drop of 2026-09-30: "8860912..." in .env, "886912..." from Meta.
+        # A local trunk 0 kept after the country code is tolerated, and said, because the
+        # allowlist gates quota, not identity (Meta's signature already vouches for sender).
+        for allowed in self.allowed_ids:
+            if _same_but_trunk_zero(allowed, _digits(sender)):
+                log.info("allowed number in .env keeps a local trunk 0 after the country "
+                         "code; matched anyway. Remove that 0 in AGRONAUT_ALLOWED_IDS.")
+                return True
+        # Said out loud: a silent drop here cost an afternoon of "the bot does not answer".
+        # Only the last two digits, so the log does not become a list of who wrote in.
+        log.warning("message from a number ending %s DROPPED: not in AGRONAUT_ALLOWED_IDS "
+                    "(%d allowed). Add it in full international form, digits only.",
+                    _digits(sender)[-2:] or "??", len(self.allowed_ids))
+        return False
+
+    @staticmethod
+    def describe_payload(payload: dict) -> str:
+        """What a webhook POST carried, by kind only: never the text, never a full number."""
+        kinds, statuses = [], []
+        for entry in (payload or {}).get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                kinds += [str(m.get("type")) for m in value.get("messages", [])]
+                for st in value.get("statuses", []):
+                    # The status and Meta's error code/title say WHY an outbound message
+                    # failed (e.g. 131047, the 24-hour window), which is the whole point.
+                    errs = "; ".join(f"error {e.get('code')}: {e.get('title')}"
+                                     for e in st.get("errors", []) or [])
+                    statuses.append(f"{st.get('status')}" + (f" ({errs})" if errs else ""))
+        if not kinds and not statuses:
+            return "no messages and no status updates (nothing to answer)"
+        parts = []
+        if kinds:
+            parts.append(f"{len(kinds)} message(s): {', '.join(kinds)}")
+        if statuses:
+            parts.append(f"{len(statuses)} delivery status update(s) for a message the "
+                         f"number SENT, nothing to answer: {', '.join(statuses)}")
+        return "; ".join(parts)
 
     def verify_webhook(self, mode: str, token: str, challenge: str):
         """The GET verification handshake Meta performs when you register the webhook."""
         if mode == "subscribe" and token and token == self.verify_token:
             return challenge
         return None
+
+    def describe_token_mismatch(self, received: str) -> str:
+        """Why a verify token was refused, without ever saying what either token is.
+
+        A bare "did not match" left the maintainer pasting into Meta's form four times with
+        no idea what was wrong. The usual causes are a stale token from an earlier setup run,
+        or one of the OTHER WhatsApp secrets pasted into the verify field, and both are
+        visible from shape alone: length, and the prefix Meta gives its access tokens.
+        """
+        expected = self.verify_token or ""
+        if not expected:
+            return "WHATSAPP_VERIFY_TOKEN is not set, so nothing can match"
+        if not received:
+            return "Meta sent an empty verify token"
+        if received.strip() == expected:
+            return "it matches once surrounding spaces are removed: re-paste it without them"
+        if received.lower() == expected.lower():
+            return "same letters, different capitals"
+        if received.startswith("EAA"):
+            return ("that looks like the WhatsApp ACCESS token (starts EAA), not the verify "
+                    "token: paste WHATSAPP_VERIFY_TOKEN from .env instead")
+        if self.app_secret and received == self.app_secret:
+            return "that is the APP SECRET, not the verify token"
+        return (f"Meta sent {len(received)} characters, .env has {len(expected)}: a different "
+                "token, probably one from an earlier setup run")
 
     def verify_signature(self, body: bytes, signature_header: str | None) -> bool:
         """Validate Meta's X-Hub-Signature-256 (HMAC-SHA256 over the raw body). Without an
@@ -405,8 +486,10 @@ class WhatsAppAdapter(ChannelAdapter):
                     self.end_headers()
                     self.wfile.write(challenge.encode())
                 else:
-                    log.warning("webhook verification REFUSED — hub.verify_token did not "
-                                "match WHATSAPP_VERIFY_TOKEN")
+                    log.warning("webhook verification REFUSED: hub.verify_token did not "
+                                "match WHATSAPP_VERIFY_TOKEN (%s)",
+                                adapter.describe_token_mismatch(
+                                    q.get("hub.verify_token", [""])[0]))
                     self.send_response(403)
                     self.end_headers()
 
@@ -427,7 +510,9 @@ class WhatsAppAdapter(ChannelAdapter):
                 try:
                     payload = json.loads(body or b"{}")
                 except json.JSONDecodeError:
+                    log.warning("webhook POST body was not JSON; ignored")
                     return
+                log.info("webhook POST carried %s", adapter.describe_payload(payload))
                 threading.Thread(target=adapter.handle_payload, args=(payload,),
                                  daemon=True).start()
 

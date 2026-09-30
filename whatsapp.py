@@ -59,7 +59,7 @@ def warnings() -> list[str]:
     return [f"{k} is not set — {why}" for k, why in RECOMMENDED.items() if not os.getenv(k)]
 
 
-def main() -> int:
+def main(tunnel: bool = False) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     log = logging.getLogger("agronaut.whatsapp")
@@ -81,9 +81,53 @@ def main() -> int:
                     "number(s) unless you mean to run it open.")
 
     port = int(os.getenv("WHATSAPP_PORT", "8080"))
-    log.info("starting WhatsApp webhook on port %d — Meta must reach it over HTTPS, so "
-             "point a tunnel or reverse proxy at it", port)
-    WhatsAppAdapter(AgronautAgent(), port=port).run()
+    if not tunnel:
+        log.info("starting WhatsApp webhook on port %d. Meta must reach it over HTTPS, so "
+                 "point a tunnel or reverse proxy at it (or run `agronaut whatsapp "
+                 "--tunnel` to start one here)", port)
+        WhatsAppAdapter(AgronautAgent(), port=port).run()
+        return 0
+    return _run_with_tunnel(port, log)
+
+
+def _run_with_tunnel(port: int, log) -> int:
+    """Bot and public address in one process, and the values Meta needs printed on screen."""
+    import threading
+
+    from agronaut_agent import whatsapp_tunnel as T
+
+    tun = T.QuickTunnel(port)
+    try:
+        base = tun.start()
+    except T.TunnelUnavailable as err:
+        print(f"\nCould not start the tunnel: {err}\n", file=sys.stderr)
+        return 2
+    verify = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    print(T.paste_card(base, verify), flush=True)
+
+    def _self_check():
+        if T.probe_until_reachable(base, verify):
+            log.info("public address works: %s answers Meta's handshake. Paste it into Meta "
+                     "now if you have not already.", T.webhook_url(base))
+        else:
+            log.warning("this computer could not reach %s yet. That is often only this "
+                        "machine's DNS cache and Meta can reach it anyway: paste it and click "
+                        "Verify and save. If Meta also fails, restart this command.",
+                        T.webhook_url(base))
+
+    threading.Thread(target=_self_check, daemon=True).start()
+    import signal
+
+    # A plain `kill` or a closed terminal sends SIGTERM, which skips `finally` unless it is
+    # turned into an exit: that would leave cloudflared serving a dead address.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        WhatsAppAdapter(AgronautAgent(), port=port).run()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        tun.stop()
+        log.info("stopped the bot and the tunnel; the address above no longer works")
     return 0
 
 

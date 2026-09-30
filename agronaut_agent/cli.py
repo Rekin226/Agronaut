@@ -70,9 +70,13 @@ def _cmd_whatsapp(args) -> int:
         text, code = doc.report(checks)
         print(text)
         return code
+    if args.token:
+        from . import setup_wizard
+
+        return setup_wizard.replace_whatsapp_token()
     import whatsapp
 
-    return whatsapp.main()
+    return whatsapp.main(tunnel=args.tunnel)
 
 
 def _cmd_review(args) -> int:
@@ -195,6 +199,12 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="check, and repair the WABA subscription Meta's dashboard hides")
     wa.add_argument("--url", metavar="HTTPS_URL",
                     help="your public webhook URL, to test that Meta can actually reach it")
+    wa.add_argument("--tunnel", action="store_true",
+                    help="also start a cloudflared tunnel and print the Callback URL and "
+                         "verify token to paste into Meta (easiest on a laptop)")
+    wa.add_argument("--token", action="store_true",
+                    help="replace the WhatsApp access token (Meta's test token expires "
+                         "daily): paste it hidden, it is checked, then saved")
     wa.set_defaults(func=_cmd_whatsapp)
     sub.add_parser("doctor", help="check your install, config, provider, corpus and data"
                    ).set_defaults(func=_cmd_doctor)
