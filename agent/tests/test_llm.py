@@ -10,7 +10,7 @@ def test_default_provider_and_model(monkeypatch):
     monkeypatch.delenv("LLM_MODEL", raising=False)
     provider, model = L.resolve()
     assert provider == "ollama"
-    assert model == "qwen2.5"
+    assert model == "qwen3.5:4b"
 
 
 def test_env_selects_provider_and_model(monkeypatch):
@@ -126,7 +126,7 @@ def test_every_default_model_can_bind_tools_or_is_documented_as_hosted():
     start and the error names the provider rather than the model."""
     from langchain_ollama import ChatOllama
     assert hasattr(ChatOllama, "bind_tools")
-    assert L.DEFAULT_MODELS["ollama"].startswith("qwen2.5"), (
+    assert L.DEFAULT_MODELS["ollama"].startswith("qwen3.5"), (
         "the default Ollama tag must be one that supports tool calling; llama3 does not")
 
 
@@ -135,6 +135,41 @@ def test_the_local_provider_has_a_fallback_too():
     than it does for a provider with a big model behind it."""
     assert "ollama" in L.FALLBACK_MODELS
     assert L.FALLBACK_MODELS["ollama"] != L.DEFAULT_MODELS["ollama"]
+
+
+# --- the Ollama context window (#181) ------------------------------------------------------
+#
+# Left unset, Ollama gives any machine under 24 GiB a 4K window and silently cuts the middle
+# out of a prompt that overflows it. Measured: 2,060 of 11,287 tokens kept. These pin that the
+# window is always requested explicitly. Constructing ChatOllama contacts no server.
+
+def test_ollama_is_always_asked_for_an_explicit_context_window(monkeypatch):
+    monkeypatch.delenv("AGRONAUT_OLLAMA_NUM_CTX", raising=False)
+    model = L.get_chat_model(provider="ollama", model="qwen3.5:4b")
+    assert model.num_ctx == L.DEFAULT_OLLAMA_NUM_CTX == 32768
+
+
+def test_the_context_window_can_be_lowered_for_a_small_machine(monkeypatch):
+    monkeypatch.setenv("AGRONAUT_OLLAMA_NUM_CTX", "16384")
+    assert L.get_chat_model(provider="ollama", model="qwen3.5:4b").num_ctx == 16384
+
+
+@pytest.mark.parametrize("bad", ["32k", "", "  ", "512", "-1"])
+def test_an_unusable_context_setting_falls_back_instead_of_breaking_startup(monkeypatch, bad):
+    monkeypatch.setenv("AGRONAUT_OLLAMA_NUM_CTX", bad)
+    assert L.ollama_num_ctx() == L.DEFAULT_OLLAMA_NUM_CTX
+
+
+def test_thinking_is_off_by_default_and_can_be_turned_on(monkeypatch):
+    """Off is safe on a model that cannot think (llama3 accepts think=false); on is not."""
+    monkeypatch.delenv("AGRONAUT_OLLAMA_THINK", raising=False)
+    assert L.get_chat_model(provider="ollama", model="qwen3.5:4b").reasoning is False
+    monkeypatch.setenv("AGRONAUT_OLLAMA_THINK", "on")
+    assert L.get_chat_model(provider="ollama", model="qwen3.5:4b").reasoning is True
+
+
+def test_the_local_fallback_is_smaller_than_the_default():
+    assert L.FALLBACK_MODELS["ollama"] == "qwen3.5:2b"
 
 
 # --- the Anthropic provider ---------------------------------------------------------------

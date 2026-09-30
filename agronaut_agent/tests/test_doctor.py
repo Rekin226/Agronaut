@@ -199,3 +199,19 @@ def test_the_validation_line_is_printed_whole():
     [check] = D.check_validation_record()
     assert check.status == OK
     assert first in check.render()
+
+
+# --- the Ollama context window (#181) ------------------------------------------------------
+
+def test_a_context_window_smaller_than_the_prompt_is_a_warning(monkeypatch):
+    """Ollama cuts an overflowing prompt without an error, so doctor is where it surfaces."""
+    monkeypatch.setenv("AGRONAUT_OLLAMA_NUM_CTX", "4096")
+    check = D._ollama_context_check()
+    assert check.status == WARN
+    assert "AGRONAUT_OLLAMA_NUM_CTX" in check.fix
+
+
+def test_the_default_context_window_passes(monkeypatch):
+    monkeypatch.delenv("AGRONAUT_OLLAMA_NUM_CTX", raising=False)
+    check = D._ollama_context_check()
+    assert check.status == OK and "32768" in check.label

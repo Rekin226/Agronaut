@@ -59,7 +59,7 @@ Chat needs a language model. [Ollama](https://ollama.com) is the shortest path, 
 Agronaut already defaults to it:
 
 ```bash
-ollama pull qwen2.5        # ~5 GB, once. Any tool-calling model works.
+ollama pull qwen3.5:4b     # ~3.4 GB, once. Any tool-calling model works.
 agronaut                   # chat in your terminal
 ```
 
@@ -75,7 +75,8 @@ Config lives in `~/.config/agronaut/.env` for an installed copy, or `./.env` in 
 
 </details>
 
-> No GPU? `qwen2.5:3b` runs on an ordinary laptop CPU. Would rather not run a model at all?
+> Tight on memory? `qwen3.5:2b` (2.7 GB) is smaller: pull it and set `LLM_MODEL=qwen3.5:2b`.
+> Would rather not run a model at all?
 > A free hosted key works instead: `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY` from
 > [build.nvidia.com](https://build.nvidia.com).
 
@@ -420,7 +421,7 @@ The chat layer is model-agnostic — pick a backend with one env var, no code ch
 
 | Provider | `LLM_PROVIDER` | Notes |
 |---|---|---|
-| Ollama (local) | `ollama` | **Offline, default (`qwen2.5`), drives the full tool-calling agent.** The shortest path for a grower self-hosting with no API key: `ollama pull qwen2.5` and go. Pick a tool-capable tag — older ones (`llama3`, `mistral`) bind tools and then never call any. Photos too: `VLM_PROVIDER=ollama` with `ollama pull llama3.2-vision`. |
+| Ollama (local) | `ollama` | **Offline, default (`qwen3.5:4b`), drives the full tool-calling agent.** The shortest path for a grower self-hosting with no API key: `ollama pull qwen3.5:4b` and go. Pick a tool-capable tag: older ones (`llama3`, `mistral`) bind tools and then never call any. Photos too: `VLM_PROVIDER=ollama` with `ollama pull llama3.2-vision`. |
 | NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
 | Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
 | Self-hosted (OpenAI-compatible) | `openai_compat` | Zero proprietary API — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
@@ -431,12 +432,21 @@ Agronaut is meant to be run by the grower, on their own machine, so the no-vendo
 the one that matters most. The shortest version is Ollama:
 
 ```bash
-ollama pull qwen2.5                 # the brain
+ollama pull qwen3.5:4b              # the brain
 ollama pull llama3.2-vision         # optional: photo understanding
 export LLM_PROVIDER=ollama          # this is already the default
 export VLM_PROVIDER=ollama          # only needed if you pulled the vision model
 python bot.py
 ```
+
+**Context window.** Agronaut asks Ollama for a 32K-token context. Left to itself, Ollama
+gives any machine under 24 GiB of memory 4K, and Agronaut's instructions and tool
+definitions alone are about 11K tokens. Ollama does not refuse a prompt that is too long: it
+silently cuts the middle out, which is where the instructions live (measured in #181). A
+larger context uses more memory, so on a small machine you can lower it with
+`AGRONAUT_OLLAMA_NUM_CTX` (`agronaut doctor` warns below 16K). qwen3.5 can also "think" before
+answering; that is off by default because on a laptop it costs minutes, and
+`AGRONAUT_OLLAMA_THINK=on` turns it back on.
 
 That is the whole setup: no API key, no account, no connectivity after the pull. Every
 subsystem a grower touches runs on their own machine — the tool-calling agent, the
@@ -614,7 +624,9 @@ this until something needs changing.</summary>
 | `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
 | `AGRONAUT_RERANK` / `AGRONAUT_MD_HEADERS` / `AGRONAUT_PDF_SECTIONS` | techniques that measured *worse* on this corpus and ship disabled — kept because the verdict is corpus-dependent (see `docs/dpg/retrieval_eval/techniques.json`) |
 | `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain. Defaults to `ollama` (local, no key); `nvidia` is free at [build.nvidia.com](https://build.nvidia.com) |
-| `LLM_MODEL` | optional. Local default `qwen2.5`. On NVIDIA, `mistralai/mistral-nemotron` measured ~20x faster than `llama-3.3-70b` with correct tool calls ([docs/telegram_twin_testing.md](docs/telegram_twin_testing.md)) |
+| `LLM_MODEL` | optional. Local default `qwen3.5:4b`. On NVIDIA, `mistralai/mistral-nemotron` measured ~20x faster than `llama-3.3-70b` with correct tool calls ([docs/telegram_twin_testing.md](docs/telegram_twin_testing.md)) |
+| `AGRONAUT_OLLAMA_NUM_CTX` | context window requested from Ollama (default 32768). Lower only if memory runs out; below 16384 the prompt gets cut and `agronaut doctor` warns |
+| `AGRONAUT_OLLAMA_THINK` | `on` lets a thinking model (qwen3.5) reason before answering. Off by default: slow on a laptop |
 | `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model (`VLM_PROVIDER=nvidia`, needs `NVIDIA_API_KEY`); set `VLM_PROVIDER=ollama` and `ollama pull llama3.2-vision` to run it locally with no key and no connectivity. `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
 | `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
 

@@ -143,6 +143,12 @@ def check_anthropic_key(key: str) -> tuple[bool, str]:
         return False, f"could not reach Anthropic: {e}"
 
 
+def _ollama_default() -> str:
+    """One source for the model name, so setup cannot drift from agent/llm.py again."""
+    from agent.llm import DEFAULT_MODELS
+    return DEFAULT_MODELS["ollama"]
+
+
 def check_ollama() -> tuple[bool, str]:
     host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
     if not host.startswith("http"):
@@ -151,10 +157,11 @@ def check_ollama() -> tuple[bool, str]:
         with urllib.request.urlopen(f"{host}/api/tags", timeout=8) as f:
             models = [m["name"] for m in json.load(f).get("models", [])]
         if not models:
-            return False, "Ollama is running but has no models — try `ollama pull qwen2.5`"
+            return False, f"Ollama is running but has no models, try `ollama pull {_ollama_default()}`"
         return True, f"Ollama has {', '.join(models[:4])}"
     except Exception:  # noqa: BLE001
-        return False, "Ollama is not running — install it from ollama.com, then `ollama pull qwen2.5`"
+        return False, ("Ollama is not running: install it from ollama.com, then "
+                       f"`ollama pull {_ollama_default()}`")
 
 
 # --- the interactive parts ----------------------------------------------------------------
@@ -326,7 +333,7 @@ def run() -> int:
     elif choice == 2:
         ok, msg = check_ollama()
         print(f"  {'OK' if ok else 'x'} {msg}")
-        updates.update(LLM_PROVIDER="ollama", LLM_MODEL="qwen2.5")
+        updates.update(LLM_PROVIDER="ollama", LLM_MODEL=_ollama_default())
     elif choice == 3:
         key = getpass.getpass("  Paste your NVIDIA API key (hidden): ").strip()
         if key:
