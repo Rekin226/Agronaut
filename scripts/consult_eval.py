@@ -54,8 +54,10 @@ _SCENARIOS = _DIR / "scenarios.json"
 EM_DASH = "—"
 DONE = "[DONE]"
 
-# Tools whose call means the bot moved from gathering to advising.
+# Tools whose call means the bot moved from gathering to advising. Troubleshooting advice is
+# usually cited knowledge plus a scheduled check-in rather than a sizing, so those count too.
 RECOMMENDING_TOOLS = frozenset({
+    "search_knowledge_base", "schedule_followup",
     "size_aquaponics_system", "size_hydroponic_system_tool", "size_mixed_bed_aquaponics",
     "optimize_fish_crop_ratio", "design_full_system", "triage_visual_symptoms",
     "estimate_system_cost", "business_case", "simulate_season", "simulate_my_system",
