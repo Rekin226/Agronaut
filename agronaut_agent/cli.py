@@ -206,8 +206,8 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="also start a cloudflared tunnel and print the Callback URL and "
                          "verify token to paste into Meta (easiest on a laptop)")
     wa.add_argument("--token", action="store_true",
-                    help="replace the WhatsApp access token (Meta's test token expires "
-                         "daily): paste it hidden, it is checked, then saved")
+                    help="save a WhatsApp access token, ideally a permanent System User "
+                         "token: paste it hidden, it is checked with Meta, then saved")
     wa.set_defaults(func=_cmd_whatsapp)
     sub.add_parser("doctor", help="check your install, config, provider, corpus and data"
                    ).set_defaults(func=_cmd_doctor)

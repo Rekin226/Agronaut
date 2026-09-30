@@ -14,7 +14,7 @@ reason setup fails.
 
 | Value | Looks like | Where it comes from | Where it goes |
 |---|---|---|---|
-| **Access token** | very long, starts `EAA…` | Meta, Step 1 > Generate token | your `.env` (`WHATSAPP_TOKEN`) |
+| **Access token** | very long, starts `EAA…` | Meta, Step 1 > Generate token (short-lived), or a permanent System User token (section below) | your `.env` (`WHATSAPP_TOKEN`) |
 | **Verify token** | short, 22 characters | `agronaut setup` makes it for you | Meta's webhook form, Step 2 |
 | Phone Number ID | long number (not a phone number) | Meta, Step 1 | your `.env` |
 | WhatsApp Business account ID | long number | Meta, Step 1 | your `.env` |
@@ -39,7 +39,9 @@ On **Step 1. Try it out**, under **Claim a WhatsApp test number**:
 - **Test number**: this is the bot's number, something like `+1 (555) 198-5979`. You will
   message it from your own phone.
 - **Phone Number ID** and **WhatsApp Business account ID**: copy both.
-- **Access token > Generate token**: copy the long `EAA…` token.
+- **Access token > Generate token**: copy the long `EAA…` token. This one is for trying
+  things out and is short-lived: on 2026-09-30 one lasted about an hour. Once the bot
+  answers, replace it with a [permanent token](#a-permanent-token-do-this-once).
 
 Under **Send a message from your test number**, open the **To** (recipient) list and add
 **your own WhatsApp number**, then confirm it with the code Meta sends you. Meta's test
@@ -126,31 +128,45 @@ The bot window also says why it ignored something:
 | `message from a number ending NN DROPPED` | your number is not in `AGRONAUT_ALLOWED_IDS` | fix it in `.env` (digits only, no leading 0) and restart |
 | `delivery status update(s) … failed (error …)` | a reply could not be delivered | the error code says why; often the recipient list |
 | nothing at all | Meta is calling an old address | paste the current Callback URL again (step 6) |
-| `token rejected by the Graph API` in `--check` | the access token expired (daily) | see below |
+| `whatsapp send failed (401) … code 190` | the access token expired, so replies cannot be sent | a [permanent token](#a-permanent-token-do-this-once) |
+| `token rejected by the Graph API` in `--check` | the access token expired or was revoked | a [permanent token](#a-permanent-token-do-this-once) |
 
-## Every day: the access token expires
+## A permanent token (do this once)
 
-Meta's test access token lasts about a day. Generate a new one (Step 1 > Access token >
-Generate token) and run:
+The test token from Step 1 is short-lived: on 2026-09-30 one lasted about an hour, and the
+bot silently stopped replying when it died. A System User token does not expire. These are
+the screens as they were walked through on 2026-09-30, in Meta Business Settings
+(business.facebook.com), not the developer dashboard:
 
-```bash
-agronaut whatsapp --token
-```
+1. **Settings > Users > System users > + Add.** Name it (e.g. `agronaut-bot`), role
+   **Admin**, **Create system user**.
+2. **Give it your app.** On that system user, **Assign assets > Apps**, tick your app,
+   switch on **Manage app** under *Full control*, **Assign**. The app then shows under
+   *Assigned assets* with **Full access**.
+3. **Give it your WhatsApp account.** **Settings > Business assets > WhatsApp accounts**,
+   select the account the bot uses (the one whose ID is `WHATSAPP_WABA_ID`, for the test
+   number it is called *Test WhatsApp Business Account*), **Assign people**, pick the
+   system user, **Full control**, **Assign**. Back on the system user it now lists
+   2 business assets.
+4. **Generate token** on the system user: your app, **Token expiration: Never**, and the
+   permissions `whatsapp_business_messaging` and `whatsapp_business_management`
+   (Meta's guide also lists `business_management`; the bot works without it). Copy it now,
+   Meta shows it once.
+5. Save it and restart the bot:
 
-Paste it (it stays hidden), and it is checked with Meta before it replaces the old one.
-Restart the bot afterwards.
+   ```bash
+   agronaut whatsapp --token
+   ```
+
+   Paste it (it stays hidden). It is checked with Meta before it replaces the old one, and
+   `agronaut whatsapp --check` should then pass every line.
+
+Meta's own version of these steps is Step 5 of its
+[Get Started guide](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started).
 
 ## For a bot that stays up
 
-Two things make the laptop setup temporary: the tunnel address changes every time it
-starts, and the test token expires daily.
-
-- **A permanent token.** Meta's steps (from its
-  [Get Started guide](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started),
-  Step 5): in **Business Settings > System users**, add a system user, **Assign assets**
-  (your app with *Manage app*, your WhatsApp account with *Manage WhatsApp Business
-  accounts*), then **Generate token** with the permissions `business_management`,
-  `whatsapp_business_messaging` and `whatsapp_business_management`. Save it with
-  `agronaut whatsapp --token`.
-- **A fixed address.** Run Agronaut on a server with a domain and a certificate, or use a
-  named Cloudflare tunnel, and register that address once.
+With a permanent token, the one thing left that changes is the tunnel address: a quick
+tunnel gets a new one every time it starts, and you paste it into Meta again. To register
+an address once, run Agronaut on a server with a domain and a certificate, or use a named
+Cloudflare tunnel.

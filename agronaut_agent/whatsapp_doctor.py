@@ -91,8 +91,9 @@ def run_checks(*, subscribe: bool = False, public_url: str | None = None) -> lis
     status, body = _get(f"{GRAPH}/{phone_id}?fields=display_phone_number,verified_name", token)
     if status != 200:
         out.append(Check(FAIL, "token rejected by the Graph API", _err(body),
-                         "Meta's test token expires daily: generate a new one (Step 1. Try "
-                         "it out > Access token) and run `agronaut whatsapp --token`"))
+                         "the token expired or was revoked. Make a permanent System User token "
+                         "(Business Settings > System users > Generate token, expiration Never) "
+                         "and save it with `agronaut whatsapp --token`"))
         return out
     number = body.get("display_phone_number", "?")
     out.append(Check(OK, f"token valid — {body.get('verified_name','?')} {number}"))

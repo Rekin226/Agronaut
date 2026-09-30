@@ -682,15 +682,17 @@ number from WhatsApp on your phone.
 
 When it does not answer, `agronaut whatsapp --check --url <callback url>` says which link is
 broken, and the bot window says why it refused or dropped anything. Meta's test access token
-expires daily: generate a new one and run `agronaut whatsapp --token` to swap it in.
+is short-lived (one lasted about an hour): once the bot answers, make a permanent System
+User token ([steps](docs/whatsapp_setup.md#a-permanent-token-do-this-once)) and save it with
+`agronaut whatsapp --token`.
 
 Two things worth knowing before you start:
 
 - **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. Start
   with the free test number Meta gives you and message it *from* your personal phone.
-- **A laptop setup is temporary by nature.** The tunnel address changes on every start and
-  the test token expires daily. For a bot other people rely on, use a permanent System User
-  token and a server with a fixed address (both covered in the guide).
+- **Two things make a laptop setup temporary.** The test token dies quickly (fix: a
+  permanent System User token, once) and the quick-tunnel address changes on every start
+  (fix: a server or a named tunnel with a fixed address). Both are covered in the guide.
 
 The same brain, memory, tools, and follow-ups as Telegram.
 
