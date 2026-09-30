@@ -42,20 +42,21 @@ class Reply:
     document_mime: str = "application/json"
 
 
-HELP = """🌱 *Agronaut* — your aquaponics assistant.
+HELP = """🌱 *Agronaut*, your aquaponics assistant.
 
 Just describe your system or ask a question. Or use a command:
 
-/log — put readings into your LIVE twin (no AI in the path)
+/log: put readings into your LIVE twin (no AI in the path)
     /log ammonia 0.5 nitrate 40 temp 27
-/forecast — your twin now + the week ahead (add shade/poly/heated)
-/advise — what to do, numbered; then /approve 1 3 or /reject 2
-/whoami — what I remember about you
-/export — download everything I hold about you (open JSON)
-/reset — clear this conversation (keeps long-term memory)
-/forget — wipe everything I know about you
-/delete_me — permanently erase all your data
-/good, /bad — tell me if an answer helped
+/forecast: your twin now + the week ahead (add shade/poly/heated)
+/advise: what to do, numbered; then /approve 1 3 or /reject 2
+/design, /optimize, /troubleshoot: start a guided consultation
+/whoami: what I remember about you
+/export: download everything I hold about you (open JSON)
+/reset: clear this conversation (keeps long-term memory)
+/forget: wipe everything I know about you
+/delete_me: permanently erase all your data
+/good, /bad: tell me if an answer helped
 
 I never touch your equipment: /advise proposes, you decide."""
 
@@ -190,12 +191,12 @@ def dispatch(agent, channel: str, identity: str, text: str) -> Reply | None:
 
     if name == "reset":
         agent.reset(channel, identity)
-        return Reply("Cleared this conversation. I still remember your system — "
+        return Reply("Cleared this conversation. I still remember your system; "
                      "/forget wipes that too.")
 
     if name == "forget":
         agent.forget_everything(channel, identity)
-        return Reply("Done — I've wiped everything I knew about your system. Clean slate.")
+        return Reply("Done. I've wiped everything I knew about your system. Clean slate.")
 
     if name in ("delete_me", "deleteme"):
         agent.delete_me(channel, identity)
@@ -203,8 +204,9 @@ def dispatch(agent, channel: str, identity: str, text: str) -> Reply | None:
                      "all gone.")
 
     if name in ("design", "optimize", "troubleshoot"):
-        # Telegram uses these as mode switches with their own prompts; here they are hints
-        # that go to the agent as ordinary text rather than silently doing nothing.
-        return None
+        # The same mode switch Telegram's buttons make. These once returned None and went
+        # to the model as the bare text "/design", so on WhatsApp the goal was never set
+        # and the first question depended on the model guessing what "/design" meant.
+        return Reply(agent.set_goal(channel, identity, name))
 
     return Reply(f"I don't know /{name}. Try /help for the list.")

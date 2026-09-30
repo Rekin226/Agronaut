@@ -151,7 +151,7 @@ def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
         with st.spinner(spinner):
             reply = _route_turn(agent, _web_user(), user_text, image_bytes)
     except Exception:
-        reply = ("Something went wrong talking to the model — your message wasn't lost, "
+        reply = ("Something went wrong talking to the model. Your message wasn't lost, "
                  "please try again.")
     _add_message("assistant", reply)
 
@@ -204,7 +204,7 @@ def main() -> None:
     _render_messages()
 
     if not st.session_state.messages:
-        st.info("Tell me what you're trying to do — design a system, optimize a ratio, "
+        st.info("Tell me what you're trying to do: design a system, optimize a ratio, "
                 "or troubleshoot a problem. You can attach a photo of the plants, fish, "
                 "or water and I'll take a look.")
 

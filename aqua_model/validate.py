@@ -91,6 +91,27 @@ def validate_design_input(
     )
 
 
+GATED_PROFILE_FIELDS = tuple(_BOUNDS)
+
+
+def check_design_field(field: str, value) -> str | None:
+    """Check ONE design field against the same bounds `validate_design_input` enforces.
+
+    For callers that store a value before any design exists, like a profile update: a value
+    this rejects would be rejected at sizing time too, so storing it would only postpone the
+    error and leave it in memory meanwhile. Returns the problem, or None when the value is
+    fine (or the field is not one the gate bounds)."""
+    if field not in _BOUNDS:
+        return None
+    errors: list[str] = []
+    val = _as_float(value, field, errors)
+    if val is not None:
+        lo, hi = _BOUNDS[field]
+        if not (lo <= val <= hi):
+            errors.append(f"{field}={val} out of range [{lo}, {hi}]")
+    return "; ".join(errors) or None
+
+
 def _validate_system_type(system_type, errors) -> str:
     key = str(system_type or "raft").strip().lower()
     if key not in SYSTEM_TYPES:

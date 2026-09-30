@@ -666,3 +666,39 @@ def test_logging_without_a_reading_store_still_works(monkeypatch):
     finally:
         runtime.clear_current()
     assert "Logged." in text
+
+
+def test_update_profile_never_stores_a_value_the_design_gate_rejects():
+    """Standing constraint: inputs the gate rejected are never persisted. A beginner's
+    fuzzy answer goes through update_profile first, so the gate's bounds apply here too."""
+    from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
+    from agronaut_agent.tools import update_profile
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:g")
+    try:
+        out = update_profile.invoke({"updates": {
+            "grow_area_m2": 0, "temperature_c": "warm", "crop": "lettuce"}})
+    finally:
+        runtime.clear_current()
+
+    facts = mem.get_facts("cli:g")
+    assert facts.get("crop") == "lettuce"            # the good value is kept
+    assert "grow_area_m2" not in facts and "temperature_c" not in facts
+    assert "VALIDATION_FAILED" in out and "corrected value" in out
+
+
+def test_update_profile_reports_when_everything_was_rejected():
+    from agronaut_agent import runtime
+    from agronaut_agent.store import MemoryStore, _Db
+    from agronaut_agent.tools import update_profile
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:h")
+    try:
+        out = update_profile.invoke({"updates": {"water_budget_lpd": -5}})
+    finally:
+        runtime.clear_current()
+    assert out.startswith("VALIDATION_FAILED")
+    assert mem.get_facts("cli:h").get("water_budget_lpd") is None

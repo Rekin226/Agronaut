@@ -99,7 +99,7 @@ def fetch_and_write(lat: float, lon: float, name: str, start: str, end: str,
     }, indent=1))
     t = [d["t_mean_c"] for d in days]
     return {"path": str(dest), "n_days": len(days),
-            "t_min": min(t), "t_max": max(t),
+            "t_min": min(t), "t_max": max(t), "t_avg": sum(t) / len(t),
             "first": days[0]["date"], "last": days[-1]["date"]}
 
 

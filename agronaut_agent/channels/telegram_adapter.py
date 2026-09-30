@@ -22,6 +22,7 @@ from telegram.ext import (
 )
 
 from ..core import AgronautAgent
+from ..style import to_bubbles
 from . import commands
 from .base import ChannelAdapter, chunk, delivery_chat_id, room_identity
 
@@ -68,7 +69,7 @@ class TelegramAdapter(ChannelAdapter):
         if not self._allowed(update):
             return await self._deny(update)
         await update.message.reply_text(
-            "🌱 I'm Agronaut — your aquaponics assistant. Tell me about your system "
+            "🌱 I'm Agronaut, your aquaponics assistant. Tell me about your system "
             "(species, grow area, water temp, water budget) and I'll size it, optimize the "
             "fish/crop ratio, or help troubleshoot. /reset clears our conversation."
         )
@@ -77,15 +78,15 @@ class TelegramAdapter(ChannelAdapter):
         if not self._allowed(update):
             return await self._deny(update)
         await update.message.reply_text(
-            "🌱 *Agronaut* — your aquaponics assistant.\n\n"
+            "🌱 *Agronaut*, your aquaponics assistant.\n\n"
             "Just tell me about your system or ask a question. I can:\n"
             "• *Size* a system (species, grow area, water temp, water budget)\n"
-            "• *Simulate* a season at your town with real weather — harvest, heater "
+            "• *Simulate* a season at your town with real weather: harvest, heater "
             "questions, what-ifs (\"how much will 24 m² produce in Bobo?\")\n"
-            "• *Mirror* your running system LIVE — log your test-kit readings and ask "
+            "• *Mirror* your running system LIVE: log your test-kit readings and ask "
             "\"how's my system, what happens this week?\"\n"
             "• *Estimate* build & running costs, and whether it makes money\n"
-            "• *Show* your design in 3D — greenhouse, tanks, beds, swimming fish "
+            "• *Show* your design in 3D: greenhouse, tanks, beds, swimming fish "
             "(I send a file that opens in your browser)\n"
             "• *Optimize* the fish/crop ratio for a goal\n"
             "• *Troubleshoot* problems (e.g. \"fish gasping at dawn\")\n"
@@ -94,20 +95,20 @@ class TelegramAdapter(ChannelAdapter):
             "• *Hear* a voice note and reply in your language\n"
             "• *Remember* your setup across chats\n\n"
             "Commands:\n"
-            "/log — put readings into your LIVE twin (works even when I'm slow):\n"
+            "/log: put readings into your LIVE twin (works even when I'm slow):\n"
             "    /log ammonia 0.5 nitrate 40 temp 27\n"
-            "/forecast — your twin now + the week ahead (add shade/poly/heated)\n"
-            "/advise — what to do about it, numbered; then /approve 1 3 or /reject 2\n"
-            "    (I never touch your equipment — approving records your decision)\n"
-            "/design — size a new system\n"
-            "/optimize — best fish/crop ratio\n"
-            "/troubleshoot — diagnose a problem\n"
-            "/good, /bad — tell me if an answer helped (it's how I improve)\n"
-            "/whoami — what I remember about you\n"
-            "/export — download all your data (open JSON)\n"
-            "/reset — clear this conversation (keeps long-term memory)\n"
-            "/forget — wipe everything I know about you\n"
-            "/delete\\_me — permanently erase all your data",
+            "/forecast: your twin now + the week ahead (add shade/poly/heated)\n"
+            "/advise: what to do about it, numbered; then /approve 1 3 or /reject 2\n"
+            "    (I never touch your equipment; approving records your decision)\n"
+            "/design: size a new system\n"
+            "/optimize: best fish/crop ratio\n"
+            "/troubleshoot: diagnose a problem\n"
+            "/good, /bad: tell me if an answer helped (it's how I improve)\n"
+            "/whoami: what I remember about you\n"
+            "/export: download all your data (open JSON)\n"
+            "/reset: clear this conversation (keeps long-term memory)\n"
+            "/forget: wipe everything I know about you\n"
+            "/delete\\_me: permanently erase all your data",
             parse_mode="Markdown",
         )
 
@@ -165,7 +166,7 @@ class TelegramAdapter(ChannelAdapter):
             await update.message.reply_text(part)
 
     async def _on_decide(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        """/approve and /reject — the human half of the gate.
+        """/approve and /reject: the human half of the gate.
 
         Deliberately a command rather than an inline keyboard, for the reason /good and /bad
         are: a button that only works while the message is still on screen is a decision most
@@ -210,7 +211,7 @@ class TelegramAdapter(ChannelAdapter):
                                                     filename="agronaut_my_data.json")
 
     async def _on_feedback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        """/good and /bad — the human-feedback signal, as two commands rather than inline
+        """/good and /bad: the human-feedback signal, as two commands rather than inline
         buttons.
 
         Buttons would read better, but they require a CallbackQueryHandler and a message id to
@@ -237,7 +238,7 @@ class TelegramAdapter(ChannelAdapter):
         if not self._allowed(update):
             return await self._deny(update)
         await asyncio.to_thread(self.agent.forget_everything, self.channel_name, self._identity(update))
-        await update.message.reply_text("Done — I've wiped everything I knew about your system. Clean slate.")
+        await update.message.reply_text("Done. I've wiped everything I knew about your system. Clean slate.")
 
     async def _on_export(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
@@ -258,14 +259,16 @@ class TelegramAdapter(ChannelAdapter):
         await asyncio.to_thread(
             self.agent.delete_me, self.channel_name, self._identity(update))
         await update.message.reply_text(
-            "Done — I've permanently erased all your data: conversation, profile, notes, and "
+            "Done. I've permanently erased all your data: conversation, profile, notes, and "
             "measurements. Nothing about you remains.")
 
     async def _deliver(self, update: Update, chat_id: str, reply: str) -> None:
         """Send the text reply, then any files the turn produced (e.g. a schematic).
-        PNG/JPG go as inline photos; anything else as a document."""
-        for part in chunk(reply):
-            await update.message.reply_text(part)
+        PNG/JPG go as inline photos; anything else as a document. The text goes as a few
+        short bubbles, the way a person texts, rather than one block."""
+        for bubble in to_bubbles(reply, self.channel_name):
+            for part in chunk(bubble):
+                await update.message.reply_text(part)
         for path in self.agent.take_attachments(self.channel_name, chat_id):
             try:
                 if str(path).lower().endswith((".png", ".jpg", ".jpeg")):
@@ -362,7 +365,7 @@ class TelegramAdapter(ChannelAdapter):
             await self._deliver(update, chat_id, reply)
             return
         await update.message.reply_text(
-            "I can't read files like that yet — I work with text and photos. Send a photo of "
+            "I can't read files like that yet. I work with text and photos. Send a photo of "
             "your fish, plants, or water, or just tell me what's going on."
         )
 

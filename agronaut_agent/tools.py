@@ -26,6 +26,7 @@ from aqua_model import (
     validate_hydroponic_input,
 )
 from aqua_model.crops import CROPS
+from aqua_model.validate import check_design_field
 from aqua_model.reference_data import reference_path
 from aqua_model.species import SPECIES, get_species
 
@@ -437,10 +438,19 @@ def update_profile(updates: dict) -> str:
     rejected = [k for k in updates if k not in profile_mod.PROFILE_KEYS]
     if rejected:
         log.debug("update_profile dropped unknown keys: %s", rejected)
+    # The design gate's bounds apply here too: an input the gate would reject is never
+    # stored, so it cannot sit in memory and resurface in a later turn.
+    problems = {k: err for k in list(accepted)
+                if (err := check_design_field(k, accepted[k])) is not None}
+    for k in problems:
+        accepted.pop(k)
+    refused = ("VALIDATION_FAILED, not saved: " + "; ".join(problems.values())
+               + ". Ask the user for a corrected value.") if problems else ""
     if not accepted:
-        return "No recognized profile fields to save."
+        return refused or "No recognized profile fields to save."
     mem.set_facts(user_id, accepted, source="user_stated")
-    return "Saved to your profile: " + ", ".join(f"{k}={v}" for k, v in accepted.items())
+    saved = "Saved to your profile: " + ", ".join(f"{k}={v}" for k, v in accepted.items())
+    return saved + (f"\n{refused}" if refused else "")
 
 
 @tool
@@ -1137,9 +1147,11 @@ def fetch_site_climate(place: str) -> str:
                                 "location": f"{h['name']}, {h.get('country', '')}".strip(", ")},
                       source="user_stated")
     return (f"Fetched {r['n_days']} days of {year} weather for {h['name']}, "
-            f"{h.get('country', '?')} (air {r['t_min']:.0f}-{r['t_max']:.0f} C). "
-            f"Site slug: {slug} — saved to the profile; use it as `site` in "
-            f"simulate_season / simulate_my_system / business_case.")
+            f"{h.get('country', '?')} (daily mean air {r['t_min']:.0f} to {r['t_max']:.0f} C"
+            + (f", annual mean {r['t_avg']:.0f} C, a starting estimate for an unheated "
+               f"system's water temperature" if "t_avg" in r else "")
+            + f"). Site slug: {slug}, saved to the profile; use it as `site` in "
+              f"simulate_season / simulate_my_system / business_case.")
 
 
 _TWIN_STATE_KEY = "twin_state_json"
