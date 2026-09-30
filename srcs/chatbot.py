@@ -99,6 +99,11 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
       CATEGORY|URL
       CATEGORY|URL|LABEL
       CATEGORY|URL|LABEL|LICENCE
+      CATEGORY|URL|LABEL|LICENCE|domain=hydroponics;year=2019;doi=10.3389/fpls.2019.00923
+
+    The optional fifth field carries citation and routing metadata as key=value pairs. Only the
+    keys in URL_META_KEYS are kept; each lands on every chunk of that source, so retrieval can
+    filter or boost by domain and an answer can cite "Author Year" with a DOI.
 
     LICENCE records the terms the text is published under (e.g. "CC BY 4.0", "CC BY-NC-SA 3.0").
     Agronaut is a Digital Public Good, so what it indexes has to be openly licensed — and in
@@ -109,7 +114,7 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
       URL
 
     Returns list of dicts:
-      {"category": "...", "url": "...", "label": "...", "licence": "..."}
+      {"category": "...", "url": "...", "label": "...", "licence": "...", "meta": {...}}
     """
     p = pathlib.Path(file_path)
     if not p.exists():
@@ -127,6 +132,7 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
         category = "UNCATEGORIZED"
         label = ""
         licence = ""
+        meta: Dict[str, str] = {}
 
         if "|" in line:
             parts = [x.strip() for x in line.split("|")]
@@ -137,6 +143,8 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
                     label = parts[2]
                 if len(parts) >= 4:
                     licence = parts[3]
+                if len(parts) >= 5:
+                    meta = parse_url_meta(parts[4])
             else:
                 # Fallback to legacy if the split is malformed
                 url = line
@@ -152,9 +160,36 @@ def parse_urls_file(file_path: str) -> List[Dict[str, str]]:
         seen.add(key)
 
         entries.append({"category": category, "url": url, "label": label,
-                        "licence": licence})
+                        "licence": licence, "meta": meta})
 
     return entries
+
+
+# Metadata a urls.txt line may carry. Closed on purpose: a typo'd key should vanish, not become
+# a field that a handful of chunks carry and a filter then silently excludes everything else by.
+URL_META_KEYS = ("domain", "year", "doi")
+
+
+def parse_url_meta(field: str) -> Dict[str, str]:
+    """`domain=hydroponics;year=2019` -> {"domain": "hydroponics", "year": "2019"}."""
+    out: Dict[str, str] = {}
+    for pair in (field or "").split(";"):
+        key, _, value = pair.partition("=")
+        key, value = key.strip().lower(), value.strip()
+        if key in URL_META_KEYS and value:
+            out[key] = value
+    return out
+
+
+# The domain every hand-written guide belongs to unless it says otherwise with a line like
+# "_Domain: hydroponics_". Most of knowledge/ is aquaponics husbandry.
+DEFAULT_GUIDE_DOMAIN = "aquaponics"
+_GUIDE_DOMAIN_RE = re.compile(r"^_?Domain:\s*([a-z]+(?:_[a-z]+)*)_?\s*$", re.I | re.M)
+
+
+def guide_domain(text: str) -> str:
+    m = _GUIDE_DOMAIN_RE.search(text or "")
+    return m.group(1).lower() if m else DEFAULT_GUIDE_DOMAIN
 
 
 def load_urls_from_file(file_path: str) -> List[str]:
@@ -178,6 +213,7 @@ def load_local_knowledge_documents(knowledge_dir: str = KNOWLEDGE_DIR):
                 d.metadata["source_type"] = "local_file"
                 d.metadata["source_path"] = str(fp)
                 d.metadata["kb_tag"] = fp.stem.lower()
+                d.metadata["domain"] = guide_domain(d.page_content)
             docs.extend(loaded)
         except Exception as err:  # noqa: BLE001
             logging.warning("Failed to load local file %s – %s", fp, err)
@@ -402,12 +438,60 @@ def _pdf_documents(content: bytes, url: str):
         return []
 
 
+def _is_jats(probe: dict) -> bool:
+    return "xml" in probe["content_type"] and b"<article" in probe["content"][:4000]
+
+
+def _jats_documents(content: bytes, url: str):
+    """Text from a JATS XML article (Europe PMC's fullTextXML), one Document per section.
+
+    Publisher PDFs of open-access papers are routinely behind bot walls (MDPI answers 403),
+    while Europe PMC serves the same article as structured XML to anyone. Structure is the
+    point: the reference list, author affiliations, and funding notes are dropped here, where
+    a PDF would hand them to the chunker as body text and they would then answer off-topic
+    queries with a real-looking citation."""
+    try:
+        import warnings
+
+        from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+        from langchain_core.documents import Document
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
+            soup = BeautifulSoup(content, "html.parser")   # stdlib; JATS tags are lowercase
+        for tag in soup.find_all(["ref-list", "back", "contrib-group", "aff", "funding-group",
+                                  "author-notes", "table-wrap-foot", "fn-group", "xref",
+                                  "supplementary-material"]):
+            tag.decompose()
+        docs = []
+        title = soup.find("article-title")
+        abstract = soup.find("abstract")
+        head = " ".join(x.get_text(" ", strip=True) for x in (title, abstract) if x)
+        if head:
+            docs.append(Document(page_content=head, metadata={"source": url, "section": "abstract"}))
+        body = soup.find("body")
+        for sec in (body.find_all("sec", recursive=False) if body else []):
+            heading = sec.find("title")
+            text = " ".join(sec.get_text(" ", strip=True).split())
+            if text:
+                docs.append(Document(page_content=text, metadata={
+                    "source": url,
+                    "section": heading.get_text(" ", strip=True)[:80] if heading else ""}))
+        logging.info("Loaded %d JATS sections from %s", len(docs), url)
+        return docs
+    except Exception as err:  # noqa: BLE001
+        logging.warning("Failed to read JATS XML %s: %s", url, err)
+        return []
+
+
 def load_web_page(url: str):
     probe = _probe_url(url)
     if probe is None:
         return []
     if probe["is_pdf"]:
         return _pdf_documents(probe["content"], url)
+    if _is_jats(probe):
+        return _jats_documents(probe["content"], url)
     try:
         logging.info("Loading %s", url)
         loader = WebBaseLoader(url)
@@ -1779,6 +1863,12 @@ INDEX_CACHE_DIR = _paths.cache_dir() / "data" / ".index_cache"
 INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
 
 
+# Bumped when the metadata attached to chunks changes. An index cached under the old schema
+# has the old fields, and a filter on a new one would quietly match nothing.
+#   2: licence, domain, year, doi
+META_SCHEMA = 2
+
+
 def _corpus_fingerprint() -> str:
     """Identity of the corpus AND the parameters that shape it.
 
@@ -1797,7 +1887,8 @@ def _corpus_fingerprint() -> str:
              f"|md_headers={markdown_headers_enabled()}"
              f"|md_crumb={_crumb_enabled()}"
              f"|pdf_clean={pdf_cleaning_enabled()}"
-             f"|pdf_sections={pdf_sections_enabled()}".encode())
+             f"|pdf_sections={pdf_sections_enabled()}"
+             f"|meta_schema={META_SCHEMA}".encode())
     kb = pathlib.Path(KNOWLEDGE_DIR)
     if kb.exists():
         for fp in sorted(kb.rglob("*")):
@@ -1881,6 +1972,10 @@ def build_rag_index_from_urls() -> Optional[FAISS]:
                     d.metadata["url_category"] = entry.get("category", "UNCATEGORIZED")
                     if entry.get("label"):
                         d.metadata["url_label"] = entry["label"]
+                    if entry.get("licence"):
+                        d.metadata["licence"] = entry["licence"]
+                    for key, value in (entry.get("meta") or {}).items():
+                        d.metadata[key] = value
                 documents.extend(loaded_docs)
 
     # Load local knowledge files (knowledge/*.md, *.txt)
