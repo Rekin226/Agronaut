@@ -26,9 +26,9 @@ from aqua_model import (
     validate_hydroponic_input,
 )
 from aqua_model.crops import CROPS
-from aqua_model.validate import check_design_field
 from aqua_model.reference_data import reference_path
 from aqua_model.species import SPECIES, get_species
+from aqua_model.validate import check_design_field
 
 from . import profile as profile_mod
 from . import rag, runtime, serialize, twin_view
