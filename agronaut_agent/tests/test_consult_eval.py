@@ -107,3 +107,19 @@ def test_a_run_leaves_the_climate_folder_as_it_found_it(tmp_path):
         (tmp_path / "koudougou.json").write_text("new")
     assert (tmp_path / "ouaga.json").read_text() == "original"
     assert not (tmp_path / "koudougou.json").exists()
+
+
+def test_numbers_are_read_the_way_people_write_them():
+    assert ce.numbers_in("1 170 000 FCFA, 2,070 L, pH 6.8") == [1170000.0, 2070.0, 6.8]
+    assert ce.numbers_in("800\u202f000 et 0,5 mg/L") == [800000.0, 0.5]
+
+
+def test_a_rounded_tool_number_is_traced_and_an_invented_one_is_not():
+    sources = ce.numbers_in("rearing tank 2068.4 L; biomass 41.2 kg; makeup 48 L/day")
+    reply = "About 2,070 L of tank, ~41 kg of fish, 48L a day, and a 900 W heater."
+    assert ce.untraced_quantities(reply, sources) == ["900 W"]
+
+
+def test_unitless_numbers_and_words_are_ignored():
+    assert ce.untraced_quantities("Step 2: wait 3 weeks, then add 10 fish.", []) == []
+    assert ce.untraced_quantities("Use a 1000 L IBC and 20 kg of fish.", [1000.0]) == ["20 kg"]

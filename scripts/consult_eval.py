@@ -14,6 +14,12 @@ all, until the persona has a recommendation or the turn cap is hit. Then:
     questions          questions per message (the consultation asks ONE)
     reasked            questions about a fact the profile already held (heuristic keyword
                        match, so it undercounts rephrasings; a floor, not an exact figure)
+    untraced           numbers-with-units in the reply (litres, kg, m2, C, W, FCFA, mg/L...)
+                       found in no tool result and no user message of the conversation,
+                       within 5% for rounding. The prompt's hard rule is that sizing numbers
+                       come from tools; an untraced number is a candidate fabrication, or
+                       general husbandry knowledge the reply should have flagged. A flag for
+                       reading, not proof.
   CODE-judged, per conversation:
     turns_to_advice    user turns before the first recommending tool ran (sizing, triage,
                        business case...), or None if it never did
@@ -104,6 +110,44 @@ def reasked_keys(message: str, known: dict) -> list[str]:
             if str(known.get(k, "")).strip() and any(p in low for p in phrases)]
 
 
+# A number with a unit a farmer would act on. Thousands may be grouped with spaces (French),
+# commas or dots; the unit may be glued on ("48L") or spaced ("2 070 L").
+_UNITS = (r"mg/l|l/h|l/day|l/jour|l/j|litres?|liters?|l|kg|g|m²|m2|m³|m3|°c|°|w|kw|kwh|fcfa|"
+          r"xof|cfa|twd|ntd|usd|ppm|cm|mm|%")
+_NUM = r"\d{1,3}(?:[ \u202f,.]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?"
+_QUANTITY = re.compile(rf"(?<![\w.])({_NUM})\s?(?:{_UNITS})(?![\w/])", re.I)
+_ANY_NUMBER = re.compile(_NUM)
+
+
+def _to_float(raw: str) -> float | None:
+    s = raw.replace("\u202f", " ").strip()
+    if re.fullmatch(r"\d{1,3}(?:[ ,.]\d{3})+", s):          # grouped thousands
+        s = re.sub(r"[ ,.]", "", s)
+    else:
+        s = s.replace(" ", "").replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def numbers_in(text: str) -> list[float]:
+    """Every number in `text`, thousands separators understood."""
+    return [v for v in (_to_float(m) for m in _ANY_NUMBER.findall(text or "")) if v is not None]
+
+
+def untraced_quantities(message: str, sources: list[float], tol: float = 0.05) -> list[str]:
+    """Quantities in `message` that match no source number within `tol` (relative)."""
+    out = []
+    for m in _QUANTITY.finditer(message or ""):
+        v = _to_float(m.group(1))
+        if v is None or v == 0:
+            continue
+        if not any(abs(v - s) <= max(tol * max(abs(s), abs(v)), 0.051) for s in sources):
+            out.append(m.group(0))
+    return out
+
+
 def message_metrics(message: str, known: dict) -> dict:
     return {
         "em_dashes": (message or "").count(EM_DASH),
@@ -157,6 +201,8 @@ def summarize(conversations: list[dict]) -> dict:
         "share_under_60_words": _share(lambda m: m["words"] <= 60),
         "median_words": words[n // 2] if n else None,
         "reasked_total": sum(len(m["reasked"]) for m in msgs),
+        "untraced_numbers": sum(len(m.get("untraced", [])) for m in msgs),
+        "share_fully_traced": _share(lambda m: not m.get("untraced")),
         "reached_advice": f"{len(advice)}/{len(conversations)}",
         "mean_turns_to_advice": round(sum(advice) / len(advice), 2) if advice else None,
     }
@@ -241,6 +287,9 @@ def run_scenario(scenario: dict, make_agent, simulate, ask) -> dict:
         if not user_msg or DONE in user_msg:
             break
     rows = agent._conv.recent_context_messages(uid, limit=500)
+    sources = [n for r in rows if r["role"] in ("tool", "user") for n in numbers_in(r["content"])]
+    for m in per_msg:
+        m["untraced"] = untraced_quantities(m["text"], sources)
     return {
         "id": scenario["id"],
         "messages": per_msg,
@@ -289,9 +338,11 @@ def run(limit: int | None = None, only: str | None = None, backends=None) -> dic
             "conversations": convs}
 
 
-_HIGHER_IS_BETTER = ("share_one_question_or_less", "share_under_60_words", "reflected",
+_HIGHER_IS_BETTER = ("share_one_question_or_less", "share_under_60_words", "share_fully_traced",
+                     "reflected",
                      "beginner_level", "actionable")
-_LOWER_IS_BETTER = ("em_dash_messages", "median_words", "reasked_total", "mean_turns_to_advice")
+_LOWER_IS_BETTER = ("em_dash_messages", "median_words", "reasked_total", "mean_turns_to_advice",
+                    "untraced_numbers")
 
 
 def compare(now: dict, then: dict) -> list[str]:
