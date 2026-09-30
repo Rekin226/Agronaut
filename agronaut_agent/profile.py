@@ -180,10 +180,11 @@ _MAPPING_HINTS: dict[str, str] = {
                     "with them before saving it.",
     "temperature_c": "Once you know the town, call fetch_site_climate and use the mean "
                      "temperature it reports; tell them you did.",
-    "water_budget_lpd": "Never ask for litres. Unless water is clearly scarce, size with "
-                        "water treated as not limiting and say so; then tell them the daily "
-                        "top-up the design needs and ask whether their source covers it, dry "
-                        "months included.",
+    "water_budget_lpd": "Never ask for litres. If they give no figure, save "
+                        "water_budget_lpd='unknown' and leave it out of the sizing call: the "
+                        "tool treats water as not limiting. Then tell them the daily top-up the "
+                        "design needs and ask whether their source covers it, dry months "
+                        "included. Never invent a budget.",
     "objective": "Map their answer to food, protein or water_efficiency.",
 }
 

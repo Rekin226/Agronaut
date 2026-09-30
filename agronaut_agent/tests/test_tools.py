@@ -702,3 +702,59 @@ def test_update_profile_reports_when_everything_was_rejected():
         runtime.clear_current()
     assert out.startswith("VALIDATION_FAILED")
     assert mem.get_facts("cli:h").get("water_budget_lpd") is None
+
+
+# --- a beginner does not know their daily water -------------------------------------------
+
+def test_sizing_runs_without_a_water_budget_and_says_so():
+    """consult_eval, 2026-09-30: with the budget required, the model invented one and
+    presented it as the user's ("well under your 100 L budget")."""
+    from agronaut_agent.tools import size_aquaponics_system
+
+    out = size_aquaponics_system.invoke({"fish_species": "tilapia", "crop": "lettuce",
+                                         "grow_area_m2": 10, "temperature_c": 27})
+    assert "VALIDATION_FAILED" not in out
+    assert "not limiting" in out and "Never quote a budget number" in out
+
+
+def test_a_given_budget_gets_no_water_note():
+    from agronaut_agent.tools import size_aquaponics_system
+
+    out = size_aquaponics_system.invoke({"fish_species": "tilapia", "crop": "lettuce",
+                                         "grow_area_m2": 10, "temperature_c": 27,
+                                         "water_budget_lpd": 300})
+    assert "WATER: no budget" not in out
+
+
+def test_every_sizing_tool_accepts_a_missing_budget_in_its_schema():
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+
+    for t in AGRONAUT_TOOLS:
+        field = t.args.get("water_budget_lpd")
+        if field is not None and t.name != "simulate_season":
+            assert {"type": "null"} in field.get("anyOf", []), t.name
+
+
+def test_the_report_never_prints_the_stand_in_budget():
+    from agronaut_agent.tools import render_design_report
+
+    out = render_design_report.invoke({"fish_species": "tilapia", "crop": "lettuce",
+                                       "grow_area_m2": 10, "temperature_c": 27,
+                                       "water_budget_lpd": None})
+    assert "10000000" not in out and "not given" in out
+
+
+def test_unknown_water_is_a_real_answer_that_stops_the_question():
+    from agronaut_agent import profile, runtime
+    from agronaut_agent.store import MemoryStore, _Db
+    from agronaut_agent.tools import update_profile
+
+    mem = MemoryStore(_Db(":memory:"))
+    runtime.set_current(mem, "cli:w")
+    try:
+        out = update_profile.invoke({"updates": {"water_budget_lpd": "don't know"}})
+    finally:
+        runtime.clear_current()
+    facts = mem.get_facts("cli:w")
+    assert facts["water_budget_lpd"] == "unknown" and "VALIDATION_FAILED" not in out
+    assert "water_budget_lpd" not in profile.missing_essentials("design", facts)

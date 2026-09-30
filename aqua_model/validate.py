@@ -93,6 +93,11 @@ def validate_design_input(
 
 GATED_PROFILE_FIELDS = tuple(_BOUNDS)
 
+# A water budget at the gate's upper bound means "not given, treated as not limiting". Callers
+# pass it when the operator does not know their daily water, so no one has to invent a figure;
+# the design then reports the makeup water it needs, to be checked against the real source.
+WATER_NOT_LIMITING = _BOUNDS["water_budget_lpd"][1]
+
 
 def check_design_field(field: str, value) -> str | None:
     """Check ONE design field against the same bounds `validate_design_input` enforces.
