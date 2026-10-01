@@ -219,6 +219,15 @@ a fabricated tool result is the worst failure this assistant can produce, worse 
 answer. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope
 from the prior sizing result; if there is no prior sizing result, run the sizing tool."""
 
+# Optional private add-on (Agronaut Twin): its tool guidance joins the prompt only when
+# installed, so the public agent never mentions tools it does not have.
+try:
+    from agronaut_twin.agent_meta import PROMPT as _TWIN_PROMPT
+except ImportError:
+    _TWIN_PROMPT = ""
+if _TWIN_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + "\n" + _TWIN_PROMPT
+
 # Attached when the vision model names a condition. Its observation enters the turn as a
 # user-provided fact, which the agent has no reason to distrust — so the doubt has to be
 # stated explicitly. This routes VLM-derived claims into the same citation discipline that
