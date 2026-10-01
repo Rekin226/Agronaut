@@ -62,6 +62,21 @@ def written_query(message, fallback: str) -> tuple[str, bool]:
     return fallback, False
 
 
+def add_search_stats(by_lang: dict, per_query: list[dict]) -> None:
+    """Separate WHETHER the model searched from HOW WELL its search did.
+
+    In consultant mode about a third of first messages get a question back instead of a search,
+    in every language. Folded into one hit rate, that hides the language effect: `hit_when_searched`
+    is the retrieval number, `did_not_search` the conversational one.
+    """
+    for lang, r in by_lang.items():
+        rows = [q for q in per_query if q["lang"] == lang]
+        searched = [q for q in rows if q["called_tool"]]
+        r["did_not_search"] = len(rows) - len(searched)
+        r["hit_when_searched"] = (sum(1 for q in searched if q["hit"]) / len(searched)
+                                  if searched else None)
+
+
 def run(limit: int | None = None, description: str | None = None, langs=None) -> dict:
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -110,8 +125,7 @@ def run(limit: int | None = None, description: str | None = None, langs=None) ->
                "tool_description": tool.description, "queries": len(per_query),
                "did_not_search": sum(1 for r in per_query if not r["called_tool"]),
                "by_lang": by_language(per_query, [], k)}
-    for lang, r in summary["by_lang"].items():
-        r["did_not_search"] = sum(1 for q in per_query if q["lang"] == lang and not q["called_tool"])
+    add_search_stats(summary["by_lang"], per_query)
     return {"summary": summary, "per_query": per_query}
 
 
@@ -130,11 +144,13 @@ def main() -> int:
     s = report["summary"]
     print(f"\n{s['provider']}/{s['model']}: {s['queries']} queries, "
           f"{s['did_not_search']} without a search")
-    print(f"  {'lang':<5}{'n':>4}{'hit':>8}{'recall':>8}{'MAP':>8}{'silenced':>10}{'no search':>11}")
+    print(f"  {'lang':<5}{'n':>4}{'hit':>8}{'recall':>8}{'MAP':>8}{'silenced':>10}{'no search':>11}"
+          f"{'hit|searched':>14}")
     for lang, r in s["by_lang"].items():
         print(f"  {lang:<5}{r['queries']:>4}{r['hit_rate']:>8.3f}{r['recall@k']:>8.3f}"
               f"{r['MAP@k']:>8.3f}{r['floor_silenced_on_topic']:>7}/{r['queries']:<2}"
-              f"{r['did_not_search']:>8}/{r['queries']}")
+              f"{r['did_not_search']:>8}/{r['queries']:<2}"
+              f"{'n/a' if r['hit_when_searched'] is None else format(r['hit_when_searched'], '.3f'):>12}")
     if args.save:
         Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
         print(f"\nsaved -> {args.save}")

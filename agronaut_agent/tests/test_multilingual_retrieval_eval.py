@@ -114,3 +114,14 @@ def test_no_search_is_not_credited_with_the_growers_text():
     assert written_query(_Msg([]), "mes poissons") == ("mes poissons", False)
     other = _Msg([{"name": "fetch_site_climate", "args": {"query": "x"}}])
     assert written_query(other, "mes poissons")[1] is False
+
+
+def test_search_stats_separate_searching_from_finding():
+    from scripts.query_language_eval import add_search_stats
+    rows = [{"lang": "fr", "called_tool": True, "hit": True},
+            {"lang": "fr", "called_tool": True, "hit": False},
+            {"lang": "fr", "called_tool": False, "hit": False}]
+    by_lang = {"fr": {}}
+    add_search_stats(by_lang, rows)
+    assert by_lang["fr"]["did_not_search"] == 1
+    assert by_lang["fr"]["hit_when_searched"] == 0.5

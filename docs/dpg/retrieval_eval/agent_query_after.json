@@ -1,0 +1,2257 @@
+{
+  "summary": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-5",
+    "tool_description": "Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited\nsources) for qualitative troubleshooting and husbandry guidance (symptoms, water\nquality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool).\n\nThe knowledge is in English and matched by meaning, so write `query` in ENGLISH whatever\nlanguage the grower wrote in. Keep their symptom in plain English words, and add the\ntextbook term when you know it (\"fish gasping at the surface at dawn, low dissolved\noxygen\"). Still reply to the grower in their own language.",
+    "queries": 99,
+    "did_not_search": 30,
+    "by_lang": {
+      "en": {
+        "queries": 33,
+        "k": 3,
+        "hit_rate": 0.6363636363636364,
+        "precision@k": 0.2525252525252525,
+        "recall@k": 0.5707070707070707,
+        "MRR": 0.51010101010101,
+        "MAP@k": 0.44781144781144777,
+        "floor_silenced_on_topic": 0,
+        "floor_rejected_off_topic": 0,
+        "negative_controls": 0,
+        "worst_on_topic": 1.0460667610168457,
+        "closest_off_topic": null,
+        "separable": false,
+        "did_not_search": 11,
+        "hit_when_searched": 0.9545454545454546
+      },
+      "fr": {
+        "queries": 33,
+        "k": 3,
+        "hit_rate": 0.6363636363636364,
+        "precision@k": 0.2626262626262626,
+        "recall@k": 0.5909090909090909,
+        "MRR": 0.4696969696969697,
+        "MAP@k": 0.4292929292929293,
+        "floor_silenced_on_topic": 0,
+        "floor_rejected_off_topic": 0,
+        "negative_controls": 0,
+        "worst_on_topic": 1.1212605237960815,
+        "closest_off_topic": null,
+        "separable": false,
+        "did_not_search": 9,
+        "hit_when_searched": 0.875
+      },
+      "zh": {
+        "queries": 33,
+        "k": 3,
+        "hit_rate": 0.6363636363636364,
+        "precision@k": 0.2727272727272727,
+        "recall@k": 0.5858585858585859,
+        "MRR": 0.5252525252525252,
+        "MAP@k": 0.47474747474747475,
+        "floor_silenced_on_topic": 0,
+        "floor_rejected_off_topic": 0,
+        "negative_controls": 0,
+        "worst_on_topic": 1.0499441623687744,
+        "closest_off_topic": null,
+        "separable": false,
+        "did_not_search": 10,
+        "hit_when_searched": 0.9130434782608695
+      }
+    }
+  },
+  "per_query": [
+    {
+      "retrieved": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "do-01",
+      "lang": "en",
+      "query": "my tilapia are all gasping at the surface early in the morning",
+      "searched": "fish gasping at surface early morning low dissolved oxygen tilapia",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 3989,
+      "raw_top_score": 0.5252811908721924,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "do-02",
+      "lang": "en",
+      "query": "fish crowding near the water inlet and breathing fast",
+      "searched": "fish crowding near water inlet gasping rapid breathing low dissolved oxygen",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 3166,
+      "raw_top_score": 0.5980349779129028,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/fish_stress_diagnosis.md",
+        "knowledge/feed_and_feeding.md",
+        "knowledge/plant_nutrient_deficiencies.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "stress-01",
+      "lang": "en",
+      "query": "fish are moving slowly and barely touching their food",
+      "searched": "fish lethargic sluggish not eating low activity aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 5778,
+      "raw_top_score": 0.611504077911377,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "n-01",
+      "lang": "en",
+      "query": "ammonia reading jumped to 4 ppm what do I do right now",
+      "searched": "high ammonia spike in aquaponics tank emergency response",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ],
+      "model_ms": 4708,
+      "raw_top_score": 0.5172240734100342,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "n-02",
+      "lang": "en",
+      "query": "brand new setup three weeks in and nitrite is climbing",
+      "searched": "brand new setup three weeks in and nitrite is climbing",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 4804,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "n-03",
+      "lang": "en",
+      "query": "how long before the bacteria establish themselves",
+      "searched": "nitrifying bacteria cycling time new aquaponics system biofilter establishment",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2970,
+      "raw_top_score": 0.31845343112945557,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/ph_and_alkalinity.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "ph-01",
+      "lang": "en",
+      "query": "the pH keeps sliding down every week no matter what I add",
+      "searched": "pH continually dropping in aquaponics system despite buffering, nitrification acidification",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 1932,
+      "raw_top_score": 0.30897074937820435,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "ph-02",
+      "lang": "en",
+      "query": "how do I bring up the buffering capacity safely",
+      "searched": "raising alkalinity buffering capacity safely in aquaponics, pH stability, potassium bicarbonate calcium carbonate dosing",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 2967,
+      "raw_top_score": 0.4169449806213379,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/plant_deficiency_cheatsheet.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "plant-01",
+      "lang": "en",
+      "query": "lettuce leaves going yellow between the veins but the veins stay green",
+      "searched": "lettuce interveinal chlorosis yellow leaves veins green nutrient deficiency",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md",
+        "knowledge/plant_deficiency_cheatsheet.md"
+      ],
+      "model_ms": 3167,
+      "raw_top_score": 0.4932364523410797,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/plant_nutrient_deficiencies.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "plant-02",
+      "lang": "en",
+      "query": "the oldest leaves are turning pale first while new growth looks fine",
+      "searched": "older leaves pale yellowing while new growth normal, nitrogen deficiency symptom plants",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md"
+      ],
+      "model_ms": 3585,
+      "raw_top_score": 0.8187559843063354,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "algae-01",
+      "lang": "en",
+      "query": "my water has gone bright green and cloudy",
+      "searched": "water turned bright green and cloudy, algae bloom in aquaponics tank",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md"
+      ],
+      "model_ms": 2779,
+      "raw_top_score": 0.7952855825424194,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "algae-02",
+      "lang": "en",
+      "query": "stringy green growth clogging the pipes and screens",
+      "searched": "stringy green algae clogging pipes and screens aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 1649,
+      "raw_top_score": 0.5934677720069885,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/common_system_failures.md",
+        "knowledge/fish_stress_diagnosis.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "fail-01",
+      "lang": "en",
+      "query": "we lost power for six hours overnight what should I check first",
+      "searched": "power outage aquaponics fish low dissolved oxygen after pump stopped",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 3562,
+      "raw_top_score": 0.6355025768280029,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "rr": 0.3333333333333333,
+      "ap": 0.1111111111111111,
+      "id": "fail-02",
+      "lang": "en",
+      "query": "I think I have been giving them too much food and now the water is murky",
+      "searched": "murky cloudy water overfeeding fish tank ammonia uneaten food",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/feed_and_feeding.md"
+      ],
+      "model_ms": 3818,
+      "raw_top_score": 0.7202115654945374,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/fish_disease_and_treatment.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "disease-01",
+      "lang": "en",
+      "query": "little white dots all over my fish like grains of salt",
+      "searched": "white spots on fish skin like grains of salt, ich, parasite",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 2699,
+      "raw_top_score": 0.5799103379249573,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Applications, technologies, and evaluation methods in smart aquaponics: a systematic literature review (Artif Intell Rev, 2024)"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "disease-02",
+      "lang": "en",
+      "query": "can I use a copper based treatment with plants in the loop",
+      "searched": "copper treatment toxicity to plants in aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 1959,
+      "raw_top_score": 0.35018378496170044,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "feed-01",
+      "lang": "en",
+      "query": "how much should I be giving them each day",
+      "searched": "how much should I be giving them each day",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feed_and_feeding.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 3416,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/pump_sizing_basics.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "pump-01",
+      "lang": "en",
+      "query": "the pump is rated for plenty but barely trickles at the top of the tower",
+      "searched": "water pump flow weak at top of tower system, low flow despite adequate pump rating, head height loss",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 2188,
+      "raw_top_score": 1.0460667610168457,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "pump-02",
+      "lang": "en",
+      "query": "how do I work out the flow I actually need",
+      "searched": "how do I work out the flow I actually need",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 3727,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-01",
+      "lang": "en",
+      "query": "should I go with rafts or the thin channel setup",
+      "searched": "should I go with rafts or the thin channel setup",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 5552,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-02",
+      "lang": "en",
+      "query": "I have almost no floor space what layout works",
+      "searched": "I have almost no floor space what layout works",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 5059,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "water-01",
+      "lang": "en",
+      "query": "our tap water smells strongly of chlorine can I top up with it",
+      "searched": "chlorine chloramine tap water dechlorination aquaponics fish safety",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 2283,
+      "raw_top_score": 0.4544127583503723,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/water_source_and_treatment.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "water-02",
+      "lang": "en",
+      "query": "the well water here is extremely hard",
+      "searched": "hard well water aquaponics high calcium carbonate alkalinity pH effects",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 4096,
+      "raw_top_score": 0.5148922801017761,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/common_system_failures.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "solids-01",
+      "lang": "en",
+      "query": "dark sludge piling up in the bottom of the tank",
+      "searched": "dark sludge accumulation at bottom of fish tank, solids waste buildup",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "model_ms": 2018,
+      "raw_top_score": 0.7676956653594971,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "reg-01",
+      "lang": "en",
+      "query": "do I need any kind of licence before I can sell the fish",
+      "searched": "do I need any kind of licence before I can sell the fish",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/regulations_and_permits.md"
+      ],
+      "model_ms": 7734,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/food_safety_and_hygiene.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "safety-01",
+      "lang": "en",
+      "query": "is produce grown on fish waste actually safe to eat",
+      "searched": "is aquaponics produce safe to eat, food safety of plants grown on fish waste",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/food_safety_and_hygiene.md"
+      ],
+      "model_ms": 2002,
+      "raw_top_score": 0.5129523277282715,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/plant_pests_and_ipm.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "pest-01",
+      "lang": "en",
+      "query": "tiny green insects covering my basil what can I spray",
+      "searched": "aphids on basil organic pest control aquaponics safe for fish",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_pests_and_ipm.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2345,
+      "raw_top_score": 0.6460618376731873,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-01",
+      "lang": "en",
+      "query": "what are the running costs going to look like",
+      "searched": "what are the running costs going to look like",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md"
+      ],
+      "model_ms": 2998,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-02",
+      "lang": "en",
+      "query": "is this ever going to break even",
+      "searched": "is this ever going to break even",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md",
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 3164,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-03",
+      "lang": "en",
+      "query": "putting together a funding proposal what should it cover",
+      "searched": "putting together a funding proposal what should it cover",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 3656,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "temp-01",
+      "lang": "en",
+      "query": "water hits 34 degrees in the afternoon here",
+      "searched": "high water temperature stress fish aquaponics dissolved oxygen afternoon heat",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 11844,
+      "raw_top_score": 0.5012898445129395,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "temp-02",
+      "lang": "en",
+      "query": "which species suits a cold winter",
+      "searched": "which species suits a cold winter",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 4351,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "range-01",
+      "lang": "en",
+      "query": "what levels should I be aiming for overall",
+      "searched": "what levels should I be aiming for overall",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/water_quality_ranges.md"
+      ],
+      "model_ms": 5530,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "do-01-fr",
+      "lang": "fr",
+      "query": "mes tilapias sont tous en train de happer l'air à la surface tôt le matin",
+      "searched": "fish gasping at surface at dawn, low dissolved oxygen tilapia",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 2077,
+      "raw_top_score": 0.483830064535141,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "knowledge/fish_stress_diagnosis.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "do-02-fr",
+      "lang": "fr",
+      "query": "les poissons se regroupent près de l'arrivée d'eau et respirent vite",
+      "searched": "fish gasping crowding near water inlet rapid breathing low dissolved oxygen",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 2546,
+      "raw_top_score": 0.5852774977684021,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/fish_stress_diagnosis.md",
+        "knowledge/plant_nutrient_deficiencies.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "stress-01-fr",
+      "lang": "fr",
+      "query": "les poissons bougent lentement et touchent à peine à leur nourriture",
+      "searched": "fish lethargic, slow movement, reduced appetite in aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 4237,
+      "raw_top_score": 0.5726358890533447,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "n-01-fr",
+      "lang": "fr",
+      "query": "l'ammoniac est monté à 4 ppm qu'est-ce que je fais tout de suite",
+      "searched": "high ammonia emergency action aquaponics fish tank",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ],
+      "model_ms": 4259,
+      "raw_top_score": 0.4632975459098816,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "n-02-fr",
+      "lang": "fr",
+      "query": "installation toute neuve depuis trois semaines et les nitrites n'arrêtent pas de monter",
+      "searched": "rising nitrite new aquaponics system cycling nitrogen cycle",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2999,
+      "raw_top_score": 0.4245224595069885,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "n-03-fr",
+      "lang": "fr",
+      "query": "combien de temps avant que les bactéries s'installent",
+      "searched": "how long for nitrifying bacteria to establish biofilter cycling new aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2198,
+      "raw_top_score": 0.357450008392334,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/ph_and_alkalinity.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "ph-01-fr",
+      "lang": "fr",
+      "query": "le pH baisse chaque semaine peu importe ce que j'ajoute",
+      "searched": "pH continually dropping every week despite adding buffer, nitrification consuming alkalinity",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 3922,
+      "raw_top_score": 0.6757978200912476,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/water_quality_ranges.md"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "ph-02-fr",
+      "lang": "fr",
+      "query": "comment augmenter le pouvoir tampon sans risque",
+      "searched": "increasing buffer capacity alkalinity safely in aquaponics, pH stabilization",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 3235,
+      "raw_top_score": 0.34597569704055786,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/plant_deficiency_cheatsheet.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "plant-01-fr",
+      "lang": "fr",
+      "query": "les feuilles de laitue jaunissent entre les nervures mais les nervures restent vertes",
+      "searched": "lettuce interveinal chlorosis yellowing between veins leaves nutrient deficiency",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md",
+        "knowledge/plant_deficiency_cheatsheet.md"
+      ],
+      "model_ms": 3472,
+      "raw_top_score": 0.5333859324455261,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/plant_nutrient_deficiencies.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "plant-02-fr",
+      "lang": "fr",
+      "query": "ce sont les vieilles feuilles qui pâlissent en premier, les nouvelles pousses ont l'air bien",
+      "searched": "older leaves yellowing pale new growth healthy nitrogen deficiency aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md"
+      ],
+      "model_ms": 4739,
+      "raw_top_score": 0.42618927359580994,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "algae-01-fr",
+      "lang": "fr",
+      "query": "mon eau est devenue vert vif et trouble",
+      "searched": "water turned bright green cloudy, algae bloom in aquaponics tank",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md"
+      ],
+      "model_ms": 1988,
+      "raw_top_score": 0.8089157938957214,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/algae_control.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "algae-02-fr",
+      "lang": "fr",
+      "query": "des filaments verts bouchent les tuyaux et les grilles",
+      "searched": "filamentous green algae clogging pipes and screens in aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 4050,
+      "raw_top_score": 0.5203979015350342,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/common_system_failures.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 0.5,
+      "ap": 0.25,
+      "id": "fail-01-fr",
+      "lang": "fr",
+      "query": "on a eu une coupure de courant de six heures cette nuit, je vérifie quoi en premier",
+      "searched": "power outage fish tank low dissolved oxygen no aeration what to check",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 3417,
+      "raw_top_score": 0.7517920136451721,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "fail-02-fr",
+      "lang": "fr",
+      "query": "je crois que je leur donne trop à manger et maintenant l'eau est trouble",
+      "searched": "cloudy water overfeeding ammonia spike in aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/feed_and_feeding.md"
+      ],
+      "model_ms": 3466,
+      "raw_top_score": 0.6600748896598816,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/fish_disease_and_treatment.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "disease-01-fr",
+      "lang": "fr",
+      "query": "des petits points blancs partout sur mes poissons comme des grains de sel",
+      "searched": "white spots on fish like grains of salt, ich, white spot disease fish",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 1861,
+      "raw_top_score": 0.543669581413269,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Applications, technologies, and evaluation methods in smart aquaponics: a systematic literature review (Artif Intell Rev, 2024)"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "disease-02-fr",
+      "lang": "fr",
+      "query": "est-ce que je peux utiliser un traitement à base de cuivre avec les plantes dans le circuit",
+      "searched": "copper treatment toxicity to plants in aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 2101,
+      "raw_top_score": 0.35018378496170044,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "feed-01-fr",
+      "lang": "fr",
+      "query": "combien je dois leur donner par jour",
+      "searched": "combien je dois leur donner par jour",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feed_and_feeding.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 4027,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/common_system_failures.md",
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "pump-01-fr",
+      "lang": "fr",
+      "query": "la pompe est largement assez puissante mais en haut de la tour ça coule à peine",
+      "searched": "weak water flow at top of vertical tower despite powerful pump, clogged drippers or head loss",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 4747,
+      "raw_top_score": 1.1212605237960815,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "pump-02-fr",
+      "lang": "fr",
+      "query": "comment calculer le débit dont j'ai vraiment besoin",
+      "searched": "comment calculer le débit dont j'ai vraiment besoin",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 4144,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-01-fr",
+      "lang": "fr",
+      "query": "je pars sur des radeaux flottants ou sur le système avec les petites gouttières",
+      "searched": "je pars sur des radeaux flottants ou sur le système avec les petites gouttières",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 5859,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-02-fr",
+      "lang": "fr",
+      "query": "j'ai presque pas de place au sol, quel montage marche",
+      "searched": "j'ai presque pas de place au sol, quel montage marche",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 5240,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/fish_disease_and_treatment.md",
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "water-01-fr",
+      "lang": "fr",
+      "query": "l'eau du robinet sent fort le chlore, je peux faire l'appoint avec",
+      "searched": "chlorinated tap water safe for topping up aquaponics, chlorine toxicity to fish and biofilter",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 2473,
+      "raw_top_score": 0.5462862253189087,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "water-02-fr",
+      "lang": "fr",
+      "query": "l'eau du forage ici est très dure",
+      "searched": "hard borehole water high mineral content aquaponics pH alkalinity effects",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 3916,
+      "raw_top_score": 0.5751280784606934,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/common_system_failures.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 0.5,
+      "ap": 0.25,
+      "id": "solids-01-fr",
+      "lang": "fr",
+      "query": "de la boue noire qui s'accumule au fond du bac",
+      "searched": "black sludge accumulating at bottom of fish tank or sump, anaerobic solids buildup",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "model_ms": 3149,
+      "raw_top_score": 0.7996689081192017,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "reg-01-fr",
+      "lang": "fr",
+      "query": "est-ce qu'il me faut une autorisation avant de vendre les poissons",
+      "searched": "est-ce qu'il me faut une autorisation avant de vendre les poissons",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/regulations_and_permits.md"
+      ],
+      "model_ms": 3723,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/food_safety_and_hygiene.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "safety-01-fr",
+      "lang": "fr",
+      "query": "les légumes cultivés avec les déjections des poissons, c'est vraiment sans danger à manger",
+      "searched": "food safety of aquaponics produce grown with fish waste, pathogens, E. coli risk",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/food_safety_and_hygiene.md"
+      ],
+      "model_ms": 2231,
+      "raw_top_score": 0.384162575006485,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/plant_pests_and_ipm.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "pest-01-fr",
+      "lang": "fr",
+      "query": "des tout petits insectes verts partout sur mon basilic, je peux pulvériser quoi",
+      "searched": "aphids on basil pest control safe for fish aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_pests_and_ipm.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2110,
+      "raw_top_score": 0.6937212944030762,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-01-fr",
+      "lang": "fr",
+      "query": "ça va coûter combien à faire tourner",
+      "searched": "ça va coûter combien à faire tourner",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md"
+      ],
+      "model_ms": 2885,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-02-fr",
+      "lang": "fr",
+      "query": "est-ce que ça va être rentable un jour",
+      "searched": "est-ce que ça va être rentable un jour",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md",
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 1723,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-03-fr",
+      "lang": "fr",
+      "query": "je prépare une demande de financement, qu'est-ce qu'il faut mettre dedans",
+      "searched": "je prépare une demande de financement, qu'est-ce qu'il faut mettre dedans",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 3433,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/temperature_and_climate_control.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "temp-01-fr",
+      "lang": "fr",
+      "query": "l'eau monte à 34 degrés l'après-midi ici",
+      "searched": "water temperature too high 34C fish stress dissolved oxygen aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 2960,
+      "raw_top_score": 0.5550405979156494,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/temperature_and_climate_control.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "temp-02-fr",
+      "lang": "fr",
+      "query": "quelle espèce supporte un hiver froid",
+      "searched": "cold tolerant fish species for aquaponics in cold winter climate",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 3832,
+      "raw_top_score": 0.565373420715332,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "range-01-fr",
+      "lang": "fr",
+      "query": "quelles valeurs je dois viser en général",
+      "searched": "quelles valeurs je dois viser en général",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/water_quality_ranges.md"
+      ],
+      "model_ms": 3161,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "do-01-zh",
+      "lang": "zh",
+      "query": "我的吳郭魚一大早全部浮到水面在喘氣",
+      "searched": "fish gasping at surface at dawn, low dissolved oxygen tilapia",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 1926,
+      "raw_top_score": 0.483830064535141,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/fish_stress_diagnosis.md",
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "do-02-zh",
+      "lang": "zh",
+      "query": "魚都擠在進水口附近，呼吸很快",
+      "searched": "fish crowding near water inlet, gasping, rapid breathing, low dissolved oxygen",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/dissolved_oxygen_and_aeration.md",
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 3102,
+      "raw_top_score": 0.6216151118278503,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "stress-01-zh",
+      "lang": "zh",
+      "query": "魚游得很慢，飼料幾乎都不吃",
+      "searched": "魚游得很慢，飼料幾乎都不吃",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/fish_stress_diagnosis.md"
+      ],
+      "model_ms": 6659,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "n-01-zh",
+      "lang": "zh",
+      "query": "氨突然飆到4 ppm，我現在該怎麼辦",
+      "searched": "ammonia spike emergency action aquaponics high ammonia toxicity",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md"
+      ],
+      "model_ms": 2372,
+      "raw_top_score": 0.47636914253234863,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "n-02-zh",
+      "lang": "zh",
+      "query": "新系統才跑三個禮拜，亞硝酸一直往上升",
+      "searched": "new aquaponics system nitrite spike during cycling, biofilter establishment",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 3989,
+      "raw_top_score": 0.4677911400794983,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "n-03-zh",
+      "lang": "zh",
+      "query": "細菌要多久才會長起來",
+      "searched": "how long does it take to cycle a new aquaponics system, nitrifying bacteria establishment time",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2814,
+      "raw_top_score": 0.43510007858276367,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/ph_and_alkalinity.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "ph-01-zh",
+      "lang": "zh",
+      "query": "pH每個禮拜都一直往下掉，加什麼都沒用",
+      "searched": "pH continuously dropping in aquaponics despite adding buffer, alkalinity consumed by nitrification",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 5191,
+      "raw_top_score": 0.30257296562194824,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.3333333333333333,
+      "ap": 0.3333333333333333,
+      "id": "ph-02-zh",
+      "lang": "zh",
+      "query": "要怎麼安全地提高緩衝能力",
+      "searched": "increasing alkalinity buffering capacity safely in aquaponics, pH stabilization with calcium carbonate or potassium bicarbonate",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/ph_and_alkalinity.md"
+      ],
+      "model_ms": 3033,
+      "raw_top_score": 0.419333279132843,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/plant_deficiency_cheatsheet.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "plant-01-zh",
+      "lang": "zh",
+      "query": "萵苣葉子葉脈之間變黃，但葉脈還是綠的",
+      "searched": "lettuce interveinal chlorosis yellowing between veins nutrient deficiency",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md",
+        "knowledge/plant_deficiency_cheatsheet.md"
+      ],
+      "model_ms": 3339,
+      "raw_top_score": 0.5482355952262878,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/plant_nutrient_deficiencies.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "plant-02-zh",
+      "lang": "zh",
+      "query": "最老的葉子先變淡，新長的看起來沒問題",
+      "searched": "oldest leaves turning pale yellow while new growth looks healthy, nitrogen deficiency in aquaponics plants",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_nutrient_deficiencies.md"
+      ],
+      "model_ms": 3469,
+      "raw_top_score": 0.4293672442436218,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "algae-01-zh",
+      "lang": "zh",
+      "query": "我的水變成很亮的綠色，而且很混濁",
+      "searched": "water turned bright green and cloudy, algae bloom in aquaponics tank",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md"
+      ],
+      "model_ms": 2881,
+      "raw_top_score": 0.7952855825424194,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/algae_control.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "algae-02-zh",
+      "lang": "zh",
+      "query": "一條一條的綠色東西把水管跟濾網都塞住了",
+      "searched": "string algae clogging pipes and filter screen in aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/algae_control.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 2787,
+      "raw_top_score": 0.5395640730857849,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/common_system_failures.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "fail-01-zh",
+      "lang": "zh",
+      "query": "昨晚停電六個小時，我應該先檢查什麼",
+      "searched": "power outage fish tank low dissolved oxygen emergency aeration",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/dissolved_oxygen_and_aeration.md"
+      ],
+      "model_ms": 3179,
+      "raw_top_score": 0.6383159160614014,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/nitrogen_cycle_and_cycling.md",
+        "knowledge/common_system_failures.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "rr": 0.5,
+      "ap": 0.16666666666666666,
+      "id": "fail-02-zh",
+      "lang": "zh",
+      "query": "我好像餵太多了，現在水變得很濁",
+      "searched": "cloudy water after overfeeding fish, ammonia spike, bacterial bloom",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/common_system_failures.md",
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/feed_and_feeding.md"
+      ],
+      "model_ms": 4018,
+      "raw_top_score": 0.6035701632499695,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/fish_disease_and_treatment.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "disease-01-zh",
+      "lang": "zh",
+      "query": "魚身上到處都是小白點，像鹽巴一樣",
+      "searched": "fish covered in small white spots like salt grains, ich white spot disease",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 2267,
+      "raw_top_score": 0.5541293025016785,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/fish_disease_and_treatment.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "disease-02-zh",
+      "lang": "zh",
+      "query": "植物還接在系統裡，可以用含銅的藥嗎",
+      "searched": "copper-based medication toxicity to plants in aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/fish_disease_and_treatment.md"
+      ],
+      "model_ms": 3413,
+      "raw_top_score": 0.4944526255130768,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "feed-01-zh",
+      "lang": "zh",
+      "query": "每天應該餵多少",
+      "searched": "每天應該餵多少",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feed_and_feeding.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 3380,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/pump_sizing_basics.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "pump-01-zh",
+      "lang": "zh",
+      "query": "馬達規格明明很夠，打到塔頂卻只剩一點點水",
+      "searched": "pump rated flow sufficient but weak flow at top of vertical tower, head loss, friction loss in pipe",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 3319,
+      "raw_top_score": 1.0499441623687744,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "pump-02-zh",
+      "lang": "zh",
+      "query": "我實際需要多少流量要怎麼算",
+      "searched": "我實際需要多少流量要怎麼算",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/pump_sizing_basics.md"
+      ],
+      "model_ms": 4609,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-01-zh",
+      "lang": "zh",
+      "query": "要用浮筏還是細水道那種",
+      "searched": "要用浮筏還是細水道那種",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 6045,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "type-02-zh",
+      "lang": "zh",
+      "query": "我幾乎沒有地面空間，哪種配置比較好",
+      "searched": "我幾乎沒有地面空間，哪種配置比較好",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/system_types_and_design.md"
+      ],
+      "model_ms": 10019,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/food_safety_and_hygiene.md"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "water-01-zh",
+      "lang": "zh",
+      "query": "自來水的氯味很重，可以直接拿來補水嗎",
+      "searched": "tap water chlorine chloramine dechlorination before adding to aquaponics system",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 2787,
+      "raw_top_score": 0.37841522693634033,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/water_source_and_treatment.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "water-02-zh",
+      "lang": "zh",
+      "query": "這邊的井水非常硬",
+      "searched": "hard well water high alkalinity aquaponics pH calcium carbonate effects",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_source_and_treatment.md"
+      ],
+      "model_ms": 4249,
+      "raw_top_score": 0.5364775657653809,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/common_system_failures.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "rr": 1.0,
+      "ap": 0.5,
+      "id": "solids-01-zh",
+      "lang": "zh",
+      "query": "魚缸底部一直堆積黑色的污泥",
+      "searched": "black sludge accumulating at bottom of fish tank, solid waste buildup, anaerobic sediment",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/solids_and_mineralization.md",
+        "knowledge/common_system_failures.md"
+      ],
+      "model_ms": 5351,
+      "raw_top_score": 0.747317910194397,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "Love et al. (2014), An International Survey of Aquaponics Practitioners, PLOS ONE",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "reg-01-zh",
+      "lang": "zh",
+      "query": "賣魚之前需要申請什麼執照嗎",
+      "searched": "license permit requirements to sell farmed fish aquaponics",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/regulations_and_permits.md"
+      ],
+      "model_ms": 4621,
+      "raw_top_score": 0.5960907936096191,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/food_safety_and_hygiene.md",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "safety-01-zh",
+      "lang": "zh",
+      "query": "用魚的排泄物種出來的菜，吃了真的安全嗎",
+      "searched": "is produce grown in aquaponics using fish waste safe to eat, food safety pathogens",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/food_safety_and_hygiene.md"
+      ],
+      "model_ms": 2637,
+      "raw_top_score": 0.395452618598938,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production Systems, Springer Open",
+        "knowledge/plant_pests_and_ipm.md"
+      ],
+      "hit": true,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 0.8333333333333333,
+      "id": "pest-01-zh",
+      "lang": "zh",
+      "query": "九層塔上面爬滿很小的綠色蟲，可以噴什麼",
+      "searched": "small green insects aphids on basil leaves aquaponics pest control treatment",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/plant_pests_and_ipm.md",
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)"
+      ],
+      "model_ms": 3211,
+      "raw_top_score": 0.7411006689071655,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-01-zh",
+      "lang": "zh",
+      "query": "運作成本大概會花多少",
+      "searched": "運作成本大概會花多少",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md"
+      ],
+      "model_ms": 5694,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-02-zh",
+      "lang": "zh",
+      "query": "這樣到底有沒有辦法回本",
+      "searched": "這樣到底有沒有辦法回本",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/economics_and_costs.md",
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 4252,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "econ-03-zh",
+      "lang": "zh",
+      "query": "我在寫申請補助的計畫書，應該包含哪些內容",
+      "searched": "我在寫申請補助的計畫書，應該包含哪些內容",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/feasibility_and_business_case.md"
+      ],
+      "model_ms": 5090,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "temp-01-zh",
+      "lang": "zh",
+      "query": "這邊下午水溫會到34度",
+      "searched": "這邊下午水溫會到34度",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 9916,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [],
+      "hit": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rr": 0.0,
+      "ap": 0.0,
+      "id": "temp-02-zh",
+      "lang": "zh",
+      "query": "冬天很冷的話適合養什麼魚",
+      "searched": "冬天很冷的話適合養什麼魚",
+      "called_tool": false,
+      "relevant": [
+        "knowledge/temperature_and_climate_control.md"
+      ],
+      "model_ms": 4682,
+      "raw_top_score": null,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+        "knowledge/water_quality_ranges.md",
+        "Applications, technologies, and evaluation methods in smart aquaponics: a systematic literature review (Artif Intell Rev, 2024)"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 0.5,
+      "ap": 0.5,
+      "id": "range-01-zh",
+      "lang": "zh",
+      "query": "整體來說各項數值應該控制在多少",
+      "searched": "ideal water quality parameters ranges for aquaponics pH ammonia nitrite nitrate dissolved oxygen temperature",
+      "called_tool": true,
+      "relevant": [
+        "knowledge/water_quality_ranges.md"
+      ],
+      "model_ms": 3711,
+      "raw_top_score": 0.24188481271266937,
+      "floor_returned_nothing": false
+    }
+  ]
+}
