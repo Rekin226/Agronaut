@@ -418,7 +418,59 @@ MORINGA = Crop(
         "trial ran on soils of pH(KCl) 5.1-7.0 across its two sites and produced "
         "throughout; no species-level pH requirement was reached in the sources above. "
         "temp_min 20 °C placed: chilling-sensitive tropical species, growth poor below "
-        "~20 °C."),
+        "~20 °C."),)
+
+# ETHIOPIAN KALE (Brassica carinata) — the leafy brassica that carries real heat. The
+# database already has kale, collards and mustard greens, and every one of them stops at
+# 24-27 °C; this is the same slot filled for amaranth in #104, one genus over (#125).
+ETHIOPIAN_KALE = Crop(
+    name="ethiopian_kale",
+    category="leafy",
+    # No B. carinata-specific feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) at the collard-greens seed point —
+    # the closest analogue we carry: a heavy-feeding leafy brassica harvested by repeated
+    # defoliation (PROTA: leaf picking every ~2 weeks at 50% defoliation).
+    frr_g_per_m2_day=72.0,
+    frr_low=50.0,
+    frr_high=95.0,
+    n_uptake_g_per_m2_day=0.95,
+    # Field yield is measured, not placed: PROTA4U (Schippers 2002 / standard PROTA
+    # summary) gives an average farmer leaf-and-shoot yield of 35 t/ha, with 50-55 t/ha
+    # reported at research stations. 35 t/ha over a year-round crop (daylength-neutral,
+    # no vernalization requirement, harvested every ~2 weeks) is 3.5 kg/m2/yr in the
+    # field — but under continuous harvest the stand rarely holds the full-season peak,
+    # and the number a farmer actually gets sits well under the station ceiling. Held at
+    # 14 kg/m2/yr after the protected-culture step, alongside malabar spinach and under
+    # water spinach: consistent with a ~2-4x field-to-raft multiplier on a conservative
+    # fraction of the field figure. The multiplier, not the trial, is the soft link.
+    yield_kg_per_m2_year=14.0,
+    # PROTA states explicitly that leaf nutritional composition for B. carinata is not
+    # published and is "probably comparable to Brassica juncea" — so the protein number
+    # is inherited from our mustard-greens entry (2.7), with that caveat recorded here.
+    edible_protein_pct=2.7,
+    ph_min=5.5,
+    ph_max=7.0,
+    # Heat tolerance is the reason this entry exists, but the band is honest about its
+    # sources: PROTA4U describes the crop as versatile — highland cool climates to 2600 m
+    # but also lowland warm-and-dry conditions — and ECHO's production profile gives
+    # 15-30 °C for the leafy use, with good performance in hot lowland tropics and no
+    # need for cool nights or vernalization to grow leaves. temp_max 30 keeps it inside
+    # its sources; it does NOT claim amaranth-class 35 °C headroom the literature for
+    # B. carinata does not state. Daylength neutrality and the lack of a vernalization
+    # requirement are what fit it to year-round equatorial raft culture.
+    temp_min_c=15.0,
+    temp_max_c=30.0,
+    source=("PROTA4U (PROTA Foundation, 2004; 'Brassica carinata' vegetable use): farmer "
+        "leaf+shoot yield ~35 t/ha (research stations 50-55 t/ha) for the yield base, "
+        "highland-to-lowland versatility for the climate description, and the explicit "
+        "statement that leaf nutritional composition is unpublished ('probably comparable "
+        "to Brassica juncea') — protein 2.7 inherited from mustard_greens on that basis; "
+        "ECHO production notes (Mutarda carinata, echocommunity.org) for the 15-30 °C "
+        "band; leaf harvest every ~2 weeks at 50% defoliation per PROTA agronomy section. "
+        "Yield 14 assumes a protected-culture multiplier on a conservative fraction of the "
+        "field figure; the multiplier, not the trial, is the soft link. FRR placed at the "
+        "collard-greens seed point in the FAO 589 / UVI leafy band (not measured for this "
+        "species)."),
 )
 
 CROPS: dict[str, Crop] = {
@@ -435,6 +487,7 @@ CROPS: dict[str, Crop] = {
         WATER_SPINACH,
         MALABAR_SPINACH,
         MORINGA,
+        ETHIOPIAN_KALE,
     )
 }
 
