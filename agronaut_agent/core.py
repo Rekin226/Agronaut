@@ -643,6 +643,21 @@ class AgronautAgent:
             log.debug("forced final answer failed", exc_info=True)
         return "Here's what I have so far. Could you tell me a bit more so I can pin it down?"
 
+    def tool_results(self, channel: str, channel_user: str, tool_name: str) -> list[str]:
+        """Results of `tool_name` in this user's latest turn, oldest first.
+
+        Lets a host interface react to what the agent did (for example, show a design to
+        confirm when a design tool ran) without parsing the reply text. Read from the
+        conversation store, so it is exactly what the model was given."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        found = []
+        for m in reversed(self._conv.recent_messages(user_id, limit=60)):
+            if m["role"] == "user":
+                break
+            if m["role"] == "tool" and m["tool_name"] == tool_name:
+                found.append(m["content"])
+        return found[::-1]
+
     # --- the single public seam ------------------------------------------
     def handle_message(self, channel: str, channel_user: str, text: str,
                        display_name: str | None = None, fact_text: str | None = None) -> str:
@@ -963,6 +978,13 @@ class AgronautAgent:
         the whole value of the gate is that what got recorded is what the human typed."""
         return self._run_tool_direct(channel, channel_user, "decide_on_recommendations",
                                      {"approve": bool(approve), "numbers": list(numbers)})
+
+    @property
+    def model_label(self) -> str | None:
+        """"provider · model" this agent was configured with (None for an injected model)."""
+        if not self._provider:
+            return None
+        return f"{self._provider} · {self._configured_model}"
 
     @property
     def chat_error(self) -> str | None:
