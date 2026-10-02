@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 _ROOT = Path(__file__).resolve().parents[1]
 _GOLDEN = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
+_MULTILINGUAL = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set_multilingual.json"
 
 # The baseline the shipped retrieval constants (floor, cap, beta in agronaut_agent/rag.py) were
 # tuned against. When a re-sweep moves them, save a new baseline and point this at it.
@@ -118,6 +119,36 @@ def aggregate(per_query: list[dict], k: int) -> dict:
     }
 
 
+# --- multilingual golden set (pure, no index, unit-testable) -----------------
+
+MULTILINGUAL_PATH = _MULTILINGUAL
+
+
+def load_multilingual(path: Path | None = None) -> dict:
+    """Load the multilingual golden set (FR + ZH-TW mirrors of the English queries)."""
+    return json.loads((path or _MULTILINGUAL).read_text())
+
+
+def by_language(golden: dict) -> dict:
+    """Split a multilingual golden set into per-language subsets, negatives included.
+
+    Pure: takes and returns plain dicts, so the per-language aggregation is unit-testable
+    without an index. Queries carry a `lang` key; ids already carry the language suffix.
+    """
+    out: dict[str, dict] = {}
+    for q in golden.get("queries", []):
+        lang = q.get("lang")
+        if lang:
+            bucket = out.setdefault(lang, {"k": golden.get("k", 3),
+                                           "queries": [], "negative_controls": []})
+            bucket["queries"].append(q)
+    for q in golden.get("negative_controls", []):
+        lang = q.get("lang")
+        if lang and lang in out:
+            out[lang]["negative_controls"].append(q)
+    return out
+
+
 # --- what the baseline was measured on (pure, no index, unit-testable) ------
 
 def corpus_fingerprint(root: Path = _ROOT) -> dict:
@@ -180,15 +211,20 @@ def _chunk_count() -> int | None:
 
 # --- the live run ------------------------------------------------------------
 
-def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = False) -> dict:
+def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = False,
+        golden: dict | None = None) -> dict:
     """Score the golden set.
+
+    `golden` overrides the English golden set — the per-language mode passes a slice of
+    golden_set_multilingual.json. Defaults to the English file, so existing callers are
+    unaffected.
 
     `retrieve` is injectable (query, k) -> list of hit dicts; defaults to the real index.
     `unfiltered` is the same retriever with the relevance floor DISABLED — the negative controls
     need raw distances, because a floor that has already discarded them tells us nothing about
     whether it was set at the right place.
     """
-    golden = json.loads(_GOLDEN.read_text())
+    golden = golden if golden is not None else json.loads(_GOLDEN.read_text())
     k = k or golden.get("k", 3)
     if retrieve is None:
         from agronaut_agent import rag
@@ -302,25 +338,61 @@ def main() -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-floor", action="store_true",
                     help="measure retrieval with the relevance floor disabled")
+    ap.add_argument("--per-language", action="store_true",
+                    help="also score the FR and ZH-TW slices of golden_set_multilingual.json "
+                         "(same labels as the English originals); the saved baseline holds one "
+                         "block per language under 'per_language'")
     args = ap.parse_args()
 
-    report = run(k=args.k, no_floor=args.no_floor)
-    baseline = json.loads(Path(args.compare).read_text()) if args.compare else None
-
-    if args.json:
-        print(json.dumps(report, indent=2))
+    if args.per_language:
+        english = run(k=args.k, no_floor=args.no_floor)
+        report = {"summary": english["summary"], "per_query": english["per_query"],
+                  "negative_controls": english["negative_controls"],
+                  "per_language": {"en": english}}
+        ml = load_multilingual()
+        for lang, bucket in sorted(by_language(ml).items()):
+            report["per_language"][lang] = run(k=args.k, no_floor=args.no_floor,
+                                               golden=bucket)
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            per_lang = {lang: rep["summary"]
+                        for lang, rep in sorted(report["per_language"].items())}
+            counts = ", ".join(f"{lang}={s['queries']}" for lang, s in per_lang.items())
+            print(f"\nRETRIEVAL PER LANGUAGE  ({counts} queries)")
+            print("-" * 62)
+            keys = ["hit_rate", "recall@k", "precision@k", "MRR", "MAP@k",
+                    "floor_silenced_on_topic", "floor_rejected_off_topic"]
+            for key in keys:
+                line = f"  {key:<26}"
+                for lang, rep in sorted(report["per_language"].items()):
+                    v = rep["summary"].get(key)
+                    line += f"  {lang}={v:.3f}" if isinstance(v, (int, float)) else f"  {lang}=n/a"
+                print(line)
+            for lang, rep in sorted(report["per_language"].items()):
+                misses = [r for r in rep["per_query"] if not r["hit"]]
+                if misses:
+                    print(f"\nMISSES {lang} ({len(misses)}/{rep['summary']['queries']}):")
+                    for r in misses:
+                        print(f"  [{r['id']}] {r['query']}")
+                        print(f"        wanted: {', '.join(r['relevant'])}")
+                        print(f"        got:    {', '.join(r['retrieved']) or '(nothing)'}")
     else:
-        _print(report, baseline)
-
-    if baseline:
-        drift = corpus_drift(baseline.get("corpus"), corpus_fingerprint())
-        for reason in drift:
-            print(f"  ! corpus differs from the baseline: {reason}")
+        report = run(k=args.k, no_floor=args.no_floor)
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            _print(report, args.compare and json.loads(Path(args.compare).read_text()))
+        baseline = json.loads(Path(args.compare).read_text()) if args.compare else None
+        if baseline:
+            drift = corpus_drift(baseline.get("corpus"), corpus_fingerprint())
+            for reason in drift:
+                print(f"  ! corpus differs from the baseline: {reason}")
 
     if args.save:
         # First key, so a reader sees what was measured before the numbers measured on it.
         report = {"corpus": {**corpus_fingerprint(), "chunks": _chunk_count()}, **report}
-        Path(args.save).write_text(json.dumps(report, indent=2))
+        Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))
         print(f"\nbaseline saved -> {args.save}")
     return 0
 

@@ -415,7 +415,14 @@ def render_system_schematic(
 def search_knowledge_base(query: str) -> str:
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
-    quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool)."""
+    quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool).
+
+    The knowledge base is indexed in ENGLISH. Always write `query` in English technical
+    vocabulary, even when the conversation is in another language: translate the user's
+    problem yourself first, and prefer the technical term over the colloquial one —
+    "low dissolved oxygen at dawn", not "fish gasping". Searching in the user's language
+    retrieves the wrong passages (measured: docs/dpg/retrieval_eval/golden_set_multilingual.json,
+    baseline_multilingual.json)."""
     text, stats = rag.search_with_stats(query)
     try:
         from .analytics import Analytics
