@@ -436,12 +436,10 @@ ETHIOPIAN_KALE = Crop(
     n_uptake_g_per_m2_day=0.95,
     # Field yield is measured, not placed: PROTA (Mnzava & Schippers 2007) gives an
     # average farmer leaf-and-shoot yield of 35 t/ha per crop, with 50-55 t/ha at
-    # research stations. 14 is the chain 35 x 0.40 x 4x: 40% of the leaf+shoot figure
-    # stands in for the leaf fraction a raft stand holds under continuous harvest, then
-    # the same ~4x protected-culture multiplier the leafy siblings use (amaranth ~4-5x,
+    # research stations. 35 t/ha is 3.5 kg/m2; 14 is the chain 3.5 kg/m2 x 4x — the
+    # same ~4x protected-culture multiplier the leafy siblings use (amaranth ~4-5x,
     # malabar spinach ~6x). Held at 14 — under water spinach (16), level with malabar
-    # spinach. The leaf fraction and the multiplier are the soft links; the trial is
-    # measured.
+    # spinach. The multiplier is the soft link; the trial is measured.
     yield_kg_per_m2_year=14.0,
     # PROTA states explicitly that leaf nutritional composition for B. carinata is not
     # published and is "probably comparable to Brassica juncea" — so the protein number
@@ -474,11 +472,10 @@ ETHIOPIAN_KALE = Crop(
         "20-30˚C' for the species — the 30 ceiling placed on the leafy use from it, the "
         "union of the two sourced endpoints. pH 5.5-7.0 is the FAO 589 / UVI leafy-band "
         "default, not species-measured. Leaf harvest every ~2 weeks at 50% defoliation "
-        "per PROTA agronomy section. Yield 14 = 35 t/ha x 0.40 x 4x: PROTA's 35 t/ha is "
-        "a leaf+shoot average per crop, so 40% of it is taken as the leaf fraction a "
-        "raft stand holds under continuous harvest, then the same ~4x protected-culture "
-        "multiplier the leafy siblings use (amaranth ~4-5x, malabar spinach ~6x); the "
-        "fraction and the multiplier are the soft links, the trial is measured. FRR "
+        "per PROTA agronomy section. Yield 14 = 3.5 kg/m2 (35 t/ha per crop) x 4x: "
+        "the same ~4x protected-culture multiplier the leafy siblings use (amaranth "
+        "~4-5x, malabar spinach ~6x); the multiplier is the soft link, the trial is "
+        "measured. FRR "
         "placed at the collard-greens seed point in the FAO 589 / UVI leafy band (not "
         "measured for this species)."),
 )
