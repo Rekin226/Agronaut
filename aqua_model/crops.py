@@ -363,6 +363,64 @@ MALABAR_SPINACH = Crop(
         "FAO 589 / UVI leafy band (not measured for this species)."),
 )
 
+# MORINGA (Moringa oleifera) — the drumstick tree grown as a cut-and-come-again leaf
+# crop, the seventh wanted heat-tolerant leafy (#125). What sets it apart from the
+# other three is drought: it carries hot AND dry, where amaranth, water spinach and
+# malabar spinach still want irrigation.
+MORINGA = Crop(
+    name="moringa",
+    category="leafy",
+    # No Moringa-specific feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) alongside amaranth, water
+    # spinach and malabar spinach: fast regrowth after cutting, repeated harvests.
+    frr_g_per_m2_day=65.0,
+    frr_low=45.0,
+    frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    # Field yield from the only multi-harvest density trial we could reach: aboveground
+    # dry biomass 527-2867 kg/ha per cutting, across four harvests in ~14 months
+    # (Mabapa et al. 2017, Int. J. Agronomy 2941432, northern South Africa; no
+    # fertilizer, dryland — smallholder conditions; per-harvest ranges in Fig. 2,
+    # e.g. Ofcolaco harvest 1: 1185-2867 kg/ha, harvest 3: 527-1035 kg/ha).
+    # Annualized: 4 cuttings / (14/12 yr) ≈ 3.4 cuts/yr → ~1.8-9.8 t/ha/yr of dry
+    # shoot. Leaf is a fraction of the shoot — take ~40% for cut green-matter
+    # culture — and dry leaf is ~20-25% of fresh mass, so the field fresh-leaf
+    # equivalent sits around ~2.9-19.7 t/ha/yr. The registered 14 (=140 t/ha/yr)
+    # therefore sits roughly 7-48x above the field trial — a step of the same
+    # order as the intensification steps its leafy siblings take, and it lands
+    # under water spinach's 16. The multiplier, not the trial, is the soft link
+    # in that chain.
+    yield_kg_per_m2_year=14.0,
+    # Highest-protein leafy entry in the database: USDA FDC "Drumstick leaves, raw"
+    # carries 9.4 g protein/100 g fresh — about triple the leafy greens around it.
+    edible_protein_pct=9.4,
+    ph_min=5.5,
+    ph_max=7.0,
+    # The measured part is the optimum: 25-35 °C, with survival to 48 °C for limited
+    # periods (Trigo et al. 2021). What sets it apart from its heat-tolerant siblings
+    # is the floor — 20 °C is the warmest here, because a chilling-sensitive tropical
+    # species grows poorly well below its optimum. Light-frost survival is real but
+    # belongs to the tree, not to a leaf-growth band, so it is not modelled.
+    temp_min_c=20.0,
+    temp_max_c=35.0,
+    source=("Mabapa et al. 2017 (Mabapa, Ayisi & Mariga), Int. J. Agronomy 2941432 "
+        "(northern South Africa, four harvests in ~14 months): aboveground dry biomass "
+        "527-2867 kg/ha per cutting (per-harvest ranges in the paper's Fig. 2), "
+        "no fertilizer, dryland, for the yield base; "
+        "Trigo et al. 2021, Foods 10(1):31: 'The optimum temperature range is 25-35 °C "
+        "and it can even withstand 48 °C for a limited period of time', 3-5 leaf cuts "
+        "per season; USDA FoodData Central 'Drumstick leaves, raw' (9.4 g protein/100 g "
+        "fresh) for protein. FRR placed in FAO 589 / UVI leafy band (not measured for "
+        "this species). Yield 14: the trial's ~2.9-19.7 t/ha/yr field fresh-leaf "
+        "equivalent (4 cuttings in ~14 months, ~40% leaf share, 20-25% dry-to-fresh) "
+        "times a ~7-48x protected-culture multiplier; the "
+        "multiplier, not the trial, is the soft link. pH 5.5-7.0 placed: the cited "
+        "trial ran on soils of pH(KCl) 5.1-7.0 across its two sites and produced "
+        "throughout; no species-level pH requirement was reached in the sources above. "
+        "temp_min 20 °C placed: chilling-sensitive tropical species, growth poor below "
+        "~20 °C."),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -376,6 +434,7 @@ CROPS: dict[str, Crop] = {
         AMARANTH,
         WATER_SPINACH,
         MALABAR_SPINACH,
+        MORINGA,
     )
 }
 

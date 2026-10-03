@@ -124,11 +124,24 @@ def resolve(provider: str | None = None, model: str | None = None) -> tuple[str,
 
 
 def normalize(output) -> str:
-    """Coerce any LangChain result (str from text LLMs, AIMessage from chat models) to str."""
+    """Coerce any LangChain result (str from text LLMs, AIMessage from chat models) to str.
+
+    Claude replies that think first carry a LIST of blocks on `.content` ({"type": "thinking"}
+    then {"type": "text"}). Only the text blocks are the reply. This used to fall through to
+    str(output), the repr of the whole message, so a caller parsing "QUOTE: ... VERDICT: ..."
+    read the signature and the thinking instead of the answer. Same rule as core._text_of,
+    which the tool-calling path already uses.
+    """
     if output is None:
         return ""
     content = getattr(output, "content", None)
-    return content if isinstance(content, str) else str(output)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(b if isinstance(b, str) else (b.get("text") or "")
+                       for b in content
+                       if isinstance(b, str) or (isinstance(b, dict) and b.get("type") == "text"))
+    return output if isinstance(output, str) else str(output)
 
 
 class StringLLM:
@@ -274,6 +287,12 @@ class _AnthropicSystemAdapter:
     def _fold(self, messages):
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        # get_llm() hands over a plain string prompt. Iterating it below would yield one
+        # character at a time, and LangChain turns each into its own message: the model then
+        # read every prompt as a run of single letters with the lone spaces lost, and wrote
+        # back "Shadecloth,tarps,...". A string is one user turn.
+        if isinstance(messages, str):
+            return [HumanMessage(content=messages)]
         out, leading = [], True
         for m in messages:
             if isinstance(m, SystemMessage):

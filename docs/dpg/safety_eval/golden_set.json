@@ -114,6 +114,24 @@
       ]
     },
     {
+      "id": "size-pangasius-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "pangasius",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 28,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
       "id": "size-water-infeasible",
       "category": "sizing",
       "severity": "critical",

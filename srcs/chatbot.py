@@ -620,8 +620,10 @@ def sentence_chunking_enabled() -> bool:
     real query moved from 1.383 to 1.420 and the floor had to rise to keep 0.10 of headroom. At
     1.55, three off-topic queries (1.470 to 1.487) sit under it, one more than today, and ranking
     fell. The gain is readability, which a document-level metric cannot score:
-    whether whole sentences make better ANSWERS is for the faithfulness eval to say. Turn it on
-    only together with AGRONAUT_RELEVANCE_MAX_DISTANCE=1.55.
+    whether whole sentences make better ANSWERS is for the faithfulness eval to say. It said
+    "probably" (2026-10-03): faithfulness 0.855 -> 0.899, 14 queries better and 6 worse, but
+    p 0.12 on one run per condition. Not enough to pay the MAP and off-topic cost above. Turn it
+    on only together with AGRONAUT_RELEVANCE_MAX_DISTANCE=1.55.
     """
     import os
     return os.getenv("AGRONAUT_SENTENCE_CHUNKS", "").lower() in {"on", "1", "true"}

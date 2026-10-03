@@ -250,3 +250,39 @@ def test_the_adapter_survives_bind_tools_and_delegates_everything_else():
     assert isinstance(bound, L._AnthropicSystemAdapter)
     bound.invoke([])
     assert inner.got == []
+
+
+def test_a_string_prompt_reaches_anthropic_as_one_whole_message():
+    """get_llm() passes a plain string. The adapter used to iterate it, so "Shade cloth" went
+    out as eleven one-letter messages, the spaces were lost, and the model wrote back
+    "Shadecloth". Every string-prompt caller on Anthropic was affected: the faithfulness and
+    consult evals, and the live agent's background session summary."""
+    from langchain_core.messages import HumanMessage
+
+    inner = _Echo()
+    L._AnthropicSystemAdapter(inner).invoke("Shade cloth, tarps or plastic lids")
+    assert len(inner.got) == 1
+    assert isinstance(inner.got[0], HumanMessage)
+    assert inner.got[0].content == "Shade cloth, tarps or plastic lids"
+
+
+def test_normalize_returns_only_the_text_of_a_reply_that_thought_first():
+    """A Claude reply that thinks first is a LIST of blocks. normalize() used to return the repr
+    of the whole message, so a parser read the signature and the thinking, and the escaped
+    newlines broke "QUOTE: ...\\nVERDICT: ..." into one unmatchable quote."""
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(content=[
+        {"type": "thinking", "thinking": "the context says so", "signature": "abc"},
+        {"type": "text", "text": "QUOTE: shade cloth covers tanks\nVERDICT: SUPPORTED"},
+    ])
+    assert L.normalize(msg) == "QUOTE: shade cloth covers tanks\nVERDICT: SUPPORTED"
+
+
+def test_normalize_drops_non_text_blocks():
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(content=[{"type": "text", "text": "Check the pump. "},
+                             {"type": "tool_use", "id": "t1", "name": "x", "input": {}},
+                             "Then the aerator."])
+    assert L.normalize(msg) == "Check the pump. Then the aerator."
