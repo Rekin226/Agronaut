@@ -434,15 +434,14 @@ ETHIOPIAN_KALE = Crop(
     frr_low=50.0,
     frr_high=95.0,
     n_uptake_g_per_m2_day=0.95,
-    # Field yield is measured, not placed: PROTA4U (Schippers 2002 / standard PROTA
-    # summary) gives an average farmer leaf-and-shoot yield of 35 t/ha, with 50-55 t/ha
-    # reported at research stations. 35 t/ha over a year-round crop (daylength-neutral,
-    # no vernalization requirement, harvested every ~2 weeks) is 3.5 kg/m2/yr in the
-    # field — but under continuous harvest the stand rarely holds the full-season peak,
-    # and the number a farmer actually gets sits well under the station ceiling. Held at
-    # 14 kg/m2/yr after the protected-culture step, alongside malabar spinach and under
-    # water spinach: consistent with a ~2-4x field-to-raft multiplier on a conservative
-    # fraction of the field figure. The multiplier, not the trial, is the soft link.
+    # Field yield is measured, not placed: PROTA (Mnzava & Schippers 2007) gives an
+    # average farmer leaf-and-shoot yield of 35 t/ha per crop, with 50-55 t/ha at
+    # research stations. 14 is the chain 35 x 0.40 x 4x: 40% of the leaf+shoot figure
+    # stands in for the leaf fraction a raft stand holds under continuous harvest, then
+    # the same ~4x protected-culture multiplier the leafy siblings use (amaranth ~4-5x,
+    # malabar spinach ~6x). Held at 14 — under water spinach (16), level with malabar
+    # spinach. The leaf fraction and the multiplier are the soft links; the trial is
+    # measured.
     yield_kg_per_m2_year=14.0,
     # PROTA states explicitly that leaf nutritional composition for B. carinata is not
     # published and is "probably comparable to Brassica juncea" — so the protein number
@@ -450,27 +449,38 @@ ETHIOPIAN_KALE = Crop(
     edible_protein_pct=2.7,
     ph_min=5.5,
     ph_max=7.0,
-    # Heat tolerance is the reason this entry exists, but the band is honest about its
-    # sources: PROTA4U describes the crop as versatile — highland cool climates to 2600 m
-    # but also lowland warm-and-dry conditions — and ECHO's production profile gives
-    # 15-30 °C for the leafy use, with good performance in hot lowland tropics and no
-    # need for cool nights or vernalization to grow leaves. temp_max 30 keeps it inside
-    # its sources; it does NOT claim amaranth-class 35 °C headroom the literature for
-    # B. carinata does not state. Daylength neutrality and the lack of a vernalization
-    # requirement are what fit it to year-round equatorial raft culture.
+    # Heat tolerance is the reason this entry exists, and the band is built from sourced
+    # endpoints, not one source: ECHO's Mutarda carinata production profile states
+    # "Temperature range: 15-20° C" for the leafy use, and OMAFRA's Specialty Cropportunities
+    # (Carinata) gives "Optimal Temperature Range: 20-30˚C" with "Frost Tolerant, heat
+    # tolerant" — that 30 ceiling is the species-level optimum (measured for oilseed
+    # agronomy), placed on the leafy use here. PROTA describes the ecology (highland to
+    # 2600 m, lowland warm-and-dry, daylength neutral, no vernalization) but states no
+    # numbers. temp_max 30 therefore claims no amaranth-class 35 °C headroom; the OMAFRA
+    # 30 ceiling and ECHO's 15 floor are what the sources actually support. Daylength
+    # neutrality and the lack of a vernalization requirement are what fit it to year-round
+    # equatorial raft culture.
     temp_min_c=15.0,
     temp_max_c=30.0,
-    source=("PROTA4U (PROTA Foundation, 2004; 'Brassica carinata' vegetable use): farmer "
-        "leaf+shoot yield ~35 t/ha (research stations 50-55 t/ha) for the yield base, "
-        "highland-to-lowland versatility for the climate description, and the explicit "
-        "statement that leaf nutritional composition is unpublished ('probably comparable "
-        "to Brassica juncea') — protein 2.7 inherited from mustard_greens on that basis; "
-        "ECHO production notes (Mutarda carinata, echocommunity.org) for the 15-30 °C "
-        "band; leaf harvest every ~2 weeks at 50% defoliation per PROTA agronomy section. "
-        "Yield 14 assumes a protected-culture multiplier on a conservative fraction of the "
-        "field figure; the multiplier, not the trial, is the soft link. FRR placed at the "
-        "collard-greens seed point in the FAO 589 / UVI leafy band (not measured for this "
-        "species)."),
+    source=("PROTA4U, Mnzava & Schippers 2007 ('Brassica carinata A.Braun', PROTA4U "
+        "record, van der Vossen & Mkamilo eds): farmer leaf+shoot yield ~35 t/ha "
+        "(research stations 50-55 t/ha) for the yield base, highland-to-lowland "
+        "versatility and daylength neutrality for the climate description, and the "
+        "explicit statement that leaf nutritional composition is unpublished ('probably "
+        "comparable to Brassica juncea') — protein 2.7 inherited from mustard_greens on "
+        "that basis. Temperature: ECHO production notes (Mutarda carinata, "
+        "echocommunity.org) state 'Temperature range: 15-20° C' (floor placed from it); "
+        "OMAFRA Specialty Cropportunities (Carinata) states 'Optimal Temperature Range: "
+        "20-30˚C' for the species — the 30 ceiling placed on the leafy use from it, the "
+        "union of the two sourced endpoints. pH 5.5-7.0 is the FAO 589 / UVI leafy-band "
+        "default, not species-measured. Leaf harvest every ~2 weeks at 50% defoliation "
+        "per PROTA agronomy section. Yield 14 = 35 t/ha x 0.40 x 4x: PROTA's 35 t/ha is "
+        "a leaf+shoot average per crop, so 40% of it is taken as the leaf fraction a "
+        "raft stand holds under continuous harvest, then the same ~4x protected-culture "
+        "multiplier the leafy siblings use (amaranth ~4-5x, malabar spinach ~6x); the "
+        "fraction and the multiplier are the soft links, the trial is measured. FRR "
+        "placed at the collard-greens seed point in the FAO 589 / UVI leafy band (not "
+        "measured for this species)."),
 )
 
 CROPS: dict[str, Crop] = {

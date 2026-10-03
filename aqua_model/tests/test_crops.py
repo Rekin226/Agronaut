@@ -179,10 +179,11 @@ def test_ethiopian_kale_is_the_heat_tolerant_brassica():
     Its identity in the database is the pairing of a 30 °C ceiling with a 15 °C
     floor and no vernalization requirement: the leafy brassica slot (kale,
     collards, mustard greens all stop at 24-27 °C) filled for warm climates.
-    The ceiling is deliberately 30, not amaranth-class 35 — PROTA and ECHO do
-    not state more headroom for B. carinata than that, and a claimed-but-unsourced
-    band is exactly what this database must not carry. If a future edit narrows
-    the band, the reason this crop was added reopens silently.
+    Both endpoints are sourced, not one: ECHO's Mutarda carinata sheet states
+    "Temperature range: 15-20° C" and OMAFRA's Specialty Cropportunities states
+    "Optimal Temperature Range: 20-30˚C" — the 30 is the species optimum, placed
+    on the leafy use. If a future edit narrows the band, the reason this crop was
+    added reopens silently.
     """
     ek = get_crop("ethiopian_kale")
     assert ek.category == "leafy"
@@ -191,6 +192,10 @@ def test_ethiopian_kale_is_the_heat_tolerant_brassica():
     assert ek.temp_max_c <= 32.0  # sourced ceiling, not a copy of amaranth's 35
     assert "FRR placed" in ek.source, "FRR placement must be clearly stated"
     assert "juncea" in ek.source, "protein figure must name its B. juncea inheritance"
+    assert "Mnzava & Schippers 2007" in ek.source, "PROTA citation must name its authors"
+    assert "0.40 x 4x" in ek.source, (
+        "yield chain must state the real leaf fraction and multiplier, "
+        "not 'a conservative fraction of' an unstated size")
     assert ek.yield_kg_per_m2_year > 10.0
     assert ek.yield_kg_per_m2_year < 25.0
 
@@ -202,8 +207,6 @@ def test_ethiopian_kale_sizes_a_system_without_error():
     out = size_system(validate_design_input("tilapia", "ethiopian_kale", 12.0, 29.0, 3000.0))
 
     assert out.feed_g_per_day > 0
-    assert out.fish_count > 0
-    assert out.biofilter_media_m2 > 0    assert out.feed_g_per_day > 0
     assert out.fish_count > 0
     assert out.biofilter_media_m2 > 0
 
