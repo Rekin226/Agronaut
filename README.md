@@ -420,6 +420,33 @@ unparseable verdict counts as **unjudged** rather than being folded into either 
 `n_unjudged` is printed beside every score. It calls the network, so it is opt-in and never runs
 in CI; the scoring arithmetic is pure and unit-tested without a model.
 
+The judge is a different model from the one that writes the answer (`AGRONAUT_JUDGE_PROVIDER` /
+`AGRONAUT_JUDGE_MODEL`), and it must copy the sentence of the context that backs a claim before
+it may call the claim supported; code then checks that the quote really is in the context.
+Sentences about the sources themselves ("the context does not specify…", "consult other
+resources") are not claims and are left out.
+
+**Measured (2026-10-03):** 33 golden-set answers written by Claude Sonnet 5, 479 claims.
+
+| | faithfulness | agreement with a person (kappa, 29 claims) |
+|---|---|---|
+| gpt-oss-20b, quote-first prompt (default) | **0.84** | 0.24 blind, 0.39 after review |
+| gpt-oss-20b, earlier prompt (two runs) | 0.90, 0.90 | 0.34, 0.30 |
+| Claude Sonnet 5 as judge | 0.88 | 0.03 |
+
+Citation accuracy is 1.00 (no fabricated sources) and response relevancy 0.44. Read the
+faithfulness figure as a range, not a verdict: the judges agree with themselves (kappa 0.76
+between two runs) much better than with the one person who has labelled claims so far, which is
+"fair" agreement on a small sample. Claude was dropped as a judge because it agreed with the
+person no better than chance. Report and labels: `docs/dpg/faithfulness_eval/`.
+
+```bash
+python -m scripts.label_claims 2026-09-30_baseline.json            # label claims blind
+python -m scripts.label_claims 2026-09-30_baseline.json --review   # second look at disputes
+python -m scripts.faithfulness_eval --agreement 2026-09-30_baseline.json
+AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval --rejudge 2026-09-30_baseline.json
+```
+
 ### Does the reply repeat the engine's numbers correctly?
 
 Most turns never retrieve anything: the model calls the sizing engine and explains the result.

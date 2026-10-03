@@ -77,6 +77,79 @@ def parse_claims(text: str) -> list[str]:
     return claims
 
 
+# Sentences about the answer's own sources rather than about fish, water or plants. The first
+# human check (#182, 2026-10-03) found the judges and the person split on exactly these: "The
+# context does not specify step-by-step emergency dosing", "consult additional sources". They
+# make no claim the context could back or contradict, so they are not claims at all, and
+# scoring them made faithfulness partly measure how often an answer hedged. Anchored on the
+# sentence's subject, so "The source FAO589 confirms that nitrogen deficiency..." stays a
+# claim: it names a source and then says something about plants.
+_META_CLAIM = [re.compile(p, re.I) for p in (
+    r"^(?:the )?(?:provided |given |retrieved )?(?:context|sources?|passages?|documents?|"
+    r"information)(?: (?:I have|provided|given|available))? (?:does not|doesn't|do not|"
+    r"don't|only|covers?|lacks?|is silent|says nothing)\b",
+    r"^I (?:do not|don't|cannot|can't|would need|need|am unable|have no)\b",
+    r"\bconsult (?:\w+ ){0,2}(?:resources|sources|references|literature)\b",
+    r"^if (?:you have|more detail|you need more|further detail)\b",
+    r"\b(?:not enough|insufficient) (?:information|detail|data)\b",
+)]
+
+
+def is_meta_claim(claim: str) -> bool:
+    """True for a sentence about the answer's sources or limits, not about the world."""
+    text = (claim or "").strip().strip("\"'“”").strip()
+    return any(p.search(text) for p in _META_CLAIM)
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+# Share of a quote's words that must appear in the context. Below 1.0 so a quote that drops a
+# PDF artefact ("Table/uni00A0A7.2") still counts as copied; far above what a paraphrase
+# reaches. Each sentence is matched on its own, because judges copy two bullets in the
+# order they need them, not the order they were written (feed-01:2 in the first pilot).
+_QUOTE_FOUND = 0.8
+
+
+def quote_in_context(quote: str, context: str) -> bool:
+    import difflib
+    c = _tokens(context)
+    pieces = [_tokens(p) for p in re.split(r"(?<=[.!?])\s+|\.\.\.|…", quote or "")]
+    pieces = [p for p in pieces if p]
+    total = sum(len(p) for p in pieces)
+    if not total:
+        return False
+    matched = sum(b.size for p in pieces
+                  for b in difflib.SequenceMatcher(None, p, c, autojunk=False)
+                  .get_matching_blocks())
+    return matched / total >= _QUOTE_FOUND
+
+
+def parse_judgement(text: str, context: str) -> bool | None:
+    """A QUOTE-then-VERDICT reply -> True / False / None (unjudged).
+
+    SUPPORTED counts only with evidence: a quote that is really in the context. The first
+    human check (#182) found all three judge runs passing claims that are true in the world
+    but appear nowhere in the context ("nitrifying bacteria need oxygen and time"), the very
+    failure this metric exists to catch. Asking for the sentence first, and checking it here
+    in code, means a judge cannot pass a claim from memory. A reply without a QUOTE line did
+    not follow the format and is unjudged, not quietly trusted.
+    """
+    text = text or ""
+    m = re.search(r"QUOTE\s*:\s*(.*?)(?:\n\s*VERDICT\s*:|\Z)", text, re.S | re.I)
+    if not m:
+        return None
+    v = re.search(r"VERDICT\s*:\s*(\w+)", text, re.I)
+    verdict = parse_verdict(v.group(1)) if v else None
+    if verdict is not True:
+        return verdict
+    quote = m.group(1).strip().strip("\"'“”").strip()
+    if not quote or quote.upper().startswith("NONE"):
+        return False
+    return quote_in_context(quote, context)
+
+
 def parse_verdict(text: str) -> bool | None:
     """SUPPORTED -> True, UNSUPPORTED -> False, anything else -> None (unjudged).
 
@@ -115,26 +188,31 @@ def citation_accuracy(answer: str, retrieved: list[str]) -> tuple[float | None, 
     cites = cited_sources(answer)
     if not cites:
         return None, []
-    allowed = {_label_key(r) for r in retrieved}
-    bogus = [c for c in cites if _label_key(c) not in allowed]
+    allowed = [_label_key(r) for r in retrieved]
+    bogus = [c for c in cites if not _same_source(_label_key(c), allowed)]
     return (len(cites) - len(bogus)) / len(cites), bogus
 
 
 def _label_key(label: str) -> str:
-    """A source label reduced to what identifies it, so a real source written slightly
-    differently is not counted as invented.
-
-    The first live run (2026-09-30) "found" three fabricated citations that were all real:
-    `dissolved_oxygen_and_aeration.md` for `knowledge/dissolved_oxygen_and_aeration.md`,
-    `FAO589 ...` for `FAO 589 ...`, and `Burnel` for `Burnell`. The directory, case, spacing
-    and punctuation are dropped, and the key is cut to its first 24 characters, which is
-    enough to tell every source in the corpus apart and short enough that a typo late in a
-    long title does not matter.
-    """
+    """A source label without directory, case, spacing or punctuation."""
     s = (label or "").strip().lower()
     s = s.rsplit("/", 1)[-1]
     s = re.sub(r"\.md$", "", s)
-    return re.sub(r"[^a-z0-9]", "", s)[:24]
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
+# A real source written slightly differently is not an invented one. The first runs
+# (2026-09-30) "found" fabricated citations that were all real: the directory dropped,
+# "FAO589" for "FAO 589", and "Burnel ... SpringerOpen" for "Burnell ... Springer Open"
+# (0.99 similar). The two most alike DIFFERENT sources in the 26-source corpus score 0.64,
+# so 0.90 separates a typo from a different source with a wide margin.
+_SAME_SOURCE = 0.90
+
+
+def _same_source(key: str, allowed: list[str]) -> bool:
+    import difflib
+    return any(key == a or difflib.SequenceMatcher(None, key, a).ratio() >= _SAME_SOURCE
+               for a in allowed)
 
 
 def faithfulness_score(verdicts: list) -> dict:
@@ -191,6 +269,8 @@ Rules:
 - Each claim must stand alone and state ONE fact.
 - Copy the substance of the answer; do not add, correct, or evaluate anything.
 - Ignore questions, greetings, and offers of further help — those are not claims.
+- Ignore sentences about the sources or the answer itself ("the context does not say...",
+  "consult other resources", "I don't have enough information") — those are not claims.
 - Output the numbered list and nothing else.
 
 ANSWER:
@@ -198,12 +278,19 @@ ANSWER:
 
 _VERDICT_PROMPT = """Decide whether the CONTEXT supports the CLAIM.
 
-Answer with exactly one word:
-- SUPPORTED   if the CONTEXT states or directly implies the claim.
-- UNSUPPORTED if it does not.
+Judge ONLY against the CONTEXT. Do not use what you know about fish, plants, water or
+chemistry: a claim that is true in the real world is still UNSUPPORTED if the CONTEXT does not
+state it or directly imply it.
 
-Judge ONLY against the CONTEXT. A claim you believe is true in the real world is still
-UNSUPPORTED if the CONTEXT does not back it. When genuinely unsure, answer UNSUPPORTED.
+First copy, word for word, the sentence or sentences of the CONTEXT that state the claim.
+If there are none, write NONE. Then give the verdict:
+- SUPPORTED   if the copied text states or directly implies the claim.
+- UNSUPPORTED if it does not, or if you wrote NONE.
+When genuinely unsure, answer UNSUPPORTED.
+
+Answer in exactly this form and nothing else:
+QUOTE: <text copied from the CONTEXT, or NONE>
+VERDICT: <SUPPORTED or UNSUPPORTED>
 
 CONTEXT:
 {context}
@@ -224,7 +311,7 @@ ANSWER:
 # --- the run ----------------------------------------------------------------
 
 def judge_claim(ask, context: str, claim: str) -> bool | None:
-    return parse_verdict(ask(_VERDICT_PROMPT.format(context=context, claim=claim)))
+    return parse_judgement(ask(_VERDICT_PROMPT.format(context=context, claim=claim)), context)
 
 
 def score_query(query: str, answer: str, context: str, retrieved: list[str],
@@ -238,7 +325,8 @@ def score_query(query: str, answer: str, context: str, retrieved: list[str],
     (`<query id>:<n>`), so another judge, a second run of the same judge, and a person can
     all rule on EXACTLY the same claims later (#182). Agreement means nothing otherwise.
     """
-    claims = parse_claims(ask(_CLAIMS_PROMPT.format(answer=answer)))
+    claims = [c for c in parse_claims(ask(_CLAIMS_PROMPT.format(answer=answer)))
+              if not is_meta_claim(c)]   # the prompt asks for this too; code makes sure
     verdicts = [judge_claim(ask, context, c) for c in claims]
     faith = faithfulness_score(verdicts)
 
@@ -296,20 +384,47 @@ def agreement(x: dict[str, bool | None], y: dict[str, bool | None]) -> dict:
     return {"n": len(ids), "raw": raw, "kappa": cohen_kappa(a, b)}
 
 
+def meta_ids(report: dict) -> set[str]:
+    """Saved claims that `is_meta_claim` now excludes. Reports written before it existed
+    still hold them, and every judge and label on them is left out of every number."""
+    return {c["id"] for q in report["per_query"] for c in q.get("claims", [])
+            if is_meta_claim(c["claim"])}
+
+
 def verdicts_of(report: dict, judge: str | None = None) -> dict[str, bool | None]:
     """claim id -> verdict, for the report's first judge or a named re-judgement."""
     if judge and judge in report.get("judgements", {}):
-        return dict(report["judgements"][judge])
-    return {c["id"]: c["verdict"] for q in report["per_query"] for c in q.get("claims", [])}
+        out = dict(report["judgements"][judge])
+    else:
+        out = {c["id"]: c["verdict"] for q in report["per_query"] for c in q.get("claims", [])}
+    skip = meta_ids(report)
+    return {k: v for k, v in out.items() if k not in skip}
 
 
-def rejudge(report: dict, ask) -> dict[str, bool | None]:
+def rejudge(report: dict, ask, done: dict | None = None, workers: int = 1,
+            on_query=None) -> dict[str, bool | None]:
     """Rule on every saved claim again, against its saved context. Answers and claims are
-    NOT regenerated: only the judge changes, so any difference is the judge's."""
-    out: dict[str, bool | None] = {}
-    for q in report["per_query"]:
-        for c in q.get("claims", []):
-            out[c["id"]] = judge_claim(ask, q["context"], c["claim"])
+    NOT regenerated: only the judge changes, so any difference is the judge's.
+
+    `done` holds verdicts from an interrupted run, which are kept and not asked again.
+    `on_query(verdicts_so_far, n_queries_done, n_queries)` runs after each query, so the
+    caller can save as it goes: the first quote-first re-judge ran 29 s a claim, about four
+    hours for the report, and would have lost all of it to one closed terminal (2026-10-03).
+    A query's claims are judged `workers` at a time; each call is independent.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    out: dict[str, bool | None] = dict(done or {})
+    rows = report["per_query"]
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        for n, q in enumerate(rows, start=1):
+            todo = [c for c in q.get("claims", [])
+                    if c["id"] not in out and not is_meta_claim(c["claim"])]
+            verdicts = pool.map(lambda c: judge_claim(ask, q["context"], c["claim"]), todo)
+            for c, v in zip(todo, verdicts):
+                out[c["id"]] = v
+            if on_query:
+                on_query(out, n, len(rows))
     return out
 
 
@@ -536,6 +651,8 @@ def agreement_table(report: dict, labels: dict[str, bool] | None) -> list[dict]:
         sets[name] = verdicts_of(report, name)
     rows = []
     if labels:
+        skip = meta_ids(report)
+        labels = {k: v for k, v in labels.items() if k not in skip}
         for name, v in sets.items():
             rows.append({"a": "human", "b": name, **agreement(labels, v)})
     names = list(sets)
@@ -543,6 +660,11 @@ def agreement_table(report: dict, labels: dict[str, bool] | None) -> list[dict]:
         for y in names[i + 1:]:
             rows.append({"a": x, "b": y, **agreement(sets[x], sets[y])})
     return rows
+
+
+def reviewed_labels(data: dict) -> dict[str, bool]:
+    """The blind labels with every reviewed claim's second-look label laid over them."""
+    return {**data.get("labels", {}), **data.get("reviewed", {})}
 
 
 def _resolve(path: str) -> Path:
@@ -557,6 +679,8 @@ def main() -> int:  # pragma: no cover - CLI
     ap.add_argument("--rejudge", metavar="REPORT",
                     help="rule on a saved report's claims again with the current judge "
                          "(AGRONAUT_JUDGE_PROVIDER/MODEL); run twice for consistency")
+    ap.add_argument("--workers", type=int, default=4,
+                    help="judge calls in flight at once during --rejudge (default 4)")
     ap.add_argument("--agreement", metavar="REPORT",
                     help="print agreement and kappa: judges vs human_labels.json and vs "
                          "each other (no model calls)")
@@ -564,10 +688,25 @@ def main() -> int:  # pragma: no cover - CLI
 
     if args.agreement:
         report = json.loads(_resolve(args.agreement).read_text())
-        labels = json.loads(_LABELS.read_text())["labels"] if _LABELS.exists() else None
+        data = json.loads(_LABELS.read_text()) if _LABELS.exists() else {}
+        labels = data.get("labels")
         print(f"{'':2}{'a':34s} {'b':38s} {'n':>4} {'raw':>6} {'kappa':>6}")
         for r in agreement_table(report, labels):
             print(f"  {r['a']:34s} {r['b']:38s} {r['n']:>4} {_fmt(r['raw'])} {_fmt(r['kappa'])}")
+        if data.get("reviewed"):
+            # both, always: the blind labels are the independent measurement, the reviewed
+            # ones the better-informed one, and the gap between them is worth seeing
+            print(f"\nafter review ({len(data['reviewed'])} claims revisited):")
+            for r in agreement_table(report, reviewed_labels(data)):
+                if r["a"] == "human":
+                    print(f"  {'human (reviewed)':34s} {r['b']:38s} {r['n']:>4} "
+                          f"{_fmt(r['raw'])} {_fmt(r['kappa'])}")
+        print(f"\nfaithfulness by judgement ({len(meta_ids(report))} claims about the "
+              "sources themselves left out):")
+        for name in [None, *report.get("judgements", {})]:
+            v = list(verdicts_of(report, name).values())
+            print(f"  {_fmt(faithfulness_score(v)['score'])}  "
+                  f"{name or report.get('meta', {}).get('judge', 'judge') + ' (run 1)'}")
         if not labels:
             print("\nNo human labels yet: python -m scripts.label_claims " + args.agreement)
         return 0
@@ -581,12 +720,32 @@ def main() -> int:  # pragma: no cover - CLI
         path = _resolve(args.rejudge)
         report = json.loads(path.read_text())
         judge = judge_llm()
-        verdicts = rejudge(report, patient(lambda prompt: judge.invoke(prompt)))
         base = _names(judge)
+        if _prompt_version() != report.get("meta", {}).get("prompt_version"):
+            # a new judging prompt is a new judge: its first run is run 1, never the
+            # repeat of a run made under different instructions
+            base += f" prompt {_prompt_version()}"
         name = next_run_name(report, base)
+        # Progress lives beside the report until the run completes, so the report never
+        # holds half a judgement, and the same command picks up where a stopped run ended.
+        partial = path.with_suffix(".partial.json")
+        saved = json.loads(partial.read_text()) if partial.exists() else {}
+        done = saved.get("verdicts", {}) if saved.get("name") == name else {}
+        if done:
+            print(f"resuming {name}: {len(done)} claims already judged")
+        total = sum(1 for q in report["per_query"] for c in q.get("claims", [])
+                    if not is_meta_claim(c["claim"]))
+
+        def _save(verdicts, n, of):
+            partial.write_text(json.dumps({"name": name, "verdicts": verdicts}))
+            print(f"  [{n}/{of} queries] {len(verdicts)}/{total} claims judged", flush=True)
+
+        verdicts = rejudge(report, patient(lambda prompt: judge.invoke(prompt)), done=done,
+                           workers=args.workers, on_query=_save)
         report.setdefault("judgements", {})[name] = verdicts
         report.setdefault("judgement_meta", {})[name] = {**run_meta(), "judge": base}
         path.write_text(json.dumps(report, indent=2))
+        partial.unlink(missing_ok=True)
         print(f"{name}: faithfulness {_fmt(faithfulness_score(list(verdicts.values()))['score'])}"
               f" over {len(verdicts)} claims. Saved into {path}")
         return 0

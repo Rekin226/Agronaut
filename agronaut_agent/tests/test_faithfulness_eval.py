@@ -13,6 +13,8 @@ The recurring theme is refusing to average unlike things:
 Each of those, done the other way, produces a number that looks like a measurement and is not.
 """
 
+import pytest
+
 from scripts import faithfulness_eval as fe
 
 # --- claim extraction --------------------------------------------------------
@@ -134,7 +136,9 @@ def _fake_ask(prompt: str) -> str:
         return "1. Green water is an algae bloom\n2. Tilapia need 30 mg/l of nitrite"
     if prompt.startswith("Decide whether"):
         claim = prompt.split("CLAIM:", 1)[1]
-        return "SUPPORTED" if "algae bloom" in claim else "UNSUPPORTED"
+        if "algae bloom" in claim:
+            return "QUOTE: Green water is an algae bloom.\nVERDICT: SUPPORTED"
+        return "QUOTE: NONE\nVERDICT: UNSUPPORTED"
     return "1. What is green water?\n2. Why is my water green?"
 
 
@@ -204,7 +208,8 @@ def _report():
 
 def test_rejudging_rules_on_the_saved_claims_against_the_saved_context():
     seen = []
-    verdicts = fe.rejudge(_report(), lambda p: seen.append(p) or "SUPPORTED")
+    verdicts = fe.rejudge(_report(), lambda p: seen.append(p)
+                          or "QUOTE: Tilapia stop feeding below 20 C.\nVERDICT: SUPPORTED")
     assert verdicts == {"g1:1": True, "g1:2": True}
     assert all("Tilapia stop feeding below 20 C." in p for p in seen)
 
@@ -241,3 +246,160 @@ def test_labelling_samples_both_verdicts_and_skips_what_is_done():
     picked = [c["id"] for _, c in sample(r, 10, done={"u0"})]
     assert len(picked) == 10 and "u0" not in picked
     assert sum(p.startswith("u") for p in picked) == 2      # every remaining UNSUPPORTED
+
+
+@pytest.mark.parametrize("cited", [
+    "dissolved_oxygen_and_aeration.md",
+    "FAO589 Small-scale aquaponic food production (Somerville et al., 2014)",
+    "Goddek, Joyce, Kotzen & Burnel eds. (2019), Aquaponics Food Production Systems, SpringerOpen",
+])
+def test_a_real_source_written_slightly_differently_is_not_fabricated(cited):
+    """All three were reported as fabricated by the first real runs (2026-09-30)."""
+    retrieved = ["knowledge/dissolved_oxygen_and_aeration.md",
+                 "FAO 589 Small-scale aquaponic food production (Somerville et al., 2014)",
+                 "Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production "
+                 "Systems, Springer Open"]
+    assert fe.citation_accuracy(f"x [source: {cited}]", retrieved) == (1.0, [])
+
+
+def test_a_different_source_is_still_fabricated():
+    acc, bogus = fe.citation_accuracy("x [source: knowledge/plant_deficiency_cheatsheet.md]",
+                                      ["knowledge/plant_nutrient_deficiencies.md"])
+    assert acc == 0.0 and bogus == ["knowledge/plant_deficiency_cheatsheet.md"]
+
+
+# --- after the first human check (2026-10-03): hedges are not claims, support needs a quote --
+
+@pytest.mark.parametrize("claim", [     # every one is from the 2026-09-30 baseline
+    "The context does not specify step‑by‑step emergency dosing.",
+    "The context doesn't provide enough detail on NFT specifically for me to give you a full "
+    "comparison.",
+    "The context only mentions that resupplying water brings in buffering agents (carbonates).",
+    "The sources I have cover source water treatment (chlorine/chloramine removal).",
+    "I don't have enough information in the provided context to answer this question.",
+    "I would need additional info/sources to advise on safe nitrite ppm levels for stocked fish.",
+    "If more detail is needed, consult additional sources.",
+    "It is recommended to consult additional resources specifically on algae control.",
+    "If you have additional context on feeding rates, I can help further.",
+])
+def test_a_sentence_about_the_sources_is_not_a_claim(claim):
+    assert fe.is_meta_claim(claim)
+
+
+@pytest.mark.parametrize("claim", [
+    "The source FAO589 Small‑scale aquaponic food production (Somerville et al., 2014) confirms "
+    "that nitrogen deficiency is characterized by a pale green colour of older leaves.",
+    "After 2–3 months of feeding, 40 fish grew to 80–100 grams each. (source:FAO589)",
+    "Nitrifying bacteria need oxygen and time to build up in the biofilter.",
+    "Rules on water abstraction and effluent discharge.",
+    "Consult a veterinarian before treating fish with salt.",
+])
+def test_a_claim_about_the_world_is_kept_even_when_it_names_a_source(claim):
+    assert not fe.is_meta_claim(claim)
+
+
+def test_score_query_drops_hedges_and_numbers_only_real_claims():
+    def ask(p):
+        if p.startswith("Break"):
+            return "1. The context does not specify a dose.\n2. Green water is algae"
+        return "QUOTE: NONE\nVERDICT: UNSUPPORTED"
+
+    row = fe.score_query("q", "a", "ctx", [], ask, lambda t: [1.0], qid="g1")
+    assert [(c["id"], c["claim"]) for c in row["claims"]] == [("g1:1", "Green water is algae")]
+
+
+CTX = ("[source: FAO 589]\nYearly operating costs (Table/uni00A0A7.2) 317.40. Nitrifying "
+       "bacteria colonise the biofilter within four to six weeks. Keep water above 20 C.")
+
+
+def test_supported_counts_only_with_a_quote_that_is_really_in_the_context():
+    ok = "QUOTE: Nitrifying bacteria colonise the biofilter within four to six weeks.\n" \
+         "VERDICT: SUPPORTED"
+    assert fe.parse_judgement(ok, CTX) is True
+
+
+def test_supported_from_memory_is_unsupported():
+    """The leak the human check found: SUPPORTED with nothing in the context to point to."""
+    assert fe.parse_judgement("QUOTE: NONE\nVERDICT: SUPPORTED", CTX) is False
+    invented = "QUOTE: Bacteria need oxygen and time to build up.\nVERDICT: SUPPORTED"
+    assert fe.parse_judgement(invented, CTX) is False
+
+
+def test_a_quote_with_a_pdf_artefact_dropped_or_an_ellipsis_still_counts():
+    assert fe.parse_judgement("QUOTE: \"Yearly operating costs (Table A7.2) 317.40 ... "
+                              "Keep water above 20 C.\"\nVERDICT: SUPPORTED", CTX) is True
+
+
+def test_two_sentences_quoted_out_of_their_original_order_still_count():
+    assert fe.parse_judgement("QUOTE: Keep water above 20 C. Nitrifying bacteria colonise the "
+                              "biofilter within four to six weeks.\nVERDICT: SUPPORTED", CTX)
+
+
+def test_unsupported_needs_no_quote_and_a_reply_out_of_format_is_unjudged():
+    assert fe.parse_judgement("QUOTE: NONE\nVERDICT: UNSUPPORTED", CTX) is False
+    assert fe.parse_judgement("SUPPORTED", CTX) is None
+    assert fe.parse_judgement("QUOTE: Keep water above 20 C.\nVERDICT: maybe", CTX) is None
+
+
+def test_hedges_saved_by_older_reports_leave_every_number():
+    r = _report()
+    r["per_query"][0]["claims"].append(
+        {"id": "g1:3", "claim": "The context does not specify a dose.", "verdict": False})
+    r["judgements"] = {"j (run 1)": {"g1:1": True, "g1:2": False, "g1:3": False}}
+    assert "g1:3" not in fe.verdicts_of(r) and "g1:3" not in fe.verdicts_of(r, "j (run 1)")
+    assert "g1:3" not in fe.rejudge(r, lambda p: "QUOTE: NONE\nVERDICT: UNSUPPORTED")
+    rows = fe.agreement_table(r, {"g1:1": True, "g1:2": False, "g1:3": True})
+    assert all(x["n"] == 2 for x in rows)
+
+
+def test_labelling_never_offers_a_hedge():
+    from scripts.label_claims import sample
+    r = {"per_query": [{"query": "q", "context": "c", "claims": [
+        {"id": "h", "claim": "If more detail is needed, consult additional sources.",
+         "verdict": False},
+        {"id": "x", "claim": "Tilapia like warm water.", "verdict": True}]}]}
+    assert [c["id"] for _, c in sample(r, 5, done=set())] == ["x"]
+
+
+def test_rejudging_resumes_and_reports_after_every_query():
+    """A stopped re-judge keeps what it paid for: judged claims are not asked again, and the
+    caller hears after each query so it can save."""
+    r = _report()
+    r["per_query"].append({"query": "q2", "context": "c", "claims": [
+        {"id": "g2:1", "claim": "x", "verdict": True}]})
+    asked, seen = [], []
+
+    def ask(p):
+        asked.append(p)
+        return "QUOTE: NONE\nVERDICT: UNSUPPORTED"
+
+    out = fe.rejudge(r, ask, done={"g1:1": True}, workers=3,
+                     on_query=lambda v, n, of: seen.append((len(v), n, of)))
+    assert out == {"g1:1": True, "g1:2": False, "g2:1": False}
+    assert len(asked) == 2
+    assert seen == [(2, 1, 2), (3, 2, 2)]
+
+
+def test_review_offers_only_labelled_claims_a_judge_ruled_on_differently():
+    from scripts.label_claims import disputed
+    r = _report()          # run 1: g1:1 True, g1:2 False
+    r["judgements"] = {"j (run 1)": {"g1:1": True, "g1:2": True}}
+    items = disputed(r, {"g1:1": True, "g1:2": False})
+    assert [(c["id"], ruled) for _, c, ruled in items] == [
+        ("g1:2", {"anthropic/claude (run 1)": False, "j (run 1)": True})]
+    assert disputed(r, {"g1:1": True}) == []        # agreed everywhere: nothing to review
+
+
+def test_review_names_tell_the_runs_and_prompts_apart():
+    from scripts.label_claims import short_judge
+    base = "nvidia/openai/gpt-oss-20b [Reasoning: low, max_tokens 8192]"
+    assert short_judge(f"{base} (run 2)") == "gpt-oss-20b (run 2)"
+    assert short_judge(f"{base} prompt e3a10ed853 (run 1)") == \
+        "gpt-oss-20b, prompt e3a10ed853 (run 1)"
+    assert short_judge("anthropic/claude-sonnet-5 (run 1)") == "claude-sonnet-5 (run 1)"
+
+
+def test_reviewed_labels_override_only_what_was_reviewed():
+    data = {"labels": {"a": True, "b": False}, "reviewed": {"b": True}}
+    assert fe.reviewed_labels(data) == {"a": True, "b": True}
+    assert data["labels"]["b"] is False             # the blind label is never rewritten
