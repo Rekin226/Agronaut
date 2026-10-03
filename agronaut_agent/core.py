@@ -355,6 +355,10 @@ class AgronautAgent:
         # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
         from .analytics import Analytics
         self._analytics = Analytics()
+        # Full-content tracing to a LOCAL Phoenix, only when the operator asks for it
+        # (AGRONAUT_PHOENIX=on). Off, it imports nothing; see otel_phoenix.py.
+        from . import otel_phoenix
+        otel_phoenix.enable()
         # Per-user files a tool produced this turn (e.g. a rendered schematic), for the
         # channel adapter to deliver alongside the text reply. Keyed by user_id.
         self._pending_attachments: dict[str, list] = {}
