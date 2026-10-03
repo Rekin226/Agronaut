@@ -13,6 +13,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
     agronaut doctor                                 # what is configured, and what is broken
     agronaut --version                              # which build is this, and from where
     agronaut update                                 # check PyPI and upgrade
+    agronaut eval                                   # how good is it: retrieval, answers, safety
 """
 
 from __future__ import annotations
@@ -127,6 +128,13 @@ def _cmd_traces(args) -> int:
     return 0
 
 
+def _cmd_eval(args) -> int:
+    _root_importable()
+    from . import eval_cli
+
+    return eval_cli.main(args)
+
+
 def _cmd_doctor(args) -> int:
     from . import doctor
 
@@ -221,6 +229,9 @@ def _build_parser() -> argparse.ArgumentParser:
     tr = sub.add_parser("traces", help="show recent turns as pipeline traces")
     tr.add_argument("--limit", type=int, default=10, help="how many recent turns to show")
     tr.set_defaults(func=_cmd_traces)
+    from .eval_cli import add_parser as _add_eval
+    _add_eval(sub)
+    sub.choices["eval"].set_defaults(func=_cmd_eval)
     return p
 
 

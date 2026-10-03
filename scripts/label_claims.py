@@ -146,14 +146,14 @@ def review(report: dict, data: dict) -> None:  # pragma: no cover - interactive
     print(f"\n{len(data['reviewed'])} reviewed, {changed} changed. Saved to {_LABELS}")
 
 
-def main() -> int:  # pragma: no cover - interactive
+def main(argv: list[str] | None = None) -> int:  # pragma: no cover - interactive
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("report")
     ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--labeller", default="maintainer")
     ap.add_argument("--review", action="store_true",
                     help="after labelling: revisit only the claims a judge disagreed on")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     report = json.loads(_resolve(args.report).read_text())
     data = load_labels()

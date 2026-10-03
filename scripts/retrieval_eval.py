@@ -29,15 +29,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from agronaut_agent import paths as _paths  # noqa: E402
+
 _ROOT = Path(__file__).resolve().parents[1]
-_GOLDEN = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
+# docs/dpg in a checkout, the installed copy under a wheel (paths.eval_root), so
+# `agronaut eval retrieval` works after a plain pip install too.
+_EVAL = _paths.eval_root() / "retrieval_eval"
+_GOLDEN = _EVAL / "golden_set.json"
 # French and Mandarin versions of the same queries (#199). A separate file, so the English set and
 # the baseline CI compares against stay exactly as they were.
-_GOLDEN_ML = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set_multilingual.json"
+_GOLDEN_ML = _EVAL / "golden_set_multilingual.json"
 
 # The baseline the shipped retrieval constants (floor, cap, beta in agronaut_agent/rag.py) were
 # tuned against. When a re-sweep moves them, save a new baseline and point this at it.
-CURRENT_BASELINE = _ROOT / "docs" / "dpg" / "retrieval_eval" / "baseline_tuned_2026_09.json"
+CURRENT_BASELINE = _EVAL / "baseline_tuned_2026_09.json"
 
 # How far the knowledge/ guides may drift, in bytes, before the constants must be re-measured.
 # This is a trigger to re-measure, NOT a measured tolerance: nobody has measured how much drift
@@ -174,7 +179,7 @@ def by_language(per_query: list[dict], negatives: list[dict], k: int) -> dict:
 
 # --- what the baseline was measured on (pure, no index, unit-testable) ------
 
-def corpus_fingerprint(root: Path = _ROOT) -> dict:
+def corpus_fingerprint(root: Path | None = None) -> dict:
     """What goes INTO the index: the source list and the hand-written guides.
 
     Hashes `urls.txt` and every .md/.txt file under `knowledge/` (the same set
@@ -184,6 +189,7 @@ def corpus_fingerprint(root: Path = _ROOT) -> dict:
     What it does NOT cover: the chunking code, and the fetched pages behind each URL. A change
     to either can move the constants without changing this fingerprint.
     """
+    root = root or _paths.corpus_root()
     urls = root / "urls.txt"
     kb = root / "knowledge"
     files = sorted(p for p in kb.rglob("*") if p.is_file() and p.suffix.lower() in {".md", ".txt"})

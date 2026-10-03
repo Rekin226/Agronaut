@@ -15,6 +15,7 @@ import streamlit as st
 
 from agent.calculator_ui import render_calculator
 from agent.optimizer_ui import render_optimizer
+from agent.quality_ui import render_quality
 from agent.twin_ui import render_twin
 
 # Optional private add-on (Agronaut Twin). Without it the app is unchanged.
@@ -167,7 +168,7 @@ def main() -> None:
     st.set_page_config(
         page_title=APP_TITLE,
         page_icon="💧",
-        layout="wide" if st.session_state.get("app_mode") == TWIN_STUDIO else "centered",
+        layout="wide" if st.session_state.get("app_mode") in (TWIN_STUDIO, "Quality") else "centered",
         initial_sidebar_state="expanded",
     )
     _ensure_session_state()
@@ -177,12 +178,13 @@ def main() -> None:
     # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
-        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)")
+        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)", "Quality")
         + ((TWIN_STUDIO,) if render_twin_studio else ()),
         key="app_mode",
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
              "your constraint. My Twin mirrors the system you actually run (deterministic, "
-             "no LLM). Chat runs a consultation with the full agent (needs an LLM).",
+             "no LLM). Chat runs a consultation with the full agent (needs an LLM). Quality "
+             "shows how good Agronaut is, measured (no LLM).",
     )
 
     if mode == "Design Calculator":
@@ -193,6 +195,9 @@ def main() -> None:
         return
     if mode == "Optimize Ratio":
         render_optimizer()
+        return
+    if mode == "Quality":
+        render_quality()
         return
 
     # My Twin is deterministic — it must render even when no LLM is configured, because

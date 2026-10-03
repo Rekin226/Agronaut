@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.vision import sanitize_observation  # noqa: E402
+from agronaut_agent.paths import eval_root  # noqa: E402
 from agronaut_agent.tools import (  # noqa: E402
     optimize_fish_crop_ratio,
     size_aquaponics_system,
@@ -28,7 +29,8 @@ from agronaut_agent.tools import (  # noqa: E402
 from aqua_model.crops import CROPS  # noqa: E402
 from aqua_model.species import SPECIES  # noqa: E402
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "safety_eval" / "golden_set.json"
+# docs/dpg in a checkout, the installed copy under a wheel (paths.eval_root).
+_GOLDEN = eval_root() / "safety_eval" / "golden_set.json"
 
 
 def _invoke(tool: str, args: dict) -> str:
