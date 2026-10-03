@@ -14,6 +14,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
     agronaut --version                              # which build is this, and from where
     agronaut update                                 # check PyPI and upgrade
     agronaut eval                                   # how good is it: retrieval, answers, safety
+    agronaut phoenix                                # optional: full local traces in Phoenix
 """
 
 from __future__ import annotations
@@ -135,6 +136,12 @@ def _cmd_eval(args) -> int:
     return eval_cli.main(args)
 
 
+def _cmd_phoenix(args) -> int:
+    from . import otel_phoenix
+
+    return otel_phoenix.serve()
+
+
 def _cmd_doctor(args) -> int:
     from . import doctor
 
@@ -232,6 +239,9 @@ def _build_parser() -> argparse.ArgumentParser:
     from .eval_cli import add_parser as _add_eval
     _add_eval(sub)
     sub.choices["eval"].set_defaults(func=_cmd_eval)
+    sub.add_parser("phoenix", help="run a local Arize Phoenix to see full turn traces "
+                                    "(optional; then run the bot with AGRONAUT_PHOENIX=on)"
+                   ).set_defaults(func=_cmd_phoenix)
     return p
 
 

@@ -32,6 +32,11 @@ classifiers = [
 ]
 dynamic = ["dependencies"]
 
+[project.optional-dependencies]
+# Full-content tracing to a local Arize Phoenix (agronaut_agent/otel_phoenix.py). Client side
+# only: the Phoenix server is ~600 MB and is installed on its own (`uv tool install arize-phoenix`).
+phoenix = ["arize-phoenix-otel", "openinference-instrumentation-langchain"]
+
 [project.urls]
 Homepage = "https://github.com/Rekin226/Agronaut"
 Source = "https://github.com/Rekin226/Agronaut"

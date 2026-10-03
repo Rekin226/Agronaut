@@ -398,6 +398,25 @@ as `0` when a provider reports no usage, so a quiet provider cannot drag every c
 toward zero. And a failed turn is still written, because dropping the turns that broke is how a
 p95 comes to look healthier than the service is.
 
+### Optional: every word of a turn, in a local Phoenix
+
+`agronaut traces` shows a turn's shape and never its words. When you are debugging your own bot
+and need the words too (the exact prompt, why the model chose a tool, what the search handed
+it), send full traces to [Arize Phoenix](https://github.com/Arize-ai/phoenix) on your own
+machine:
+
+```bash
+uv tool install arize-phoenix         # the server, ~600 MB, in its own environment
+pip install "agronaut[phoenix]"       # the two client libraries
+agronaut phoenix                      # http://127.0.0.1:6006, this machine only, telemetry off
+AGRONAUT_PHOENIX=on agronaut whatsapp # in another terminal (or bot, chat, web)
+```
+
+Each turn arrives as one tree (a parent span carrying the same trace id as `agronaut traces`,
+with every model and tool call under it). It is off by default, records message text when on
+(see [PRIVACY.md](docs/dpg/PRIVACY.md)), and refuses to send to another host unless
+`AGRONAUT_PHOENIX_ALLOW_REMOTE=1`. Nothing about it is required: no Phoenix, no difference.
+
 ### Does the answer actually use what was retrieved?
 
 `retrieval_eval` scores whether the right documents were found. It cannot score whether the reply

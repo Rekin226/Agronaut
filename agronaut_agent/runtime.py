@@ -110,11 +110,16 @@ def start_turn() -> bool:
     _trace.set(uuid.uuid4().hex[:12])
     _metrics.set({"llm_calls": 0, "llm_ms": 0, "tokens_in": 0, "tokens_out": 0,
                   "tool_calls": 0, "usage_seen": False})
+    # One parent span per turn when local Phoenix tracing is on; a no-op otherwise.
+    from . import otel_phoenix
+    otel_phoenix.begin_turn(_trace.get())
     return True
 
 
 def end_turn() -> None:
     """Close the traced turn. Only the caller that opened it should call this."""
+    from . import otel_phoenix
+    otel_phoenix.end_turn()
     _trace.set(None)
     _metrics.set(None)
 
