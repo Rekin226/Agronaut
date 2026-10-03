@@ -64,10 +64,11 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
 
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
-    assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "water_spinach"], (
-        "amaranth, water_spinach and malabar_spinach (#125) are the leafy crops that "
-        f"carry hot climates; if another joins them, widen this assertion deliberately. "
-        f"Found: {leafy_above_30}"
+    assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "moringa",
+                                      "water_spinach"], (
+        "amaranth, water_spinach, malabar_spinach (#125) and moringa are the leafy "
+        f"crops that carry hot climates; if another joins them, widen this assertion "
+        f"deliberately. Found: {leafy_above_30}"
     )
 
 
@@ -134,6 +135,38 @@ def test_malabar_spinach_sizes_a_system_without_error():
     from aqua_model import size_system, validate_design_input
 
     out = size_system(validate_design_input("tilapia", "malabar_spinach", 12.0, 29.0, 3000.0))
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_moringa_is_heat_tolerant_and_drought_hardy():
+    """#125: moringa (Moringa oleifera), the seventh wanted heat-tolerant leafy.
+
+    Its identity in the database is the pairing of the 35 °C ceiling with the
+    warmest floor of the group (20 °C): a chilling-sensitive tropical species whose
+    cited optimum (25-35 °C, Trigo et al. 2021) sits entirely in the heat. It is
+    also the protein outlier — 9.4 g/100 g fresh against 1.4-2.6 for the rest of
+    the leafies — so an edit that quietly lowers either number breaks the reason
+    this crop was added.
+    """
+    mo = get_crop("moringa")
+    assert mo.category == "leafy"
+    assert mo.temp_max_c >= 35.0
+    assert mo.temp_min_c >= 20.0
+    assert "FRR placed" in mo.source, "FRR placement must be clearly stated"
+    assert mo.edible_protein_pct >= 9.0, (
+        "moringa is here for the protein too; 9.4 g/100 g fresh (USDA FDC) is the point"
+    )
+    assert mo.yield_kg_per_m2_year > 10.0
+    assert mo.yield_kg_per_m2_year < 25.0
+
+
+def test_moringa_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "moringa", 12.0, 29.0, 3000.0))
     assert out.feed_g_per_day > 0
     assert out.fish_count > 0
     assert out.biofilter_media_m2 > 0
