@@ -431,6 +431,11 @@ def _pdf_documents(content: bytes, url: str):
             if text:
                 docs.append(Document(page_content=text, metadata={"source": url, "page": n}))
         docs = _clean_pdf_documents(docs)
+        if sentence_chunking_enabled():
+            # After cleaning, not before: the running-header and contents-page checks read the
+            # printed line structure that this removes.
+            for d in docs:
+                d.page_content = _rejoin_printed_lines(d.page_content)
         logging.info("Loaded %d PDF pages from %s", len(docs), url)
         return docs
     except Exception as err:  # noqa: BLE001
@@ -590,11 +595,60 @@ def markdown_headers_enabled() -> bool:
     return os.getenv("AGRONAUT_MD_HEADERS", "").lower() in {"on", "1", "true"}
 
 
-def build_vector_store(documents) -> FAISS:
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-    )
+def sentence_chunking_enabled() -> bool:
+    """Cut extracted sources (PDF, JATS, web) at sentence ends, not wherever a line or a space falls.
+
+    pypdf ends every PRINTED line with a newline, and the default splitter's preference order is
+    paragraph, newline, space: none of them a sentence boundary. On FAO 589, 70.6% of chunks ended
+    mid-sentence and 57.8% started mid-sentence, so the model was handed fragments, sometimes with
+    a number on one side of a cut and what it measures on the other. JATS sections are joined onto
+    one line, so they could only ever break on a space. Rejoining the printed lines and preferring
+    sentence ends took FAO 589 to 17.7% / 6.8%, most of the remainder being page edges (each page
+    is its own Document) and captions that carry no full stop.
+
+    The curated knowledge/ files keep the original splitter, byte for byte: their sections already
+    fit the window, and nothing about them was broken.
+    """
+    import os
+    return os.getenv("AGRONAUT_SENTENCE_CHUNKS", "").lower() not in {"off", "0", "false"}
+
+
+# Sentence ends come after paragraphs and lines (which, once printed lines are rejoined, only
+# survive at a sentence end) and before clause breaks and plain spaces. keep_separator="end"
+# leaves the full stop on the sentence it closes instead of opening the next chunk with it.
+_SENTENCE_SEPARATORS = ["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " ", ""]
+_SENTENCE_END = re.compile(r"[.!?:][\"')\]”’]*$")
+
+
+def _rejoin_printed_lines(text: str) -> str:
+    """Undo a PDF's line wrapping: one line per sentence run, not one per printed line.
+
+    A line break is kept only where the line ends a sentence, so the splitter's newline separator
+    lands on a sentence end. A word hyphenated across lines is rejoined when the next line starts
+    in lowercase (a typesetting break); a real compound split there loses its hyphen, which costs
+    the embedding less than half a word does.
+    """
+    out: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            if out and out[-1] != "\n\n":
+                out.append("\n\n")
+            continue
+        if not out or out[-1] in ("\n", "\n\n"):
+            out.append(line)
+        elif out[-1].endswith("-") and line[:1].islower():
+            out[-1] = out[-1][:-1] + line
+        elif _SENTENCE_END.search(out[-1]):
+            out += ["\n", line]
+        else:
+            out[-1] = f"{out[-1]} {line}"
+    return "".join(out).strip()
+
+
+def split_into_chunks(documents) -> list:
+    """The chunking pipeline, shared by build_vector_store and scripts/corpus_report so the chunk
+    counts a report prints are the ones the index gets. Boilerplate filtering is left to callers."""
     if markdown_headers_enabled():
         # Header-split the hand-authored corpus first, then let the character splitter handle any
         # section that is still oversized. Web and PDF documents have no reliable heading
@@ -606,7 +660,22 @@ def build_vector_store(documents) -> FAISS:
             else:
                 prepared.append(d)
         documents = prepared
-    docs = splitter.split_documents(documents)
+    plain = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+    if not sentence_chunking_enabled():
+        return plain.split_documents(documents)
+    sentences = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP,
+        separators=_SENTENCE_SEPARATORS, keep_separator="end")
+    # Document by document, so chunks keep the order they had before this flag existed.
+    chunks = []
+    for d in documents:
+        local = d.metadata.get("source_type") == "local_file"
+        chunks.extend((plain if local else sentences).split_documents([d]))
+    return chunks
+
+
+def build_vector_store(documents) -> FAISS:
+    docs = split_into_chunks(documents)
 
     filtered = [d for d in docs if not _is_boilerplate_text(getattr(d, "page_content", ""))]
     if filtered:
@@ -1887,6 +1956,7 @@ def _corpus_fingerprint() -> str:
              f"|md_headers={markdown_headers_enabled()}"
              f"|md_crumb={_crumb_enabled()}"
              f"|pdf_clean={pdf_cleaning_enabled()}"
+             f"|sentences={sentence_chunking_enabled()}"
              f"|pdf_sections={pdf_sections_enabled()}"
              f"|meta_schema={META_SCHEMA}".encode())
     kb = pathlib.Path(KNOWLEDGE_DIR)
