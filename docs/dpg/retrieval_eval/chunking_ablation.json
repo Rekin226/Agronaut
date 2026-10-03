@@ -141,7 +141,39 @@
           "note": "retrieval_sweep --all picked floor 1.65 from its default grid, where only 2/10 off-topic are rejected; a finer grid (1.52-1.60) found 1.55. At 1.65 the sweep also preferred beta 1.0 (MAP 0.614) over 0.90 (0.578) while hit fell 0.030; not adopted, since 1.65 is not a floor this project would ship."
         }
       ],
-      "note": "Ships OFF. After re-calibration: hit +0.030 (one query), MAP -0.036, one more off-topic query answered. The benefit is readable passages, which document-level metrics cannot score; the deciding measurement is answer faithfulness, not retrieval."
+      "note": "Ships OFF. After re-calibration: hit +0.030 (one query), MAP -0.036, one more off-topic query answered. The benefit is readable passages, which document-level metrics cannot score; the deciding measurement is answer faithfulness, not retrieval.",
+      "answers": {
+        "measured": "2026-10-03",
+        "instrument": "scripts/faithfulness_eval.py, 33 golden queries per condition, one run each, same answering model and judge (the configured Anthropic model). Reports: docs/dpg/faithfulness_eval/2026-10-03_sentence_chunks_{off,on}.json",
+        "off_floor_1.50": {
+          "faithfulness": 0.249,
+          "faithfulness_claim_pooled": 0.234,
+          "claims": 556,
+          "response_relevancy": 0.512,
+          "citation_accuracy": 1.0
+        },
+        "on_floor_1.55": {
+          "faithfulness": 0.291,
+          "faithfulness_claim_pooled": 0.304,
+          "claims": 504,
+          "response_relevancy": 0.51,
+          "citation_accuracy": 1.0
+        },
+        "paired": {
+          "n": 31,
+          "mean_diff": 0.051,
+          "better": 18,
+          "worse": 8,
+          "same_within_0.05": 5,
+          "sign_test_p": 0.08,
+          "bootstrap_95ci": [
+            -0.017,
+            0.116
+          ]
+        },
+        "noise": "Re-running the same condition moves a query's faithfulness by 0.110 on average (7 queries, smoke vs full run), about twice the effect.",
+        "verdict": "Leans better, not conclusive: one run per condition, p 0.08, interval includes zero. Against it, a measured MAP loss of 0.036 and one more off-topic query answered. Stays OFF. A second independent run, or a larger golden set, is what would decide it."
+      }
     }
   ],
   "conclusion": "Baseline wins on both corpora, so header chunking stays DISABLED (AGRONAUT_MD_HEADERS=off). The prefix's reversal is the finding worth keeping: on a small uniform corpus, prefixing a chunk with 'Title - Section' disambiguated it among 21 similar files; once a 992-chunk book joined the index, those same added words made curated chunks read as generic aquaponics prose and compete WORSE against it. A preprocessing step's value is a property of the corpus it runs on, not of the step.",
