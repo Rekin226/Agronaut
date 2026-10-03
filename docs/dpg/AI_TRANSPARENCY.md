@@ -61,8 +61,16 @@ design.
 
 ## Training data
 
-Agronaut trains **no** models. It does not fine-tune on user data, and user conversations
-are never sent anywhere for training. Retrieval-augmented answers draw only from a curated
+Agronaut never trains on user data, and user conversations are never sent anywhere for
+training. The default setup trains no models at all.
+
+The repository includes an **optional** pipeline (`scripts/finetune/`) that fine-tunes the
+small local model to follow the consultation style more faithfully. Its training data is
+**synthetic only**: a teacher model runs the real agent against simulated personas, so every
+tool result in the data is a genuine deterministic output and no person's conversation is
+involved. A tuned model is offered only after it passes the promotion gate in
+`docs/dpg/finetune/README.md`, and it never replaces the default without the maintainer's
+decision. Retrieval-augmented answers draw only from a curated
 set of cited, public sources (`knowledge/` + `urls.txt`), and every retrieved passage is
 surfaced with its `[source: ...]` label.
 
