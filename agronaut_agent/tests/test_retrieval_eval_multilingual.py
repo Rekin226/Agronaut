@@ -13,6 +13,7 @@ and the BM25 tokenizer are both English-only. If someone rewords that docstring 
 vagueness, this test should catch it.
 """
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -151,6 +152,12 @@ def test_tool_docstring_directs_the_model_to_search_in_english():
 
 
 def test_tool_docstring_cites_the_measurement():
-    """The claim 'searching in the user's language retrieves the wrong passages' is a
-    measurement claim; the docstring must point at the file that holds it."""
-    assert "golden_set_multilingual.json" in _tool_docstring()
+    """The measurement claim is cited in the `#` comment block above the docstring, not in
+    the model-facing docstring itself (maintainer review, #203): guidance the LLM reads
+    stays lean; the citation belongs to the codebase."""
+    import agronaut_agent.tools as tools_mod
+    src = inspect.getsource(tools_mod)  # the module, not the StructuredTool
+    assert "golden_set_multilingual.json" in src, (
+        "search_knowledge_base no longer cites the measurement anywhere")
+    assert "golden_set_multilingual.json" not in _tool_docstring(), (
+        "citation moved back into the model-facing docstring; keep it in the # comment")

@@ -356,6 +356,11 @@ def main() -> int:
         if args.json:
             print(json.dumps(report, indent=2, ensure_ascii=False))
         else:
+            baseline = json.loads(Path(args.compare).read_text()) if args.compare else None
+            if baseline:
+                drift = corpus_drift(baseline.get("corpus"), corpus_fingerprint())
+                for reason in drift:
+                    print(f"  ! corpus differs from the baseline: {reason}")
             per_lang = {lang: rep["summary"]
                         for lang, rep in sorted(report["per_language"].items())}
             counts = ", ".join(f"{lang}={s['queries']}" for lang, s in per_lang.items())
@@ -363,11 +368,25 @@ def main() -> int:
             print("-" * 62)
             keys = ["hit_rate", "recall@k", "precision@k", "MRR", "MAP@k",
                     "floor_silenced_on_topic", "floor_rejected_off_topic"]
+            base_langs = (baseline or {}).get("per_language", {}) if baseline else {}
             for key in keys:
                 line = f"  {key:<26}"
                 for lang, rep in sorted(report["per_language"].items()):
                     v = rep["summary"].get(key)
-                    line += f"  {lang}={v:.3f}" if isinstance(v, (int, float)) else f"  {lang}=n/a"
+                    cell = f"{v:.3f}" if isinstance(v, (int, float)) else "n/a"
+                    if baseline and lang in base_langs:
+                        bv = base_langs[lang]["summary"].get(key)
+                        if isinstance(v, (int, float)) and isinstance(bv, (int, float)):
+                            d = v - bv
+                            # Counts (floor silences/rejections) are integers: a delta of
+                            # +0.000 on 17/33 reads like a rate; show the raw count too.
+                            if key.startswith("floor_"):
+                                cell += f" ({d:+.0f})"
+                            else:
+                                cell += f" ({d:+.3f})"
+                        else:
+                            cell += " (n/a vs baseline)"
+                    line += f"  {lang}={cell}"
                 print(line)
             for lang, rep in sorted(report["per_language"].items()):
                 misses = [r for r in rep["per_query"] if not r["hit"]]

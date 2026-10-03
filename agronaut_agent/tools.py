@@ -413,6 +413,12 @@ def render_system_schematic(
 
 @tool
 def search_knowledge_base(query: str) -> str:
+    # Citation lives here, not in the docstring (maintainer review, #203): the text below
+    # is consumed by the LLM as tool guidance; the measurement claim behind it is a repo
+    # fact and belongs to the codebase, not in the model's context.
+    # Measured: docs/dpg/retrieval_eval/golden_set_multilingual.json + baseline_multilingual.json
+    # (translated queries land where off-topic queries land: floor silences 17/33 FR and
+    # 17/33 ZH-TW on-topic queries at the shipped constants).
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
     quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool).
@@ -421,8 +427,7 @@ def search_knowledge_base(query: str) -> str:
     vocabulary, even when the conversation is in another language: translate the user's
     problem yourself first, and prefer the technical term over the colloquial one —
     "low dissolved oxygen at dawn", not "fish gasping". Searching in the user's language
-    retrieves the wrong passages (measured: docs/dpg/retrieval_eval/golden_set_multilingual.json,
-    baseline_multilingual.json)."""
+    retrieves the wrong passages."""
     text, stats = rag.search_with_stats(query)
     try:
         from .analytics import Analytics
