@@ -418,7 +418,66 @@ MORINGA = Crop(
         "trial ran on soils of pH(KCl) 5.1-7.0 across its two sites and produced "
         "throughout; no species-level pH requirement was reached in the sources above. "
         "temp_min 20 °C placed: chilling-sensitive tropical species, growth poor below "
-        "~20 °C."),
+        "~20 °C."),)
+
+# ETHIOPIAN KALE (Brassica carinata) — the leafy brassica that carries real heat. The
+# database already has kale, collards and mustard greens, and every one of them stops at
+# 24-27 °C; this is the same slot filled for amaranth in #104, one genus over (#125).
+ETHIOPIAN_KALE = Crop(
+    name="ethiopian_kale",
+    category="leafy",
+    # No B. carinata-specific feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) at the collard-greens seed point —
+    # the closest analogue we carry: a heavy-feeding leafy brassica harvested by repeated
+    # defoliation (PROTA: leaf picking every ~2 weeks at 50% defoliation).
+    frr_g_per_m2_day=72.0,
+    frr_low=50.0,
+    frr_high=95.0,
+    n_uptake_g_per_m2_day=0.95,
+    # Field yield is measured, not placed: PROTA (Mnzava & Schippers 2007) gives an
+    # average farmer leaf-and-shoot yield of 35 t/ha per crop, with 50-55 t/ha at
+    # research stations. 35 t/ha is 3.5 kg/m2; 14 is the chain 3.5 kg/m2 x 4x — the
+    # same ~4x protected-culture multiplier the leafy siblings use (amaranth ~4-5x,
+    # malabar spinach ~6x). Held at 14 — under water spinach (16), level with malabar
+    # spinach. The multiplier is the soft link; the trial is measured.
+    yield_kg_per_m2_year=14.0,
+    # PROTA states explicitly that leaf nutritional composition for B. carinata is not
+    # published and is "probably comparable to Brassica juncea" — so the protein number
+    # is inherited from our mustard-greens entry (2.7), with that caveat recorded here.
+    edible_protein_pct=2.7,
+    ph_min=5.5,
+    ph_max=7.0,
+    # Heat tolerance is the reason this entry exists, and the band is built from sourced
+    # endpoints, not one source: ECHO's Mutarda carinata production profile states
+    # "Temperature range: 15-20° C" for the leafy use, and OMAFRA's Specialty Cropportunities
+    # (Carinata) gives "Optimal Temperature Range: 20-30˚C" with "Frost Tolerant, heat
+    # tolerant" — that 30 ceiling is the species-level optimum (measured for oilseed
+    # agronomy), placed on the leafy use here. PROTA describes the ecology (highland to
+    # 2600 m, lowland warm-and-dry, daylength neutral, no vernalization) but states no
+    # numbers. temp_max 30 therefore claims no amaranth-class 35 °C headroom; the OMAFRA
+    # 30 ceiling and ECHO's 15 floor are what the sources actually support. Daylength
+    # neutrality and the lack of a vernalization requirement are what fit it to year-round
+    # equatorial raft culture.
+    temp_min_c=15.0,
+    temp_max_c=30.0,
+    source=("PROTA4U, Mnzava & Schippers 2007 ('Brassica carinata A.Braun', PROTA4U "
+        "record, van der Vossen & Mkamilo eds): farmer leaf+shoot yield ~35 t/ha "
+        "(research stations 50-55 t/ha) for the yield base, highland-to-lowland "
+        "versatility and daylength neutrality for the climate description, and the "
+        "explicit statement that leaf nutritional composition is unpublished ('probably "
+        "comparable to Brassica juncea') — protein 2.7 inherited from mustard_greens on "
+        "that basis. Temperature: ECHO production notes (Mutarda carinata, "
+        "echocommunity.org) state 'Temperature range: 15-20° C' (floor placed from it); "
+        "OMAFRA Specialty Cropportunities (Carinata) states 'Optimal Temperature Range: "
+        "20-30˚C' for the species — the 30 ceiling placed on the leafy use from it, the "
+        "union of the two sourced endpoints. pH 5.5-7.0 is the FAO 589 / UVI leafy-band "
+        "default, not species-measured. Leaf harvest every ~2 weeks at 50% defoliation "
+        "per PROTA agronomy section. Yield 14 = 3.5 kg/m2 (35 t/ha per crop) x 4x: "
+        "the same ~4x protected-culture multiplier the leafy siblings use (amaranth "
+        "~4-5x, malabar spinach ~6x); the multiplier is the soft link, the trial is "
+        "measured. FRR "
+        "placed at the collard-greens seed point in the FAO 589 / UVI leafy band (not "
+        "measured for this species)."),
 )
 
 CROPS: dict[str, Crop] = {
@@ -435,6 +494,7 @@ CROPS: dict[str, Crop] = {
         WATER_SPINACH,
         MALABAR_SPINACH,
         MORINGA,
+        ETHIOPIAN_KALE,
     )
 }
 
