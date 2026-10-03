@@ -471,6 +471,32 @@ On the maintainer's own history, 3 of 15 Claude replies with quantities quoted f
 memory: a stress temperature, a water budget the user never gave, and Ouagadougou's seasonal
 highs.
 
+### All of it in one place: `agronaut eval` and the Quality page
+
+```bash
+agronaut eval                    # status: last result of every eval, its age, stale or not
+agronaut eval all                # run every free eval (safety, retrieval in en/fr/zh), then status
+agronaut eval retrieval          # --multilingual, --compare FILE
+agronaut eval safety
+agronaut eval answers            # the published report; --agreement for every comparison
+agronaut eval answers --run      # a fresh run (calls models, names them, asks first)
+agronaut eval label [--review]   # label claims by hand, or take a second look at disputes
+agronaut eval model qwen3.5:4b   # does this local model drive the engine on this machine?
+agronaut web                     # then Quality in the sidebar
+```
+
+Retrieval, safety and status are free and local; anything that calls a model says which one
+and asks first, and `eval model` never pulls a model for you. Each run adds one line of numbers
+to `eval_history.jsonl` in the data directory (version, corpus fingerprint, model, metrics; no
+question or answer text), so `agronaut eval` can show the trend and mark a result measured on a
+different knowledge base as stale. The golden sets ship with the package, so this works after
+a plain `pip install` too.
+
+The web app's **Quality** mode shows the same numbers, read from the same files, with no model
+call: the twin's validation verdict, retrieval by language, answer faithfulness, the safety
+probes, and how real searches compare with what the golden set calibrated. Every number shows
+its n and date, and faithfulness never appears without its judge's agreement with a person.
+
 ### Human feedback
 
 `/good` and `/bad` on Telegram record a bare rating, 1 or -1. There is no comment field on

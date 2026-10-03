@@ -69,6 +69,18 @@ exclude = ["*.tests", "*.tests.*"]
 # The reference tables aqua_model and the price tools read at runtime. Listed one by one on
 # purpose: data/ in a checkout also holds the memory database, the analytics log and the
 # fetched-page cache, and a glob would ship a developer's own state to strangers.
+# The golden sets and published eval reports `agronaut eval` reads (paths.eval_root). Without
+# them a pip install can run none of its own quality checks.
+"share/agronaut/eval/retrieval_eval" = [
+    "docs/dpg/retrieval_eval/golden_set.json",
+    "docs/dpg/retrieval_eval/golden_set_multilingual.json",
+    "docs/dpg/retrieval_eval/baseline_tuned_2026_09.json",
+]
+"share/agronaut/eval/safety_eval" = ["docs/dpg/safety_eval/golden_set.json"]
+"share/agronaut/eval/faithfulness_eval" = [
+    "docs/dpg/faithfulness_eval/2026-09-30_baseline.json",
+    "docs/dpg/faithfulness_eval/human_labels.json",
+]
 "share/agronaut/data" = [
     "data/coefficient_sources.json",
     "data/dataset_registry.json",

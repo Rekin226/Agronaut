@@ -51,8 +51,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
-_OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "faithfulness_eval"
+from agronaut_agent import paths as _paths  # noqa: E402
+
+# docs/dpg in a checkout, the installed copy under a wheel (paths.eval_root).
+_GOLDEN = _paths.eval_root() / "retrieval_eval" / "golden_set.json"
+_OUT_DIR = _paths.eval_root() / "faithfulness_eval"
 
 # How many questions the relevancy judge is asked to reverse-engineer from an answer. RAGAS uses
 # three; more would smooth the estimate but every one is a model call per query.
@@ -672,6 +675,65 @@ def _resolve(path: str) -> Path:
     return p if p.is_absolute() or p.parent != Path(".") else _OUT_DIR / p.name
 
 
+def print_agreement(report: dict, data: dict) -> None:
+    """Every judgement against the person (blind, then reviewed) and against each other."""
+    labels = data.get("labels")
+    print(f"{'':2}{'a':34s} {'b':38s} {'n':>4} {'raw':>6} {'kappa':>6}")
+    for r in agreement_table(report, labels):
+        print(f"  {r['a']:34s} {r['b']:38s} {r['n']:>4} {_fmt(r['raw'])} {_fmt(r['kappa'])}")
+    if data.get("reviewed"):
+        # both, always: the blind labels are the independent measurement, the reviewed
+        # ones the better-informed one, and the gap between them is worth seeing
+        print(f"\nafter review ({len(data['reviewed'])} claims revisited):")
+        for r in agreement_table(report, reviewed_labels(data)):
+            if r["a"] == "human":
+                print(f"  {'human (reviewed)':34s} {r['b']:38s} {r['n']:>4} "
+                      f"{_fmt(r['raw'])} {_fmt(r['kappa'])}")
+    print(f"\nfaithfulness by judgement ({len(meta_ids(report))} claims about the "
+          "sources themselves left out):")
+    for name in [None, *report.get("judgements", {})]:
+        v = list(verdicts_of(report, name).values())
+        print(f"  {_fmt(faithfulness_score(v)['score'])}  "
+              f"{name or report.get('meta', {}).get('judge', 'judge') + ' (run 1)'}")
+    if not labels:
+        print("\nNo human labels yet: agronaut eval label")
+
+
+def rejudge_report(path: Path, workers: int = 4) -> tuple[str, dict]:  # pragma: no cover - live
+    """Re-judge a saved report with the current judge and write the result into it."""
+    report = json.loads(path.read_text())
+    judge = judge_llm()
+    base = _names(judge)
+    if _prompt_version() != report.get("meta", {}).get("prompt_version"):
+        # a new judging prompt is a new judge: its first run is run 1, never the
+        # repeat of a run made under different instructions
+        base += f" prompt {_prompt_version()}"
+    name = next_run_name(report, base)
+    # Progress lives beside the report until the run completes, so the report never
+    # holds half a judgement, and the same command picks up where a stopped run ended.
+    partial = path.with_suffix(".partial.json")
+    saved = json.loads(partial.read_text()) if partial.exists() else {}
+    done = saved.get("verdicts", {}) if saved.get("name") == name else {}
+    if done:
+        print(f"resuming {name}: {len(done)} claims already judged")
+    total = sum(1 for q in report["per_query"] for c in q.get("claims", [])
+                if not is_meta_claim(c["claim"]))
+
+    def _save(verdicts, n, of):
+        partial.write_text(json.dumps({"name": name, "verdicts": verdicts}))
+        print(f"  [{n}/{of} queries] {len(verdicts)}/{total} claims judged", flush=True)
+
+    verdicts = rejudge(report, patient(lambda prompt: judge.invoke(prompt)), done=done,
+                       workers=workers, on_query=_save)
+    report.setdefault("judgements", {})[name] = verdicts
+    report.setdefault("judgement_meta", {})[name] = {**run_meta(), "judge": base}
+    path.write_text(json.dumps(report, indent=2))
+    partial.unlink(missing_ok=True)
+    print(f"{name}: faithfulness {_fmt(faithfulness_score(list(verdicts.values()))['score'])}"
+          f" over {len(verdicts)} claims. Saved into {path}")
+    return name, verdicts
+
+
 def main() -> int:  # pragma: no cover - CLI
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--limit", type=int, help="score only the first N golden-set queries")
@@ -688,27 +750,7 @@ def main() -> int:  # pragma: no cover - CLI
 
     if args.agreement:
         report = json.loads(_resolve(args.agreement).read_text())
-        data = json.loads(_LABELS.read_text()) if _LABELS.exists() else {}
-        labels = data.get("labels")
-        print(f"{'':2}{'a':34s} {'b':38s} {'n':>4} {'raw':>6} {'kappa':>6}")
-        for r in agreement_table(report, labels):
-            print(f"  {r['a']:34s} {r['b']:38s} {r['n']:>4} {_fmt(r['raw'])} {_fmt(r['kappa'])}")
-        if data.get("reviewed"):
-            # both, always: the blind labels are the independent measurement, the reviewed
-            # ones the better-informed one, and the gap between them is worth seeing
-            print(f"\nafter review ({len(data['reviewed'])} claims revisited):")
-            for r in agreement_table(report, reviewed_labels(data)):
-                if r["a"] == "human":
-                    print(f"  {'human (reviewed)':34s} {r['b']:38s} {r['n']:>4} "
-                          f"{_fmt(r['raw'])} {_fmt(r['kappa'])}")
-        print(f"\nfaithfulness by judgement ({len(meta_ids(report))} claims about the "
-              "sources themselves left out):")
-        for name in [None, *report.get("judgements", {})]:
-            v = list(verdicts_of(report, name).values())
-            print(f"  {_fmt(faithfulness_score(v)['score'])}  "
-                  f"{name or report.get('meta', {}).get('judge', 'judge') + ' (run 1)'}")
-        if not labels:
-            print("\nNo human labels yet: python -m scripts.label_claims " + args.agreement)
+        print_agreement(report, json.loads(_LABELS.read_text()) if _LABELS.exists() else {})
         return 0
 
     if os.getenv("AGRONAUT_FAITHFULNESS_EVAL", "").lower() not in {"1", "true", "yes"}:
@@ -717,37 +759,7 @@ def main() -> int:  # pragma: no cover - CLI
         return 0
 
     if args.rejudge:
-        path = _resolve(args.rejudge)
-        report = json.loads(path.read_text())
-        judge = judge_llm()
-        base = _names(judge)
-        if _prompt_version() != report.get("meta", {}).get("prompt_version"):
-            # a new judging prompt is a new judge: its first run is run 1, never the
-            # repeat of a run made under different instructions
-            base += f" prompt {_prompt_version()}"
-        name = next_run_name(report, base)
-        # Progress lives beside the report until the run completes, so the report never
-        # holds half a judgement, and the same command picks up where a stopped run ended.
-        partial = path.with_suffix(".partial.json")
-        saved = json.loads(partial.read_text()) if partial.exists() else {}
-        done = saved.get("verdicts", {}) if saved.get("name") == name else {}
-        if done:
-            print(f"resuming {name}: {len(done)} claims already judged")
-        total = sum(1 for q in report["per_query"] for c in q.get("claims", [])
-                    if not is_meta_claim(c["claim"]))
-
-        def _save(verdicts, n, of):
-            partial.write_text(json.dumps({"name": name, "verdicts": verdicts}))
-            print(f"  [{n}/{of} queries] {len(verdicts)}/{total} claims judged", flush=True)
-
-        verdicts = rejudge(report, patient(lambda prompt: judge.invoke(prompt)), done=done,
-                           workers=args.workers, on_query=_save)
-        report.setdefault("judgements", {})[name] = verdicts
-        report.setdefault("judgement_meta", {})[name] = {**run_meta(), "judge": base}
-        path.write_text(json.dumps(report, indent=2))
-        partial.unlink(missing_ok=True)
-        print(f"{name}: faithfulness {_fmt(faithfulness_score(list(verdicts.values()))['score'])}"
-              f" over {len(verdicts)} claims. Saved into {path}")
+        rejudge_report(_resolve(args.rejudge), workers=args.workers)
         return 0
 
     out = _resolve(args.save) if args.save else None
