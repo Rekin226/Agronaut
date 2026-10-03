@@ -55,6 +55,12 @@ GRAPH = "https://graph.facebook.com/v20.0"
 POLL_SECONDS = 60
 
 
+class WhatsAppSendError(RuntimeError):
+    """The Graph API refused (or failed) a WhatsApp send. Raised by send_text on
+    HTTP 4xx/5xx so callers can tell 'never arrived' apart from 'sent' — silently
+    swallowing HTTP errors once marked follow-ups sent when they had not been (#215)."""
+
+
 class WhatsAppAdapter(ChannelAdapter):
     channel_name = "whatsapp"
 
@@ -273,6 +279,8 @@ class WhatsAppAdapter(ChannelAdapter):
             self.send_text(to, bubble)
 
     def send_text(self, to: str, text: str) -> None:
+        """Send plain text, chunked into bubbles. Raises WhatsAppSendError when the
+        Graph API answers 4xx/5xx; network errors from requests propagate as-is."""
         for part in chunk(text):
             resp = requests.post(
                 f"{GRAPH}/{self.phone_number_id}/messages",
@@ -284,6 +292,8 @@ class WhatsAppAdapter(ChannelAdapter):
             )
             if resp.status_code >= 400:
                 log.warning("whatsapp send failed (%s): %s", resp.status_code, resp.text[:200])
+                raise WhatsAppSendError(
+                    f"whatsapp send failed ({resp.status_code}): {resp.text[:200]}")
 
     def send_media(self, to: str, path: str, mime: str = "image/png") -> bool:
         """Send a local file (e.g. a rendered schematic or a 3D scene). WhatsApp Cloud API
