@@ -77,3 +77,10 @@ def test_chunks_keep_document_order(monkeypatch):
     book = _pages("A page of the book.", 1)[0]
     chunks = chatbot.split_into_chunks([book, local])
     assert [c.metadata["source"] for c in chunks] == ["book.pdf", "k.md"]
+
+
+def test_ships_disabled(monkeypatch):
+    """Off until an answer-level eval says whole sentences help: on the golden set it cost 0.036
+    MAP and one off-topic rejection after re-calibration (chunking_ablation.json)."""
+    monkeypatch.delenv("AGRONAUT_SENTENCE_CHUNKS", raising=False)
+    assert chatbot.sentence_chunking_enabled() is False

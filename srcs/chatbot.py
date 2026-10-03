@@ -608,9 +608,23 @@ def sentence_chunking_enabled() -> bool:
 
     The curated knowledge/ files keep the original splitter, byte for byte: their sections already
     fit the window, and nothing about them was broken.
+
+    Ships DISABLED, because what the golden set can see did not improve. Full 3940-chunk corpus,
+    re-swept (the only safe floor became 1.55; cap 1 and beta 0.90 held):
+
+        variant                            hit    recall  prec    MRR     MAP    off-topic
+        off, floor 1.50 (shipped)          0.879  0.833   0.364   0.636   0.604  8/10
+        on,  floor 1.55 (re-calibrated)    0.909  0.818   0.343   0.621   0.568  7/10
+
+    Shorter chunks (median 755 -> 625 chars) match every question a little less well, so the worst
+    real query moved from 1.383 to 1.420 and the floor had to rise to keep 0.10 of headroom. At
+    1.55, three off-topic queries (1.470 to 1.487) sit under it, one more than today, and ranking
+    fell. The gain is readability, which a document-level metric cannot score:
+    whether whole sentences make better ANSWERS is for the faithfulness eval to say. Turn it on
+    only together with AGRONAUT_RELEVANCE_MAX_DISTANCE=1.55.
     """
     import os
-    return os.getenv("AGRONAUT_SENTENCE_CHUNKS", "").lower() not in {"off", "0", "false"}
+    return os.getenv("AGRONAUT_SENTENCE_CHUNKS", "").lower() in {"on", "1", "true"}
 
 
 # Sentence ends come after paragraphs and lines (which, once printed lines are rejoined, only
@@ -1956,7 +1970,8 @@ def _corpus_fingerprint() -> str:
              f"|md_headers={markdown_headers_enabled()}"
              f"|md_crumb={_crumb_enabled()}"
              f"|pdf_clean={pdf_cleaning_enabled()}"
-             f"|sentences={sentence_chunking_enabled()}"
+             # Only when on, so the off default leaves every existing cached index valid.
+             f"{'|sentences=True' if sentence_chunking_enabled() else ''}"
              f"|pdf_sections={pdf_sections_enabled()}"
              f"|meta_schema={META_SCHEMA}".encode())
     kb = pathlib.Path(KNOWLEDGE_DIR)

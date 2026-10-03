@@ -75,6 +75,73 @@
         }
       ],
       "note": "Prefix HURT: C loses 0.060 hit_rate and 0.093 MAP against B \u2014 the opposite sign."
+    },
+    {
+      "corpus": {
+        "chunks": 3940,
+        "note": "Full shipped corpus (Goddek 2019 + FAO 589 + curated + web). The 'off' build reproduced baseline_tuned_2026_09 to +0.000 on every metric, so this is the corpus the constants were tuned on.",
+        "measured": "2026-10-03"
+      },
+      "technique": "Sentence chunking for extracted sources (AGRONAUT_SENTENCE_CHUNKS): PDF printed lines rejoined after cleaning, splitter prefers sentence ends over spaces. Curated knowledge/ chunks byte-identical.",
+      "boundaries_fao589": {
+        "ends_mid_sentence": {
+          "off": 0.721,
+          "on": 0.131
+        },
+        "starts_mid_sentence": {
+          "off": 0.591,
+          "on": 0.059
+        },
+        "median_chunk_chars": {
+          "off": 755,
+          "on": 625
+        },
+        "note": "Heuristic (last character / first character), not a parser. Goddek could not be fetched for this measurement on its own; it goes through the same loader."
+      },
+      "chunks": {
+        "off": 3940,
+        "on": 4526
+      },
+      "variants": [
+        {
+          "id": "A",
+          "name": "off, floor 1.50 / cap 1 / beta 0.90 (shipped)",
+          "hit_rate": 0.879,
+          "recall@k": 0.833,
+          "precision@k": 0.364,
+          "MRR": 0.636,
+          "MAP@k": 0.604,
+          "off_topic_rejected": "8/10",
+          "worst_on_topic": 1.383,
+          "closest_off_topic": 1.411
+        },
+        {
+          "id": "B",
+          "name": "on, same constants (not re-calibrated)",
+          "hit_rate": 0.909,
+          "recall@k": 0.818,
+          "precision@k": 0.343,
+          "MRR": 0.621,
+          "MAP@k": 0.568,
+          "off_topic_rejected": "7/10",
+          "worst_on_topic": 1.42,
+          "closest_off_topic": 1.47,
+          "note": "Floor headroom 0.080, under the 0.10 rule, so not a valid configuration."
+        },
+        {
+          "id": "C",
+          "name": "on, re-swept: floor 1.55 / cap 1 / beta 0.90",
+          "hit_rate": 0.909,
+          "recall@k": 0.818,
+          "precision@k": 0.343,
+          "MRR": 0.621,
+          "MAP@k": 0.568,
+          "off_topic_rejected": "7/10",
+          "headroom": 0.13,
+          "note": "retrieval_sweep --all picked floor 1.65 from its default grid, where only 2/10 off-topic are rejected; a finer grid (1.52-1.60) found 1.55. At 1.65 the sweep also preferred beta 1.0 (MAP 0.614) over 0.90 (0.578) while hit fell 0.030; not adopted, since 1.65 is not a floor this project would ship."
+        }
+      ],
+      "note": "Ships OFF. After re-calibration: hit +0.030 (one query), MAP -0.036, one more off-topic query answered. The benefit is readable passages, which document-level metrics cannot score; the deciding measurement is answer faithfulness, not retrieval."
     }
   ],
   "conclusion": "Baseline wins on both corpora, so header chunking stays DISABLED (AGRONAUT_MD_HEADERS=off). The prefix's reversal is the finding worth keeping: on a small uniform corpus, prefixing a chunk with 'Title - Section' disambiguated it among 21 similar files; once a 992-chunk book joined the index, those same added words made curated chunks read as generic aquaponics prose and compete WORSE against it. A preprocessing step's value is a property of the corpus it runs on, not of the step.",
