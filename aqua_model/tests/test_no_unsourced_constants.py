@@ -56,7 +56,7 @@ ALLOWLIST = {
     ("costing", "_PIPE_FITTING_FACTOR"):
         "fitting allowance on straight pipe runs; known debt, registry migration tracked in #131",
     # cropgrowth.py — guardrail
-    ("cropgrowth", "_MAX_OVER_CITED"):
+    ("cropgrowth", "MAX_OVER_CITED"):
         "cap on how far better-than-reference conditions may beat the cited yield; guardrail, not an input",
     # datasets.py — sensor-QC policy
     ("datasets", "_SATURATION_THRESHOLD"):
