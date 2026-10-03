@@ -84,6 +84,27 @@ def paste_card(base_url: str, verify_token: str) -> str:
     ])
 
 
+def public_base(url: str | None) -> str | None:
+    """WHATSAPP_PUBLIC_URL as a base address: https only, no trailing slash or /webhook,
+    because people paste back the Callback URL they gave Meta. None when unset or unusable."""
+    url = (url or "").strip().rstrip("/")
+    if url.endswith("/webhook"):
+        url = url[: -len("/webhook")]
+    return url if url.startswith("https://") and len(url) > len("https://") else None
+
+
+def permanent_card(base_url: str) -> str:
+    """What to tell Meta once, for an address that does not change between runs."""
+    return "\n".join([
+        "",
+        f"  Permanent address (WHATSAPP_PUBLIC_URL): {webhook_url(base_url)}",
+        "  Meta needs it only once: Callback URL on "
+        "Configure Webhooks, with your verify token.",
+        "  It stays the same across restarts, so there is nothing to paste after this one.",
+        "",
+    ])
+
+
 class QuickTunnel:
     """A cloudflared quick tunnel to localhost:<port>, owned by this process."""
 

@@ -13,6 +13,9 @@ Needs (in .env or the environment), all from the Meta app dashboard:
   WHATSAPP_VERIFY_TOKEN     any string you invent; paste the same one into Meta's webhook form
   WHATSAPP_APP_SECRET       app secret, used to verify inbound request signatures
   AGRONAUT_ALLOWED_IDS      comma-separated sender numbers allowed to use the bot
+  WHATSAPP_PUBLIC_URL       optional: a permanent https address that reaches this port (for
+                            example a Tailscale Funnel), checked at startup; see
+                            docs/whatsapp_setup.md
 
 Plus a model, the same as Telegram: LLM_PROVIDER=ollama with a pulled model, or a hosted key.
 """
@@ -83,19 +86,48 @@ def main(tunnel: bool = False) -> int:
                     "number(s) unless you mean to run it open.")
 
     port = int(os.getenv("WHATSAPP_PORT", "8080"))
-    if not tunnel:
+    if tunnel:
+        return _run_with_tunnel(port, log)
+    from agronaut_agent import whatsapp_tunnel as T
+
+    base = T.public_base(os.getenv("WHATSAPP_PUBLIC_URL"))
+    if base:
+        print(T.permanent_card(base), flush=True)
+        _check_in_background(base, log, first_wait=3.0, fix=(
+            f"Is the tunnel up? With Tailscale: `tailscale funnel status` should list "
+            f"http://127.0.0.1:{port}; if not, run `tailscale funnel --bg {port}`."))
+    else:
+        if os.getenv("WHATSAPP_PUBLIC_URL"):
+            log.warning("WHATSAPP_PUBLIC_URL is set but is not an https:// address, so it "
+                        "is ignored")
         log.info("starting WhatsApp webhook on port %d. Meta must reach it over HTTPS, so "
                  "point a tunnel or reverse proxy at it (or run `agronaut whatsapp "
                  "--tunnel` to start one here)", port)
-        WhatsAppAdapter(AgronautAgent(), port=port).run()
-        return 0
-    return _run_with_tunnel(port, log)
+    WhatsAppAdapter(AgronautAgent(), port=port).run()
+    return 0
+
+
+def _check_in_background(base: str, log, first_wait: float, fix: str) -> None:
+    """Send Meta's handshake to the public address once the bot is up, and say what came
+    back, so a dead tunnel shows in the bot's own log instead of as silence on WhatsApp."""
+    import threading
+
+    from agronaut_agent import whatsapp_tunnel as T
+
+    verify = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+
+    def _check():
+        if T.probe_until_reachable(base, verify, first_wait=first_wait):
+            log.info("public address works: %s answers Meta's handshake",
+                     T.webhook_url(base))
+        else:
+            log.warning("%s did not answer Meta's handshake. %s", T.webhook_url(base), fix)
+
+    threading.Thread(target=_check, daemon=True).start()
 
 
 def _run_with_tunnel(port: int, log) -> int:
     """Bot and public address in one process, and the values Meta needs printed on screen."""
-    import threading
-
     from agronaut_agent import whatsapp_tunnel as T
 
     tun = T.QuickTunnel(port)
@@ -104,20 +136,11 @@ def _run_with_tunnel(port: int, log) -> int:
     except T.TunnelUnavailable as err:
         print(f"\nCould not start the tunnel: {err}\n", file=sys.stderr)
         return 2
-    verify = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
-    print(T.paste_card(base, verify), flush=True)
-
-    def _self_check():
-        if T.probe_until_reachable(base, verify):
-            log.info("public address works: %s answers Meta's handshake. Paste it into Meta "
-                     "now if you have not already.", T.webhook_url(base))
-        else:
-            log.warning("this computer could not reach %s yet. That is often only this "
-                        "machine's DNS cache and Meta can reach it anyway: paste it and click "
-                        "Verify and save. If Meta also fails, restart this command.",
-                        T.webhook_url(base))
-
-    threading.Thread(target=_self_check, daemon=True).start()
+    print(T.paste_card(base, os.getenv("WHATSAPP_VERIFY_TOKEN", "")), flush=True)
+    # A quick tunnel's name needs a moment to exist; see probe_until_reachable.
+    _check_in_background(base, log, first_wait=15.0, fix=(
+        "That is often only this machine's DNS cache and Meta can reach it anyway: paste it "
+        "and click Verify and save. If Meta also fails, restart this command."))
     import signal
 
     # A plain `kill` or a closed terminal sends SIGTERM, which skips `finally` unless it is

@@ -149,3 +149,28 @@ def test_the_cli_exposes_tunnel_and_token():
     args = _build_parser().parse_args(["whatsapp", "--tunnel"])
     assert args.tunnel and not args.token
     assert _build_parser().parse_args(["whatsapp", "--token"]).token
+
+
+# --- a permanent address (2026-10-03: every restart meant pasting a new one into Meta) ----
+
+@pytest.mark.parametrize("given", [
+    "https://mac.tail1234.ts.net",
+    "https://mac.tail1234.ts.net/",
+    "https://mac.tail1234.ts.net/webhook",       # the Callback URL pasted back
+    "  https://mac.tail1234.ts.net/webhook/  ",
+])
+def test_the_permanent_address_is_read_however_it_was_pasted(given):
+    assert T.public_base(given) == "https://mac.tail1234.ts.net"
+
+
+@pytest.mark.parametrize("given", [None, "", "http://mac.tail1234.ts.net", "mac.ts.net",
+                                   "https://"])
+def test_an_unusable_permanent_address_is_ignored(given):
+    """Meta only calls https, so an http address would verify nothing and fail silently."""
+    assert T.public_base(given) is None
+
+
+def test_the_permanent_card_gives_the_callback_url_and_says_it_does_not_change():
+    card = T.permanent_card("https://mac.tail1234.ts.net")
+    assert "https://mac.tail1234.ts.net/webhook" in card
+    assert "nothing to paste" in card and "changes every time" not in card

@@ -168,5 +168,27 @@ Meta's own version of these steps is Step 5 of its
 
 With a permanent token, the one thing left that changes is the tunnel address: a quick
 tunnel gets a new one every time it starts, and you paste it into Meta again. To register
-an address once, run Agronaut on a server with a domain and a certificate, or use a named
-Cloudflare tunnel.
+an address once, give the bot a permanent one. Without a domain of your own, Tailscale
+Funnel does it for free (Funnel is in beta and available on every Tailscale plan, per
+Tailscale's docs as of 2026):
+
+```bash
+brew install tailscale                 # the open-source variant; Funnel needs it on a Mac
+sudo brew services start tailscale     # runs in the background and after every restart
+tailscale up                           # log in; creates the free account the first time
+tailscale funnel --bg 8080             # the first time, approve Funnel at the link it prints
+```
+
+The last command prints an address like `https://your-mac.your-tailnet.ts.net`. It stays
+the same, and `--bg` keeps it serving after a reboot. Then, once:
+
+1. Add it to `.env`: `WHATSAPP_PUBLIC_URL=https://your-mac.your-tailnet.ts.net`
+2. Paste `https://your-mac.your-tailnet.ts.net/webhook` as the Callback URL on Configure
+   Webhooks (section 6), with your verify token, and click Verify and save.
+
+From then on start the bot with plain `agronaut whatsapp` (no `--tunnel`). It checks the
+permanent address answers Meta's handshake and says so in its log; if it does not,
+`tailscale funnel status` should show `http://127.0.0.1:8080`.
+
+With a domain of your own, a named Cloudflare tunnel or a server with a certificate works
+the same way: point it at port 8080 and set `WHATSAPP_PUBLIC_URL` to it.
