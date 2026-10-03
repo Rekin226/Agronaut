@@ -11,7 +11,7 @@ import json
 import pytest
 
 from agronaut_agent.channels import base
-from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter
+from agronaut_agent.channels.whatsapp_adapter import WhatsAppAdapter, WhatsAppSendError
 
 
 class _FakeAgent:
@@ -384,6 +384,34 @@ def test_deliver_due_followups_sends_and_marks(monkeypatch):
     a.deliver_due_followups()
     assert sent == [("15551234567", "did it work?")]
     assert ("sent", 1) in agent.calls
+
+
+def test_send_text_raises_on_http_error(monkeypatch):
+    # The follow-up loop marks a question sent unless send_text raises; an HTTP
+    # error used to be logged and swallowed, so failures were recorded as sent.
+    a = _adapter()
+
+    class _Resp:
+        status_code = 400
+        text = '{"error": {"message": "bad request"}}'
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    with pytest.raises(WhatsAppSendError):
+        a.send_text("15551234567", "hello")
+
+
+def test_deliver_due_followups_records_failure_on_http_error(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+
+    class _Resp:
+        status_code = 500
+        text = "internal error"
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    a.deliver_due_followups()
+    assert ("failed", 1) in agent.calls
+    assert ("sent", 1) not in agent.calls
 
 
 # --- inbound images ---------------------------------------------------------------------
