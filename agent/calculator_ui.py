@@ -142,6 +142,7 @@ def render_calculator() -> None:
         return
 
     out = size_system(design)
+    _hand_off_to_twin(design, out)
 
     if out.feasible:
         st.success("Feasible design.")
@@ -207,3 +208,24 @@ def render_calculator() -> None:
         mime="text/markdown",
         use_container_width=True,
     )
+
+
+def _hand_off_to_twin(design, out) -> None:
+    """Seed the private Agronaut Twin Studio with a feasible single-crop design, when that
+    add-on is installed. Without it this does nothing."""
+    try:
+        from agronaut_twin.bridge import from_sizing
+    except ImportError:
+        return
+    if not out.feasible or len(design.crop_plan) > 1:
+        st.session_state.pop("twin_studio_sized_design", None)
+        return
+    try:
+        st.session_state["twin_studio_sized_design"] = from_sizing(design, out)
+        st.caption(
+            "Your tank, crop area, fish count and pump duty are ready in Digital Twin "
+            "Studio (sidebar). Confirm initial fish weight and equipment transfer rates there."
+        )
+    except ValueError:
+        # Sizing covers scales beyond the physical workbench's envelope.
+        st.session_state.pop("twin_studio_sized_design", None)

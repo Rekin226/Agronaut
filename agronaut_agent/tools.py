@@ -1736,3 +1736,10 @@ AGRONAUT_TOOLS = [
     search_community_knowledge,
     record_measurement,
 ]
+
+# Optional private add-on (Agronaut Twin): its tools join the agent only when installed.
+try:
+    from agronaut_twin.agent_tools import TOOLS as _TWIN_TOOLS
+except ImportError:
+    _TWIN_TOOLS = []
+AGRONAUT_TOOLS += _TWIN_TOOLS
