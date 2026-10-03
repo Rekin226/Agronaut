@@ -415,7 +415,15 @@ def render_system_schematic(
 def search_knowledge_base(query: str) -> str:
     """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
     sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
-    quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool)."""
+    quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool).
+
+    The knowledge is in English and matched by meaning, so write `query` in ENGLISH whatever
+    language the grower wrote in. Keep their symptom in plain English words, and add the
+    textbook term when you know it ("fish gasping at the surface at dawn, low dissolved
+    oxygen"). Still reply to the grower in their own language."""
+    # #199: the embedder and BM25 are English-only. A French or Mandarin query passed through
+    # unchanged hit 0.18 / 0.09 against English's 0.88, and the floor silenced 19 of 33 real
+    # questions in each (docs/dpg/retrieval_eval/baseline_multilingual.json).
     text, stats = rag.search_with_stats(query)
     try:
         from .analytics import Analytics

@@ -15,6 +15,7 @@ Run it:
     python -m scripts.retrieval_eval                        # score, print a table
     python -m scripts.retrieval_eval --save baseline.json   # record a baseline
     python -m scripts.retrieval_eval --compare baseline.json  # print the delta vs that baseline
+    python -m scripts.retrieval_eval --multilingual         # add FR and ZH, scored per language
 """
 
 from __future__ import annotations
@@ -30,6 +31,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 _ROOT = Path(__file__).resolve().parents[1]
 _GOLDEN = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set.json"
+# French and Mandarin versions of the same queries (#199). A separate file, so the English set and
+# the baseline CI compares against stay exactly as they were.
+_GOLDEN_ML = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set_multilingual.json"
 
 # The baseline the shipped retrieval constants (floor, cap, beta in agronaut_agent/rag.py) were
 # tuned against. When a re-sweep moves them, save a new baseline and point this at it.
@@ -118,6 +122,56 @@ def aggregate(per_query: list[dict], k: int) -> dict:
     }
 
 
+# --- languages (pure, no index, unit-testable) -------------------------------
+
+def merge_golden(english: dict, multilingual: dict | None) -> dict:
+    """The English golden set plus its translations, every entry tagged with a `lang`.
+
+    A translation carries no `relevant` of its own: it names its English original in `of` and
+    inherits that query's ground truth. Ground truth is a property of the corpus and gets
+    relabelled when the corpus moves (see golden_set.json's _ground_truth_note); a copied label
+    would silently go stale in every language but English.
+    """
+    queries = [{**q, "lang": "en"} for q in english["queries"]]
+    negatives = [{**n, "lang": "en"} for n in english.get("negative_controls", [])]
+    if multilingual:
+        by_id = {q["id"]: q for q in english["queries"]}
+        neg_ids = {n["id"] for n in english.get("negative_controls", [])}
+        for q in multilingual["queries"]:
+            if q["of"] not in by_id:
+                raise ValueError(f"{q['id']} translates {q['of']!r}, which is not in the golden set")
+            queries.append({**q, "relevant": by_id[q["of"]]["relevant"]})
+        for n in multilingual.get("negative_controls", []):
+            if n["of"] not in neg_ids:
+                raise ValueError(f"{n['id']} translates {n['of']!r}, not a negative control")
+            negatives.append(n)
+    return {**english, "queries": queries, "negative_controls": negatives}
+
+
+def by_language(per_query: list[dict], negatives: list[dict], k: int) -> dict:
+    """The scorecard and the floor's behaviour, split by language.
+
+    The floor is one global distance, so the question per language is the same one the English
+    calibration asks: does it silence any real query, and does that language's on-topic band
+    still separate from the off-topic one.
+    """
+    out = {}
+    for lang in dict.fromkeys(r["lang"] for r in per_query):
+        rows = [r for r in per_query if r["lang"] == lang]
+        negs = [n for n in negatives if n["lang"] == lang]
+        s = aggregate(rows, k)
+        s["floor_silenced_on_topic"] = sum(1 for r in rows if r.get("floor_returned_nothing"))
+        s["floor_rejected_off_topic"] = sum(1 for n in negs if n.get("rejected_by_floor"))
+        s["negative_controls"] = len(negs)
+        on = [r["raw_top_score"] for r in rows if r.get("raw_top_score") is not None]
+        off = [n["top_score"] for n in negs if n.get("top_score") is not None]
+        s["worst_on_topic"] = max(on) if on else None
+        s["closest_off_topic"] = min(off) if off else None
+        s["separable"] = bool(on and off) and min(off) > max(on)
+        out[lang] = s
+    return out
+
+
 # --- what the baseline was measured on (pure, no index, unit-testable) ------
 
 def corpus_fingerprint(root: Path = _ROOT) -> dict:
@@ -180,15 +234,19 @@ def _chunk_count() -> int | None:
 
 # --- the live run ------------------------------------------------------------
 
-def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = False) -> dict:
+def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = False,
+        multilingual: bool = False) -> dict:
     """Score the golden set.
 
     `retrieve` is injectable (query, k) -> list of hit dicts; defaults to the real index.
     `unfiltered` is the same retriever with the relevance floor DISABLED — the negative controls
     need raw distances, because a floor that has already discarded them tells us nothing about
     whether it was set at the right place.
+    `multilingual` adds the French and Mandarin translations and splits the summary by language.
     """
     golden = json.loads(_GOLDEN.read_text())
+    if multilingual:
+        golden = merge_golden(golden, json.loads(_GOLDEN_ML.read_text()))
     k = k or golden.get("k", 3)
     if retrieve is None:
         from agronaut_agent import rag
@@ -221,6 +279,8 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
         row = score_query([h["source"] for h in hits], q["relevant"], k)
         row.update(id=q["id"], query=q["query"], relevant=q["relevant"],
                    top_score=nearest(hits))
+        if "lang" in q:
+            row["lang"] = q["lang"]
         per_query.append(row)
 
     # Negative controls carry no relevant set — their value is the SCORE distribution, which is
@@ -233,7 +293,8 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
         negatives.append({"id": q["id"], "query": q["query"],
                           "top_score": nearest(raw),
                           "returned": [h["source"] for h in kept],
-                          "rejected_by_floor": bool(raw) and not kept})
+                          "rejected_by_floor": bool(raw) and not kept,
+                          **({"lang": q["lang"]} if "lang" in q else {})})
 
     # On-topic distances also measured unfiltered, so the two bands are compared on equal terms.
     for row, q in zip(per_query, golden["queries"]):
@@ -246,6 +307,8 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
     summary["floor_silenced_on_topic"] = sum(1 for r in per_query if r["floor_returned_nothing"])
     summary["floor_rejected_off_topic"] = sum(1 for n in negatives if n["rejected_by_floor"])
     summary["negative_controls"] = len(negatives)
+    if multilingual:
+        summary["by_lang"] = by_language(per_query, negatives, k)
     return {"summary": summary, "per_query": per_query, "negative_controls": negatives}
 
 
@@ -293,6 +356,25 @@ def _print(report: dict, baseline: dict | None = None) -> None:
                        "OVERLAPPING — a single global floor would reject real queries too")
             print(f"  -> {verdict}")
 
+    langs = s.get("by_lang")
+    if langs:
+        base_langs = (baseline or {}).get("summary", {}).get("by_lang", {})
+        print("\nBY LANGUAGE (one global floor; 'separable' is that language's bands vs its own"
+              " off-topic controls)")
+        print(f"  {'lang':<5}{'n':>4}{'hit':>8}{'recall':>8}{'MAP':>8}{'silenced':>10}"
+              f"{'rejected':>10}{'worst_on':>10}{'best_off':>10}  separable")
+        for lang, r in langs.items():
+            def fmt(v):
+                return "   n/a" if v is None else f"{v:.3f}"
+            line = (f"  {lang:<5}{r['queries']:>4}{r['hit_rate']:>8.3f}{r['recall@k']:>8.3f}"
+                    f"{r['MAP@k']:>8.3f}{r['floor_silenced_on_topic']:>7}/{r['queries']:<2}"
+                    f"{r['floor_rejected_off_topic']:>7}/{r['negative_controls']:<2}"
+                    f"{fmt(r['worst_on_topic']):>10}{fmt(r['closest_off_topic']):>10}"
+                    f"  {'yes' if r['separable'] else 'NO'}")
+            if lang in base_langs:
+                line += f"   (hit {r['hit_rate'] - base_langs[lang]['hit_rate']:+.3f})"
+            print(line)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -302,9 +384,11 @@ def main() -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-floor", action="store_true",
                     help="measure retrieval with the relevance floor disabled")
+    ap.add_argument("--multilingual", action="store_true",
+                    help="also score the French and Mandarin golden queries, per language")
     args = ap.parse_args()
 
-    report = run(k=args.k, no_floor=args.no_floor)
+    report = run(k=args.k, no_floor=args.no_floor, multilingual=args.multilingual)
     baseline = json.loads(Path(args.compare).read_text()) if args.compare else None
 
     if args.json:
