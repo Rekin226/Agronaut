@@ -47,6 +47,14 @@ def _quiet() -> None:
     os.environ.setdefault("USER_AGENT", "agronaut-eval")
     import warnings
     warnings.filterwarnings("ignore", message=".*HuggingFaceEmbeddings.*")
+    # LangChain registers its own filter for this category when it loads, ahead of the one
+    # above, so the notice still printed. Loading it first and filtering the category after
+    # puts ours in front.
+    try:
+        from langchain_core._api.deprecation import LangChainDeprecationWarning
+        warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
+    except ImportError:
+        pass
 
 
 def _confirm(what: str, yes: bool) -> bool:
@@ -147,8 +155,9 @@ def cmd_retrieval(args) -> int:
 def _print_topics(rows: list[dict], k: int = 3) -> None:
     langs = sorted({lang for r in rows for lang in r.get("langs", {})})
     head = "".join(f"{lang + ' hit':>8}" for lang in langs)
-    print(f"\nBy topic, weakest first (English; {', '.join(langs) + ' passed in raw, ' if langs else ''}"
-          "untranslated)\n")
+    note = (f"; {', '.join(langs)}: questions passed to the retriever untranslated"
+            if langs else "")
+    print(f"\nBy topic, weakest first (English{note})\n")
     print(f"  {'topic':<18}{'n':>3}{'hit':>7}{'recall':>8}{'MRR':>7}{'MAP':>7}{head}  missed")
     for r in rows:
         extra = "".join(f"{f'{h}/{n}':>8}" for h, n in (r.get("langs", {}).get(lang, (0, 0))
