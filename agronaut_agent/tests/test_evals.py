@@ -302,3 +302,114 @@ def test_a_stale_scripts_package_elsewhere_never_shadows_the_checkout(monkeypatc
     assert importlib.util.find_spec("scripts").origin.startswith(str(stale))
     evals.scripts_from_checkout()
     assert importlib.util.find_spec("scripts").origin.startswith(str(paths.PROJECT_ROOT))
+
+
+# --- where it is weak: by topic, and the unsupported claims (2026-10-04) ------------------------
+
+def _q(qid, hit, recall, rr, ap, lang="en"):
+    return {"id": qid, "hit": hit, "recall": recall, "rr": rr, "ap": ap, "lang": lang}
+
+
+def test_topics_come_from_question_and_claim_ids():
+    assert evals.topic_of("algae-01") == "algae"
+    assert evals.topic_of("do-02-fr") == "do"
+    assert evals.topic_of("econ-03:20") == "econ"
+    assert evals.topic_name("range") == "water ranges"
+    assert evals.topic_name("newtopic") == "newtopic"     # unknown prefixes still show
+
+
+def test_retrieval_by_topic_puts_the_weakest_first_and_names_the_misses():
+    rows = evals.retrieval_by_topic([
+        _q("do-01", True, 1.0, 1.0, 1.0), _q("do-02", True, 1.0, 0.5, 0.5),
+        _q("range-01", False, 0.0, 0.0, 0.0),
+        _q("algae-01", False, 0.0, 0.0, 0.0), _q("algae-02", True, 1.0, 1.0, 1.0),
+        _q("algae-01-fr", True, 1.0, 1.0, 1.0, lang="fr"),
+        _q("algae-02-fr", False, 0.0, 0.0, 0.0, lang="fr"),
+    ])
+    assert [r["topic"] for r in rows] == ["range", "algae", "do"]
+    algae = rows[1]
+    assert algae["n"] == 2 and algae["hit_rate"] == 0.5 and algae["misses"] == ["algae-01"]
+    assert algae["langs"] == {"fr": [1, 2]}          # translations counted, not averaged in
+    assert rows[2]["MRR"] == 0.75
+
+
+def test_the_retrieval_record_keeps_the_topic_table():
+    report = _retrieval_report(langs=False)
+    report["per_query"] = [_q("ph-01", True, 1.0, 1.0, 1.0) | {"raw_top_score": 1.1}]
+    assert evals.retrieval_metrics(report)["by_topic"][0]["topic"] == "ph"
+
+
+def test_weak_spots_list_unsupported_claims_by_question_and_topic(monkeypatch):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    rep = _answers_report()
+    rep["per_query"][0].update(id="ph-01", retrieved=["knowledge/ph_and_alkalinity.md"])
+    for c, new in zip(rep["per_query"][0]["claims"], ("ph-01:1", "ph-01:2", "ph-01:3")):
+        c["id"] = new
+    rep["judgements"] = {"nvidia/gpt-oss prompt NEW (run 1)": {"ph-01:1": True, "ph-01:2": False}}
+    w = evals.answers_weak_spots(rep)
+    assert w["judge"].startswith("gpt-oss")
+    assert w["topics"] == [{"topic": "ph", "name": "pH", "claims": 2, "unsupported": 1,
+                            "faithfulness": 0.5}]
+    (q,) = w["questions"]
+    assert q["id"] == "ph-01" and q["unsupported"] == [{"id": "ph-01:2",
+                                                       "claim": "Nitrite is harmless."}]
+    assert q["sources"] == ["knowledge/ph_and_alkalinity.md"]
+
+
+def test_by_topic_and_worst_parse():
+    args = cli._build_parser().parse_args(["eval", "retrieval", "--by-topic"])
+    assert args.by_topic is True
+    args = cli._build_parser().parse_args(["eval", "answers", "--worst", "--topic", "ph",
+                                           "--limit", "3"])
+    assert args.worst and args.topic == "ph" and args.limit == 3
+
+
+def test_worst_prints_topics_and_claims_from_the_saved_report(monkeypatch, tmp_path, capsys):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    rep = _answers_report()
+    rep["per_query"][0]["id"] = "g1"
+    rep["judgements"] = {"nvidia/gpt-oss prompt NEW (run 1)": {"q:1": True, "q:2": False}}
+    d = tmp_path / "faithfulness_eval"
+    d.mkdir()
+    (d / "2026-10-04_run.json").write_text(json.dumps(rep))
+    monkeypatch.setenv("AGRONAUT_EVAL_DIR", str(tmp_path))
+    assert cli.main(["eval", "answers", "--worst"]) == 0
+    out = capsys.readouterr().out
+    assert "Nitrite is harmless." in out and "unsupported" in out.lower()
+    assert "lead to read" in out
+
+
+def test_the_current_report_wins_over_a_newer_experiment(tmp_path):
+    """2026-10-04: a Claude-judged chunking experiment was picked up as 'the newest' and shown
+    where the baseline belonged."""
+    for name in ("2026-09-30_baseline.json", "2026-10-03_sentence_chunks_on.json"):
+        (tmp_path / name).write_text("{}")
+    assert evals.answers_report_path(directory=tmp_path).name == "2026-09-30_baseline.json"
+    assert evals.answers_report_path("2026-10-03_sentence_chunks_on",
+                                     tmp_path).name == "2026-10-03_sentence_chunks_on.json"
+    assert evals.answers_report_path("missing", tmp_path) is None
+
+
+def test_labels_are_used_only_with_the_report_they_were_made_on(tmp_path):
+    (tmp_path / "human_labels.json").write_text(json.dumps(
+        {"report": "2026-09-30_baseline.json", "labels": {"do-02:2": True}}))
+    assert evals.labels_for("2026-09-30_baseline.json", tmp_path)["labels"] == {"do-02:2": True}
+    assert evals.labels_for("2026-10-03_sentence_chunks_on.json", tmp_path) is None
+
+
+def test_the_shipped_labels_name_the_current_report():
+    from scripts.faithfulness_eval import CURRENT_REPORT
+    data = json.loads((CURRENT_REPORT.parent / "human_labels.json").read_text())
+    assert data["report"] == CURRENT_REPORT.name and CURRENT_REPORT.is_file()
+
+
+def test_worst_and_the_status_line_name_the_same_default_judge(monkeypatch):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    rep = _answers_report()
+    rep["judgements"] = {"nvidia/gpt-oss prompt NEW (run 1)": {"q:1": True, "q:2": False},
+                         "anthropic/claude prompt NEW (run 1)": {"q:1": True, "q:2": True}}
+    assert evals.default_judgement(rep) == "nvidia/gpt-oss prompt NEW (run 1)"
+    assert evals.answers_summary(rep, None)["default"]["name"] == evals.default_judgement(rep)

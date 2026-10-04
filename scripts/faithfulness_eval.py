@@ -634,6 +634,12 @@ def _print(report: dict) -> None:
 
 _LABELS = _OUT_DIR / "human_labels.json"
 
+# The report the published answer-quality numbers come from, and the one the human labels were
+# made on. Other runs (experiments, other judges) sit beside it and are read by name; the newest
+# file is NOT the current one: the 2026-10-03 chunking experiments were picked up that way and
+# put a Claude-judged experiment where the baseline belonged.
+CURRENT_REPORT = _OUT_DIR / "2026-09-30_baseline.json"
+
 
 def next_run_name(report: dict, judge: str) -> str:
     """"<judge> (run N)" for the next re-judgement. The original run is run 1 of its judge,

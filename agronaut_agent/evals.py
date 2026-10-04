@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -198,7 +199,66 @@ def retrieval_metrics(report: dict) -> dict:
         m["by_lang"] = {lang: {k: v[k] for k in ("queries", "hit_rate", "recall@k", "MRR",
                                                   "MAP@k", "floor_silenced_on_topic")}
                         for lang, v in langs.items()}
+    m["by_topic"] = retrieval_by_topic(report["per_query"])
     return m
+
+
+# --- topics: where it is weak --------------------------------------------------------------------
+
+# A golden-set question's id starts with its topic ("algae-01", its translation "algae-01-fr"),
+# and a claim's id starts with its question's ("algae-01:3"). Readable names for the prefixes in
+# use; an unknown prefix is shown as itself, so a new topic appears without editing this table.
+TOPIC_NAMES = {
+    "algae": "algae", "disease": "fish disease", "do": "dissolved oxygen",
+    "econ": "economics", "fail": "system failures", "feed": "feeding",
+    "n": "nitrogen cycle", "pest": "pests", "ph": "pH", "plant": "plant deficiency",
+    "pump": "pumps", "range": "water ranges", "reg": "regulations", "safety": "food safety",
+    "solids": "solids", "stress": "fish stress", "temp": "temperature",
+    "type": "system types", "water": "water source",
+}
+
+
+def topic_of(item_id: str) -> str:
+    return re.split(r"[-:]", item_id or "", maxsplit=1)[0] or "?"
+
+
+def topic_name(topic: str) -> str:
+    return TOPIC_NAMES.get(topic, topic)
+
+
+def _mean(values: list[float]) -> float:
+    return round(sum(values) / len(values), 3) if values else 0.0
+
+
+def retrieval_by_topic(per_query: list[dict]) -> list[dict]:
+    """Hit rate, recall, MRR and MAP per topic over the English questions, weakest first, with
+    the questions that missed and, when translations ran, each language's hits.
+
+    Topics hold 1 to 3 questions each in the 2026 golden set, so one question moves a topic
+    from 0 to 1. Read it as where to look, not as a ranking; `n` is carried for that reason.
+    """
+    groups: dict[str, list[dict]] = {}
+    for r in per_query:
+        groups.setdefault(topic_of(r.get("id", "")), []).append(r)
+    rows = []
+    for topic, rs in groups.items():
+        en = [r for r in rs if r.get("lang", "en") == "en"]
+        if not en:
+            continue
+        row = {"topic": topic, "name": topic_name(topic), "n": len(en),
+               "hit_rate": _mean([1.0 if r.get("hit") else 0.0 for r in en]),
+               "recall@k": _mean([r.get("recall", 0.0) for r in en]),
+               "MRR": _mean([r.get("rr", 0.0) for r in en]),
+               "MAP@k": _mean([r.get("ap", 0.0) for r in en]),
+               "misses": [r.get("id", "?") for r in en if not r.get("hit")]}
+        langs = {}
+        for lang in sorted({r["lang"] for r in rs if r.get("lang") not in (None, "en")}):
+            lr = [r for r in rs if r.get("lang") == lang]
+            langs[lang] = [sum(1 for r in lr if r.get("hit")), len(lr)]
+        if langs:
+            row["langs"] = langs
+        rows.append(row)
+    return sorted(rows, key=lambda r: (r["MAP@k"], r["recall@k"], r["topic"]))
 
 
 # --- answers (the published faithfulness report) -----------------------------------------------
@@ -271,15 +331,108 @@ def answers_summary(report: dict, labels_data: dict | None) -> dict:
     }
 
 
-def load_answers(directory: Path | None = None) -> dict | None:
-    """The newest published answers report, summarised. None when there is none to read."""
-    path = latest_answers_report(directory)
+def answers_report_path(name: str | None = None, directory: Path | None = None) -> Path | None:
+    """The answers report to read: the one named, else the current one of record
+    (faithfulness_eval.CURRENT_REPORT), else the newest. None when there is none."""
+    d = directory or answers_dir()
+    if name:
+        p = d / (name if name.endswith(".json") else f"{name}.json")
+        return p if p.is_file() else None
+    scripts_from_checkout()
+    from scripts.faithfulness_eval import CURRENT_REPORT
+
+    current = d / CURRENT_REPORT.name
+    return current if current.is_file() else latest_answers_report(d)
+
+
+def labels_for(report_name: str, directory: Path | None = None) -> dict | None:
+    """The human labels, only if they were made on THIS report. Claim ids repeat across
+    reports ("do-02:2" is a different sentence in each run), so labels from another report
+    would be scored against the wrong claims."""
+    p = (directory or answers_dir()) / "human_labels.json"
+    if not p.exists():
+        return None
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return data if data.get("report") == report_name else None
+
+
+def load_answers(directory: Path | None = None, name: str | None = None) -> dict | None:
+    """The current answers report (or the one named), summarised. None when there is none."""
+    path = answers_report_path(name, directory)
     if path is None:
         return None
     report = json.loads(path.read_text(encoding="utf-8"))
-    labels = (directory or answers_dir()) / "human_labels.json"
-    data = json.loads(labels.read_text(encoding="utf-8")) if labels.exists() else None
-    return {**answers_summary(report, data), "report": path.name}
+    return {**answers_summary(report, labels_for(path.name, directory)), "report": path.name}
+
+
+def load_answers_report(directory: Path | None = None,
+                        name: str | None = None) -> tuple[dict, dict | None] | None:
+    """(report, its labels or None) for the current answers report or the one named."""
+    path = answers_report_path(name, directory)
+    if path is None:
+        return None
+    return (json.loads(path.read_text(encoding="utf-8")), labels_for(path.name, directory))
+
+
+def default_judgement(report: dict) -> str | None:
+    """The FIRST judgement made with the current judging prompt (None means the report's own
+    run 1), else the newest one: the same rule `answers_summary` uses for its default, so the
+    status line, --worst and the Quality page all name one judge. A later run under the same
+    prompt (another model, a repeat) is a comparison, not a replacement."""
+    scripts_from_checkout()
+    from scripts.faithfulness_eval import _prompt_version
+
+    tag = f"prompt {_prompt_version()}"
+    names = list(report.get("judgements", {}))
+    for name in names:
+        if tag in name:
+            return name
+    if report.get("meta", {}).get("prompt_version") == _prompt_version():
+        return None
+    return names[-1] if names else None
+
+
+def answers_weak_spots(report: dict, judge: str | None = "default") -> dict:
+    """Where answers stray from their sources: faithfulness per topic, weakest first, and every
+    claim the judge found unsupported, grouped by question with the sources it was given.
+
+    Claims about the sources themselves are left out, as everywhere else. The judge's verdict
+    is a model's, checked against one person at fair agreement (kappa 0.24 to 0.39 in 2026),
+    so a listed claim is a lead to read, not a confirmed error.
+    """
+    scripts_from_checkout()
+    from scripts.faithfulness_eval import faithfulness_score, verdicts_of
+    from scripts.label_claims import short_judge
+
+    if judge == "default":
+        judge = default_judgement(report)
+    verdicts = verdicts_of(report, judge)
+    by_topic: dict[str, list] = {}
+    questions = []
+    for q in report.get("per_query", []):
+        claims = [c for c in q.get("claims", []) if c["id"] in verdicts]
+        if not claims:
+            continue
+        topic = topic_of(claims[0]["id"])
+        by_topic.setdefault(topic, []).extend(verdicts[c["id"]] for c in claims)
+        bad = [{"id": c["id"], "claim": c["claim"]} for c in claims if verdicts[c["id"]] is False]
+        if bad:
+            questions.append({"id": q.get("id") or claims[0]["id"].split(":")[0],
+                              "topic": topic, "name": topic_name(topic), "query": q["query"],
+                              "claims": len(claims), "unsupported": bad,
+                              "sources": q.get("retrieved", [])})
+    topics = []
+    for topic, vs in by_topic.items():
+        score = faithfulness_score(vs)
+        topics.append({"topic": topic, "name": topic_name(topic), "claims": score["n_judged"],
+                       "unsupported": sum(1 for v in vs if v is False),
+                       "faithfulness": score["score"]})
+    topics.sort(key=lambda t: (t["faithfulness"] if t["faithfulness"] is not None else 2,
+                               t["topic"]))
+    questions.sort(key=lambda x: (-len(x["unsupported"]), x["id"]))
+    meta = report.get("meta", {})
+    return {"judge": short_judge(judge or f"{meta.get('judge', 'judge')} (run 1)"),
+            "date": meta.get("date"), "topics": topics, "questions": questions}
 
 
 def answers_metrics(summary: dict) -> dict:
