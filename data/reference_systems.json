@@ -55,6 +55,24 @@
       "measured_ph": null,
       "measured_nitrate_n_mg_l": null,
       "measured_makeup_water_lpd": null
+    },
+    {
+      "id": "alhafedh2008_saudi_lettuce",
+      "source": "Al-Hafedh, Alam & Beltagi (2008), 'Food Production and Water Conservation in a Recirculating Aquaponic System in Saudi Arabia at Different Ratios of Fish Feed to Plants', Journal of the World Aquaculture Society 39(4):510-520. DOI 10.1111/j.1749-7345.2008.00181.x",
+      "independent": true,
+      "note": "First independent (non-UVI) gate system. King Abdulaziz City for Science and Technology, Riyadh — a different lab on a different continent from the UVI entries; the design was UVI-inspired but operated and reported independently. 13-month indoor Nile-tilapia/leaf-lettuce raft system. The feeding-rate ratio is this paper's own experimental design variable, not a derived figure: at a fixed 42 plants/m2 the trial ran three deliberately chosen ratios over 213, 142 and 71 m2 planted — 56, 84 and 168 g/m2/d per the results section (the methods section once lists the middle ratio as 113; the paper's own constant ~12 kg/d system feed over 142 m2 gives 84, so 113 is an internal typo — the 56 endpoint used here is identical in both statements). The paper concludes 56 g/m2/d on 213 m2 was the sustainable long-run setting that controlled nutrient buildup; the abstract, results and conclusion all state it. measured_feed_g_per_day = 213 m2 x 56 g/m2/d = 11,928 g/d, cross-checked against the paper's stated system feed of about 12 kg/d (2% BW in tanks with fish over 100 g, 3% BW below). Water quality across the 13 months (TAN 1.3 mg/L, NO3-N 19.6 mg/L mean, pH 8.1, 28 +/- 1 C) is the evidence the ratio was sustainable. Temperature 28 C is above lettuce's 26 C model band; the model flags this as a warning while the run stays feasible, which is a faithful description of the paper: lettuce grew year-round at 28 C but with quality trade-offs (bolting/open heads at 42 plants/m2).",
+      "fish_species": "tilapia",
+      "crop": "lettuce",
+      "grow_area_m2": 213.0,
+      "temperature_c": 28.0,
+      "water_budget_lpd": 6200.0,
+      "measured_feed_g_per_day": 11928.0,
+      "measured_frr_g_m2_day": 56.0,
+      "measured_fcr": 1.4,
+      "measured_yield_kg_m2_yr": null,
+      "measured_ph": 8.1,
+      "measured_nitrate_n_mg_l": 19.6,
+      "measured_makeup_water_lpd": null
     }
   ]
 }
