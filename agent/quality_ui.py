@@ -89,6 +89,21 @@ def _retrieval_section(last: dict, corpus_now: str | None, rows: list[dict]) -> 
              for r in rows if r["eval"] == "retrieval"]
     if len(trend) > 1:
         st.line_chart(pd.DataFrame(trend).set_index("run"))
+    _topics_table(m.get("by_topic") or [], k)
+
+
+def _topics_table(topics: list[dict], k: int) -> None:
+    """Retrieval per topic, weakest first: where to look first."""
+    if not topics:
+        return
+    st.markdown("**Weakest topics** (where to look first)")
+    st.dataframe(pd.DataFrame([{
+        "topic": t["name"], "n": t["n"], "hit": t["hit_rate"], f"recall@{k}": t["recall@k"],
+        "MRR": t["MRR"], f"MAP@{k}": t["MAP@k"], "missed": " ".join(t["misses"])}
+        for t in topics]), hide_index=True)
+    st.caption("A few questions per topic, so one question can swing a topic from 0 to 1. "
+               "Hit 1.00 with a low MRR: found but ranked low. A miss: not found at all; "
+               "`agronaut eval retrieval` shows what came back instead.")
 
 
 def _answers_section(a: dict | None) -> None:
@@ -122,6 +137,36 @@ def _answers_section(a: dict | None) -> None:
                                else round(j["kappa_reviewed"], 2)),
             "claims": j["claims"]} for j in a["judges"]]),
             hide_index=True)
+    _answers_weak_spots()
+
+
+def _answers_weak_spots() -> None:
+    """Faithfulness per topic and the claims the judge found unsupported, to read."""
+    try:
+        loaded = evals.load_answers_report()
+        w = evals.answers_weak_spots(loaded[0]) if loaded else None
+    except Exception:  # noqa: BLE001 (the rest of the page must still render)
+        w = None
+    if not w or not w["topics"]:
+        return
+    with st.expander("Where answers stray: unsupported claims by topic"):
+        st.dataframe(pd.DataFrame([{
+            "topic": t["name"], "claims": t["claims"], "unsupported": t["unsupported"],
+            "faithfulness": None if t["faithfulness"] is None else round(t["faithfulness"], 2)}
+            for t in w["topics"]]), hide_index=True)
+        names = ["all topics"] + [t["name"] for t in w["topics"] if t["unsupported"]]
+        pick = st.selectbox("Show unsupported claims for", names, key="quality_worst_topic")
+        qs = [q for q in w["questions"] if pick == "all topics" or q["name"] == pick]
+        for q in qs[:10]:
+            st.markdown(f"**[{q['id']}] {q['query']}** · {len(q['unsupported'])} of "
+                        f"{q['claims']} claims unsupported")
+            for c in q["unsupported"]:
+                st.markdown(f"- {c['claim']}")
+            st.caption("Sources it was given: " + ("; ".join(q["sources"]) or "none"))
+        st.caption(f"Judge {w['judge']}. Its verdicts agree with a person only fairly, so treat "
+                   "each claim as a lead to read. True-but-absent-from-the-sources counts as "
+                   "unsupported, which points at retrieval or the knowledge base as often as at "
+                   "the answer. Terminal: `agronaut eval answers --worst`.")
 
 
 def _safety_section(last: dict) -> None:

@@ -157,6 +157,14 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - interactiv
 
     report = json.loads(_resolve(args.report).read_text())
     data = load_labels()
+    name = _resolve(args.report).name
+    # Labels belong to one report: claim ids repeat across runs with different sentences, so
+    # mixing reports would score people's labels against claims they never saw.
+    if data.get("labels") and data.get("report") not in (None, name):
+        print(f"The labels in {_LABELS.name} were made on {data['report']}, not {name}. "
+              "Move that file aside to label another report.")
+        return 2
+    data["report"] = data.get("report") or name
     data["labeller"] = data.get("labeller") or args.labeller
     if args.review:
         review(report, data)
