@@ -74,6 +74,30 @@ N_FRACTION_OF_PROTEIN = Coefficient(
     note="Protein is ~16% nitrogen by mass (Kjeldahl factor 6.25). Effectively exact.",
 )
 
+# The feed the feeding-rate ratio was measured with. A feeding-rate ratio is a nitrogen-supply
+# rule in grams of feed: UVI derived it on tilapia eating 32%-protein feed, and FAO 589 states
+# its figures assume the same. Applied unchanged to barramundi on 45%-protein feed, the same
+# grams per m2 carried ~40% more nitrogen than the plants can take up, and the nitrogen check
+# flagged the design 62% off (2026-10-04). Sizing now scales the ratio by
+# reference / feed protein, which holds nitrogen per m2 at what the ratio was measured with.
+FRR_REFERENCE_FEED_PROTEIN_PCT = Coefficient(
+    name="frr_reference_feed_protein_pct",
+    value=32.0, low=32.0, high=32.0, unit="% protein", source="FAO589/UVI",
+    note="Feeding-rate ratios assume a standard 32%-protein feed (FAO 589; Rakocy & "
+         "Hargreaves 1993, via Goddek et al. 2019). Scaling the ratio by 32 / feed protein % "
+         "is a derived step that holds nitrogen constant, not a calibrated one; phosphorus "
+         "and potassium do not scale with protein.",
+)
+
+
+def frr_protein_factor(feed_protein_pct: float) -> float:
+    """Multiplier on a crop's feeding-rate ratio for feed of this protein content: 1.0 for
+    the 32% feed the ratio was measured with, below 1 for richer feed, above 1 for leaner."""
+    if feed_protein_pct <= 0:
+        raise ValueError(f"feed protein must be positive, got {feed_protein_pct}")
+    return FRR_REFERENCE_FEED_PROTEIN_PCT.value / feed_protein_pct
+
+
 # Plant uptake fraction: of the nitrogen a fish EXCRETES, what share do plants actually
 # take up (the rest leaves via solids removal, water exchange, denitrification)? Sizing
 # beds to absorb 100% of excreted N oversizes them — this fraction is the guard.
@@ -158,6 +182,7 @@ def registry() -> dict[str, Coefficient]:
             SAFETY_FACTOR,
             N_FRACTION_OF_PROTEIN,
             PLANT_N_UPTAKE_FRACTION,
+            FRR_REFERENCE_FEED_PROTEIN_PCT,
             EVAPOTRANSPIRATION_RATE,
             TANK_EVAPORATION_RATE,
             RAFT_WATER_DEPTH,

@@ -33,6 +33,8 @@ from .types import CoefficientUse, DesignInput, DesignOutput
 NOT_MODELED = [
     "pH / alkalinity dynamics and buffering",
     "potassium, calcium, iron and other non-nitrogen nutrients",
+    "phosphorus and potassium supply when the feed is not 32% protein (the feeding-rate "
+    "ratio is scaled for nitrogen only)",
     "salinity / mineral build-up from source water",
     "solids handling and biofilter maturation over time",
     "pests, disease, and biosecurity",
@@ -62,8 +64,11 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     plantings = _resolve_plantings(design, overrides)
     dominant = max(plantings, key=lambda p: p[1])[0]
 
-    # 1. FRR sizes feed from grow area (the anchor) — summed over each crop's own area.
-    feed_g_per_day = sum(area * c.frr_g_per_m2_day for c, area in plantings)
+    # 1. FRR sizes feed from grow area (the anchor) — summed over each crop's own area, and
+    #    scaled to this species' feed: the ratio was measured on 32%-protein feed, so richer
+    #    feed needs fewer grams per m2 to deliver the same nitrogen (coefficients.py).
+    protein_factor = C.frr_protein_factor(species.feed_protein_pct)
+    feed_g_per_day = sum(area * c.frr_g_per_m2_day * protein_factor for c, area in plantings)
 
     # 2. Feed -> fish biomass, adjusted for how well fish eat at this temperature.
     temp_factor = temperature_feed_factor(species, design.temperature_c)
@@ -162,7 +167,7 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
     out.operating_envelope = _operating_envelope(species, plantings, design)
     out.bill_of_materials = _bill_of_materials(out, system)
     out.maintenance_checklist = _maintenance_checklist()
-    out.assumptions = _assumptions(species, plantings, temp_factor, system)
+    out.assumptions = _assumptions(species, plantings, temp_factor, system, protein_factor)
     # A method-specific water-depth coefficient replaces the raft default in the citation list.
     water_depth_coeff = CoefficientUse(
         f"grow_bed_water_depth ({system.key})", system.water_depth_m,
@@ -171,7 +176,7 @@ def size_system(design: DesignInput, overrides: dict | None = None) -> DesignOut
         f"pump_lift_height ({system.key})", system.lift_height_m,
         system.lift_low, system.lift_high, "m", system.source)
     out.coefficients_used = [water_depth_coeff, lift_coeff] + _coeff_uses(
-        C.N_FRACTION_OF_PROTEIN, C.PLANT_N_UPTAKE_FRACTION,
+        C.N_FRACTION_OF_PROTEIN, C.PLANT_N_UPTAKE_FRACTION, C.FRR_REFERENCE_FEED_PROTEIN_PCT,
         C.SUMP_FRACTION, C.PUMP_TURNOVER_RATE, C.FRICTION_HEAD_FRACTION,
         C.PUMP_EFFICIENCY, C.NITRIFICATION_RATE,
         C.EVAPOTRANSPIRATION_RATE, C.TANK_EVAPORATION_RATE, C.SAFETY_FACTOR,
@@ -245,7 +250,7 @@ def _maintenance_checklist() -> list[str]:
     ]
 
 
-def _assumptions(species, plantings, temp_factor, system) -> list[str]:
+def _assumptions(species, plantings, temp_factor, system, protein_factor=1.0) -> list[str]:
     if len(plantings) > 1:
         mix = ", ".join(f"{c.name} ({_area(a)} m2)" for c, a in plantings)
         crop_line = (f"{system.name.capitalize()} system, single fish species "
@@ -257,6 +262,11 @@ def _assumptions(species, plantings, temp_factor, system) -> list[str]:
         crop_line,
         "Steady-state average biomass (no cohort/harvest scheduling).",
         f"Feeding scaled to {round(temp_factor * 100)}% for the given mean temperature.",
+        (f"Feeding-rate ratio scaled x{protein_factor:.2f} for {species.feed_protein_pct:g}%-"
+         f"protein feed (the ratio assumes {C.FRR_REFERENCE_FEED_PROTEIN_PCT.value:g}%), "
+         "holding nitrogen per m2 constant." if protein_factor != 1.0 else
+         f"Feed at {species.feed_protein_pct:g}% protein, the feed the feeding-rate ratio "
+         "was measured with."),
         "Coefficients are seed defaults — CALIBRATE against a real system before building.",
         "Rainfall assumed 0 (covered/controlled system).",
     ] + [f"Method note ({system.key}): {c}" for c in system.considerations]

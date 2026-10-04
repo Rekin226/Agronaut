@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from itertools import combinations_with_replacement
 
+from . import coefficients as C
 from . import massbalance as mb
 from .crops import CROPS, get_crop
 from .overrides import apply_overrides, validate_overrides
@@ -100,8 +101,11 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
     crops = {c: apply_overrides(crop=get_crop(c), overrides=overrides)[1] for c in alloc}
     area = inp.grow_area_m2
 
-    # Feed from the area-weighted FRR of the mix (FRR is the sizing rule).
-    feed_g_day = sum(area * frac * crops[c].frr_g_per_m2_day for c, frac in alloc.items())
+    # Feed from the area-weighted FRR of the mix (FRR is the sizing rule), scaled to this
+    # species' feed protein exactly as size_system does, so the two never disagree.
+    protein_factor = C.frr_protein_factor(species.feed_protein_pct)
+    feed_g_day = sum(area * frac * crops[c].frr_g_per_m2_day * protein_factor
+                     for c, frac in alloc.items())
 
     temp_factor = temperature_feed_factor(species, inp.temperature_c)
     eff_pct = species.feeding_rate_pct_bw * temp_factor

@@ -663,6 +663,28 @@
       "must_exclude": [
         "Magnesium"
       ]
+    },
+    {
+      "id": "sizing-high-protein-feed-nitrogen",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "barramundi",
+        "crop": "lettuce",
+        "area": 6,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "agrees=True",
+        "frr_reference_feed_protein_pct",
+        "not 32% protein"
+      ],
+      "must_exclude": [
+        "FRR sizing and nitrogen balance disagree"
+      ],
+      "_note": "45%-protein feed sized with the 32%-protein feeding-rate ratio overfed the beds' nitrogen uptake by ~60% (2026-10-04). Sizing now scales the ratio by feed protein, cites the 32% reference, and says what that does not cover."
     }
   ]
 }

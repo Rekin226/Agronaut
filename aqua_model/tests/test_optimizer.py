@@ -63,9 +63,14 @@ def test_infeasible_budget_yields_no_best_and_no_improvement():
 
 
 def test_single_crop_palette_matches_m1_feed():
-    # One crop at 100% must reproduce the M1 FRR feed (area * FRR).
+    # One crop at 100% must reproduce the M1 feed: area * FRR, scaled to the chosen fish's
+    # feed protein exactly as size_system scales it.
+    from aqua_model import coefficients as C
+    from aqua_model.species import get_species
+
     res = optimize(_inp(crop_palette=("lettuce",)))
-    expected_feed = 10.0 * get_crop("lettuce").frr_g_per_m2_day
+    protein = get_species(res.best.fish_species).feed_protein_pct
+    expected_feed = 10.0 * get_crop("lettuce").frr_g_per_m2_day * C.frr_protein_factor(protein)
     assert res.best.feed_g_per_day == pytest.approx(expected_feed, abs=0.1)
 
 
