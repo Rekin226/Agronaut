@@ -151,17 +151,22 @@ from published sources, meant to be calibrated against a real running system.
 
 ## Features
 
-Three modes in the app (sidebar **Mode** switch):
+Four sections in the web app (`agronaut web`, sidebar):
 
-- **Assistant (chat)** — troubleshoot a running system (low DO, yellow leaves, pump sizing…).
-- **Design Calculator** — fixed inputs → a fully sized system: tank/system volume, fish
-  count, feed/day, pump turnover, biofilter, makeup water, **bill of materials**, **operating
-  envelope**, maintenance checklist, and a downloadable funder-ready report.
-- **Optimize Ratio** — search fish × crop-mix combinations for the best ratio under your
-  binding constraint (e.g. a fixed water budget), maximizing food, protein, or water-use
-  efficiency, and showing the gain over a naive even split.
+- **Assistant**: a consultation that asks one question at a time and calls the engine
+  (troubleshooting, low DO, yellow leaves, pump sizing…). Opens first when a model is set.
+- **Design**, two tabs:
+  - **Size a system**: fixed inputs → a fully sized system: tank/system volume, fish count,
+    feed/day, pump turnover, biofilter, makeup water, **bill of materials**, **operating
+    envelope**, maintenance checklist, and a downloadable funder-ready report.
+  - **Find the best ratio**: search fish × crop-mix combinations for the best ratio under
+    your binding constraint (e.g. a fixed water budget), maximizing food, protein, or
+    water-use efficiency, and showing the gain over a naive even split.
+- **My Twin**: the system you actually run, mirrored, with a forecast and logged readings.
+- **Quality**: how good Agronaut is, measured (the same numbers as `agronaut eval`).
 
-The design and optimizer modes are **fully deterministic and need no LLM at all.**
+Design and My Twin are **fully deterministic and need no LLM at all**; without a model the
+app opens on Design.
 
 ### Send it a photo
 
@@ -612,7 +617,7 @@ docker compose up web            # Streamlit at http://localhost:8501
 docker compose --profile bot up  # web + the Telegram bot (needs .env)
 ```
 
-The web app's Design Calculator and Optimizer work immediately. Chat and the bot need an
+The web app's Design section works immediately. The Assistant and the bot need an
 LLM provider configured in a local `.env` (see below). The SQLite memory DB persists in a
 named volume, shared between web and bot.
 
@@ -624,9 +629,8 @@ pip install -e .                 # installs the deps and the `agronaut` command
 streamlit run app.py
 ```
 
-Open the sidebar **Mode** switch. The **Design Calculator** and **Optimize Ratio** modes
-work immediately (no model server). For **chat**, run Ollama locally or set a hosted
-provider (see above).
+**Design** and **My Twin** work immediately (no model server). For the **Assistant**, run
+Ollama locally or set a hosted provider (see above).
 
 (`pip install -r requirement.txt` still works if you only want the libraries — `pip install -e .`
 installs the same list and adds the command below. For a **deterministic-only** install with no

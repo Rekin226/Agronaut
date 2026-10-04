@@ -191,6 +191,18 @@ def test_web_forwards_extra_flags_to_streamlit(monkeypatch):
     assert seen["argv"][-2:] == ["--server.headless=true", "--server.port=9000"]
 
 
+def test_web_turns_the_file_watcher_off_unless_asked(monkeypatch):
+    """The watcher reloads on code edits, which a grower never makes, and walking
+    `transformers` it printed a screenful of torchvision tracebacks on every start."""
+    seen = []
+    monkeypatch.setattr(cli.subprocess, "call", lambda argv: seen.append(argv) or 0)
+    cli.main(["web"])
+    cli.main(["web", "--server.fileWatcherType=auto"])
+    assert "--server.fileWatcherType=none" in seen[0]
+    assert "--server.fileWatcherType=none" not in seen[1]
+    assert "--server.fileWatcherType=auto" in seen[1]
+
+
 def test_bot_runs_the_telegram_entrypoint(monkeypatch):
     import bot
     called = []

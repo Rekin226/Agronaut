@@ -42,8 +42,14 @@ def _cmd_chat(args) -> int:
 def _cmd_web(args) -> int:
     # sys.executable, not a bare "streamlit": the console script is often invoked by
     # absolute path (systemd, cron, another venv's shell) with our bin/ not on PATH.
+    flags = list(args.streamlit_args)
+    # No file watcher unless asked for: it exists to reload on code edits, which a grower
+    # never makes, and walking `transformers` it printed a screenful of torchvision
+    # tracebacks on every start. `streamlit run app.py` (development) keeps it.
+    if not any(f.startswith("--server.fileWatcherType") for f in flags):
+        flags.insert(0, "--server.fileWatcherType=none")
     return subprocess.call([sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"),
-                            *args.streamlit_args])
+                            *flags])
 
 
 def _cmd_bot(args) -> int:
