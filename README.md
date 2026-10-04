@@ -2,974 +2,214 @@
 
 [![PyPI](https://img.shields.io/pypi/v/agronaut?color=blue)](https://pypi.org/project/agronaut/)
 [![CI](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml/badge.svg)](https://github.com/Rekin226/Agronaut/actions/workflows/ci.yml)
-[![Advice-safety golden set](https://img.shields.io/badge/advice--safety-enforced%20in%20CI-brightgreen)](docs/dpg/safety_eval/golden_set.json)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](requirement.txt)
 [![good first issues](https://img.shields.io/github/issues/Rekin226/Agronaut/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
 
-**An open-source AI agronomy agent that runs locally on your own computer or server,
-connects to messaging apps like Telegram and WhatsApp, and computes aquaponics system
-designs from a deterministic, source-cited engineering core instead of guessing them.**
+**An open-source aquaponics assistant you run on your own computer. It designs systems with
+a deterministic, source-cited engineering model, and talks to you in the terminal, the
+browser, Telegram or WhatsApp.**
 
-A self-hostable agent specialized for agriculture: a domain application in the spirit of
-Hermes / OpenClaw, rather than another agent framework. Its first deep domain is
-**aquaponics**. Describe your water, space and species in one sentence and it returns a
-buildable design, with a bill of materials, an operating envelope, a source for every
-number, and an explicit list of what it does *not* model. It will also search fish × crop
-mixes for the ratio that grows the most food from the least water.
+Describe your water, space and species, and Agronaut returns a buildable design: tank and
+pump sizes, fish count, feed rate, a bill of materials, the operating range to keep, a source
+for every number, and a list of what it does *not* model. The language model only collects
+facts and explains results. The numbers come from code you can audit.
 
-> Built by a hands-on aquaponics operator to cut the pain he lived: years of reading papers
-> and losing fish to figure out what the math could have told him up front.
-
-The sizing method behind it is a granted Taiwan utility model patent (**TW M661364**).
-The code is MIT, runs on open weights, and needs no proprietary API.
+Built by a working aquaponics operator. The sizing method is a granted Taiwan utility model
+patent (TW M661364); the code is MIT.
 
 ---
 
 ## Quick start
 
-### 1. A real design in two minutes, with no API key and no account
+You need **Python 3.11 or newer**.
+
+### 1. Size a system (no API key, no account, offline)
 
 ```bash
 pip install agronaut
 agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
 ```
 
-That prints a sized system: tank and system volume, fish count, feed rate, biofilter media,
-pump duty, a bill of materials, a source for every number, and an explicit list of what it
-does **not** model. Nothing in that command touches a network.
+You get a full design in a few seconds:
 
-Try `agronaut list` for the species and crops it knows, or `agronaut optimize --area 10
---temp 28 --water 5000 --objective food` to search fish × crop ratios.
-
-### 2. Add the conversation, still on your own machine
-
-```bash
-agronaut setup
+```
+FEASIBLE design (raft / DWC grow beds).
+Sizing: feed=720 g/day, fish=96 head, biomass=48 kg, system_volume=6666.7 L, rearing_tank=2400 L, pump=6666.7 L/h against 0.52 m head (~27 W), makeup_water=58 L/day
+Biofilter media: ~84.57 m2 surface
+Bill of materials:
+  ...
 ```
 
-It asks which model and which channel you want, checks each key against the live service as
-you paste it, reads your Telegram id off a message you send your own bot, and writes
-`~/.config/agronaut/.env` itself. Nothing to hand-write.
+followed by the operating range, a nitrogen cross-check, every coefficient with its source, and
+what the design does not model.
 
-The model is your choice: Claude or NVIDIA with your own key, or a local model through
-Ollama with no key at all. Run `agronaut setup` again later and it shows what you have and
-asks what to change, so switching from Claude to a local model (or back) or adding a
-channel touches only that part. Saved keys are kept, so switching back needs nothing
-re-typed. To jump straight to one part:
+Then try:
 
 ```bash
-agronaut setup model       # switch between Claude, a local model and NVIDIA
-agronaut setup telegram    # connect, keep, or allow another Telegram account
-agronaut setup whatsapp    # add or update WhatsApp; saved values are kept on Enter
+agronaut list                                                     # species and crops it knows
+agronaut optimize --area 10 --temp 28 --water 5000 --objective food   # best fish × crop ratio
 ```
 
-<details>
-<summary>Prefer to configure it by hand?</summary>
-
-Chat needs a language model. [Ollama](https://ollama.com) is the shortest path, and
-Agronaut already defaults to it:
+### 2. Talk to it
 
 ```bash
-ollama pull qwen3.5:4b     # ~3.4 GB, once. Any tool-calling model works.
-agronaut                   # chat in your terminal
+agronaut setup     # pick a model and a channel; it checks each key as you paste it
+agronaut           # chat in the terminal
+agronaut web       # or in the browser at http://localhost:8501
 ```
 
-Then just say what you have: *"I have a 20 m² greenhouse in Bobo-Dioulasso, water sits
-around 28 °C, I want tilapia and lettuce."*
+Choose any model you like:
 
-Prefer a browser? `agronaut web` serves the Streamlit app on
-[localhost:8501](http://localhost:8501).
+- **Local, free, no key:** install [Ollama](https://ollama.com), then `ollama pull qwen3.5:4b`.
+- **Your own API key:** Claude (Anthropic) or NVIDIA's free tier.
 
-Photos too, if you want them: `ollama pull llama3.2-vision` and set `VLM_PROVIDER=ollama`.
-
-Config lives in `~/.config/agronaut/.env` for an installed copy, or `./.env` in a checkout.
-
-</details>
-
-> Tight on memory? `qwen3.5:2b` (2.7 GB) is smaller: pull it and set `LLM_MODEL=qwen3.5:2b`.
-> Would rather not run a model at all?
-> A free hosted key works instead: `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY` from
-> [build.nvidia.com](https://build.nvidia.com).
+Run `agronaut setup` again any time to switch models or add a channel. Your saved keys are kept.
 
 ### 3. Put it on your phone (optional)
 
 ```bash
-# .env in the project root
-TELEGRAM_BOT_TOKEN=...        # from @BotFather
-AGRONAUT_ALLOWED_IDS=...      # your Telegram user id, so it is yours alone
+agronaut bot          # Telegram (recommended: one token from @BotFather)
+agronaut whatsapp     # WhatsApp (more setup, see docs/whatsapp_setup.md)
 ```
 
-```bash
-agronaut bot
-```
+On your phone, `/log ammonia 0.5 nitrate 40 temp 27` records a reading and `/forecast` shows
+the week ahead. Neither calls a model, so they work even when the model is slow or offline.
 
-Message your bot. `/log ammonia 0.5 nitrate 40 temp 27` puts a reading into your live twin
-and `/forecast` tells you what the week ahead does to it — both with no model in the path,
-so they work even when the LLM is slow or unreachable.
-
-### What needs what
+### What needs a model?
 
 | You want | You need |
 |---|---|
-| `size`, `size-hydro`, `optimize`, `list`, the web calculator | **Nothing.** Pure `aqua_model`: deterministic, offline, cited. |
-| Chat, the Telegram bot, photo understanding | A model — Ollama locally, or a hosted key |
-| `/log`, `/forecast`, `/advise`, `/approve` | A model for setup, then nothing: the twin commands never call one |
-
-On a phone, Telegram is the recommended channel; WhatsApp works too but takes more setup
-([guide](docs/whatsapp_setup.md)). Trouble, or want Docker or a hosted demo? See
-[Install and run: all the options](#install-and-run-all-the-options).
+| `size`, `size-hydro`, `optimize`, `list`, the Design page in the web app | **Nothing.** Deterministic, offline, cited. |
+| Chat, photos, voice notes | A model (local or your own key) |
+| `/log`, `/forecast` on Telegram or WhatsApp | A model for setup, then nothing |
 
 ---
 
-## Why it's different from a chatbot
+## What it does
 
-A chatbot retrieves what a paper *said*. Agronaut **computes the answer for your specific
-system**. The trustworthy part is a deterministic engineering model — the LLM only collects
-facts, routes to the right tool, and explains results in plain language.
+- **Designs aquaponic and hydroponic systems** for 10 fish species and 34 crops, with a bill of
+  materials and a downloadable report.
+- **Finds the best fish-to-crop ratio** for your water budget, maximising food, protein or
+  water efficiency.
+- **Runs a consultation**, one question at a time, and remembers your system between sessions.
+- **Reads photos** of sick fish, yellow leaves or green water and returns a ranked, cited list
+  of possible causes, never a single confident verdict.
+- **Simulates a season** for your site with real climate data, and shows it in an offline 3D view.
+- **Checks its own replies**: every number the assistant quotes must match what the engine
+  computed.
 
-```
-  YOU ──▶  agent layer (LLM: collect facts, route, explain)
-                 │  proposes values
-                 ▼
-           validation gate  ── rejects bad/uncertain input ──┐
-                 │ typed, validated                           │
-                 ▼                                            │
-        aqua_model  (TRUST ZONE — pure, tested, cited)        │
-        coefficients ▸ mass balance ▸ sizing ▸ optimizer  ◀───┘
-                 │
-                 ▼
-        a sized system + bill of materials + operating envelope
-        + cited coefficients + an explicit "what's NOT modeled" list
-```
-
-The math is verifiable on its own — you can audit every coefficient (with its source)
-without trusting the model. Calibration ≠ validation: the engine ships with seed defaults
-from published sources, meant to be calibrated against a real running system.
+More detail: [docs/features.md](docs/features.md).
 
 ---
 
-## Features
+## How it works
 
-Four sections in the web app (`agronaut web`, sidebar):
-
-- **Assistant**: a consultation that asks one question at a time and calls the engine
-  (troubleshooting, low DO, yellow leaves, pump sizing…). Opens first when a model is set.
-- **Design**, two tabs:
-  - **Size a system**: fixed inputs → a fully sized system: tank/system volume, fish count,
-    feed/day, pump turnover, biofilter, makeup water, **bill of materials**, **operating
-    envelope**, maintenance checklist, and a downloadable funder-ready report.
-  - **Find the best ratio**: search fish × crop-mix combinations for the best ratio under
-    your binding constraint (e.g. a fixed water budget), maximizing food, protein, or
-    water-use efficiency, and showing the gain over a naive even split.
-- **My Twin**: the system you actually run, mirrored, with a forecast and logged readings.
-- **Quality**: how good Agronaut is, measured (the same numbers as `agronaut eval`).
-
-Design and My Twin are **fully deterministic and need no LLM at all**; without a model the
-app opens on Design.
-
-### Send it a photo
-
-Photograph a yellowing leaf, a sick fish, or green water — on **Telegram, WhatsApp, or the
-web chat** — and you get a *cited differential*, not a guess:
-
-1. A vision model describes what it sees. It only **observes**.
-2. A deterministic guard strips any measurement or prescription out of that description, so a
-   fabricated `pH 6.4` or an invented `add 5 mL of salt` can never enter the conversation as
-   though you had said it. A named condition is kept but flagged **unverified**.
-3. A fixed, cited table (`aqua_model/triage.py`) maps the visible symptoms to a **ranked list
-   of candidate causes** — each naming the knowledge document it came from, and each with the
-   checks that would tell it apart from its neighbours.
-
-It will not hand you a single confident diagnosis, because a photograph cannot support one:
-iron deficiency and pH lockout look identical in an image, so you get both plus the check that
-separates them. Ordering follows the knowledge base's own rules — pH before iron, water quality
-before any fish pathogen. Nothing it says states a dose.
-
-### See the system, and then see it running
-
-Every design renders as a self-contained 3D page — greenhouse, tanks, filtration, beds,
-graded plumbing with the flow animated in the direction the water actually goes. One HTML
-file, no server and no CDN, so it opens from a double-click on a laptop that has never been
-online.
-
-With a twin bound to it, the same drawing stops being a picture:
-
-```bash
-# a design, plus the season it would have at a real site, on a slider
-python scripts/render_3d.py --crop basil --site taichung_2025 --days 365 -o first_year.html
+```
+  you ──▶ assistant (language model: collects facts, routes, explains)
+                │ proposes values
+                ▼
+          validation gate ── rejects bad or uncertain input
+                │
+                ▼
+          aqua_model: the engineering core (pure Python, tested, every number cited)
+                │
+                ▼
+          a sized system + bill of materials + operating range + sources + "not modelled" list
 ```
 
-Drag the scrubber and the fish grow, the water turns amber and then red as ammonia and
-nitrite cross the bands `aqua_model/advisory.py` acts on, and the crop is drawn as vigorously
-as it is actually growing. You *watch* the nitrite spike of week two arrive instead of reading
-about it afterwards. On Telegram or WhatsApp, `show_my_system_3d` does the same for the system
-**you** run: your fish count, your water, advanced through the weather that actually happened
-since you last spoke to the bot, then forward through the forecast.
-
-The badge always says which of the three you are looking at (**as designed**, **today**, or a
-**forecast**), because confusing them would be the worst thing this view could do. "Today" is
-the same state the bot calls "Now", so the picture and the conversation never describe
-different water. The panel says in as many words that the geometry is a proposed arrangement,
-never a survey of your site.
-
-### Voice notes
-
-Speak instead of typing, on Telegram or WhatsApp. The transcript runs through a normal turn, so
-memory, tools and cited knowledge all apply.
-
-### Consultative agent
-
-Agronaut runs a consultation, not a one-shot Q&A. It identifies your goal (design a
-system, optimize a ratio, or troubleshoot a problem), asks for the few essentials that
-goal needs, then gives a first-cut recommendation tied to *your* system — and remembers
-it (a typed System Profile + episodic notes) across sessions.
-
-You can also set the mode explicitly with `/design`, `/optimize`, or `/troubleshoot` —
-the bot then jumps straight to gathering what that goal needs. All commands appear in
-Telegram's `/` menu.
-
-Agronaut also learns from outcomes: after suggesting a fix it can check back later
-("did the water change fix the ammonia?"), and whatever worked is remembered and shapes
-its future advice.
-
-Lessons can also become shared knowledge: a generalized, PII-stripped version of a verified
-fix is nominated, the owner approves it in a local review CLI (`python -m agronaut_agent.review`),
-and approved insights then help other operators — labeled as community experience, never as
-verified science.
-
-And it calibrates to reality: when you report real measured outcomes (harvest weight, FCR,
-crop yield), Agronaut tunes *your* future sizings toward your system — bounded to the
-published empirical ranges, so a measurement can only move a coefficient within what the
-literature allows, and every calibrated number is labeled.
-
-The deterministic sizing model now covers five fish (tilapia, clarias, channel catfish, trout,
-common carp) and 30+ crops — leafy greens (lettuce, kale, chard, spinach, pak choi, arugula,
-watercress…), culinary herbs (basil, mint, cilantro, parsley, dill…), and fruiting crops
-(tomato, cucumber, pepper, strawberry, eggplant, zucchini…) — each with cited, calibratable
-seed coefficients placed within FAO 589's published feeding-rate band for its category.
-
-### Honesty by design
-Every result lists the coefficients it used (value + range + **source**: FAO 589,
-UVI/Rakocy, literature) and an explicit list of what it does **not** model
-(pH/alkalinity, micronutrients, salinity, solids, pests, cohort logic, per-crop ET).
-A confidently-wrong design can't masquerade as complete.
-
-The same rule governs the advice layer. Citation is enforced **in code**, not asked for in a
-prompt: every retrieved passage is labelled with its source before the model ever sees it. And
-retrieval is allowed to say *no* — a question the corpus cannot answer returns "no matching
-passages" rather than the three closest paragraphs wearing source labels. Ask Agronaut the capital
-of Canada and it will decline, not cite an aquaponics paper at you.
+The core (`aqua_model/`) imports no model and no network, and every coefficient carries a
+value, a range, a unit and a published source (mostly FAO 589 and Goddek et al. 2019). The
+assistant can only reach it through the validation gate. See
+[docs/architecture.md](docs/architecture.md).
 
 ---
 
-## The engineering model (aquaponics core)
+## How good is it? (measured, not claimed)
 
-Parametric, not machine-learned — buildable today from published equations:
+```bash
+agronaut eval        # every quality measurement, its last result and its age
+```
 
-- **Feeding-rate ratio (FRR)** sizes the system: grams of feed per m² of plant area/day.
-- **Nitrogen balance** is an independent *consistency check* (feed → fish-retained → excreted
-  → plants + solids + water-exchange + denitrification), flagging disagreement with FRR
-  rather than silently reconciling — this guards against over-sizing the grow beds.
-- **Water balance** (evapotranspiration + evaporation + sludge − rainfall) drives the
-  water-budget feasibility check.
-- **Optimizer** is bounded enumeration over a small species×crop palette (no heavyweight
-  solver), with the even-split baseline inside the search space so it can never do worse.
+- **Advice safety:** 419 automated checks, enforced in CI on every change.
+- **The season simulator** was scored against 7 real ponds on held-out data. It got the
+  **direction** of change right on 5 of 7, but did not beat a simple trend baseline on the
+  **level** on any of them. Use it to compare options, not to predict a number.
+- **Answer faithfulness** is 0.84 to 0.90, with no fabricated citations. The automated judge
+  agrees with a person only fairly, so treat this as a guide.
+- **Not modelled yet:** dissolved oxygen, pH and alkalinity, solids handling, staggered
+  harvests, micronutrients. Every design lists its own gaps.
+
+Method and numbers: [docs/evaluation.md](docs/evaluation.md).
 
 ---
 
-## The advice layer (retrieval), and how it was tuned
-
-Sizing is computed. Troubleshooting advice is *retrieved*, from a corpus of 22 hand-written
-operator guides plus openly licensed publications — currently **3941 chunks**, led by
-Goddek et al. (2019) and FAO 589.
-
-Retrieval is measured, not assumed. `docs/dpg/retrieval_eval/golden_set.json` holds queries in
-real operator voice ("my tilapia are gasping at the surface", not "dissolved oxygen") plus
-off-topic controls that must be **refused**:
+## When something is off
 
 ```bash
-python -m scripts.retrieval_eval     # recall@k, precision@k, MRR, MAP@k + floor separation
-python -m scripts.retrieval_sweep --all   # re-pick floor / per-source cap / hybrid β
-python -m scripts.corpus_report      # what each declared source actually contributes
+agronaut doctor       # checks install, config, model, channels; every failure comes with a fix
+agronaut --version    # the version and which copy of the code is running
+agronaut update       # install the latest release
 ```
-
-Nine techniques were implemented and measured. **Four ship, four lose, one is available but
-unused** — and the losses are recorded in `docs/dpg/retrieval_eval/techniques.json` with the
-conditions that would reverse them, which is how hybrid search went from rejected to shipped when
-the corpus grew:
-
-| | ships | why |
-|---|---|---|
-| Relevance floor | **on** (1.50) | refuses 8/10 off-topic queries, silences 0/33 real ones, keeps 0.117 headroom |
-| Hybrid BM25 + RRF | **on** (β=0.90) | lost at 362 chunks, won at 1354, re-confirmed at 3941 |
-| Per-source cap | **on** (1) | two books hold 97% of the corpus; at cap=2 they take 2 of 3 slots |
-| PDF cleaning | **on** | drops contents pages; running header removed from 111 chunks → 4 |
-| Metadata filtering | available, off | the third leg of hybrid search. Filters `source_type`, `kb_tag`, `chapter`, `page`, `url_category` on **both** pools before fusion. A capability, not a ranking change — no golden-set number moves, and none is claimed |
-| Header chunking · context prefix · PDF chapter labels · cross-encoder rerank | off | each measured *worse* on this corpus |
-
-**Current: hit 0.879 · recall 0.833 · MAP 0.604 · 8/10 off-topic refused · 0/33 real silenced.**
-
-### A decision expiring, caught in the act
-
-`techniques.json` was written 2026-08-25. The next day, commit `70b2d00` added a second book and
-took the corpus from 1354 to 3935 chunks. Nothing was re-measured, and every constant silently
-became wrong for the corpus that actually shipped:
-
-| | at 1354 (recorded) | at 3941, old constants | at 3941, re-tuned |
-|---|---|---|---|
-| hit_rate | 0.939 | 0.818 | **0.879** |
-| recall@k | 0.894 | 0.727 | **0.833** |
-| MAP@k | 0.697 | 0.548 | **0.604** |
-| off-topic refused | 8/10 | 4/10 | **8/10** |
-
-Two constants moved, one did not. The **floor** tightened 1.65 → 1.50, because the distance bands
-*separated* as the corpus grew (on-topic worst 1.383, closest off-topic 1.411, where at 1354
-chunks they overlapped and no floor could work). The **cap** tightened 2 → 1, because cap=2 was
-calibrated against *one* oversized source and there are now two. **β stayed at 0.90** — it
-describes the relationship between two ranking signals, which is a property of the query language,
-not of how much text sits behind it.
-
-Worth being precise about which change did what, because they pull opposite ways. **The floor
-costs retrieval quality**: at cap=1, staying at 1.65 would score hit 0.909 and MAP 0.624 against
-1.50's 0.879 and 0.604. That is bought deliberately, to double off-topic refusal from 4/10 to
-8/10. **The cap is what pays for it**: at floor 1.50, cap=1 gives 0.879/0.833/0.604 against
-cap=2's 0.788/0.697/0.538.
-
-The floor was *not* tightened to 1.40, though that refuses all 10 controls: it clears the worst
-real query by 0.017, and this project had already rejected a 0.032 margin as too thin. 33 golden
-queries say nothing about the 34th; headroom is the only thing that does.
-
-```bash
-python -m scripts.retrieval_sweep --all      # re-pick all three, with the evidence table
-```
-
-That command exists because the drift was not carelessness. Re-measuring three constants was an
-afternoon of ad-hoc scripting, so it did not happen. It also earned its keep immediately: while
-this work was in review the corpus moved *again* (a 22nd knowledge file, 3935 → 3941 chunks) and
-re-running was one command rather than an afternoon. Run it after any corpus or embedding-model
-change.
-
-"Run it after any corpus change" was still a rule someone had to remember, so CI now enforces it.
-The baseline records a fingerprint of the corpus it measured (`urls.txt` plus the guides in
-`knowledge/`), and `test_corpus_fingerprint.py` fails when the shipped corpus has moved away
-from it: always when a source is added or removed, and once the guides have drifted more than
-10% in size, so one contributed guide does not block its author. It cannot see a change to the
-chunking code or to a page behind a URL.
-
-Three of the four failures share one mechanism: they add topic words to chunks in a corpus where
-every document already shares a vocabulary domain, which dilutes rather than disambiguates. What
-worked was structural — refusing irrelevant passages, refusing error pages, refusing to let one
-source fill the whole answer.
-
-**Corpus licensing is mixed and deliberately explicit.** The code is MIT; FAO 589 is
-non-commercial-only. See [`docs/dpg/CORPUS.md`](docs/dpg/CORPUS.md) — commercial users should drop
-that entry from `urls.txt` and rebuild. Vet any source before adding it:
-
-```bash
-python -m scripts.corpus_report --candidate "<url>" --label "<expected topic>"
-```
-
-It checks four things, because a source can fail in four ways: unreachable, empty, **wrong
-subject** (a guessed publication ID once resolved to *"Sharks for the Aquarium"* — 28k characters
-that pass every check except being about aquaponics), or not openly licensed.
 
 ---
 
-## Observability: what a turn actually did
-
-Retrieval quality is measured offline against a golden set. Production behaviour is a different
-question, and needs a different instrument.
-
-**Every turn is one trace.** All the events a turn produces — the message, each model call, each
-tool call, the retrieval, the turn summary — carry the same random per-turn id, so the log reads
-as a path rather than as counters:
+## Run from source
 
 ```bash
-agronaut traces          # recent turns: which tools ran, what retrieval returned, where the ms went
-agronaut analytics       # p50/p95/max latency for turn / model / retrieval, tokens, thumbs up-down
-```
-
-**The trace holds shape, never content.** No prompt, no reply, no passage text, no query is
-recorded, and that is enforced by an allowlist that drops unknown fields rather than by callers
-remembering not to pass them (`agronaut_agent/tests/test_turn_tracing.py` asserts it). The trace
-id is minted fresh per turn and is never derived from the user, so it groups a turn without
-following anyone between turns.
-
-**What gets measured, and why those things.** Turn latency and model latency separately, because
-the course is blunt that the transformer is the bottleneck and this project previously timed only
-retrieval — the fast, cheap stage. Token counts in and out, omitted entirely rather than recorded
-as `0` when a provider reports no usage, so a quiet provider cannot drag every cost aggregate
-toward zero. And a failed turn is still written, because dropping the turns that broke is how a
-p95 comes to look healthier than the service is.
-
-### Optional: every word of a turn, in a local Phoenix
-
-`agronaut traces` shows a turn's shape and never its words. When you are debugging your own bot
-and need the words too (the exact prompt, why the model chose a tool, what the search handed
-it), send full traces to [Arize Phoenix](https://github.com/Arize-ai/phoenix) on your own
-machine:
-
-```bash
-uv tool install arize-phoenix         # the server, ~600 MB, in its own environment
-pip install "agronaut[phoenix]"       # the two client libraries
-agronaut phoenix                      # http://127.0.0.1:6006, this machine only, telemetry off
-AGRONAUT_PHOENIX=on agronaut whatsapp # in another terminal (or bot, chat, web)
-```
-
-Each turn arrives as one tree (a parent span carrying the same trace id as `agronaut traces`,
-with every model and tool call under it). It is off by default, records message text when on
-(see [PRIVACY.md](docs/dpg/PRIVACY.md)), and refuses to send to another host unless
-`AGRONAUT_PHOENIX_ALLOW_REMOTE=1`. Nothing about it is required: no Phoenix, no difference.
-
-### Does the answer actually use what was retrieved?
-
-`retrieval_eval` scores whether the right documents were found. It cannot score whether the reply
-used them, and a system can hit recall 0.894 while inventing every number in its answer.
-
-```bash
-AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval
-```
-
-Three metrics of three deliberately different kinds:
-
-| | judged by | what it catches |
-|---|---|---|
-| `faithfulness` | an LLM, per atomic claim | claims the retrieved context does not support — the grounding measure |
-| `response_relevancy` | an LLM + embeddings | an answer that is true but does not address the question |
-| `citation_accuracy` | **code, no model** | `[source: ...]` labels that were never retrieved — a fabricated citation |
-
-The judge is treated as a witness, not an oracle: rubrics are binary with named labels, an
-unparseable verdict counts as **unjudged** rather than being folded into either side, and
-`n_unjudged` is printed beside every score. It calls the network, so it is opt-in and never runs
-in CI; the scoring arithmetic is pure and unit-tested without a model.
-
-The judge is a different model from the one that writes the answer (`AGRONAUT_JUDGE_PROVIDER` /
-`AGRONAUT_JUDGE_MODEL`), and it must copy the sentence of the context that backs a claim before
-it may call the claim supported; code then checks that the quote really is in the context.
-Sentences about the sources themselves ("the context does not specify…", "consult other
-resources") are not claims and are left out.
-
-**Measured (2026-10-03):** 33 golden-set answers written by Claude Sonnet 5, 479 claims.
-
-| | faithfulness | agreement with a person (kappa, 29 claims) |
-|---|---|---|
-| gpt-oss-20b, quote-first prompt (default) | **0.84** | 0.24 blind, 0.39 after review |
-| gpt-oss-20b, earlier prompt (two runs) | 0.90, 0.90 | 0.34, 0.30 |
-| Claude Sonnet 5 as judge | 0.88 | 0.03 |
-
-Citation accuracy is 1.00 (no fabricated sources) and response relevancy 0.44. Read the
-faithfulness figure as a range, not a verdict: the judges agree with themselves (kappa 0.76
-between two runs) much better than with the one person who has labelled claims so far, which is
-"fair" agreement on a small sample. Claude was dropped as a judge because it agreed with the
-person no better than chance. Report and labels: `docs/dpg/faithfulness_eval/`.
-
-```bash
-python -m scripts.label_claims 2026-09-30_baseline.json            # label claims blind
-python -m scripts.label_claims 2026-09-30_baseline.json --review   # second look at disputes
-python -m scripts.faithfulness_eval --agreement 2026-09-30_baseline.json
-AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval --rejudge 2026-09-30_baseline.json
-```
-
-### Does the reply repeat the engine's numbers correctly?
-
-Most turns never retrieve anything: the model calls the sizing engine and explains the result.
-The validation gate guards the numbers going *into* the engine; `agronaut_agent/grounding.py`
-guards the ones coming *out*. After every reply, each number-with-a-unit is checked against
-what the model was shown that turn (tool results, earlier results, what you said), after unit
-conversion and within rounding. It is code, no model, so it runs on every live turn and in CI.
-
-It exists because of a real slip: `qwen3.5:2b` relayed a 6,666.7 L/h pump as **"6.7 L/h"**,
-having converted the volume to 6.7 m³ correctly and then kept the old unit on the flow. The
-check flags that and passes the correct "6.7 m³" and "~6,700 L/h". Sample answers inside a
-question ("e.g. 200 L/day") are not claims and are skipped; numbers without a unit are not
-checked.
-
-- Every turn records how many figures no tool or user gave; `agronaut analytics` prints how
-  many replies had one. The figures themselves go only to the local log, never to analytics.
-- The [Local model check](.github/workflows/local-model-check.yml) now fails a model whose
-  reply misquotes the engine, even when it called the right tool.
-
-Passing means every figure the reply quotes traces to a source, not that the advice is right.
-On the maintainer's own history, 3 of 15 Claude replies with quantities quoted figures from
-memory: a stress temperature, a water budget the user never gave, and Ouagadougou's seasonal
-highs.
-
-### All of it in one place: `agronaut eval` and the Quality page
-
-```bash
-agronaut eval                    # status: last result of every eval, its age, stale or not
-agronaut eval all                # run every free eval (safety, retrieval in en/fr/zh), then status
-agronaut eval retrieval          # --multilingual, --compare FILE
-agronaut eval safety
-agronaut eval answers            # the published report; --agreement for every comparison
-agronaut eval answers --run      # a fresh run (calls models, names them, asks first)
-agronaut eval label [--review]   # label claims by hand, or take a second look at disputes
-agronaut eval model qwen3.5:4b   # does this local model drive the engine on this machine?
-agronaut web                     # then Quality in the sidebar
-```
-
-Retrieval, safety and status are free and local; anything that calls a model says which one
-and asks first, and `eval model` never pulls a model for you. Each run adds one line of numbers
-to `eval_history.jsonl` in the data directory (version, corpus fingerprint, model, metrics; no
-question or answer text), so `agronaut eval` can show the trend and mark a result measured on a
-different knowledge base as stale. The golden sets ship with the package, so this works after
-a plain `pip install` too.
-
-The web app's **Quality** mode shows the same numbers, read from the same files, with no model
-call: the twin's validation verdict, retrieval by language, answer faithfulness, the safety
-probes, and how real searches compare with what the golden set calibrated. Every number shows
-its n and date, and faithfulness never appears without its judge's agreement with a person.
-
-### Human feedback
-
-`/good` and `/bad` on Telegram record a bare rating, 1 or -1. There is no comment field on
-purpose — it is the one place message content could enter the analytics log, and the allowlist
-would drop it anyway. `agronaut analytics` prints the positive share.
-
----
-
-## Pluggable LLM backend (open models)
-
-The chat layer is model-agnostic — pick a backend with one env var, no code change:
-
-| Provider | `LLM_PROVIDER` | Notes |
-|---|---|---|
-| Ollama (local) | `ollama` | **Offline, default (`qwen3.5:4b`), drives the full tool-calling agent.** The shortest path for a grower self-hosting with no API key: `ollama pull qwen3.5:4b` and go. Pick a tool-capable tag: older ones (`llama3`, `mistral`) bind tools and then never call any. Photos too: `VLM_PROVIDER=ollama` with `ollama pull llama3.2-vision`. |
-| NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
-| Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
-| Self-hosted (OpenAI-compatible) | `openai_compat` | Zero proprietary API — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
-
-### Self-hosted, no vendor (the open-weights path)
-
-Agronaut is meant to be run by the grower, on their own machine, so the no-vendor path is
-the one that matters most. The shortest version is Ollama:
-
-```bash
-ollama pull qwen3.5:4b              # the brain
-ollama pull llama3.2-vision         # optional: photo understanding
-export LLM_PROVIDER=ollama          # this is already the default
-export VLM_PROVIDER=ollama          # only needed if you pulled the vision model
-python bot.py
-```
-
-**Context window.** Agronaut asks Ollama for a 32K-token context. Left to itself, Ollama
-gives any machine under 24 GiB of memory 4K, and Agronaut's instructions and tool
-definitions alone are about 11K tokens. Ollama does not refuse a prompt that is too long: it
-silently cuts the middle out, which is where the instructions live (measured in #181). A
-larger context uses more memory, so on a small machine you can lower it with
-`AGRONAUT_OLLAMA_NUM_CTX` (`agronaut doctor` warns below 16K). qwen3.5 can also "think" before
-answering; that is off by default because on a laptop it costs minutes, and
-`AGRONAUT_OLLAMA_THINK=on` turns it back on.
-
-That is the whole setup: no API key, no account, no connectivity after the pull. Every
-subsystem a grower touches runs on their own machine — the tool-calling agent, the
-deterministic twin, retrieval, and photo understanding.
-
-A note on vision tags: a text-only model will accept an image, ignore it, and describe
-something plausible that is not in your photograph. Agronaut asks Ollama whether the model
-can see and refuses to start the vision path if it positively says no, but an old Ollama
-that reports nothing cannot be checked — so pull a tag you know does vision
-(`llama3.2-vision`, `qwen2.5vl`, `llava`, or `moondream` on a small machine).
-
-For more control over serving (batching, quantisation, a shared box), use any
-OpenAI-compatible server instead:
-
-```bash
-# example: vLLM serving a tool-calling-capable open model
-python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-7B-Instruct
-# then:
-export LLM_PROVIDER=openai_compat
-export OPENAI_COMPAT_BASE_URL=http://localhost:8000/v1
-python bot.py
-```
-
-This runs the deterministic core **and** the tool-calling assistant with no proprietary
-dependency — the configuration Agronaut submits for [Digital Public Good](docs/dpg/)
-platform-independence.
-
-Override the model with `LLM_MODEL`. Provider libraries are imported lazily — install only
-the one you use. The design/optimizer modes run with **no LLM dependency at all.**
-
----
-
-## Install and run: all the options
-
-The [Quick start](#quick-start) above is the short path. This section is the rest: working
-from a checkout, Docker, a hosted demo, every CLI command, and the full
-environment-variable reference.
-
-### From source
-
-To change Agronaut rather than just use it:
-
-```bash
-git clone https://github.com/Rekin226/Agronaut.git && cd Agronaut
+git clone https://github.com/Rekin226/Agronaut.git
+cd Agronaut
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-python3 -m pytest        # 1235 tests, no model server needed
+pip install -e . pytest
+
+python -m pytest                   # the full test suite, no model needed
+python -m scripts.safety_eval      # the advice-safety golden set
+agronaut web                       # the app, from your checkout
 ```
 
-### Docker (one command)
+Or with Docker:
 
 ```bash
-docker compose up web            # Streamlit at http://localhost:8501
-docker compose --profile bot up  # web + the Telegram bot (needs .env)
-```
-
-The web app's Design section works immediately. The Assistant and the bot need an
-LLM provider configured in a local `.env` (see below). The SQLite memory DB persists in a
-named volume, shared between web and bot.
-
-### From source
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .                 # installs the deps and the `agronaut` command
-streamlit run app.py
-```
-
-**Design** and **My Twin** work immediately (no model server). For the **Assistant**, run
-Ollama locally or set a hosted provider (see above).
-
-(`pip install -r requirement.txt` still works if you only want the libraries — `pip install -e .`
-installs the same list and adds the command below. For a **deterministic-only** install with no
-chat stack, `requirements.txt` is a light manifest covering just the calculator and optimizer.)
-
-### Deploy a hosted demo (free, ~2 min)
-
-The deterministic modes deploy to [Streamlit Community Cloud](https://share.streamlit.io) with
-zero config — the light `requirements.txt` keeps the build fast and key-free:
-
-1. Fork this repo (or use your own).
-2. Streamlit Community Cloud → **New app** → pick the repo, branch `main`, main file `app.py`.
-3. Deploy. Chat mode shows a friendly "needs the chat stack" note; the calculator and
-   optimizer are fully live.
-
-See [`docs/demo.md`](docs/demo.md) for the deployment details and for recording a README GIF.
-
-### The `agronaut` command
-
-One front door over everything the project ships. It works from any directory once
-installed; bare `agronaut` is the chat REPL, because that is what most people want.
-
-```bash
-agronaut                         # chat with the agent in the terminal
-agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
-agronaut size-hydro --crop lettuce --area 10 --temp 22 --water 500
-agronaut optimize --area 10 --temp 28 --water 5000 --objective food
-agronaut list                    # supported species, crops, objectives
-agronaut web                     # the Streamlit app (trailing flags go to streamlit,
-                                 #   e.g. agronaut web --server.port=9000)
-agronaut bot                     # the Telegram bot
-agronaut review                  # approve/reject pending community insights
-agronaut analytics               # usage summary: latency p50/p95, tokens, feedback
-agronaut traces                  # recent turns as pipeline traces (no message text)
-agronaut --version               # version, the code path it loaded, and the .env it reads
-agronaut doctor                  # check the install, config, provider, corpus, data, channels
-agronaut update                  # check PyPI for a newer release and install it
-```
-
-`--version` prints where the code came from, not just a number. If you have both a checkout
-and a `pip install`, that path is the only way to tell which one you are running, and getting
-it wrong is how you end up debugging a bug you already fixed.
-
-**When something is off, run `agronaut doctor`.** It checks the install (including whether a
-stale copy is shadowing it), the config, the model provider, the knowledge corpus, the seven
-reference tables, the validation record, the database and the channels, and every failure
-comes with a `fix:` line. It exits 0 when nothing is broken and 1 when something is, so it
-works in a script. Being offline shows as skipped, not failed. It checks your setup, not the
-accuracy of the advice: for that, see `data/twin_validation.json`.
-
-**Scripting it.** `size`, `size-hydro`, `optimize` and `list` take `--json`. A sizing result
-carries the same `coefficients_used`, `assumptions`, `warnings` and `not_modeled` as the human
-report, so the caveats travel with the numbers, and `optimize` carries its `assumptions` and
-`not_modeled`. `optimize --json` includes 5 ranked alternatives and `--top N` changes that.
-Input the trust gate rejects exits 2 and is JSON too, `{"error": "VALIDATION_FAILED",
-"errors": [...]}`, so check for `error` before reading a result.
-
-```bash
-agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000 --json > design.json
-```
-
-**Where it keeps things.** In a checkout, the knowledge base, the reference tables, the
-fetched-page cache and the SQLite memory DB all sit beside the source, as before. Installed
-non-editably, the cited corpus and the reference tables (price book, growth calibration, the
-twin's validation record) are read from `<prefix>/share/agronaut` and state goes to your XDG
-directories rather than into `site-packages` — override any of it with `AGRONAUT_CORPUS_DIR`,
-`AGRONAUT_REFERENCE_DIR`, `AGRONAUT_CACHE_DIR`, or `AGRONAUT_DATA_DIR`.
-
-| Command | Needs an LLM? |
-|---|---|
-| `size` / `size-hydro` / `optimize` / `list` | **No.** Pure `aqua_model` — deterministic, offline, cited. Bad input exits non-zero at the trust gate rather than guessing. |
-| `doctor` / `--version` / `update` | **No.** `--version` is offline. `doctor` makes one call per configured provider or channel to check the key actually works, and `update` asks PyPI. |
-| `chat` (the default) / `bot` | Yes — a tool-calling provider (see above). |
-| `web` | Only for the app's chat mode; the calculator and optimizer run without one. |
-
-### Run the tests
-```bash
-python3 -m pytest        # the aqua_model core suite is pure (no model server needed)
-```
-
-### Run the Telegram bot
-
-The consultative agent is reachable over Telegram. **This is the recommended way to talk to
-Agronaut from a phone**: one token from BotFather, it works on a laptop behind any router,
-and nothing expires. `agronaut setup` walks you through it in about two minutes.
-
-**The two you actually need**, in `.env` or the environment:
-
-| Var | Purpose |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | from [@BotFather](https://t.me/BotFather) |
-| `AGRONAUT_ALLOWED_IDS` | comma-separated Telegram user IDs allowed to use the bot (empty = open to anyone, discouraged) |
-
-Plus a model, which you have already if you followed the [Quick start](#quick-start):
-`LLM_PROVIDER=ollama` and a pulled model, or `LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY`.
-
-<details>
-<summary><b>Everything else is optional</b> — retrieval tuning, voice, vision, caching. Skip
-this until something needs changing.</summary>
-
-| Var | Purpose |
-|---|---|
-| `AGRONAUT_RELEVANCE_MAX_DISTANCE` | how far a passage may be and still be used as context (default 1.50, `off` disables). Calibrated against the golden set; **not portable** — re-run `python -m scripts.retrieval_sweep --all` after any corpus or embedding-model change |
-| `AGRONAUT_HYBRID` / `AGRONAUT_HYBRID_BETA` | keyword+semantic fusion, on by default at β=0.90 (β is the semantic weight) |
-| `AGRONAUT_MAX_PER_SOURCE` | how many passages one source may contribute to a single answer (default 2; `1` favours breadth, `0` disables) |
-| `AGRONAUT_INDEX_CACHE` | the built index is cached under `data/.index_cache/`, keyed by a corpus fingerprint; `off` rebuilds every time |
-| `AGRONAUT_RERANK` / `AGRONAUT_MD_HEADERS` / `AGRONAUT_PDF_SECTIONS` | techniques that measured *worse* on this corpus and ship disabled — kept because the verdict is corpus-dependent (see `docs/dpg/retrieval_eval/techniques.json`) |
-| `LLM_PROVIDER` / `NVIDIA_API_KEY` | the tool-calling brain. Defaults to `ollama` (local, no key); `nvidia` is free at [build.nvidia.com](https://build.nvidia.com) |
-| `LLM_MODEL` | optional. Local default `qwen3.5:4b`. On NVIDIA, `mistralai/mistral-nemotron` measured ~20x faster than `llama-3.3-70b` with correct tool calls ([docs/telegram_twin_testing.md](docs/telegram_twin_testing.md)) |
-| `AGRONAUT_OLLAMA_NUM_CTX` | context window requested from Ollama (default 32768). Lower only if memory runs out; below 16384 the prompt gets cut and `agronaut doctor` warns |
-| `AGRONAUT_OLLAMA_THINK` | `on` lets a thinking model (qwen3.5) reason before answering. Off by default: slow on a laptop |
-| `VLM_PROVIDER` / `VLM_MODEL` | optional photo understanding — send a picture of a sick fish or yellowing leaf and the bot describes it, then diagnoses through the same cited flow. Defaults to a hosted NVIDIA vision model (`VLM_PROVIDER=nvidia`, needs `NVIDIA_API_KEY`); set `VLM_PROVIDER=ollama` and `ollama pull llama3.2-vision` to run it locally with no key and no connectivity. `AGRONAUT_VISION=off` disables. The vision model only *observes*: a deterministic guard strips any reading or prescription out of its description, and the diagnosis itself comes from a fixed, cited triage table (`aqua_model/triage.py`) that returns a ranked differential — never a single verdict. Photos work on Telegram, WhatsApp, and the web chat. |
-| `ASR_PROVIDER` / `ASR_MODEL` | optional voice notes — a spoken message is transcribed then answered in the same language. Defaults to a **local** faster-whisper model (works offline — best for low-connectivity field use; needs `pip install faster-whisper`). Set `ASR_PROVIDER=nvidia` for a hosted endpoint; `AGRONAUT_VOICE=off` disables. |
-
-
-</details>
-
-```bash
-source .venv/bin/activate
-agronaut bot             # long-polls Telegram; Ctrl-C to stop (same as `python bot.py`)
-```
-
-### Run on WhatsApp (Cloud API)
-
-Agronaut also speaks WhatsApp, the channel most smallholder-facing programs reach farmers
-on. It is optional and takes more setup than Telegram: Meta's developer dashboard, two
-different tokens, and a public HTTPS address, because Meta calls your machine rather than
-the other way round. **[docs/whatsapp_setup.md](docs/whatsapp_setup.md) walks through
-every screen.** The short version:
-
-```bash
-agronaut setup                 # choose WhatsApp; paste the values from Meta's Step 1
-agronaut whatsapp --tunnel     # starts the bot + a public address, prints what to paste
-```
-
-`--tunnel` needs [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-(`brew install cloudflared` on a Mac). It prints the **Callback URL** and **verify token** to
-paste into Meta at *Step 2. Production setup > Configure Webhooks*, then you message the test
-number from WhatsApp on your phone.
-
-| Var | Purpose |
-|---|---|
-| `WHATSAPP_TOKEN` | the **access** token (long, `EAA…`), Meta Step 1 > Generate token |
-| `WHATSAPP_PHONE_NUMBER_ID` | the sender phone-number id, Meta Step 1 |
-| `WHATSAPP_WABA_ID` | WhatsApp Business account id, Meta Step 1 (used by `--check`) |
-| `WHATSAPP_VERIFY_TOKEN` | the **verify** token (short); setup makes it, you paste it into Meta's webhook form |
-| `WHATSAPP_APP_SECRET` | App settings > Basic; verifies that messages really come from Meta |
-| `AGRONAUT_ALLOWED_IDS` | your own number, country code first, no leading 0 (Taiwan 0912… is 886912…) |
-
-When it does not answer, `agronaut whatsapp --check --url <callback url>` says which link is
-broken, and the bot window says why it refused or dropped anything. Meta's test access token
-is short-lived (one lasted about an hour): once the bot answers, make a permanent System
-User token ([steps](docs/whatsapp_setup.md#a-permanent-token-do-this-once)) and save it with
-`agronaut whatsapp --token`.
-
-Two things worth knowing before you start:
-
-- **This is not your personal WhatsApp.** The Cloud API is for WhatsApp *Business*. Start
-  with the free test number Meta gives you and message it *from* your personal phone.
-- **Two things make a laptop setup temporary.** The test token dies quickly (fix: a
-  permanent System User token, once) and the quick-tunnel address changes on every start
-  (fix: a server or a named tunnel with a fixed address). Both are covered in the guide.
-
-The same brain, memory, tools, and follow-ups as Telegram.
-
-#### Keep it running (systemd)
-
-For an always-on bot that survives crashes and reboots, run it as a **`systemd --user`
-service**. Create `~/.config/systemd/user/agronaut-bot.service`:
-
-```ini
-[Unit]
-Description=Agronaut Telegram bot
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=/path/to/Agronaut
-ExecStart=/path/to/Agronaut/.venv/bin/python bot.py
-Restart=on-failure
-RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
-
-[Install]
-WantedBy=default.target
-```
-
-```bash
-loginctl enable-linger "$USER"          # run even when you're not logged in
-systemctl --user daemon-reload
-systemctl --user enable --now agronaut-bot     # start now + on boot
-```
-
-Manage it:
-
-```bash
-systemctl --user status agronaut-bot     # is it up?
-systemctl --user restart agronaut-bot    # after pulling/changing code
-journalctl --user -u agronaut-bot -f     # live logs
-```
-
-> Only **one** poller may run at a time — a manual `python bot.py` and the service will
-> conflict on Telegram's `getUpdates`. When the service owns the bot, restart it after code
-> changes (`systemctl --user restart agronaut-bot`) instead of running the script directly.
-
----
-
-## Project layout
-
-```
-aqua_model/            # TRUST ZONE — pure Python, no LLM, no network, no I/O, fully tested
-  coefficients.py      #   cited data layer (value + range + unit + source + safety factor)
-  species.py crops.py  #   seed databases, every field sourced (5 species, 30 crops)
-  massbalance.py       #   nitrogen consistency check, water balance, biofilter
-  sizing.py            #   size_system() — FRR anchors; build-artifact output
-  hydroponics.py       #   size_hydroponic_system() — plants only, no fish
-  optimizer.py         #   optimize() — best fish/crop ratio under a constraint
-  triage.py            #   visual symptoms -> a ranked, CITED differential (never a verdict)
-  calibration.py       #   bound coefficients toward an operator's own measurements
-  validate.py          #   the trust gate — the only door into the model
-  report.py pilot.py   #   funder-facing design report and pilot proposal
-  schematic.py         #   deterministic SVG/PNG system diagram
-  layout.py hydraulics.py #   placement, grading, routed pipe runs and the real pump head
-  production.py mirror.py #   the coupled season twin, and one operator's live state
-  advisory.py          #   proposals with derived confidence — a human approves, nothing acts
-  scene3d.py           #   the 3D scene, including the twin state the viewer renders
-  logging_schema.py    #   versioned install-logging standard (the dataset moat)
-
-agent/                 # LLM-facing layer (imports aqua_model, never the reverse)
-  llm.py               #   pluggable chat backend (ollama | nvidia | hf | openai_compat)
-  vision.py            #   pluggable VLM + the observation guard + EXIF stripping
-  observation_features.py #   prose -> the categorical vocabulary triage.py accepts
-  classifier.py        #   pluggable image classifier as a FEATURE source (no backend yet)
-  transcribe.py        #   pluggable speech-to-text
-  calculator_ui.py optimizer_ui.py facts.py   # Streamlit views + the UI/model seam
-
-agronaut_agent/        # the channel-agnostic brain
-  cli.py               #   the `agronaut` command — one front door, routes to the real callables
-  core.py              #   handle_message / handle_image / handle_voice — the three seams
-  tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
-  store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
-  rag.py semantic.py   #   citation-enforced retrieval (floor, hybrid, per-source cap) + recall
-  channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
-
-scripts/               # safety_eval.py (hermetic golden set, runs in CI), vision_eval.py
-                       # faithfulness_eval.py (faithfulness / relevancy / citation accuracy)
-                       # corpus_report.py (what each source contributes; --candidate vets one)
-                       # retrieval_eval.py (recall/precision/MRR/MAP over the retrieval golden set)
-                       # retrieval_sweep.py (re-calibrates floor / cap / beta on the live corpus)
-skills/                # the deterministic core as a portable agentskills.io skill + CLI
-knowledge/ urls.txt    # the curated, cited knowledge base (urls.txt: CATEGORY|URL|LABEL|LICENCE)
-docs/dpg/              # DPG compliance pack: privacy, AI transparency, safety eval
-  CORPUS.md            #   corpus provenance + the code(MIT)/content(mixed) licence split
-  retrieval_eval/      #   golden set, baselines, and every technique's measured verdict
-app.py                 # Streamlit app (chat | calculator | optimizer)
-pyproject.toml         # packaging + the `agronaut` console script (deps read from requirement.txt)
-srcs/chatbot.py        # legacy RAG/state-machine layer, slated for retirement (#25)
+docker compose up web              # the web app at http://localhost:8501
+docker compose --profile bot up    # web + the Telegram bot (needs a .env)
 ```
 
 ---
 
-## Roadmap
+## Documentation
 
-- **M1 — design calculator** ✅ deterministic sizing, cited coefficients, report, logging standard
-- **M2 — ratio optimizer** ✅ fish/crop mix for max efficiency
-- **M3 — agent orchestrator** — 🟡 the tool-calling agent is built and is what every channel
-  now runs on. Retrieval is now measured end to end (golden set, recall/MRR/MAP, a relevance
-  floor that refuses off-topic questions) and every technique's verdict is recorded; fully
-  demoting RAG to a pure citation tool is still open ([#25](https://github.com/Rekin226/Agronaut/issues/25))
-- **Field senses** ✅ photos and voice notes on Telegram, WhatsApp and the web, behind a
-  code-enforced observation guard and a cited visual-triage table
-- **M4 — digital twin** — time-series simulator calibrated on real installed systems ([#26](https://github.com/Rekin226/Agronaut/issues/26))
-- **M5 — reach** — SMS/USSD for farmers without a smartphone ([#73](https://github.com/Rekin226/Agronaut/issues/73)), offline-first ([#79](https://github.com/Rekin226/Agronaut/issues/79))
-- **Beyond aquaponics** — does the architecture generalise to irrigated field crops via
-  FAO-56? ([#78](https://github.com/Rekin226/Agronaut/issues/78))
-
-**Status, honestly.** The design, optimizer, and triage core is built, tested, and enforced in
-CI (700+ tests; a hermetic advice-safety golden set that fails the build on a regression). What
-is *not* done is **validation against reality**: the coefficients are literature seeds meant to
-be calibrated, and the vision path has never been scored against a real photograph because
-[the corpus is empty](https://github.com/Rekin226/Agronaut/issues/72). Calibrated ≠ validated,
-and the model says so in every result it produces.
-
-The advice layer has the same shape of honesty and the same gap. Retrieval is measured against a
-33-query golden set, but that set was written by one person against the corpus it already had —
-it cannot tell you about questions nobody thought to ask. And **corpus breadth is the live
-constraint**: 22 hand-written files still answer most queries, because open-access aquaponics
-*literature* is plentiful while open *operator guidance* barely exists. Widening it is
-[#77](https://github.com/Rekin226/Agronaut/issues/77), and `docs/dpg/CORPUS.md` records which
-sources were surveyed and why they were not added.
+| Page | What's in it |
+|---|---|
+| [Install and run](docs/running.md) | Every install option, all CLI commands, Docker, a hosted demo, keeping a bot running |
+| [Configuration](docs/configuration.md) | Model providers, self-hosting with open weights, every environment variable |
+| [WhatsApp setup](docs/whatsapp_setup.md) | Meta's dashboard, step by step |
+| [Features](docs/features.md) | Photos, the 3D twin, voice, the consultation, honesty rules |
+| [Architecture](docs/architecture.md) | The trust zone, the engineering model, project layout, the agent skill |
+| [Evaluation](docs/evaluation.md) | Retrieval tuning, tracing, faithfulness, reply grounding |
+| [Privacy](docs/dpg/PRIVACY.md) | What is recorded, where, and how to delete it |
 
 ---
-
-## Use it from another agent (agentskills.io skill)
-
-Agronaut's deterministic engine is also packaged as a portable
-[agentskills.io](https://agentskills.io) skill in
-[`skills/aquaponics-engineer/`](skills/aquaponics_engineer/SKILL.md), so agents like
-Hermes, OpenClaw, or Claude Code can hand users a *computed*, cited design instead of a
-guess:
-
-```bash
-python -m skills.aquaponics_engineer.cli size-aquaponics \
-    --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
-```
-
-Same trust zone, same citations, no LLM — a bad input is rejected at the gate.
 
 ## Contributing
 
-**You don't need an API key, a GPU, or ML experience to contribute here.** The Design
-Calculator, the Optimizer, the whole engineering core, and the visual-triage table are
-deterministic — `pip install -r requirement.txt && pytest` and you're developing.
+You don't need an API key, a GPU or ML experience. The most valuable contributions are often
+not code:
 
-The three contributions this project needs most:
+- 🌾 **Agronomy knowledge:** a crop, a species, a symptom rule, a correction, with its source.
+- 💰 **A price book for your country**, so cost estimates are true where you live.
+- 📊 **Real system data** (feed, harvest weights, water readings) to calibrate the model.
+- 📷 **Photographs** of deficient leaves, sick fish or algae.
 
-| | What | Why it matters |
-|---|---|---|
-| 🌾 | **Agronomy knowledge** — a crop, a species, a symptom rule, a correction | Every number needs a published source. Finding one *is* the work. Practitioner corrections are especially welcome. |
-| 📊 | **Real system data** — your FCR, harvest weights, yields | The coefficients are literature *seeds* meant to be calibrated against reality. Your data makes the model true rather than plausible. → [#22](https://github.com/Rekin226/Agronaut/issues/22) |
-| 📷 | **Photographs** — deficient leaves, sick fish, algae, root disease | The vision path is currently verified against handwritten test strings, not real photos. Run `python -m scripts.check_vision_corpus` to see what's wanted. |
-
-Then: [**good first issues**](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
-· [**CONTRIBUTING.md**](CONTRIBUTING.md) (setup + the trust-zone rules)
-· [**Code of Conduct**](CODE_OF_CONDUCT.md)
-
-One rule worth knowing before you write code: `aqua_model/` is a **trust zone** — pure Python,
-no LLM, no network, every number carrying a cited source, every output stating what it does
-*not* model. CI enforces the first part by installing only `pytest pandas Pillow` and asserting
-the core imports without any LLM library. Details in
-[CONTRIBUTING.md](CONTRIBUTING.md#the-one-thing-to-understand-before-you-write-code).
+Start with [issue #27](https://github.com/Rekin226/Agronaut/issues/27), the
+[good first issues](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue) and
+[CONTRIBUTING.md](CONTRIBUTING.md). One rule before you write code: `aqua_model/` stays pure,
+and every number in it needs a published source.
 
 ## Citing Agronaut
 
 If you use Agronaut in research or programme work, see [CITATION.cff](CITATION.cff).
 
-## License
+## Licence
 
-MIT — see [LICENSE](LICENSE). The code is open by design (it's built on published science);
-the value is in calibrated, real-world data, not the equations. Contributions welcome.
+Code: MIT, see [LICENSE](LICENSE). The knowledge corpus has mixed licences (FAO 589 is
+non-commercial); see [docs/dpg/CORPUS.md](docs/dpg/CORPUS.md).

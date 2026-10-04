@@ -75,7 +75,7 @@ def main(tunnel: bool = False) -> int:
         for p in problems:
             print(f"  - {p}\n", file=sys.stderr)
         print("Put them in a .env file in the project root, then run this again.\n"
-              "Full walkthrough: README, 'Run on WhatsApp (Cloud API)'.", file=sys.stderr)
+              "Full walkthrough: docs/whatsapp_setup.md.", file=sys.stderr)
         return 2
 
     for w in warnings():

@@ -328,7 +328,7 @@ def check_tracing() -> list[Check]:
     server = shutil.which("phoenix")
     if not P.requested():
         have = ("client libraries and server installed: AGRONAUT_PHOENIX=on to use them"
-                if libs and server else "optional: see README, 'every word of a turn'")
+                if libs and server else "optional: see docs/evaluation.md, 'every word of a turn'")
         return [Check(OK, "Phoenix tracing off",
                       f"turns are recorded as shapes only (agronaut traces); {have}")]
     url = P.endpoint()
