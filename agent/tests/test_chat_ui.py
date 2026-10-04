@@ -1,4 +1,4 @@
-"""Headless tests: the Streamlit "Assistant (chat)" mode must drive the real tool-calling
+"""Headless tests: the Streamlit "Assistant" mode must drive the real tool-calling
 agent (agronaut_agent), not the legacy srcs/chatbot state machine — with per-browser-session
 identity so concurrent web users never share a conversation or profile.
 
@@ -48,7 +48,7 @@ def fake_agent_backend(monkeypatch, tmp_path):
 
 def _open_chat(at):
     at.run(timeout=30)
-    at.radio[0].set_value("Assistant (chat)")
+    at.radio[0].set_value("Assistant")
     at.run(timeout=30)
     return at
 
@@ -189,7 +189,7 @@ def test_chat_still_reports_that_it_needs_a_provider(monkeypatch):
     _no_tool_calling_llm(monkeypatch)
 
     at = AppTest.from_file(_APP).run(timeout=60)
-    at.sidebar.radio[0].set_value("Assistant (chat)").run(timeout=60)
+    at.sidebar.radio[0].set_value("Assistant").run(timeout=60)
 
     assert not at.exception
     assert any("provider" in str(w.value).lower() for w in at.warning)
