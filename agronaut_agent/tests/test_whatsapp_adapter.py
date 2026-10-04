@@ -414,6 +414,25 @@ def test_deliver_due_followups_records_failure_on_http_error(monkeypatch):
     assert ("sent", 1) not in agent.calls
 
 
+def test_handle_payload_cleans_up_attachments_when_reply_fails(monkeypatch, tmp_path):
+    # An expired token makes the reply raise WhatsAppSendError; the handler must
+    # not let it escape (which would skip the rest of the webhook batch) and the
+    # attachment temp file must still be deleted (the leak #179 closed).
+    png = tmp_path / "schematic.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    agent = _FakeAgent(attachments=[str(png)])
+    a = _adapter(agent)
+
+    class _Resp:
+        status_code = 401
+        text = '{"error": {"message": "expired token"}}'
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    # Must not raise.
+    a.handle_payload(_incoming_payload("draw my system"))
+    assert not png.exists()
+
+
 # --- inbound images ---------------------------------------------------------------------
 # A photo is the most natural troubleshooting input a farmer has, and WhatsApp is the
 # channel NGOs actually reach farmers on. send_media existed; there was no receive path.

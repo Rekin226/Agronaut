@@ -363,8 +363,11 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("slash command failed (whatsapp)")
                 cmd = commands.Reply("That command didn't work just now. Try again?")
             if cmd is not None:
-                for part in chunk(cmd.text):
-                    self.send_text(sender, part)
+                try:
+                    for part in chunk(cmd.text):
+                        self.send_text(sender, part)
+                except WhatsAppSendError:
+                    log.warning("whatsapp command reply failed for %s", sender, exc_info=True)
                 if cmd.document:
                     doc_mime = cmd.document_mime or mimetypes.guess_type(cmd.document)[0] or "application/octet-stream"
                     if self.send_media(sender, cmd.document, doc_mime) is False:
@@ -376,8 +379,12 @@ class WhatsAppAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_message failed (whatsapp)")
                 reply = "Something went wrong on my side. Try again, or rephrase?"
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         # Photos: the same agent seam Telegram uses, so the observation guard, memory, and
         # cited tools all apply identically on this channel.
@@ -387,16 +394,23 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             image_bytes = self.download_media(media_id)
             if not image_bytes:
-                self.send_text(sender, "I couldn't download that photo. Could you send it "
-                                       "again, or describe what you see?")
+                try:
+                    self.send_text(sender, "I couldn't download that photo. Could you send it "
+                                           "again, or describe what you see?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_image(self.channel_name, uid, image_bytes, caption)
             except Exception:
                 log.exception("agent.handle_image failed (whatsapp)")
                 reply = "Something went wrong reading that photo. Try again, or describe what you see?"
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         # Voice notes: the same agent seam Telegram uses, so the transcript runs through a
         # normal turn with memory, tools and cited knowledge intact.
@@ -406,8 +420,11 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             audio_bytes = self.download_media(media_id)
             if not audio_bytes:
-                self.send_text(sender, "I couldn't download that voice note. Could you send "
-                                       "it again, or type your message?")
+                try:
+                    self.send_text(sender, "I couldn't download that voice note. Could you send "
+                                           "it again, or type your message?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_voice(self.channel_name, uid, audio_bytes, mime)
@@ -415,16 +432,23 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("agent.handle_voice failed (whatsapp)")
                 reply = ("Something went wrong with that voice note. Try again, or type your "
                          "message?")
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         for sender, what in self.parse_unsupported_files(payload):
             if not self._allowed(sender):
                 continue
             log.info("whatsapp: declined unsupported inbound %r", what)
-            self.send_text(sender, "I can't read files like that yet. I work with text and "
-                                   "photos. Send a photo of the plants, fish, or water and "
-                                   "I'll take a look.")
+            try:
+                self.send_text(sender, "I can't read files like that yet. I work with text and "
+                                       "photos. Send a photo of the plants, fish, or water and "
+                                       "I'll take a look.")
+            except WhatsAppSendError:
+                log.warning("whatsapp unsupported-file notice failed for %s", sender, exc_info=True)
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
