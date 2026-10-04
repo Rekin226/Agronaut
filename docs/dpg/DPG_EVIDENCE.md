@@ -12,7 +12,7 @@ submission. Status: **draft — owner to review before submitting.**
 | 2 | **Approved open licence** | ✅ | MIT (`LICENSE`) — on the DPGA-approved list. |
 | 3 | **Clear ownership** | ✅ | Copyright + repository ownership documented in `LICENSE` and the repo. |
 | 4 | **Platform independence** | ✅ | No mandatory proprietary dependency. The tool-calling brain runs on self-hosted open-weights via `LLM_PROVIDER=openai_compat` (vLLM/llama.cpp); the deterministic design/optimizer core needs no LLM at all; channels are abstracted (`ChannelAdapter` — Telegram, WhatsApp, REPL) with no channel imported by the brain (enforced by test). |
-| 5 | **Documentation** | ✅ | `README.md` (install, run, providers, channels), `docs/PLAN.md`, `docs/dpg/*`, in-code docstrings; test suite documents behavior. |
+| 5 | **Documentation** | ✅ | `README.md` (install and quick start), `docs/running.md`, `docs/configuration.md` (providers, channels, every setting), `docs/architecture.md`, `docs/evaluation.md`, `docs/PLAN.md`, `docs/dpg/*`, in-code docstrings; test suite documents behavior. |
 | 6 | **Data extraction / non-proprietary format** | ✅ | `/export` returns all of a user's data as open JSON; stored in SQLite (open format). Reachable in-chat; tested (`test_data_rights.py`). |
 | 7 | **Privacy & applicable laws** | ✅ | `docs/dpg/PRIVACY.md` — collection, purpose limitation, retention, access control, and in-chat `/export` + `/delete_me` (right to erasure). Data minimization by design; no training on user data. |
 | 8 | **Standards & best practices** | ✅ | Open standards: OpenAI-compatible API, WhatsApp Cloud API, sentence-transformers; TDD with a 300+ test suite; cited engineering model; CI on push/PR. |
