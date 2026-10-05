@@ -94,11 +94,16 @@ def count_questions(message: str) -> int:
 
 
 def count_words(message: str) -> int:
-    """Words, plus CJK characters counted one each (Chinese has no spaces)."""
+    """Words, with Chinese characters counted two to a word (rounded up).
+
+    Chinese has no spaces, so characters are the unit, but one character per word made a
+    Chinese reply read about twice as long as the same reply in English and failed the word
+    limits it should pass. Two characters per word is a rough rule of thumb, not a measured
+    ratio; it puts the two languages on the same scale closely enough for a length limit."""
     text = message or ""
     cjk = len(re.findall(r"[一-鿿]", text))
     latin = len(re.findall(r"[^\s一-鿿]+", re.sub(r"[一-鿿]", " ", text)))
-    return latin + cjk
+    return latin + (cjk + 1) // 2
 
 
 def reasked_keys(message: str, known: dict) -> list[str]:

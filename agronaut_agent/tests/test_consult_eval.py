@@ -12,9 +12,11 @@ def test_questions_are_counted_per_sentence_in_every_script():
     assert ce.count_questions("Got it.") == 0
 
 
-def test_chinese_characters_count_as_words():
+def test_chinese_characters_count_two_to_a_word():
     assert ce.count_words("Nice, love that.") == 3
-    assert ce.count_words("你好嗎") == 3
+    assert ce.count_words("你好嗎") == 2
+    assert ce.count_words("你好") == 1
+    assert ce.count_words("吳郭魚 tilapia 很好") == 1 + 2 + 1
 
 
 def test_reask_only_counts_questions_about_known_facts():
