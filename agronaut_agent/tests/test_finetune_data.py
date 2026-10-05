@@ -1,6 +1,7 @@
 """The fine-tuning data pipeline, checked without a teacher model or a GPU."""
 
 import json
+from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -286,3 +287,19 @@ def test_generate_writes_the_clean_prefix_of_a_failed_dialogue(tmp_path):
     assert not log["kept"] and log["examples"] == 1 and log["turn_failures"]
     assert stats["salvaged"] == 1 and stats["examples"] == 1
     assert json.loads(out.read_text())["messages"][-1]["content"] == "Nice. Where are you?"
+
+
+def test_tool_arguments_become_objects_for_qwen():
+    ex = {"messages": [{"role": "assistant", "content": "", "tool_calls": [
+        {"id": "c0", "type": "function",
+         "function": {"name": "size", "arguments": "{\"area_m2\": 2}"}}]}], "tools": []}
+    out = tl.for_qwen_template(ex)
+    assert out["messages"][0]["tool_calls"][0]["function"]["arguments"] == {"area_m2": 2}
+    assert isinstance(ex["messages"][0]["tool_calls"][0]["function"]["arguments"], str)
+
+
+def test_examples_too_long_for_the_window_are_dropped_not_truncated():
+    rows = [{"n": 100}, {"n": 17408}, {"n": 17409}]
+    kept, dropped = tl.drop_too_long(rows, lambda r: r["n"])
+    assert kept == rows[:2] and dropped == 1
+    assert tl.lora_config("m", Path("d"), Path("a"), 10)["max_seq_length"] == tl.MAX_SEQ_LENGTH

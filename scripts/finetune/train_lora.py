@@ -7,7 +7,11 @@ box the same data works with any trainer that reads OpenAI-shaped chat JSONL wit
 
 Steps, each skippable so a failed step can be resumed:
     split   dialogues.jsonl -> DIR/train.jsonl + DIR/valid.jsonl, split BY PERSONA so no
-            conversation has turns on both sides (a leaked dialogue flatters valid loss)
+            conversation has turns on both sides (a leaked dialogue flatters valid loss).
+            Tool-call arguments become objects (Qwen's template iterates them; the
+            OpenAI-style JSON string the generator writes makes it fail), and examples longer
+            than MAX_SEQ_LENGTH are dropped: mlx-lm truncates from the end, which is where
+            the target reply sits, so a truncated example trains on nothing
     train   python -m mlx_lm lora ... -> DIR/adapters/
     fuse    python -m mlx_lm fuse ... -> DIR/fused/
     ollama  DIR/Modelfile, then `ollama create agronaut-consult:4b -f DIR/Modelfile`
@@ -33,6 +37,9 @@ from pathlib import Path
 BASE_MODEL = "Qwen/Qwen3.5-4B"      # the weights behind Ollama's qwen3.5:4b (Apache-2.0)
 OLLAMA_NAME = "agronaut-consult:4b"
 NUM_CTX = 32768                      # match agent.llm.DEFAULT_OLLAMA_NUM_CTX (#181)
+# The system prompt and tool schemas alone are about 12K tokens; measured examples ran from
+# about 12.3K to 16.7K (median 13K), so the old 12288 cut every target off.
+MAX_SEQ_LENGTH = 17408
 
 
 def split_by_persona(lines: list[dict], valid_share: float = 0.1,
@@ -49,6 +56,34 @@ def split_by_persona(lines: list[dict], valid_share: float = 0.1,
     return train, valid
 
 
+def for_qwen_template(example: dict) -> dict:
+    """Tool-call arguments as objects: Qwen's chat template iterates them as a mapping."""
+    out = json.loads(json.dumps(example))
+    for msg in out.get("messages", []):
+        for call in msg.get("tool_calls") or []:
+            args = call.get("function", {}).get("arguments")
+            if isinstance(args, str):
+                call["function"]["arguments"] = json.loads(args or "{}")
+    return out
+
+
+def drop_too_long(rows: list[dict], count, limit: int = MAX_SEQ_LENGTH) -> tuple[list, int]:
+    """Rows whose rendered length (`count(row)` tokens) fits in `limit`, and how many did not."""
+    kept = [r for r in rows if count(r) <= limit]
+    return kept, len(rows) - len(kept)
+
+
+def _token_counter(model: str):
+    """Rendered length of one example with the model's own chat template."""
+    from transformers import AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(model)
+
+    def count(row: dict) -> int:
+        text = tok.apply_chat_template(row["messages"], tools=row.get("tools"), tokenize=False)
+        return len(tok(text)["input_ids"])
+    return count
+
+
 def lora_config(model: str, data_dir: Path, adapter_dir: Path, n_train: int,
                 epochs: float = 2.0, batch_size: int = 1, rank: int = 16) -> dict:
     """mlx-lm LoRA settings. Conservative: a small rank and few epochs teach STYLE without
@@ -57,7 +92,7 @@ def lora_config(model: str, data_dir: Path, adapter_dir: Path, n_train: int,
     return {
         "model": model, "train": True, "data": str(data_dir),
         "adapter_path": str(adapter_dir), "iters": iters, "batch_size": batch_size,
-        "learning_rate": 1e-4, "num_layers": 16, "max_seq_length": 12288,
+        "learning_rate": 1e-4, "num_layers": 16, "max_seq_length": MAX_SEQ_LENGTH,
         "grad_checkpoint": True, "mask_prompt": True,
         "lora_parameters": {"rank": rank, "scale": 20.0, "dropout": 0.05},
         "steps_per_eval": max(25, iters // 10), "save_every": max(50, iters // 5),
@@ -90,7 +125,11 @@ def main() -> int:  # pragma: no cover - CLI
     data_dir, adapters, fused = work / "data", work / "adapters", work / "fused"
 
     if "split" not in skip:
-        lines = [json.loads(ln) for ln in Path(args.data).read_text().splitlines() if ln.strip()]
+        lines = [for_qwen_template(json.loads(ln))
+                 for ln in Path(args.data).read_text().splitlines() if ln.strip()]
+        lines, too_long = drop_too_long(lines, _token_counter(args.model))
+        if too_long:
+            print(f"dropped {too_long} examples longer than {MAX_SEQ_LENGTH} tokens")
         train, valid = split_by_persona(lines)
         data_dir.mkdir(parents=True, exist_ok=True)
         for name, rows in (("train", train), ("valid", valid)):
