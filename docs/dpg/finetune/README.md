@@ -7,15 +7,19 @@ LoRA adapter, trained only on synthetic dialogues.
 ## 1. Generate dialogues (pilot first)
 
 ```bash
-AGRONAUT_FINETUNE_GEN=1 TEACHER_PROVIDER=anthropic TEACHER_MODEL=claude-sonnet-5 \
+AGRONAUT_FINETUNE_GEN=1 TEACHER_PROVIDER=ollama TEACHER_MODEL=<open-weights model> \
   python -m scripts.finetune.generate_dialogues --n 20 --out data/finetune/pilot.jsonl \
   --price-in <usd per M input tokens> --price-out <usd per M output tokens>
 ```
 
 The pilot prints tokens per dialogue and, given prices, the cost per 1,000 dialogues. Decide
-the full run size from that. Before a full run, confirm the teacher provider's terms allow its
-outputs to be used as training data; an open-weights teacher (for example through
-`TEACHER_PROVIDER=nvidia`) avoids the question.
+the full run size from that.
+
+The teacher must be named with `TEACHER_PROVIDER` and `TEACHER_MODEL`; it never falls back to
+`LLM_PROVIDER`. Claude is refused as teacher and as simulated user: Anthropic's Usage Policy
+forbids training a model on its outputs without prior authorization. Claude can still run the
+bot for users and the evaluations in step 3, which train nothing. Before a full run, confirm
+the teacher's licence and its host's terms allow its outputs to be used as training data.
 
 What the data is:
 - the teacher runs inside `AgronautAgent`, so tool calls hit the real tools;

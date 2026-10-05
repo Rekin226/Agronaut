@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from scripts.finetune import generate_dialogues as gd
@@ -153,3 +154,19 @@ def test_invoke_kwargs_reach_the_teacher():
     rec = gd.RecordingChat(_Inner(), invoke_kwargs={"chat_template_kwargs": {"x": 1}})
     rec.bind_tools([]).invoke([HumanMessage(content="q")])
     assert seen == {"chat_template_kwargs": {"x": 1}} and len(rec.calls) == 1
+
+
+def test_teacher_must_be_named_and_never_claude(monkeypatch):
+    with pytest.raises(SystemExit):
+        gd.resolve_teacher(None, None)
+    with pytest.raises(SystemExit):
+        gd.resolve_teacher("ollama", None)
+    for provider, model in [("anthropic", "claude-sonnet-5"), ("ANTHROPIC", "x"),
+                            ("openai_compat", "anthropic/claude-haiku-4-5")]:
+        with pytest.raises(SystemExit):
+            gd.resolve_teacher(provider, model)
+    monkeypatch.setenv("OPENAI_COMPAT_BASE_URL", "https://api.anthropic.com/v1/")
+    with pytest.raises(SystemExit):
+        gd.resolve_teacher("openai_compat", "some-model")
+    monkeypatch.delenv("OPENAI_COMPAT_BASE_URL")
+    assert gd.resolve_teacher(" Ollama ", "qwen3.5:27b") == ("ollama", "qwen3.5:27b")

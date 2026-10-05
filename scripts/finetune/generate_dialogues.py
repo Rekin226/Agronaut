@@ -30,8 +30,10 @@ Run it (a pilot first, to measure cost before a full run):
         --out data/finetune/pilot.jsonl
     # then read the printed token totals and price them before running --n 1500
 
-The teacher is TEACHER_PROVIDER / TEACHER_MODEL when set, else the configured model. Check
-the teacher provider's terms on using its outputs as training data before a full run.
+The teacher is TEACHER_PROVIDER / TEACHER_MODEL, both required: it never falls back to the
+configured model, because that is often Claude. Claude is refused as teacher and as simulated
+user, since Anthropic's Usage Policy forbids training a model on its outputs without prior
+authorization. Check any other teacher's terms on the same point before a full run.
 """
 
 from __future__ import annotations
@@ -261,6 +263,23 @@ def tool_schemas() -> list[dict]:
     return [convert_to_openai_tool(t) for t in AGRONAUT_TOOLS]
 
 
+def resolve_teacher(provider: str | None, model: str | None) -> tuple[str, str]:
+    """The teacher must be named explicitly and must not be Claude. Every simulated user turn
+    and every teacher reply ends up in the training data, and Anthropic's Usage Policy forbids
+    using its outputs to train a model without prior authorization. Claude still runs the bot
+    for users and may run evaluations; it never writes training data."""
+    if not provider or not model:
+        raise SystemExit("Set TEACHER_PROVIDER and TEACHER_MODEL. The teacher never falls back "
+                         "to LLM_PROVIDER, which is often Claude.")
+    provider = provider.strip().lower()
+    base_url = os.getenv("OPENAI_COMPAT_BASE_URL", "") if provider == "openai_compat" else ""
+    if provider == "anthropic" or "claude" in model.lower() or "anthropic.com" in base_url:
+        raise SystemExit("Claude cannot be the teacher or the simulated user: Anthropic's "
+                         "Usage Policy forbids training a model on its outputs without "
+                         "prior authorization. Use an open-weights teacher.")
+    return provider, model
+
+
 def teacher_invoke_kwargs(provider: str | None) -> dict:
     """Per-call options for the teacher. NVIDIA's Nemotron 3 models reason before answering
     unless told not to; the reasoning is slow, costs tokens, and must never become a
@@ -330,8 +349,7 @@ def main() -> int:  # pragma: no cover - CLI
 
     from agent.llm import get_chat_model
 
-    provider = os.getenv("TEACHER_PROVIDER")
-    model = os.getenv("TEACHER_MODEL")
+    provider, model = resolve_teacher(os.getenv("TEACHER_PROVIDER"), os.getenv("TEACHER_MODEL"))
     kw = teacher_invoke_kwargs(provider)
     actor = get_chat_model(provider, model, temperature=0.8)
 
