@@ -201,10 +201,10 @@ def test_turn_problems_name_what_to_fix():
     assert gd.turn_problems(_ctx("I have 2 m2"), AIMessage(content="Nice. Where are you?")) == []
     bad = gd.turn_problems(_ctx("hi"), AIMessage(
         content="Lettuce grows in 30 days. Where are you? Which fish?"))
-    assert any("2 questions" in p for p in bad) and any("(30 days)" in p for p in bad)
+    assert any("2 question marks" in p for p in bad) and any("(30 days)" in p for p in bad)
     # the system prompt is not a source
     assert gd.turn_problems(_ctx("hi"), AIMessage(content="It costs 999 FCFA."))
-    assert any("announces" in p for p in
+    assert any("without doing it" in p for p in
                gd.turn_problems(_ctx("hi"), AIMessage(content="稍等我一下，正在計算中")))
     assert any("words" in p for p in
                gd.turn_problems(_ctx("hi"), AIMessage(content="word " * 101)))
@@ -225,7 +225,7 @@ def test_a_failing_reply_is_redrafted_and_only_the_accepted_one_recorded():
     ctx = _ctx("hi")
     reply = rec.bind_tools([]).invoke(ctx)
     assert reply.content == "Where are you?" and len(seen) == 2
-    assert seen[1][-1].content.startswith(gd._OPERATOR) and "2 questions" in seen[1][-1].content
+    assert seen[1][-1].content.startswith(gd._OPERATOR) and "2 question marks" in seen[1][-1].content
     assert seen[1][-2].content == "Where? Which?"
     assert rec.calls == [(ctx, reply)] and len(rec.discarded) == 1 and rec.failures == []
 

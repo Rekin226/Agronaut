@@ -198,8 +198,8 @@ class RecordingChat:
 
 def revision_note(problems: list[str]) -> str:
     return (_OPERATOR + "That draft was not sent. Rewrite it for the same user, in the same "
-            "language: " + "; ".join(problems) + ". Reply with the rewritten message only, "
-            "or call a tool if the answer needs one.")
+            "language. What to fix:\n- " + "\n- ".join(problems) + "\nReply with the "
+            "rewritten message only, or call a tool if the answer needs one.")
 
 
 # Announced actions in the other languages the personas write (core._PROMISE covers English).
@@ -244,18 +244,30 @@ def turn_problems(messages, reply, max_words: int = 100) -> list[str]:
     out = []
     q = ce.count_questions(text)
     if q > 1:
-        out.append(f"it asks {q} questions, ask at most one")
+        # Most "two questions" are one question plus its answer choices, which the house
+        # style wants; the fix is to fold the choices in, so the note says exactly that.
+        out.append(f"it has {q} question marks, so it reads as {q} questions. Ask ONE "
+                   "question with ONE question mark at the very end. If you offer choices, "
+                   "put them inside that same sentence, for example \"Which would you like "
+                   "to grow, leafy greens like lettuce or fruiting crops like tomatoes?\", "
+                   "never as a second question or in brackets after the question mark")
     w = ce.count_words(text)
     if w > max_words:
-        out.append(f"it is {w} words, keep it under {max_words}")
+        out.append(f"it is {w} words, the limit is {max_words}. Keep only what the user "
+                   "needs right now, at most 3 short points, no tables, no headings, and "
+                   "leave the rest for a later message")
     if is_corrected(reply) or _PROMISE_MORE.search(text):
-        out.append("it announces an action instead of doing it, call the tool now or answer")
+        out.append("it says you will do something (\"let me calculate\", \"je vais\", "
+                   "\"稍等\") without doing it. Call the tool in this turn, or give the "
+                   "answer without announcing it")
     sources = [n for m in messages[1:] if not isinstance(m, AIMessage)
                for n in ce.numbers_in(_text(m.content))]
     figures = strict_untraced(text, sources)
     if figures:
         out.append("it states figures that no tool result or user message gave ("
-                   + ", ".join(figures[:6]) + "), get them from a tool or leave them out")
+                   + ", ".join(figures[:6]) + "). Quote a figure only exactly as a tool "
+                   "result or the user gave it; otherwise call the tool that computes it, or "
+                   "leave the figure out")
     return out
 
 
@@ -430,6 +442,7 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
             log.write(json.dumps({"persona": p["id"], "kept": not reasons, "reasons": reasons,
                                   "turns_to_advice": conv["turns_to_advice"],
                                   "transcript": conv["transcript"]}, ensure_ascii=False) + "\n")
+            log.flush()
             if reasons:
                 stats.setdefault("rejected_for", {})
                 for r in reasons:
@@ -441,6 +454,7 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
                 ex["persona"] = p["id"]
                 fh.write(json.dumps(ex, ensure_ascii=False) + "\n")
                 stats["examples"] += 1
+            fh.flush()                 # a crash late in a long run keeps what came before
     return stats
 
 
