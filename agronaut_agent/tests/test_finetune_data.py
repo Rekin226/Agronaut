@@ -170,3 +170,12 @@ def test_teacher_must_be_named_and_never_claude(monkeypatch):
         gd.resolve_teacher("openai_compat", "some-model")
     monkeypatch.delenv("OPENAI_COMPAT_BASE_URL")
     assert gd.resolve_teacher(" Ollama ", "qwen3.5:27b") == ("ollama", "qwen3.5:27b")
+
+
+def test_side_calls_resolve_to_the_teacher(monkeypatch):
+    from agent.llm import resolve
+
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("LLM_MODEL", "claude-sonnet-5")
+    gd.pin_models_to_teacher("ollama", "qwen3.5:27b")
+    assert resolve() == ("ollama", "qwen3.5:27b")

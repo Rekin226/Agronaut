@@ -280,6 +280,14 @@ def resolve_teacher(provider: str | None, model: str | None) -> tuple[str, str]:
     return provider, model
 
 
+def pin_models_to_teacher(provider: str, model: str) -> None:
+    """Point every model call in this process at the teacher. The agent makes side calls with
+    the configured model (the rolling memory summary, recalled into later prompts), and on a
+    machine configured for Claude those would put Claude's text into the training data."""
+    os.environ["LLM_PROVIDER"] = provider
+    os.environ["LLM_MODEL"] = model
+
+
 def teacher_invoke_kwargs(provider: str | None) -> dict:
     """Per-call options for the teacher. NVIDIA's Nemotron 3 models reason before answering
     unless told not to; the reasoning is slow, costs tokens, and must never become a
@@ -350,6 +358,7 @@ def main() -> int:  # pragma: no cover - CLI
     from agent.llm import get_chat_model
 
     provider, model = resolve_teacher(os.getenv("TEACHER_PROVIDER"), os.getenv("TEACHER_MODEL"))
+    pin_models_to_teacher(provider, model)
     kw = teacher_invoke_kwargs(provider)
     actor = get_chat_model(provider, model, temperature=0.8)
 
