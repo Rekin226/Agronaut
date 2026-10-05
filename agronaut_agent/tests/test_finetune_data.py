@@ -257,3 +257,32 @@ def test_the_question_note_quotes_the_question_sentences():
     assert gd.question_sentences("你有多大空間呢？比如說幾坪？") == ["你有多大空間呢？", "比如說幾坪？"]
     note = gd.turn_problems(_ctx("I have 10 m2"), AIMessage(content=text))[0]
     assert "\u00abThe hard truth?\u00bb" in note and "ONE question mark" in note
+
+
+def test_a_failed_dialogue_keeps_its_clean_prefix():
+    fails = [{"call": 3, "problems": ["x"]}, {"call": 5, "problems": ["y"]}]
+    assert gd.salvage_cut(8, [], []) == 8
+    assert gd.salvage_cut(8, fails, ["2 replies still failing after the last draft"]) == 3
+    assert gd.salvage_cut(8, [], ["median 82 words"]) == 8
+    assert gd.salvage_cut(8, fails, ["re-asked a known fact"]) == 0
+    assert gd.salvage_cut(8, fails, ["untraced numbers: 2m²", "1 replies still failing"]) == 0
+    assert gd.salvage_cut(1, [], ["only 1 assistant replies"]) == 0
+
+
+def test_generate_writes_the_clean_prefix_of_a_failed_dialogue(tmp_path):
+    replies = iter(["Nice. Where are you?", "Where? Which?", "Where? Which?", "Fine."] * 4)
+
+    class _T:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages, **kw):
+            return AIMessage(content=next(replies))
+    out = tmp_path / "d.jsonl"
+    stats = gd.generate(gd.persona_grid(1), _T,
+                        lambda s, turns: gd.ce.DONE if len(turns) >= 6 else "Ouaga", out,
+                        check=gd.turn_problems, max_drafts=2)
+    log = json.loads(out.with_suffix(".dialogues.jsonl").read_text())
+    assert not log["kept"] and log["examples"] == 1 and log["turn_failures"]
+    assert stats["salvaged"] == 1 and stats["examples"] == 1
+    assert json.loads(out.read_text())["messages"][-1]["content"] == "Nice. Where are you?"

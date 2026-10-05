@@ -31,7 +31,9 @@ What the data is:
   kind (price, yield, count, months) that no tool result or user message gave. A failing
   reply is redrafted with a note naming what broke, up to `--max-drafts` (4) drafts; only the
   original context and the accepted reply are recorded. A reply still failing on its last
-  draft rejects the dialogue. Code is the only judge, so no model's opinion enters the data;
+  draft rejects the dialogue, but the replies before it are still used: each passed every
+  check and saw only accepted replies. Code is the only judge, so no model's opinion enters
+  the data. Which check each stuck reply failed is logged in `<out>.dialogues.jsonl`;
 - a dialogue is kept only if it passes `consult_eval`'s code metrics (no dashes, median reply
   under 80 words, at least 90% of replies asking one question or none, nothing re-asked);
 - replies the loop would have corrected (fabricated `[earlier result ...]`, announced actions

@@ -159,7 +159,7 @@ class RecordingChat:
     `max_drafts` times in all: the teacher gets its draft back with a note listing the
     problems. The recorded example is still (original messages, accepted reply). Discarded
     drafts are kept in `discarded` for token counts, and a reply still failing on the last
-    draft is noted in `failures`."""
+    draft is noted in `failures` as {"call": its index in `calls`, "problems": [...]}."""
 
     def __init__(self, inner, calls: list | None = None, invoke_kwargs: dict | None = None,
                  check=None, max_drafts: int = 1, discarded: list | None = None,
@@ -191,7 +191,7 @@ class RecordingChat:
             reply = call(list(messages) + [reply, HumanMessage(content=revision_note(problems))])
             problems = self._check(messages, reply)
         if problems:
-            self.failures.append(problems)
+            self.failures.append({"call": len(self.calls), "problems": problems})
         self.calls.append((list(messages), reply))
         return reply
 
@@ -387,6 +387,23 @@ def dialogue_passes(conv: dict, **kw) -> bool:
     return not rejection_reasons(conv, **kw)
 
 
+def salvage_cut(n_calls: int, failures: list[dict], reasons: list[str]) -> int:
+    """How many of a dialogue's recorded calls may become training examples.
+
+    All of them when it passed. When it failed only because some reply ran out of drafts,
+    the calls before the first such reply: each passed the per-reply checks and saw only
+    accepted replies in its context, so they are as clean as a kept dialogue's. A median or
+    question share over the limit is a whole-dialogue average that every single reply here
+    already met, so it costs nothing. A re-asked fact, an untraced figure the per-reply
+    check did not catch, or a dialogue too short to teach a consultation cannot be pinned to
+    one reply, so those keep nothing."""
+    if not reasons:
+        return n_calls
+    if any(r.startswith(("re-asked", "untraced", "only ")) for r in reasons):
+        return 0
+    return failures[0]["call"] if failures else n_calls
+
+
 # --- the run -----------------------------------------------------------------------------
 
 def tool_schemas() -> list[dict]:
@@ -461,7 +478,11 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
             stats["redrafted"] += len(rec.discarded)
             conv["failed_turns"] = len(rec.failures)
             reasons = rejection_reasons(conv)
+            cut = salvage_cut(len(rec.calls), rec.failures, reasons)
+            examples = examples_from_calls(rec.calls[:cut], p.get("channel", "whatsapp"), tools)
             log.write(json.dumps({"persona": p["id"], "kept": not reasons, "reasons": reasons,
+                                  "examples": len(examples), "of_calls": len(rec.calls),
+                                  "turn_failures": [f["problems"] for f in rec.failures],
                                   "turns_to_advice": conv["turns_to_advice"],
                                   "transcript": conv["transcript"]}, ensure_ascii=False) + "\n")
             log.flush()
@@ -470,9 +491,11 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
                 for r in reasons:
                     key = r.split(":")[0].split(" ", 1)[-1] if r[0].isdigit() else r.split(":")[0]
                     stats["rejected_for"][key] = stats["rejected_for"].get(key, 0) + 1
-                continue
-            stats["kept"] += 1
-            for ex in examples_from_calls(rec.calls, p.get("channel", "whatsapp"), tools):
+                if examples:
+                    stats["salvaged"] = stats.get("salvaged", 0) + 1
+            else:
+                stats["kept"] += 1
+            for ex in examples:
                 ex["persona"] = p["id"]
                 fh.write(json.dumps(ex, ensure_ascii=False) + "\n")
                 stats["examples"] += 1
