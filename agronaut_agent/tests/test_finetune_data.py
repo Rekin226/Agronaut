@@ -188,6 +188,9 @@ def test_strict_figures_cover_prices_counts_and_months():
     # list markers, small integers and numbers inside words are not figures
     assert gd.strict_untraced("1. Add 2 airstones\n2. Check CO2 and NO3 in 1 week", []) == []
     assert gd.strict_untraced("Tilapia need 28 °C", [28.0]) == []
+    # a small number with a unit is a figure, as consult_eval's dialogue check reads it
+    assert gd.strict_untraced("cut 2 cm off the roots", []) == ["2 cm"]
+    assert gd.strict_untraced("add 1 air stone", []) == []
 
 
 def _ctx(*user):
@@ -243,3 +246,11 @@ def test_a_reply_out_of_drafts_fails_the_dialogue():
     conv = _conv()
     conv["failed_turns"] = 1
     assert "1 replies still failing after the last draft" in gd.rejection_reasons(conv)
+
+
+def test_the_question_note_quotes_the_question_sentences():
+    text = "Payback takes 24 years. The hard truth? It stays a hobby. Want me to check 10 m2?"
+    assert gd.question_sentences(text) == ["The hard truth?", "Want me to check 10 m2?"]
+    assert gd.question_sentences("你有多大空間呢？比如說幾坪？") == ["你有多大空間呢？", "比如說幾坪？"]
+    note = gd.turn_problems(_ctx("I have 10 m2"), AIMessage(content=text))[0]
+    assert "\u00abThe hard truth?\u00bb" in note and "ONE question mark" in note

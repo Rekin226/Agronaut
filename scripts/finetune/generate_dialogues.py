@@ -216,16 +216,30 @@ def strict_untraced(text: str, sources: list[float], tol: float = 0.05) -> list[
 
     Stricter than the runtime grounding check, which only reads physical units: training data
     must not teach the student to quote prices, yields, counts or months that nothing gave.
-    List markers and the integers 0 to 3 ("one question", "2 options") are not figures."""
+    List markers and the bare integers 0 to 3 ("2 options") are not figures; "2 cm" is."""
     out = []
     body = _LIST_MARKER.sub(" ", text or "")
     for m in _FIGURE.finditer(body):
         v = ce._to_float(m.group(1))
-        if v is None or (v == int(v) and 0 <= v <= 3):
+        if v is None:
+            continue
+        # a small bare count is wording; with a unit after it ("2 cm") it is a figure, and
+        # consult_eval's dialogue check would reject it after the teacher had no chance
+        if v == int(v) and 0 <= v <= 3 and not ce._QUANTITY.match(body, m.start()):
             continue
         if not any(abs(v - src) <= max(tol * max(abs(src), abs(v)), 0.051) for src in sources):
             unit = _UNIT_AFTER.match(body, m.end())
             out.append(m.group(1) + (unit.group(0) if unit else ""))
+    return out
+
+
+def question_sentences(text: str) -> list[str]:
+    """The pieces of `text` that end in a question mark, trimmed to their own sentence."""
+    out = []
+    for m in re.finditer(r"[^?？؟\n]*[?？؟]+", text or ""):
+        piece = re.split(r"(?<=[.!。！:：])\s*", m.group(0).strip())[-1].strip()
+        if piece:
+            out.append(piece[:120])
     return out
 
 
@@ -244,13 +258,17 @@ def turn_problems(messages, reply, max_words: int = 100) -> list[str]:
     out = []
     q = ce.count_questions(text)
     if q > 1:
-        # Most "two questions" are one question plus its answer choices, which the house
-        # style wants; the fix is to fold the choices in, so the note says exactly that.
-        out.append(f"it has {q} question marks, so it reads as {q} questions. Ask ONE "
-                   "question with ONE question mark at the very end. If you offer choices, "
-                   "put them inside that same sentence, for example \"Which would you like "
-                   "to grow, leafy greens like lettuce or fruiting crops like tomatoes?\", "
-                   "never as a second question or in brackets after the question mark")
+        # Most "two questions" are one question plus its answer choices, a rhetorical "The
+        # hard truth?", or a closing "Want me to...?" offer. A generic note did not move the
+        # teacher, so the note quotes its own question sentences back to it.
+        quoted = " ".join(f"\u00ab{x}\u00bb" for x in question_sentences(text)[:4])
+        out.append(f"it has {q} question marks: {quoted}. Keep exactly ONE question mark, "
+                   "at the end of the one question that matters now. Turn the others into "
+                   "statements or drop them: a rhetorical \"The hard truth?\" becomes \"The "
+                   "hard truth is that...\", examples become part of the question "
+                   "(\"Which would you like to grow, leafy greens like lettuce or fruiting "
+                   "crops like tomatoes?\"), and drop a closing offer such as \"Want me "
+                   "to...?\" when you already asked something")
     w = ce.count_words(text)
     if w > max_words:
         out.append(f"it is {w} words, the limit is {max_words}. Keep only what the user "
