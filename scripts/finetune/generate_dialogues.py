@@ -15,9 +15,15 @@ How one dialogue is made:
      learns the policy, including when to call a tool, not just the final prose.
   4. Final text targets are passed through style.polish_reply, so the student learns the
      house style directly instead of relying on the post-pass.
-  5. Whole dialogues are kept only if they pass consult_eval's code metrics; single examples
-     are dropped when the loop had to correct them (a fabricated "[earlier result ...]" or an
-     announced action with no tool call), because a corrected reply is not one to imitate.
+  5. Each final reply is checked in code as it is made (at most one question, a word cap, no
+     announced action without a tool call, no figure that no tool result or user message
+     gave). A failing reply is redrafted: the teacher sees its draft and a note naming what
+     broke, up to --max-drafts times. Only the original context and the accepted reply are
+     recorded, so the note never reaches the training data. Nothing but code judges a reply.
+  6. Whole dialogues are kept only if they pass consult_eval's code metrics and no reply ran
+     out of drafts; single examples are dropped when the loop had to correct them (a
+     fabricated "[earlier result ...]" or an announced action with no tool call), because a
+     corrected reply is not one to imitate.
 
 Output: JSONL, one example per line, {"messages": [...], "tools": [...]} in the OpenAI chat
 shape that mlx-lm and most trainers read. The system prompt and recall are merged into one
@@ -42,6 +48,7 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -146,20 +153,110 @@ class RecordingChat:
     """Wraps a chat model; every invoke(messages) -> reply is kept for training.
 
     `invoke_kwargs` ride along on every call (e.g. switching a reasoning model's thinking
-    off), and transient provider errors are retried rather than losing the dialogue."""
+    off), and transient provider errors are retried rather than losing the dialogue.
 
-    def __init__(self, inner, calls: list | None = None, invoke_kwargs: dict | None = None):
+    With a `check` (messages, reply) -> problems, a reply with problems is redrafted up to
+    `max_drafts` times in all: the teacher gets its draft back with a note listing the
+    problems. The recorded example is still (original messages, accepted reply). Discarded
+    drafts are kept in `discarded` for token counts, and a reply still failing on the last
+    draft is noted in `failures`."""
+
+    def __init__(self, inner, calls: list | None = None, invoke_kwargs: dict | None = None,
+                 check=None, max_drafts: int = 1, discarded: list | None = None,
+                 failures: list | None = None):
         self._inner = inner
         self.calls = calls if calls is not None else []
         self._kw = invoke_kwargs or {}
+        self._check = check
+        self._max_drafts = max(1, max_drafts)
+        self.discarded = discarded if discarded is not None else []
+        self.failures = failures if failures is not None else []
 
     def bind_tools(self, tools):
-        return RecordingChat(self._inner.bind_tools(tools), self.calls, self._kw)
+        return RecordingChat(self._inner.bind_tools(tools), self.calls, self._kw, self._check,
+                             self._max_drafts, self.discarded, self.failures)
 
     def invoke(self, messages, *args, **kwargs):
-        reply = with_retries(lambda: self._inner.invoke(messages, *args, **{**self._kw, **kwargs}))
+        from langchain_core.messages import HumanMessage
+
+        def call(msgs):
+            return with_retries(lambda: self._inner.invoke(msgs, *args, **{**self._kw, **kwargs}))
+
+        reply = call(messages)
+        problems = self._check(messages, reply) if self._check else []
+        for _ in range(self._max_drafts - 1):
+            if not problems:
+                break
+            self.discarded.append(reply)
+            reply = call(list(messages) + [reply, HumanMessage(content=revision_note(problems))])
+            problems = self._check(messages, reply)
+        if problems:
+            self.failures.append(problems)
         self.calls.append((list(messages), reply))
         return reply
+
+
+def revision_note(problems: list[str]) -> str:
+    return (_OPERATOR + "That draft was not sent. Rewrite it for the same user, in the same "
+            "language: " + "; ".join(problems) + ". Reply with the rewritten message only, "
+            "or call a tool if the answer needs one.")
+
+
+# Announced actions in the other languages the personas write (core._PROMISE covers English).
+_PROMISE_MORE = re.compile(r"\b(je vais|laisse[- ]moi|je m'en occupe)\b|稍等|正在(計算|计算|查|幫|帮)|"
+                           r"我(來|来)(幫你|帮你)?(算|查|計算|计算)", re.I)
+# A number standing on its own: not part of a word or code (CO2, A1, m2, qwen3).
+_FIGURE = re.compile(rf"(?<![A-Za-z0-9_.])({ce._NUM})")
+_LIST_MARKER = re.compile(r"(?m)^\s*\d{1,2}[.)、]\s")
+_UNIT_AFTER = re.compile(r"\s?(?:[A-Za-z%°²³/$€]{1,5}|[一-鿿]{1,2})")
+
+
+def strict_untraced(text: str, sources: list[float], tol: float = 0.05) -> list[str]:
+    """Every figure in `text` that matches no source number within `tol`, whatever its unit.
+
+    Stricter than the runtime grounding check, which only reads physical units: training data
+    must not teach the student to quote prices, yields, counts or months that nothing gave.
+    List markers and the integers 0 to 3 ("one question", "2 options") are not figures."""
+    out = []
+    body = _LIST_MARKER.sub(" ", text or "")
+    for m in _FIGURE.finditer(body):
+        v = ce._to_float(m.group(1))
+        if v is None or (v == int(v) and 0 <= v <= 3):
+            continue
+        if not any(abs(v - src) <= max(tol * max(abs(src), abs(v)), 0.051) for src in sources):
+            unit = _UNIT_AFTER.match(body, m.end())
+            out.append(m.group(1) + (unit.group(0) if unit else ""))
+    return out
+
+
+def turn_problems(messages, reply, max_words: int = 100) -> list[str]:
+    """What is wrong with one final reply, in words the teacher can act on; [] when fine.
+    Tool calls pass: the loop runs them and the reply that follows is checked in its turn.
+    Sources are what core._check_grounding reads: every message but the system prompt and
+    the model's own."""
+    from langchain_core.messages import AIMessage
+
+    if getattr(reply, "tool_calls", None):
+        return []
+    text = _text(getattr(reply, "content", ""))
+    if not text.strip():
+        return ["it was empty"]
+    out = []
+    q = ce.count_questions(text)
+    if q > 1:
+        out.append(f"it asks {q} questions, ask at most one")
+    w = ce.count_words(text)
+    if w > max_words:
+        out.append(f"it is {w} words, keep it under {max_words}")
+    if is_corrected(reply) or _PROMISE_MORE.search(text):
+        out.append("it announces an action instead of doing it, call the tool now or answer")
+    sources = [n for m in messages[1:] if not isinstance(m, AIMessage)
+               for n in ce.numbers_in(_text(m.content))]
+    figures = strict_untraced(text, sources)
+    if figures:
+        out.append("it states figures that no tool result or user message gave ("
+                   + ", ".join(figures[:6]) + "), get them from a tool or leave them out")
+    return out
 
 
 def to_chat_messages(messages) -> list[dict]:
@@ -247,6 +344,8 @@ def rejection_reasons(conv: dict, max_median_words: int = 80,
         out.append("re-asked a known fact")
     if any(m.get("untraced") for m in msgs):
         out.append("untraced numbers: " + ", ".join(u for m in msgs for u in m["untraced"])[:80])
+    if conv.get("failed_turns"):
+        out.append(f"{conv['failed_turns']} replies still failing after the last draft")
     return out
 
 
@@ -298,18 +397,20 @@ def teacher_invoke_kwargs(provider: str | None) -> dict:
 
 
 def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
-             invoke_kwargs: dict | None = None) -> dict:
+             invoke_kwargs: dict | None = None, check=None, max_drafts: int = 1) -> dict:
     from agronaut_agent.core import AgronautAgent
 
     tools = tool_schemas()
     tmp = Path(tempfile.mkdtemp(prefix="finetune_gen_"))
-    stats = {"dialogues": 0, "kept": 0, "examples": 0, "tokens_in": 0, "tokens_out": 0}
+    stats = {"dialogues": 0, "kept": 0, "examples": 0, "tokens_in": 0, "tokens_out": 0,
+             "replies": 0, "redrafted": 0}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     log_path = out_path.with_suffix(".dialogues.jsonl")
     with out_path.open("a", encoding="utf-8") as fh, log_path.open("a", encoding="utf-8") as log:
         for i, p in enumerate(personas):
             print(f"  {p['id']} ({i + 1}/{len(personas)})", file=sys.stderr, flush=True)
-            rec = RecordingChat(teacher_factory(), invoke_kwargs=invoke_kwargs)
+            rec = RecordingChat(teacher_factory(), invoke_kwargs=invoke_kwargs, check=check,
+                                max_drafts=max_drafts)
             agent_factory = lambda: AgronautAgent(db_path=tmp / f"{p['id']}.sqlite3",  # noqa: E731
                                                   chat_model=rec)
             try:
@@ -318,10 +419,13 @@ def generate(personas: list[dict], teacher_factory, simulate, out_path: Path,
                 print(f"    failed: {exc}", file=sys.stderr)
                 continue
             stats["dialogues"] += 1
-            for _, reply in rec.calls:
+            for reply in [r for _, r in rec.calls] + rec.discarded:
                 usage = getattr(reply, "usage_metadata", None) or {}
                 stats["tokens_in"] += usage.get("input_tokens", 0)
                 stats["tokens_out"] += usage.get("output_tokens", 0)
+            stats["replies"] += len(rec.calls)
+            stats["redrafted"] += len(rec.discarded)
+            conv["failed_turns"] = len(rec.failures)
             reasons = rejection_reasons(conv)
             log.write(json.dumps({"persona": p["id"], "kept": not reasons, "reasons": reasons,
                                   "turns_to_advice": conv["turns_to_advice"],
@@ -350,6 +454,9 @@ def main() -> int:  # pragma: no cover - CLI
     ap.add_argument("--out", default="data/finetune/dialogues.jsonl")
     ap.add_argument("--price-in", type=float, help="teacher price per million input tokens")
     ap.add_argument("--price-out", type=float, help="teacher price per million output tokens")
+    ap.add_argument("--max-drafts", type=int, default=4,
+                    help="drafts per reply before it counts as failed (1 turns redrafting off)")
+    ap.add_argument("--max-words", type=int, default=100, help="word cap for one reply")
     args = ap.parse_args()
     if os.getenv("AGRONAUT_FINETUNE_GEN") != "1":
         print("This calls a paid teacher model many times. Set AGRONAUT_FINETUNE_GEN=1 to run.")
@@ -373,7 +480,8 @@ def main() -> int:  # pragma: no cover - CLI
         personas = json.loads(ce._SCENARIOS.read_text())["scenarios"] + personas
     with ce._RestoreClimateFiles():
         stats = generate(personas, lambda: get_chat_model(provider, model), simulate,
-                         Path(args.out), invoke_kwargs=kw)
+                         Path(args.out), invoke_kwargs=kw, max_drafts=args.max_drafts,
+                         check=lambda msgs, reply: turn_problems(msgs, reply, args.max_words))
     print(json.dumps(stats, indent=1))
     if stats["dialogues"]:
         per = {k: stats[k] / stats["dialogues"] for k in ("tokens_in", "tokens_out")}

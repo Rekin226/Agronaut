@@ -26,6 +26,12 @@ What the data is:
 - each teacher call is one example (full context in, the teacher's reply out), so the student
   learns when to call a tool, not only how to phrase an answer;
 - text targets are passed through `style.polish_reply`;
+- each final reply is checked in code as it is made: at most one question, at most
+  `--max-words` (100) words, no announced action without a tool call, and no figure of any
+  kind (price, yield, count, months) that no tool result or user message gave. A failing
+  reply is redrafted with a note naming what broke, up to `--max-drafts` (4) drafts; only the
+  original context and the accepted reply are recorded. A reply still failing on its last
+  draft rejects the dialogue. Code is the only judge, so no model's opinion enters the data;
 - a dialogue is kept only if it passes `consult_eval`'s code metrics (no dashes, median reply
   under 80 words, at least 90% of replies asking one question or none, nothing re-asked);
 - replies the loop would have corrected (fabricated `[earlier result ...]`, announced actions

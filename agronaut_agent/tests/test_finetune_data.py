@@ -179,3 +179,67 @@ def test_side_calls_resolve_to_the_teacher(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "claude-sonnet-5")
     gd.pin_models_to_teacher("ollama", "qwen3.5:27b")
     assert resolve() == ("ollama", "qwen3.5:27b")
+
+
+def test_strict_figures_cover_prices_counts_and_months():
+    text = "每月約 15-20 顆，每顆 15 元，回本 5.6 個月。PVC 管 11cm"
+    assert gd.strict_untraced(text, []) == ["15", "20 顆", "15 元", "5.6 個月", "11cm"]
+    assert gd.strict_untraced(text, [15, 20, 5.6, 11]) == []
+    # list markers, small integers and numbers inside words are not figures
+    assert gd.strict_untraced("1. Add 2 airstones\n2. Check CO2 and NO3 in 1 week", []) == []
+    assert gd.strict_untraced("Tilapia need 28 °C", [28.0]) == []
+
+
+def _ctx(*user):
+    return [SystemMessage(content="prompt with 999 in it")] + [HumanMessage(content=u)
+                                                               for u in user]
+
+
+def test_turn_problems_name_what_to_fix():
+    assert gd.turn_problems(_ctx("hi"), AIMessage(content="", tool_calls=[
+        {"name": "x", "args": {}, "id": "1"}])) == []
+    assert gd.turn_problems(_ctx("I have 2 m2"), AIMessage(content="Nice. Where are you?")) == []
+    bad = gd.turn_problems(_ctx("hi"), AIMessage(
+        content="Lettuce grows in 30 days. Where are you? Which fish?"))
+    assert any("2 questions" in p for p in bad) and any("(30 days)" in p for p in bad)
+    # the system prompt is not a source
+    assert gd.turn_problems(_ctx("hi"), AIMessage(content="It costs 999 FCFA."))
+    assert any("announces" in p for p in
+               gd.turn_problems(_ctx("hi"), AIMessage(content="稍等我一下，正在計算中")))
+    assert any("words" in p for p in
+               gd.turn_problems(_ctx("hi"), AIMessage(content="word " * 101)))
+    assert gd.turn_problems(_ctx("hi"), AIMessage(content="  ")) == ["it was empty"]
+
+
+def test_a_failing_reply_is_redrafted_and_only_the_accepted_one_recorded():
+    seen = []
+
+    class _Inner:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages, **kw):
+            seen.append(list(messages))
+            return AIMessage(content="Where? Which?" if len(seen) == 1 else "Where are you?")
+    rec = gd.RecordingChat(_Inner(), check=gd.turn_problems, max_drafts=4)
+    ctx = _ctx("hi")
+    reply = rec.bind_tools([]).invoke(ctx)
+    assert reply.content == "Where are you?" and len(seen) == 2
+    assert seen[1][-1].content.startswith(gd._OPERATOR) and "2 questions" in seen[1][-1].content
+    assert seen[1][-2].content == "Where? Which?"
+    assert rec.calls == [(ctx, reply)] and len(rec.discarded) == 1 and rec.failures == []
+
+
+def test_a_reply_out_of_drafts_fails_the_dialogue():
+    class _Stubborn:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages, **kw):
+            return AIMessage(content="Where? Which?")
+    rec = gd.RecordingChat(_Stubborn(), check=gd.turn_problems, max_drafts=3)
+    rec.invoke(_ctx("hi"))
+    assert len(rec.discarded) == 2 and len(rec.failures) == 1
+    conv = _conv()
+    conv["failed_turns"] = 1
+    assert "1 replies still failing after the last draft" in gd.rejection_reasons(conv)
