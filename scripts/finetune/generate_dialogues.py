@@ -122,8 +122,8 @@ def persona_grid(n: int, seed: int = 7) -> list[dict]:
             "experience": experience,
             "max_turns": 8,
             "opening": opening,
-            "persona": (f"A {experience} in {place} who wants to {wish}. They "
-                        f"{rng.choice(_QUIRKS)}. They write the opening in their own words."),
+            "persona": (f"{'An' if experience[0] in 'aeiou' else 'A'} {experience} in {place} who wants to {wish}. This person "
+                        f"{rng.choice(_QUIRKS)}, and writes the opening in their own words."),
             "facts": facts,
         })
     return out
@@ -211,8 +211,12 @@ _LIST_MARKER = re.compile(r"(?m)^\s*\d{1,2}[.)、]\s")
 _UNIT_AFTER = re.compile(r"\s?(?:[A-Za-z%°²³/$€]{1,5}|[一-鿿]{1,2})")
 
 
-def strict_untraced(text: str, sources: list[float], tol: float = 0.05) -> list[str]:
+def strict_untraced(text: str, sources: list[float], tol: float = 0.02) -> list[str]:
     """Every figure in `text` that matches no source number within `tol`, whatever its unit.
+
+    `tol` is 2%, not consult_eval's 5%: in pilot 2 a reply reported a "loss of 3,900 to 2,800"
+    that the arithmetic does not give, and 2,800 passed because it sits within 5% of a tool's
+    2,700. Honest rounding ("574" written "about 570") is well inside 2%.
 
     Stricter than the runtime grounding check, which only reads physical units: training data
     must not teach the student to quote prices, yields, counts or months that nothing gave.

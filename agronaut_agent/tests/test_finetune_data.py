@@ -185,6 +185,9 @@ def test_strict_figures_cover_prices_counts_and_months():
     text = "每月約 15-20 顆，每顆 15 元，回本 5.6 個月。PVC 管 11cm"
     assert gd.strict_untraced(text, []) == ["15", "20 顆", "15 元", "5.6 個月", "11cm"]
     assert gd.strict_untraced(text, [15, 20, 5.6, 11]) == []
+    # 2% tolerance: rounding passes, a nearby wrong figure does not
+    assert gd.strict_untraced("about 570 TWD", [574.0]) == []
+    assert gd.strict_untraced("a loss of 2,800", [2700.0]) == ["2,800"]
     # list markers, small integers and numbers inside words are not figures
     assert gd.strict_untraced("1. Add 2 airstones\n2. Check CO2 and NO3 in 1 week", []) == []
     assert gd.strict_untraced("Tilapia need 28 °C", [28.0]) == []
