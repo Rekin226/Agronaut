@@ -172,7 +172,12 @@ it may call the claim supported; code then checks that the quote really is in th
 Sentences about the sources themselves ("the context does not specify…", "consult other
 resources") are not claims and are left out.
 
-**Measured (2026-10-03):** 33 golden-set answers written by Claude Sonnet 5, 479 claims.
+**Latest (2026-10-06):** fresh answers by Claude Sonnet 5, 484 claims, judged by gpt-oss-20b
+with the quote-first prompt: **faithfulness 0.79**, citation accuracy 1.00, response relevancy
+0.44 (`docs/dpg/faithfulness_eval/2026-10-06_run.json`, the current report). Its judge's
+agreement with a person was measured on the 2026-09-30 answers below, where the labels are.
+
+**Judges compared (2026-10-03, on the 2026-09-30 answers):** 479 claims.
 
 | | faithfulness | agreement with a person (kappa, 29 claims) |
 |---|---|---|
