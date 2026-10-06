@@ -135,7 +135,8 @@ agronaut eval        # every quality measurement, its last result and its age
 - **The season simulator** was scored against 7 real ponds on held-out data. It got the
   **direction** of change right on 5 of 7, but did not beat a simple trend baseline on the
   **level** on any of them. Use it to compare options, not to predict a number.
-- **Answer faithfulness** is 0.84 to 0.90, with no fabricated citations. The automated judge
+- **Answer faithfulness** is about 0.8 (0.79 on fresh answers on 2026-10-06, 0.84 on the
+  2026-09-30 answers under the same judge), with no fabricated citations. The automated judge
   agrees with a person only fairly, so treat this as a guide.
 - **Not modelled yet:** dissolved oxygen, pH and alkalinity, solids handling, staggered
   harvests, micronutrients. Every design lists its own gaps.

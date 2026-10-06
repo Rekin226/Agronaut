@@ -403,3 +403,13 @@ def test_reviewed_labels_override_only_what_was_reviewed():
     data = {"labels": {"a": True, "b": False}, "reviewed": {"b": True}}
     assert fe.reviewed_labels(data) == {"a": True, "b": True}
     assert data["labels"]["b"] is False             # the blind label is never rewritten
+
+
+def test_a_citation_cut_short_from_a_retrieved_label_is_not_fabricated():
+    """2026-10-06: the answer cited the book by authors and year only."""
+    retrieved = ["Goddek, Joyce, Kotzen & Burnell eds. (2019), Aquaponics Food Production "
+                 "Systems, Springer Open"]
+    assert fe.citation_accuracy("x [source: Goddek, Joyce, Kotzen & Burnell eds. (2019)]",
+                                retrieved) == (1.0, [])
+    # too short to name one source: still fabricated
+    assert fe.citation_accuracy("x [source: Goddek]", retrieved)[1] == ["Goddek"]

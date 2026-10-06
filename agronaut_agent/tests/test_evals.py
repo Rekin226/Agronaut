@@ -383,12 +383,13 @@ def test_worst_prints_topics_and_claims_from_the_saved_report(monkeypatch, tmp_p
 
 def test_the_current_report_wins_over_a_newer_experiment(tmp_path):
     """2026-10-04: a Claude-judged chunking experiment was picked up as 'the newest' and shown
-    where the baseline belonged."""
-    for name in ("2026-09-30_baseline.json", "2026-10-03_sentence_chunks_on.json"):
+    where the report of record belonged."""
+    from scripts.faithfulness_eval import CURRENT_REPORT
+    for name in (CURRENT_REPORT.name, "2099-01-01_experiment.json"):
         (tmp_path / name).write_text("{}")
-    assert evals.answers_report_path(directory=tmp_path).name == "2026-09-30_baseline.json"
-    assert evals.answers_report_path("2026-10-03_sentence_chunks_on",
-                                     tmp_path).name == "2026-10-03_sentence_chunks_on.json"
+    assert evals.answers_report_path(directory=tmp_path).name == CURRENT_REPORT.name
+    assert evals.answers_report_path("2099-01-01_experiment",
+                                     tmp_path).name == "2099-01-01_experiment.json"
     assert evals.answers_report_path("missing", tmp_path) is None
 
 
@@ -399,10 +400,13 @@ def test_labels_are_used_only_with_the_report_they_were_made_on(tmp_path):
     assert evals.labels_for("2026-10-03_sentence_chunks_on.json", tmp_path) is None
 
 
-def test_the_shipped_labels_name_the_current_report():
+def test_the_shipped_reports_and_labels_exist():
+    """The current report and the report the labels were made on both ship; they may differ
+    (2026-10-06: a fresh run became current, the labels stay on the 2026-09-30 baseline)."""
     from scripts.faithfulness_eval import CURRENT_REPORT
     data = json.loads((CURRENT_REPORT.parent / "human_labels.json").read_text())
-    assert data["report"] == CURRENT_REPORT.name and CURRENT_REPORT.is_file()
+    assert CURRENT_REPORT.is_file()
+    assert (CURRENT_REPORT.parent / data["report"]).is_file()
 
 
 def test_worst_and_the_status_line_name_the_same_default_judge(monkeypatch):
@@ -413,3 +417,66 @@ def test_worst_and_the_status_line_name_the_same_default_judge(monkeypatch):
                          "anthropic/claude prompt NEW (run 1)": {"q:1": True, "q:2": True}}
     assert evals.default_judgement(rep) == "nvidia/gpt-oss prompt NEW (run 1)"
     assert evals.answers_summary(rep, None)["default"]["name"] == evals.default_judgement(rep)
+
+
+# --- a fresh answers report: its age, its corpus, and its judge's agreement (2026-10-06) -------
+
+def test_the_same_model_under_the_same_prompt_is_the_same_judge():
+    rep = {"meta": {"judge": "nvidia/gpt-oss [low]", "prompt_version": "abc123"},
+           "judgement_meta": {"nvidia/gpt-oss [low] prompt def456 (run 1)":
+                              {"judge": "nvidia/gpt-oss [low] prompt def456",
+                               "prompt_version": "def456"}}}
+    assert evals.judge_key(rep, None) == ("nvidia/gpt-oss [low]", "abc123")
+    assert evals.judge_key(rep, "nvidia/gpt-oss [low] prompt def456 (run 1)") == (
+        "nvidia/gpt-oss [low]", "def456")
+
+
+def _write_reports(tmp_path, corpus=None):
+    base = _answers_report()
+    base["meta"].update(judge="nvidia/gpt-oss", prompt_version="NEW")
+    (tmp_path / "2026-09-30_baseline.json").write_text(json.dumps(base))
+    (tmp_path / "human_labels.json").write_text(json.dumps(
+        {"report": "2026-09-30_baseline.json", "labels": {"q:1": True, "q:2": False}}))
+    fresh = _answers_report()
+    fresh["meta"].update(judge="nvidia/gpt-oss", prompt_version="NEW", date="2026-10-06",
+                         corpus=corpus)
+    fresh.pop("judgements")
+    (tmp_path / "2026-10-06_run.json").write_text(json.dumps(fresh))
+
+
+def test_a_fresh_report_carries_its_judges_agreement_and_says_where_from(monkeypatch, tmp_path):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    _write_reports(tmp_path)
+    a = evals.load_answers(tmp_path, name="2026-10-06_run")
+    d = a["default"]
+    assert d["kappa_blind"] is not None and d["kappa_from"] == "2026-09-30_baseline.json"
+    assert a["kappa_from"] == "2026-09-30_baseline.json" and a["labels"] == 2
+
+
+def test_a_different_judge_gets_no_borrowed_agreement(monkeypatch, tmp_path):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    _write_reports(tmp_path)
+    fresh = json.loads((tmp_path / "2026-10-06_run.json").read_text())
+    fresh["meta"]["judge"] = "anthropic/claude"
+    (tmp_path / "2026-10-06_run.json").write_text(json.dumps(fresh))
+    d = evals.load_answers(tmp_path, name="2026-10-06_run")["default"]
+    assert d["kappa_blind"] is None and "kappa_from" not in d
+
+
+def test_an_answers_report_on_another_corpus_is_stale(monkeypatch, tmp_path):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(F, "_prompt_version", lambda: "NEW")
+    monkeypatch.setattr(evals, "current_corpus_id", lambda: "now")
+    _write_reports(tmp_path, corpus="older")
+    assert evals.load_answers(tmp_path, name="2026-10-06_run")["stale"] is True
+    _write_reports(tmp_path, corpus="now")
+    assert evals.load_answers(tmp_path, name="2026-10-06_run")["stale"] is False
+    assert evals.load_answers(tmp_path, name="2026-09-30_baseline")["stale"] is None
+
+
+def test_new_runs_record_the_corpus_they_measured(monkeypatch):
+    import scripts.faithfulness_eval as F
+    monkeypatch.setattr(evals, "current_corpus_id", lambda: "c0rpus")
+    assert F.run_meta()["corpus"] == "c0rpus"

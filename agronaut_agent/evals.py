@@ -307,7 +307,7 @@ def answers_summary(report: dict, labels_data: dict | None) -> dict:
         score = faithfulness_score(list(verdicts.values()))
         b, r = agreement(blind, verdicts), agreement(reviewed, verdicts)
         judges.append({
-            "name": label, "short": short_judge(label),
+            "name": label, "short": short_judge(label), "key": judge_key(report, name),
             "faithfulness": score["score"], "claims": score["n_judged"],
             "kappa_blind": b["kappa"], "raw_blind": b["raw"], "n_labels": b["n"],
             "kappa_reviewed": r["kappa"], "raw_reviewed": r["raw"],
@@ -319,7 +319,7 @@ def answers_summary(report: dict, labels_data: dict | None) -> dict:
     default = next((j for j in judges if j["current_prompt"]), judges[-1] if judges else None)
     return {
         "date": meta.get("date"), "answerer": meta.get("answerer"),
-        "queries": s.get("queries"),
+        "corpus": meta.get("corpus"), "queries": s.get("queries"),
         "claims": default["claims"] if default else 0,
         "labels": len(blind), "reviewed": len(data.get("reviewed") or {}),
         "labeller_count": 1 if blind else 0,
@@ -356,13 +356,66 @@ def labels_for(report_name: str, directory: Path | None = None) -> dict | None:
     return data if data.get("report") == report_name else None
 
 
+def judge_key(report: dict, name: str | None) -> tuple[str, str | None]:
+    """(judge model, judging prompt) for one judgement in a report: what agreement with a
+    person is a property of. The same model under the same prompt is the same judge, in
+    whichever report it ran."""
+    meta = report.get("meta", {})
+    if name is None:
+        judge, prompt = meta.get("judge", ""), meta.get("prompt_version")
+    else:
+        jm = report.get("judgement_meta", {}).get(name, {})
+        judge = jm.get("judge") or re.sub(r" \(run \d+\)$", "", name)
+        prompt = jm.get("prompt_version")
+    tag = re.search(r" prompt ([0-9a-f]{6,})$", judge)
+    if tag:
+        judge, prompt = judge[: tag.start()], prompt or tag.group(1)
+    return judge, prompt
+
+
+def _carry_agreement(summary: dict, directory: Path | None) -> dict:
+    """Give a judge with no labels on this report the agreement it showed on the report the
+    labels were made on, when it is the same judge (model and prompt), and say where it came
+    from. Agreement belongs to the judge, so this is the honest figure; omitting it would show
+    a faithfulness score with nothing to say how far to trust it."""
+    p = (directory or answers_dir()) / "human_labels.json"
+    if not p.exists():
+        return summary
+    data = json.loads(p.read_text(encoding="utf-8"))
+    ref_path = (directory or answers_dir()) / (data.get("report") or "")
+    if not data.get("report") or not ref_path.is_file():
+        return summary
+    ref = answers_summary(json.loads(ref_path.read_text(encoding="utf-8")), data)
+    by_key = {tuple(j["key"]): j for j in ref["judges"] if j["kappa_blind"] is not None}
+    for j in summary["judges"]:
+        src = by_key.get(tuple(j["key"]))
+        if j["kappa_blind"] is None and src:
+            j.update(kappa_blind=src["kappa_blind"], kappa_reviewed=src["kappa_reviewed"],
+                     raw_blind=src["raw_blind"], raw_reviewed=src["raw_reviewed"],
+                     n_labels=src["n_labels"], kappa_from=data["report"])
+    if any(j.get("kappa_from") for j in summary["judges"]):
+        summary.update(labels=ref["labels"], reviewed=ref["reviewed"],
+                       kappa_from=data["report"])
+    return summary
+
+
 def load_answers(directory: Path | None = None, name: str | None = None) -> dict | None:
-    """The current answers report (or the one named), summarised. None when there is none."""
+    """The current answers report (or the one named), summarised, with how old it is and
+    whether the knowledge base has changed since. None when there is none to read."""
     path = answers_report_path(name, directory)
     if path is None:
         return None
     report = json.loads(path.read_text(encoding="utf-8"))
-    return {**answers_summary(report, labels_for(path.name, directory)), "report": path.name}
+    labels = labels_for(path.name, directory)
+    summary = answers_summary(report, labels)
+    if labels is None:
+        summary = _carry_agreement(summary, directory)
+    corpus_now = current_corpus_id()
+    summary.update(
+        report=path.name, age_days=age_days(summary.get("date")),
+        stale=(None if not summary.get("corpus") or not corpus_now
+               else summary["corpus"] != corpus_now))
+    return summary
 
 
 def load_answers_report(directory: Path | None = None,
@@ -538,11 +591,13 @@ def status(rows: list[dict], corpus_now: str | None, answers: dict | None = None
         metrics = row.get("metrics") if row else None
         when = row.get("at") if row else None
         source = "this machine" if row else None
+        stale = is_stale(row, corpus_now)
         if kind == "answers" and row is None and answers:
             metrics, when, source = answers_metrics(answers), answers.get("date"), "published"
+            stale = answers.get("stale")
         out.append({
             "eval": kind, "when": when, "age_days": age_days(when, now),
-            "stale": is_stale(row, corpus_now), "source": source,
+            "stale": stale, "source": source,
             "model": row.get("model") if row else None,
             "version": row.get("version") if row else None,
             "metrics": metrics, "headline": headline(kind, metrics),

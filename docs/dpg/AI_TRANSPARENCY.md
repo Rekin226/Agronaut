@@ -89,9 +89,12 @@ claims, and a judge model from a different family rules on each one using the re
 context alone. It must quote the supporting sentence, and code checks the quote is really
 there. Citations are checked by code, with no model.
 
-Measured on 2026-10-03 over 33 golden-set answers (479 claims): **faithfulness 0.84** with
-the default judge (gpt-oss-20b, quote-first prompt), 0.88 to 0.90 with the other judges
-tried; citation accuracy 1.00 with no fabricated sources.
+Measured on 2026-10-06 over 33 fresh golden-set answers (484 claims): **faithfulness 0.79**
+with the default judge (gpt-oss-20b, quote-first prompt); citation accuracy 1.00 with no
+fabricated sources. The 2026-09-30 answers scored 0.84 under the same judge, and 0.88 to 0.90
+under the other judges tried. The two runs differ topic by topic in both directions (up to
+0.25 either way on topics of 10 to 60 claims), which is what a fresh set of 33 answers moves
+by, so read the figure as about 0.8 rather than to two decimals.
 
 How far to trust that number: the judge was checked against one person's labels on 29
 claims. Agreement is fair, not strong (Cohen's kappa 0.24 on the blind labels, 0.39 after the

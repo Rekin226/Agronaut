@@ -206,7 +206,16 @@ def cmd_safety(args) -> int:
 
 def _print_answers(a: dict) -> None:
     lo, hi = a["range"] or (None, None)
-    print(f"Answer quality   ({a['report']}, {a['date']}, answers by {a['answerer']})")
+    age = evals.when_label(a["date"], a.get("age_days"))
+    print(f"Answer quality   ({a['report']}, measured {age}, answers by {a['answerer']})")
+    if a.get("stale"):
+        print("  STALE: written from a different knowledge base than the one loaded now. "
+              "Refresh: agronaut eval answers --run")
+    elif a.get("stale") is None:
+        print("  (this report does not record its knowledge base, so it cannot tell if it is "
+              "out of date)")
+    if a.get("kappa_from"):
+        print(f"  judge agreement with a person measured on {a['kappa_from']}")
     print(f"  {a['queries']} answers, {a['claims']} claims judged; {a['labels']} labelled by "
           f"one person ({a['reviewed']} revisited)\n")
     print(f"  {'judge':<40} {'faithful':>8} {'kappa blind':>12} {'reviewed':>9}")
@@ -233,6 +242,13 @@ def cmd_answers(args) -> int:
             what = (f"This writes {args.limit or 'all'} golden-set answers with {answerer} and "
                     f"judges every claim with {judge}. Both are model calls: on a hosted key "
                     "they cost credit, and a full run takes a while.")
+            if judge == answerer:
+                # The 2026-10-05 run was judged this way by default: Claude grading Claude,
+                # the judge that agreed with a person no better than chance (kappa 0.03).
+                what += ("\n\nWARNING: the judge is the same model as the answerer, so it "
+                         "grades its own answers. Set AGRONAUT_JUDGE_PROVIDER and "
+                         "AGRONAUT_JUDGE_MODEL for a different judge (gpt-oss-20b on nvidia "
+                         "is the one checked against a person).")
         else:
             what = (f"This rules on every saved claim again with {judge} ({args.workers} at a "
                     "time). On a hosted key that costs credit; a stopped run resumes.")
@@ -241,9 +257,10 @@ def cmd_answers(args) -> int:
         if args.run:
             from datetime import date
             out = evals.answers_dir() / f"{date.today().isoformat()}_run.json"
-            report = F.run(limit=args.limit, save_to=out)
+            report = F.run(limit=args.limit, save_to=out, workers=args.workers)
             F._print(report)
             print(f"\nSaved {out}")
+            made = out.name
         else:
             path = (evals.answers_report_path(args.report) if args.rejudge == "__latest__"
                     else F._resolve(args.rejudge))
@@ -251,7 +268,10 @@ def cmd_answers(args) -> int:
                 print("No saved report to re-judge: agronaut eval answers --run")
                 return 1
             F.rejudge_report(path, workers=args.workers)
-        a = evals.load_answers()
+            made = path.name
+        # Record the report this command just made or re-judged, not "the current one": on
+        # 2026-10-06 a fresh run recorded the older current report's numbers under today's date.
+        a = evals.load_answers(name=made)
         if a:
             evals.record("answers", evals.answers_metrics(a), model=judge,
                          corpus=evals.current_corpus_id())

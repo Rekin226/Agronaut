@@ -84,6 +84,7 @@ exclude = ["*.tests", "*.tests.*"]
 "share/agronaut/eval/safety_eval" = ["docs/dpg/safety_eval/golden_set.json"]
 "share/agronaut/eval/faithfulness_eval" = [
     "docs/dpg/faithfulness_eval/2026-09-30_baseline.json",
+    "docs/dpg/faithfulness_eval/2026-10-06_run.json",
     "docs/dpg/faithfulness_eval/human_labels.json",
 ]
 "share/agronaut/data" = [

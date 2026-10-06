@@ -119,15 +119,27 @@ def _answers_section(a: dict | None) -> None:
               help="Share of an answer's claims that the retrieved passages back.")
     c2.metric("Judge vs a person (kappa)", f"{_f(d.get('kappa_blind'), 2)} blind",
               f"{_f(d.get('kappa_reviewed'), 2)} after review", delta_color="off",
-              help="Agreement beyond chance. 0.21 to 0.40 is fair, above 0.60 substantial.")
+              help="Agreement beyond chance. 0.21 to 0.40 is fair, above 0.60 substantial."
+                   + (f" Measured for this judge on {d['kappa_from']}, where the human labels "
+                      "were made." if d.get("kappa_from") else ""))
     c3.metric("Citation accuracy", _f(a.get("citation_accuracy"), 2),
               help="Cited sources that were really retrieved. Checked by code, no model.")
     st.warning(f"Not yet validated. Faithfulness is {_f(lo, 2)} to {_f(hi, 2)} depending on "
                f"the judge, and the judges were checked against one person on "
                f"{a.get('labels')} claims.")
     st.caption(f"{a.get('queries')} answers by {a.get('answerer')}, {a.get('claims')} claims, "
-               f"report {a.get('report')} ({a.get('date')}). Response relevancy "
-               f"{_f(a.get('response_relevancy'), 2)}.")
+               f"report {a.get('report')}, measured {_age(a.get('date'))}. Response relevancy "
+               f"{_f(a.get('response_relevancy'), 2)}."
+               + (f" Judge agreement measured on {a['kappa_from']}." if a.get("kappa_from")
+                  else ""))
+    if a.get("stale"):
+        st.error("Stale: these answers were written from a different knowledge base than the "
+                 "one loaded now.")
+    elif a.get("stale") is None:
+        st.caption("This report does not record which knowledge base it measured, so it "
+                   "cannot tell whether it is out of date.")
+    st.caption("Answer quality does not refresh by itself: a new measurement calls models and "
+               "costs credit. `agronaut eval answers --run` (it names the models and asks).")
     with st.expander("Every judge"):
         st.dataframe(pd.DataFrame([{
             "judge": j["short"] + ("  (default)" if j["current_prompt"] else ""),
