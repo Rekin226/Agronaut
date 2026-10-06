@@ -20,6 +20,7 @@ owns it, so this module stays a dispatcher and only a dispatcher.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,10 +40,51 @@ def _cmd_chat(args) -> int:
     return 0
 
 
+_WEB_PORT = 8501          # Streamlit's default, and the address the docs give
+
+
+def _port_free(port: int) -> bool:
+    """Nothing answers on localhost:port, and the port can be bound on every address.
+
+    Both, because binding alone is not enough on macOS: a program listening on 127.0.0.1:8501
+    (a VS Code extension host did, 2026-10-04) does not stop Streamlit binding 0.0.0.0:8501.
+    Streamlit then starts without a word, and the browser's localhost reaches the other
+    program, which never answers: a blank page.
+    """
+    import socket
+
+    with socket.socket() as probe:
+        probe.settimeout(0.3)
+        if probe.connect_ex(("127.0.0.1", port)) == 0:
+            return False
+    with socket.socket() as probe:
+        try:
+            probe.bind(("0.0.0.0", port))
+        except OSError:
+            return False
+    return True
+
+
+def _free_port(start: int = _WEB_PORT, tries: int = 20) -> int | None:
+    return next((p for p in range(start, start + tries) if _port_free(p)), None)
+
+
 def _cmd_web(args) -> int:
     # sys.executable, not a bare "streamlit": the console script is often invoked by
     # absolute path (systemd, cron, another venv's shell) with our bin/ not on PATH.
     flags = list(args.streamlit_args)
+    # The default port only when it is really free; a port the user names always wins.
+    if not any(f.startswith("--server.port") for f in flags) and not os.getenv(
+            "STREAMLIT_SERVER_PORT"):
+        port = _free_port()
+        if port is None:
+            print(f"Ports {_WEB_PORT} to {_WEB_PORT + 19} are all taken. Pick one: "
+                  "agronaut web --server.port=9000")
+            return 2
+        if port != _WEB_PORT:
+            print(f"Port {_WEB_PORT} is already used by another program, so this starts on "
+                  f"{port}.\nOpen http://localhost:{port}\n", flush=True)
+            flags.insert(0, f"--server.port={port}")
     # No file watcher unless asked for: it exists to reload on code edits, which a grower
     # never makes, and walking `transformers` it printed a screenful of torchvision
     # tracebacks on every start. `streamlit run app.py` (development) keeps it.
