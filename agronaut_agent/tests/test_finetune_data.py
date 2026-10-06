@@ -311,3 +311,28 @@ def test_resume_skips_personas_already_logged(tmp_path):
     assert gd.remaining(personas, log) == personas
     log.write_text("".join(json.dumps({"persona": p["id"]}) + "\n" for p in personas[:3]))
     assert [p["id"] for p in gd.remaining(personas, log)] == ["grid-0003", "grid-0004"]
+
+
+def test_cuda_trainer_trains_only_the_last_assistant_turn():
+    from scripts.finetune import train_lora_cuda as tc
+
+    header = [7, 8]
+    ids = [1, 7, 8, 2, 3, 9, 7, 8, 4, 5]
+    assert tc.target_labels(ids, header) == [-100] * 8 + [4, 5]
+    with pytest.raises(ValueError):
+        tc.target_labels([1, 2, 3], header)
+
+
+def test_cuda_trainer_drops_examples_over_the_window():
+    from scripts.finetune import train_lora_cuda as tc
+
+    class _Tok:
+        def apply_chat_template(self, messages, tools=None, tokenize=False):
+            return " ".join(m["content"] for m in messages)
+
+        def __call__(self, text, add_special_tokens=False):
+            table = {"<|im_start|>assistant\n": [7, 8]}
+            return {"input_ids": table.get(text) or [7, 8] + [1] * len(text.split())}
+    row = {"messages": [{"role": "user", "content": "a b c"}]}
+    assert tc.encode(_Tok(), row, max_len=100)["labels"][:2] == [-100, -100]
+    assert tc.encode(_Tok(), row, max_len=4) is None
