@@ -252,6 +252,12 @@ Glazing table from University of Arkansas greenhouse course, Unit 3 "Glazing" (v
 
 Cross-check (Bartok, "Determining greenhouse heat loss", *Greenhouse Management*): U ≈ 1.15 single glass/poly/PC, 0.7 double poly, 0.6 double-wall PC/acrylic [snippet]. The two sources agree within ~10 %.
 
+**Overall transmission vs the 0.70 default.** Roberts, W.J. 1998 (revised), "Glazings, Structures and Other Factors Affecting Light Transmission in the Greenhouse", Rutgers CCEA Glazing Workshop [full text]: new single polyethylene film transmits ~90% in the lab (double ~80%); measured whole-house PAR over an entire winter, structure and condensation included, ran 0.45–0.67 across institutional houses (Table 1). The 0.70 default is placed between the film's rated transmission and the measured whole-house band: a new-film house with ordinary structure/dirt/condensation losses (~0.85–0.90 × 0.8–0.9 = 0.68–0.81). Registry: `GREENHOUSE_TRANSMISSIVITY`.
+
+**Unheated daily-mean lift, the 3.0 °C default.** Multi-state on-farm study of 36 high tunnels (Indiana, Illinois, New Hampshire; McCarter & Ingwell, via Vegetable Growers News, "Dive into the latest research on growing crops in high tunnels") [full text]: "On average, daily temperature inside a high tunnel was 3° F warmer than outside" (+1.7 °C). Penn State Extension, "High Tunnels for Homeowners: Season Extension and Winter Gardening" (Sánchez 2023) [snippet]: "The yearly average air temperature in a high tunnel is 8.4 °F higher than outdoors" (+4.7 °C). The 3.0 °C default is placed mid-band of the measured 1.7–4.7 °C daily-mean range; midday gains on sun run much higher, nights near zero. Registry: `GREENHOUSE_UNHEATED_LIFT_C`.
+
+**Water-mass settling time, the 2.0-day default.** No measured settling time for a 1–10 m³ water mass under cover was found. Placed by lumped-capacitance derivation: τ = ρVc_p/(hA) gives 0.6–3.8 days for 1–10 m³ at h = 5–15 W m⁻² K⁻¹ (free convection + radiation, under cover). The derived band, not a measurement, is what the registry entry states; a measured value replaces it. Registry: `GREENHOUSE_WATER_TAU_DAYS`.
+
 ### 6.2 Ventilation rules of thumb
 
 - Summer fan ventilation: **~1 air change per minute**; NGMA design standard **8 cfm per ft² of floor area** (≈ 2.44 m³ min⁻¹ m⁻², ≈ 146 m³ h⁻¹ m⁻²); 7 cfm/ft² if thermal/shade screens are used. Sources: Greenhouse Management "Forced-Air Ventilation" and GGS/nursery industry guides reporting the NGMA standard [snippet, consistent across ≥3 sources].

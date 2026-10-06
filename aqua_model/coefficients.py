@@ -67,6 +67,45 @@ DO_SUPERSATURATION_TOLERANCE = Coefficient(
 )
 
 
+# Greenhouse envelope defaults — the single-poly-tunnel numbers every season
+# forecast actually runs on (production.py builds ProductionParams from
+# C.GreenhouseParams() with no per-site override). Provenance for each value
+# lives in its note here and in the GreenhouseParams docstring; dossier §6
+# carries the full glazing table. The water-tau band is derived, not measured —
+# the note says so, and a measured settling time for a 1-10 m3 tank under
+# cover would replace the whole entry.
+GREENHOUSE_TRANSMISSIVITY = Coefficient(
+    name="greenhouse_transmissivity",
+    value=0.70, low=0.45, high=0.85, unit="fraction of outside PAR",
+    source="LIT (Roberts 1998 Rutgers CCEA; U. Arkansas glazing table)",
+    note="PLACED. New single polyethylene film transmits ~0.85-0.90 (Roberts 1998, "
+         "lab total transmittance; Arkansas table: single PE 85%). Measured whole-house "
+         "winter PAR under real structures runs 0.45-0.67 (Roberts 1998 Table 1, "
+         "institutional houses, condensation and overhead equipment included). 0.70 = "
+         "new-film house with ordinary structure, dirt and condensation losses "
+         "(0.85-0.90 x 0.8-0.9 = 0.68-0.81); a dirty or screened house falls toward "
+         "the measured band's bottom.",
+)
+GREENHOUSE_UNHEATED_LIFT_C = Coefficient(
+    name="greenhouse_unheated_lift_c",
+    value=3.0, low=1.7, high=4.7, unit="C on the daily mean",
+    source="LIT (McCarter & Ingwell 36-tunnel study; Penn State Extension)",
+    note="PLACED mid-band; the band is measured. On-farm daily means across 36 US high "
+         "tunnels averaged +1.7 C over outside (+3 F, McCarter & Ingwell, via Vegetable "
+         "Growers News); Penn State Extension reports a yearly-average tunnel +8.4 F "
+         "(+4.7 C) over outdoors (Sanchez 2023). Midday gains run much higher on sun, "
+         "near zero at night; ventilation eats most of the midday gain.",
+)
+GREENHOUSE_WATER_TAU_DAYS = Coefficient(
+    name="greenhouse_water_tau_days",
+    value=2.0, low=0.6, high=3.8, unit="days",
+    source="PLACED (lumped-capacitance derivation; no measured source yet)",
+    note="PLACED. tau = rho*V*cp / (h*A): 1-10 m3 tanks under cover give 0.6-3.8 days "
+         "at h = 5-15 W/m2K (free convection + radiation). No measured settling time "
+         "for a 1-10 m3 water mass under cover was found; a measured value replaces "
+         "this entry. Sun-exposed shallow beds settle faster than the band.",
+)
+
 # Nitrogen chemistry — well established.
 N_FRACTION_OF_PROTEIN = Coefficient(
     name="n_fraction_of_protein",
@@ -193,5 +232,8 @@ def registry() -> dict[str, Coefficient]:
             NITRIFICATION_RATE,
             EC_TARGET_LEAFY,
             EC_TARGET_FRUITING,
+            GREENHOUSE_TRANSMISSIVITY,
+            GREENHOUSE_UNHEATED_LIFT_C,
+            GREENHOUSE_WATER_TAU_DAYS,
         )
     }
