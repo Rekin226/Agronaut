@@ -203,6 +203,47 @@ def test_web_turns_the_file_watcher_off_unless_asked(monkeypatch):
     assert "--server.fileWatcherType=auto" in seen[1]
 
 
+def _web_argv(monkeypatch, argv, busy=()):
+    seen = []
+    monkeypatch.setattr(cli, "_port_free", lambda port: port not in set(busy))
+    monkeypatch.setattr(cli.subprocess, "call", lambda a: seen.append(a) or 0)
+    monkeypatch.delenv("STREAMLIT_SERVER_PORT", raising=False)
+    code = cli.main(argv)
+    return code, (seen[0] if seen else None)
+
+
+def test_web_keeps_the_default_port_when_it_is_free(monkeypatch):
+    _, argv = _web_argv(monkeypatch, ["web"])
+    assert not any(a.startswith("--server.port") for a in argv)
+
+
+def test_web_moves_to_the_next_free_port_when_8501_is_taken(monkeypatch, capsys):
+    """The blank page of 2026-10-04: VS Code held 127.0.0.1:8501 and Streamlit started anyway."""
+    _, argv = _web_argv(monkeypatch, ["web"], busy={8501, 8502})
+    assert "--server.port=8503" in argv
+    assert "http://localhost:8503" in capsys.readouterr().out
+
+
+def test_a_port_the_user_names_always_wins(monkeypatch):
+    _, argv = _web_argv(monkeypatch, ["web", "--server.port=8501"], busy={8501})
+    assert argv.count("--server.port=8501") == 1 and "--server.port=8502" not in argv
+
+
+def test_web_says_so_when_no_port_is_free(monkeypatch, capsys):
+    code, argv = _web_argv(monkeypatch, ["web"], busy=set(range(8501, 8521)))
+    assert code == 2 and argv is None
+    assert "--server.port=" in capsys.readouterr().out
+
+
+def test_a_listener_on_localhost_only_counts_as_taken():
+    """The macOS case for real: something on 127.0.0.1 alone, which binding 0.0.0.0 misses."""
+    import socket
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen()
+        assert cli._port_free(srv.getsockname()[1]) is False
+
+
 def test_bot_runs_the_telegram_entrypoint(monkeypatch):
     import bot
     called = []
