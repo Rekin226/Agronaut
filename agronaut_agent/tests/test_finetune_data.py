@@ -303,3 +303,11 @@ def test_examples_too_long_for_the_window_are_dropped_not_truncated():
     kept, dropped = tl.drop_too_long(rows, lambda r: r["n"])
     assert kept == rows[:2] and dropped == 1
     assert tl.lora_config("m", Path("d"), Path("a"), 10)["max_seq_length"] == tl.MAX_SEQ_LENGTH
+
+
+def test_resume_skips_personas_already_logged(tmp_path):
+    personas = gd.persona_grid(5)
+    log = tmp_path / "run.dialogues.jsonl"
+    assert gd.remaining(personas, log) == personas
+    log.write_text("".join(json.dumps({"persona": p["id"]}) + "\n" for p in personas[:3]))
+    assert [p["id"] for p in gd.remaining(personas, log)] == ["grid-0003", "grid-0004"]

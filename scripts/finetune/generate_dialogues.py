@@ -406,6 +406,16 @@ def salvage_cut(n_calls: int, failures: list[dict], reasons: list[str]) -> int:
 
 # --- the run -----------------------------------------------------------------------------
 
+def remaining(personas: list[dict], log_path: Path) -> list[dict]:
+    """Personas not yet in a run's dialogue log, so a stopped run resumes where it left off.
+    A dialogue cut off mid-way never reached the log, so it is simply run again."""
+    done = set()
+    if log_path.exists():
+        done = {json.loads(ln)["persona"] for ln in log_path.read_text().splitlines()
+                if ln.strip()}
+    return [p for p in personas if p["id"] not in done]
+
+
 def tool_schemas() -> list[dict]:
     from langchain_core.utils.function_calling import convert_to_openai_tool
 
@@ -516,6 +526,9 @@ def main() -> int:  # pragma: no cover - CLI
     ap.add_argument("--max-drafts", type=int, default=4,
                     help="drafts per reply before it counts as failed (1 turns redrafting off)")
     ap.add_argument("--max-words", type=int, default=100, help="word cap for one reply")
+    ap.add_argument("--resume", action="store_true",
+                    help="skip personas already in <out>.dialogues.jsonl and append the rest; "
+                         "use the same --n and --seed as the run being resumed")
     args = ap.parse_args()
     if os.getenv("AGRONAUT_FINETUNE_GEN") != "1":
         print("This calls a paid teacher model many times. Set AGRONAUT_FINETUNE_GEN=1 to run.")
@@ -535,6 +548,9 @@ def main() -> int:  # pragma: no cover - CLI
         return _text(with_retries(lambda: actor.invoke(prompt, **kw)).content).strip()
 
     personas = persona_grid(args.n, args.seed)
+    if args.resume:
+        personas = remaining(personas, Path(args.out).with_suffix(".dialogues.jsonl"))
+        print(f"resuming: {len(personas)} personas left", file=sys.stderr)
     if args.with_scenarios:
         personas = json.loads(ce._SCENARIOS.read_text())["scenarios"] + personas
     with ce._RestoreClimateFiles():
