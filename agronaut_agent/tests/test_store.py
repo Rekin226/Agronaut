@@ -145,6 +145,31 @@ def test_bump_attempt_and_fail():
     assert fs.open_for("telegram:1") is None          # failed is not "open"
 
 
+def test_message_id_links_a_status_back_to_its_followup():
+    # The 131047 half of #215: a delivery-status webhook carries only the WhatsApp
+    # message id, so the follow-up row must remember it.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.by_message_id("wamid.FU1") is None      # nothing recorded yet
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+    assert fs.by_message_id("wamid.FU1")["id"] == fid
+    assert fs.by_message_id("wamid.OTHER") is None    # unknown message: nothing
+
+
+def test_message_id_lookup_ignores_followups_no_longer_sent():
+    # A late status must not move a follow-up that was already answered, failed,
+    # or cancelled — only one still marked sent can match.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+    fs.mark_answered(fid)
+    assert fs.by_message_id("wamid.FU1") is None
+
+
 def test_answer_and_cancel_free_the_slot():
     fs = _fs()
     fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")

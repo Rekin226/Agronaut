@@ -79,7 +79,10 @@ CREATE TABLE IF NOT EXISTS followups (
     attempts     INTEGER NOT NULL DEFAULT 0,
     outcome      TEXT,
     created_at   TEXT NOT NULL,
-    sent_at      TEXT
+    sent_at      TEXT,
+    wa_message_id TEXT            -- WhatsApp wamid of the sent question, so a later
+                                 -- delivery-status webhook (e.g. 131047, the 24-hour
+                                 -- window) can be matched back to this follow-up (#215)
 );
 CREATE INDEX IF NOT EXISTS idx_followups_channel ON followups(channel, status, due_at);
 CREATE INDEX IF NOT EXISTS idx_followups_user ON followups(user_id, status);
@@ -176,7 +179,7 @@ def _now() -> str:
 # this reason; the store deserves the same contract.
 #
 # Bump this whenever `_SCHEMA` changes shape, and add the matching step to `_migrate`.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SchemaTooNewError(RuntimeError):
@@ -201,6 +204,16 @@ def _migrate(conn: sqlite3.Connection, found: int) -> None:
         )
     # No historical migrations yet: v0 adopts to v1 by stamping. Later versions add their
     # ALTER TABLE steps here, one `if found < N` block each, in order.
+    if found < 2:
+        # v2: followups gained wa_message_id, so a delivery-status webhook can be
+        # matched back to the follow-up it belongs to (#215). Nullable, so existing
+        # rows (whose sends predate message-id capture) simply have none. The column
+        # check — not just the version — is what makes this safe: a fresh database
+        # has no table yet (`_SCHEMA` creates it with the column), and a pre-stamp
+        # 1.0.0 file already holds the v1 layout without the column.
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(followups)").fetchall()]
+        if cols and "wa_message_id" not in cols:
+            conn.execute("ALTER TABLE followups ADD COLUMN wa_message_id TEXT")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -413,6 +426,22 @@ class FollowupStore:
 
     def mark_sent(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='sent', sent_at=? WHERE id=?", (_now(), fid))
+
+    def record_message_id(self, fid: int, wa_message_id: str | None) -> None:
+        """Remember the WhatsApp message id of the sent question, so a later
+        delivery-status webhook can be matched back to this follow-up (#215)."""
+        self.db.execute("UPDATE followups SET wa_message_id=? WHERE id=?",
+                        (wa_message_id, fid))
+
+    def by_message_id(self, wa_message_id: str) -> dict | None:
+        """The follow-up a delivery-status update belongs to, if any. Only a
+        follow-up still marked sent can match: one already answered, failed, or
+        cancelled must not be moved by a late status."""
+        rows = self.db.query(
+            "SELECT * FROM followups WHERE wa_message_id=? AND status='sent' LIMIT 1",
+            (wa_message_id,),
+        )
+        return dict(rows[0]) if rows else None
 
     def bump_attempt(self, fid: int) -> int:
         self.db.execute("UPDATE followups SET attempts=attempts+1 WHERE id=?", (fid,))

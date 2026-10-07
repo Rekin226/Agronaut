@@ -48,6 +48,12 @@ class _FakeAgent:
     def followup_send_failed(self, fid):
         self.calls.append(("failed", fid))
 
+    def record_followup_message_id(self, fid, wa_id):
+        self.calls.append(("wa_id", fid, wa_id))
+
+    def followup_status_failed(self, wa_id, codes):
+        self.calls.append(("status_failed", wa_id, codes))
+
 
 def _adapter(agent=None, **kw):
     kw.setdefault("allowed_ids", [])   # open — we test wiring, not the allowlist
@@ -412,6 +418,104 @@ def test_deliver_due_followups_records_failure_on_http_error(monkeypatch):
     a.deliver_due_followups()
     assert ("failed", 1) in agent.calls
     assert ("sent", 1) not in agent.calls
+
+
+# --- matching a delivery status back to its follow-up (#215) ---------------------------
+# WhatsApp accepts a send outside the 24-hour window and reports the failure later,
+# as a status webhook with error 131047. The message id is the only handle that
+# links that status back to the follow-up it belongs to.
+
+def _status_payload(wa_id="wamid.FU1", status="failed", codes=(131047,)):
+    return {"entry": [{"changes": [{"value": {"statuses": [{
+        "id": wa_id, "status": status,
+        "errors": [{"code": c, "title": "Re-engagement message"} for c in codes],
+    }]}}]}]}
+
+
+def test_send_text_returns_message_ids(monkeypatch):
+    # The Graph API answers a send with the message id; the adapter must surface
+    # it so the follow-up row can be matched to a later status webhook.
+    a = _adapter()
+
+    class _Resp:
+        status_code = 200
+        text = '{"messages": [{"id": "wamid.ABC"}]}'
+
+        def json(self):
+            return {"messages": [{"id": "wamid.ABC"}]}
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    assert a.send_text("15551234567", "hello") == ["wamid.ABC"]
+
+
+def test_deliver_due_followups_records_the_message_id(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+
+    class _Resp:
+        status_code = 200
+        text = '{"messages": [{"id": "wamid.FU1"}]}'
+
+        def json(self):
+            return {"messages": [{"id": "wamid.FU1"}]}
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    a.deliver_due_followups()
+    assert ("sent", 1) in agent.calls
+    assert ("wa_id", 1, "wamid.FU1") in agent.calls
+
+
+def test_deliver_due_followups_records_the_first_bubble_id(monkeypatch):
+    # A long question goes out as several bubbles; the first bubble's id is the
+    # one recorded, since outside the 24-hour window a 131047 fails them all and
+    # the first status to arrive matches (#215).
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    monkeypatch.setattr(
+        "agronaut_agent.channels.whatsapp_adapter.chunk",
+        lambda text, size=4000: ["part one", "part two"],
+    )
+    sent_ids = ["wamid.FIRST", "wamid.SECOND"]
+
+    class _Resp:
+        status_code = 200
+        text = '{"messages": [{"id": "wamid.X"}]}'
+
+        def json(self):
+            return {"messages": [{"id": sent_ids.pop(0)}]}
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    a.deliver_due_followups()
+    assert ("sent", 1) in agent.calls
+    assert ("wa_id", 1, "wamid.FIRST") in agent.calls
+
+
+def test_parse_status_updates_extracts_id_status_and_codes():
+    a = _adapter()
+    out = a.parse_status_updates(_status_payload())
+    assert out == [("wamid.FU1", "failed", [131047])]
+    assert a.parse_status_updates({}) == []
+    # A status without an id or error codes is still a status, just not a failure.
+    out = a.parse_status_updates(_status_payload(status="delivered", codes=()))
+    assert out == [("wamid.FU1", "delivered", [])]
+
+
+def test_handle_payload_routes_failed_status_to_followup():
+    # A failed status must reach followup_status_failed with the message id and
+    # Meta's error codes; the store decides what the record says.
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    a.handle_payload(_status_payload())
+    assert ("status_failed", "wamid.FU1", [131047]) in agent.calls
+    # ... and no reply was attempted for a status update (nothing inbound).
+    assert agent.calls == [("status_failed", "wamid.FU1", [131047])]
+
+
+def test_handle_payload_ignores_non_failed_statuses():
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    a.handle_payload(_status_payload(status="delivered", codes=()))
+    assert not [c for c in agent.calls if c[0] == "status_failed"]
 
 
 def test_handle_payload_cleans_up_attachments_when_reply_fails(monkeypatch, tmp_path):
