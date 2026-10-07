@@ -167,6 +167,45 @@ def test_moringa_sizes_a_system_without_error():
     from aqua_model import size_system, validate_design_input
 
     out = size_system(validate_design_input("tilapia", "moringa", 12.0, 29.0, 3000.0))
+
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_ethiopian_kale_is_the_heat_tolerant_brassica():
+    """#125: Ethiopian kale (Brassica carinata), a wanted heat-tolerant leafy.
+
+    Its identity in the database is the pairing of a 30 °C ceiling with a 15 °C
+    floor and no vernalization requirement: the leafy brassica slot (kale,
+    collards, mustard greens all stop at 24-27 °C) filled for warm climates.
+    The 30 ceiling is placed, not measured for the leafy use: ECHO's Mutarda
+    carinata sheet states "Temperature range: 15-20° C" and OMAFRA's Specialty
+    Cropportunities states "Optimal Temperature Range: 20-30˚C" — the 30 is the
+    species optimum, placed on the leafy use. If a future edit narrows the band,
+    the reason this crop was added reopens silently.
+    """
+    ek = get_crop("ethiopian_kale")
+    assert ek.category == "leafy"
+    assert ek.temp_max_c >= 30.0
+    assert ek.temp_min_c >= 15.0
+    assert ek.temp_max_c <= 32.0  # sourced ceiling, not a copy of amaranth's 35
+    assert "FRR placed" in ek.source, "FRR placement must be clearly stated"
+    assert "juncea" in ek.source, "protein figure must name its B. juncea inheritance"
+    assert "Mnzava & Schippers 2007" in ek.source, "PROTA citation must name its authors"
+    assert "3.5 kg/m2 (35 t/ha per crop) x 4x" in ek.source, (
+        "yield chain must state the unit conversion and the multiplier, "
+        "not skip the field-to-registered unit step")
+    assert ek.yield_kg_per_m2_year > 10.0
+    assert ek.yield_kg_per_m2_year < 25.0
+
+
+def test_ethiopian_kale_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "ethiopian_kale", 12.0, 29.0, 3000.0))
+
     assert out.feed_g_per_day > 0
     assert out.fish_count > 0
     assert out.biofilter_media_m2 > 0
