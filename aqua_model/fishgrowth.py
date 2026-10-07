@@ -83,6 +83,17 @@ TGC = {
                "1.1; consistent with ~1 kg in 8 months at 28 C from a 20 g fingerling "
                "(back-computed 1.07). Low/high are the trial's diet-range, not a "
                "population range; calibrate against farm records"),
+    "barramundi": Coefficient(
+        name="barramundi.tgc", value=1.3, low=1.19, high=1.4, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Le Boucher, Chung, Ng, Tan & Lee (2024), Aquac. Nutr. "
+               "2024:3237898 (DOI 10.1155/2024/3237898), Table 4 — satiation-fed juveniles "
+               "in seawater RAS, 71.1->214.8-236.5 g over 51 d. The paper reports base-20 "
+               "TGC 4.16-4.60, whose own arithmetic implies sum(T-20) = 442 C.d (~28.7 C "
+               "effective mean, not the stated 30.3 C); converted to this file's base-0 "
+               "convention that is 1.26-1.39 across the four diets, and 1.19-1.32 if read "
+               "at the stated 30.3 C. Low/high span both readings of the trial (its own "
+               "TGC arithmetic vs its stated temperature; the four diets agree within 9%). "
+               "Seeds at 1.3; calibrate against farm records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",

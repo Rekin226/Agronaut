@@ -120,6 +120,53 @@ def test_pangasius_days_to_weight_lands_in_a_plausible_farm_range():
     assert 150.0 <= days <= 330.0, f"20 g -> 1 kg at 28 C took {days:.0f} days"
 
 
+def test_barramundi_has_its_own_seed_not_the_generic_default():
+    # Issue #106: barramundi is the second of the four remaining species to get a real
+    # seed. This fails while the key is missing.
+    assert "barramundi" in TGC
+    assert tgc_for("barramundi").name == "barramundi.tgc"
+
+
+def test_barramundi_seed_comes_from_the_cited_ras_trial():
+    # Le Boucher, Chung, Ng, Tan & Lee (2024), Table 4: 71.1 -> 214.8-236.5 g over 51 d.
+    # The paper reports TGC in base-20 form; converted to this file's base-0 convention
+    # the four diets span 1.19-1.39 depending on which temperature the TGC arithmetic
+    # itself implies. Seed 1.3 sits inside that span.
+    c = TGC["barramundi"]
+    assert c.name == "barramundi.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.3)
+    assert c.low == pytest.approx(1.19) and c.high == pytest.approx(1.4)
+    assert "Le Boucher" in c.source and "2024" in c.source
+    # sits inside the published juvenile envelope (Marquez et al. 2024)
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_barramundi_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute both readings from the paper's numbers inside the test, so the seed and
+    # the citation can not drift apart silently.
+    wi, days = 71.1, 51.0
+    finals = {"SPC": 214.8, "Control": 217.3, "BSF": 222.2, "Com": 236.5}
+    # the paper's own base-20 TGCs imply sum(T-20) = 442 C.d over 51 d (~28.7 C effective)
+    for name, fbw in finals.items():
+        dw = fbw ** (1.0 / 3.0) - wi ** (1.0 / 3.0)
+        tgc_b0 = 1000.0 * dw / (442.0 + 20.0 * days)
+        assert 1.19 <= tgc_b0 <= 1.40, f"{name}: base-0 TGC {tgc_b0:.3f} outside the span"
+    # at the stated 30.3 C the same weights give the looser 1.19-1.32 reading
+    tgc_ctrl = 1000.0 * (217.3 ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (30.3 * days)
+    assert TGC["barramundi"].low <= tgc_ctrl <= TGC["barramundi"].high
+
+
+def test_barramundi_days_to_weight_lands_in_a_plausible_farm_range():
+    # FAO 589 grow-out figure: 20 g fingerling to plate size (~400-500 g) inside a year;
+    # the Lupatsch/Lupatsch energy model reaches 500 g in ~190 d at 27 C. For this species
+    # row the feed chart binds below the thermal ceiling, so the planning date rides the
+    # ration in the species table, not the TGC seed alone - the seed still sets the
+    # thermal headroom the chart is allowed to climb toward.
+    days = days_to_weight(20.0, 500.0, "barramundi", 28.0)
+    assert 150.0 <= days <= 300.0, f"20 g -> 500 g at 28 C took {days:.0f} days"
+
+
 def test_limits_are_declared():
     assert any("mortality" in x for x in NOT_MODELLED)
     assert any("spawn" in x.lower() for x in NOT_MODELLED)
