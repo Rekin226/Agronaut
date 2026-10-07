@@ -950,6 +950,18 @@ def _attach_scene_html(scene: dict, *, prefix: str = "agronaut_design3d_") -> st
     # a system. Minimal containers and offline laptops are the target, not the exception.
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(html)
+    # A top-down LAYOUT PLAN of the same positions, written BESIDE the HTML with the SAME STEM
+    # (foo.html -> foo.png). WhatsApp cannot carry the self-contained 3D HTML at all — no
+    # browser, no file picker — so it delivers this still instead (#167); Telegram keeps the
+    # interactive HTML. Rendering from the scene, not from schematic.to_png, keeps the still
+    # and the 3D page showing ONE arrangement rather than two different pictures.
+    try:
+        from aqua_model.scene_plan import to_png as _layout_png
+
+        with open(os.path.splitext(path)[0] + ".png", "wb") as fh:
+            fh.write(_layout_png(scene))
+    except Exception:  # noqa: BLE001 — a missing still must not cost the 3D file
+        log.warning("layout plan PNG could not be rendered for %s", path, exc_info=True)
     runtime.add_attachment(path)
     return path
 
