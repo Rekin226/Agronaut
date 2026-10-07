@@ -233,6 +233,17 @@ ALLOWLIST = {
         "3D rendering: condition factor for drawn body length; a drawing convention per its comment",
     ("scene3d", "DEFAULT_MAX_FRAMES"):
         "3D rendering: default animation frame cap; a presentation default",
+    # scene_plan.py — drawing conventions for the top-down still (#167); nothing computes from them
+    ("scene_plan", "PAD"):
+        "layout-plan drawing: clear space around the plan; a page margin, no geometry depends on it",
+    ("scene_plan", "HEADER"):
+        "layout-plan drawing: title band above the plan; a page-layout convention",
+    ("scene_plan", "MAX_PLOT"):
+        "layout-plan drawing: longest side of the plotted plan in px; a raster-size choice, not a length",
+    ("scene_plan", "LEGEND_ROW_H"):
+        "layout-plan drawing: legend row height in px; a page-layout convention",
+    ("scene_plan", "LEGEND_SWATCH"):
+        "layout-plan drawing: legend colour swatch in px; a page-layout convention",
     # triage.py — priority ordering, only relative order is meaningful
     ("triage", "_P_ENVIRONMENT"):
         "triage priority band; only the ordering of the four bands is meaningful",

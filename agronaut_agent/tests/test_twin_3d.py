@@ -223,3 +223,44 @@ def test_every_3d_tool_tells_the_viewer_which_crop_it_drew(session):
 def test_the_tool_is_registered():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     assert "show_my_system_3d" in {t.name for t in AGRONAUT_TOOLS}
+
+
+# --- the WhatsApp still (#167) --------------------------------------------------------
+
+def test_a_layout_plan_png_is_written_beside_the_html_with_the_same_stem(session,
+                                                                         offline_weather):
+    """WhatsApp cannot carry the 3D HTML, so `_attach_scene_html` writes a top-down layout
+    plan beside it, same stem. Telegram still gets the HTML alone (one attachment)."""
+    import os
+
+    mem, uid = session
+    _profile(mem, uid)
+
+    T.show_my_system_3d.invoke({"days_ahead": 5})
+
+    attached = runtime.get_attachments()
+    assert len(attached) == 1, "Telegram's behaviour is unchanged — the HTML is the attachment"
+    html = attached[0]
+    plan = os.path.splitext(html)[0] + ".png"
+    assert html.endswith(".html") and plan.endswith(".png")
+    assert os.path.exists(plan), "the layout plan must sit beside the HTML, same stem"
+    with open(plan, "rb") as fh:
+        assert fh.read(8) == b"\x89PNG\r\n\x1a\n", "the still must be a real PNG"
+
+
+def test_the_design_tool_writes_the_layout_plan_too(session, offline_weather):
+    """Every scene tool goes through `_attach_scene_html`, so the still is written there for
+    all of them, not just the live-twin one."""
+    import os
+
+    runtime.set_current(session[0], session[1])
+
+    T.design_system_3d.invoke({"fish_species": "tilapia", "crop": "tomato",
+                               "grow_area_m2": 20, "temperature_c": 26,
+                               "water_budget_lpd": 500})
+
+    html = runtime.get_attachments()[-1]
+    plan = os.path.splitext(html)[0] + ".png"
+    assert os.path.exists(plan)
+    with open(plan, "rb") as fh:
+        assert fh.read(8) == b"\x89PNG\r\n\x1a\n"

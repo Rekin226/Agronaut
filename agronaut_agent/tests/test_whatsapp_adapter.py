@@ -190,6 +190,31 @@ def test_handle_payload_skips_html_attachment_and_explains_availability(monkeypa
     assert not html_file.exists()  # verified finally block unlinks the temp file
 
 
+def test_handle_payload_sends_the_layout_plan_png_beside_the_html(monkeypatch, tmp_path):
+    """#167: WhatsApp cannot carry the 3D HTML, but it CAN carry the top-down layout plan
+    written beside it with the same stem. It sends the PNG in place of the HTML — not the
+    HTML, and not the availability line — and cleans up both temp files."""
+    html_file = tmp_path / "scene.html"
+    html_file.write_text("<!DOCTYPE html><html><body>3D Scene</body></html>", encoding="utf-8")
+    plan = tmp_path / "scene.png"
+    plan.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+    agent = _FakeAgent(attachments=[str(html_file)])
+    a = _adapter(agent)
+    sent_media, sent_text = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(
+        a, "send_media",
+        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True,
+    )
+
+    a.handle_payload(_incoming_payload("show 3d scene"))
+
+    assert sent_media == [("15551234567", str(plan), "image/png")]
+    assert not any("not available" in text.lower() for _, text in sent_text)
+    assert not html_file.exists(), "the HTML temp file must still be cleaned up"
+    assert not plan.exists(), "the plan temp file must be cleaned up too"
+
+
 def test_handle_payload_sends_document_attachment_with_guessed_mime(monkeypatch, tmp_path):
     pdf_file = tmp_path / "report.pdf"
     pdf_file.write_bytes(b"%PDF-1.4")

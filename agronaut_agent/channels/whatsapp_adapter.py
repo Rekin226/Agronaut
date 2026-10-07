@@ -452,12 +452,25 @@ class WhatsAppAdapter(ChannelAdapter):
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
+            siblings: list[str] = []
             try:
                 if path.lower().endswith((".html", ".htm")):
-                    self.send_text(
-                        sender,
-                        "The 3D view isn't available on WhatsApp yet (Telegram has it).",
-                    )
+                    # WhatsApp cannot carry the self-contained 3D HTML (no browser, no file
+                    # picker). The scene's still — the top-down LAYOUT PLAN written beside
+                    # the HTML with the same stem (#167) — is what the grower can actually
+                    # see, so deliver that in its place. Telegram keeps sending the HTML.
+                    # An HTML with no companion PNG (hand-built, or the still failed to
+                    # render) still gets the honest availability line rather than silence.
+                    plan = os.path.splitext(path)[0] + ".png"
+                    if os.path.exists(plan):
+                        siblings.append(plan)
+                        if self.send_media(sender, plan, mime="image/png") is False:
+                            self._notify_send_failed(sender, plan)
+                    else:
+                        self.send_text(
+                            sender,
+                            "The 3D view isn't available on WhatsApp yet (Telegram has it).",
+                        )
                 else:
                     mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
                     if self.send_media(sender, path, mime=mime) is False:
@@ -466,10 +479,11 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
                 self._notify_send_failed(sender, path)
             finally:
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
+                for stale in (path, *siblings):
+                    try:
+                        os.unlink(stale)
+                    except OSError:
+                        pass
 
     def _notify_send_failed(self, sender: str, path: str) -> None:
         """Tell the grower an attachment didn't arrive. Never raises.
