@@ -182,16 +182,16 @@ ALLOWLIST = {
     # (GREENHOUSE_* in coefficients.py, sourced/derived per #213); sourced is the
     # default state, so no entries remain here. Add one back ONLY with a source
     # or a stated derivation.
-    # advisory.py — evidence-class confidence ceilings. The comment above the dict
-    # explains where the three numbers come from (the MIXED validation verdict plus
-    # kit-vs-model trust ordering), but neither is a measured source. Known debt,
-    # distinct from #213 (the greenhouse envelope), which is now sourced.
+    # advisory.py — evidence-class confidence ceilings. A confidence ceiling will
+    # never get a measured source: the ordering (measured > direction > level) is
+    # the claim, and it is policy, like NUDGE_WEIGHTS — reasoned in the comment
+    # above the dict, not physics to be cited.
     ("advisory", "EVIDENCE_CONFIDENCE[MEASURED]"):
-        "KNOWN DEBT: confidence ceiling from the twin-validation MIXED verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_DIRECTION]"):
-        "KNOWN DEBT: confidence ceiling from the twin-validation MIXED verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_LEVEL]"):
-        "KNOWN DEBT: confidence ceiling from the twin-validation MIXED verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     # system_types.py — per-system geometry defaults; each instance passes explicit, source-cited values
     ("system_types", "SystemType.footprint_ratio"):
         "class-level default; every SystemType instance sets its own value with a source",

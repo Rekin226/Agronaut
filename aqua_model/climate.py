@@ -78,10 +78,12 @@ class GreenhouseParams:
 
     transmissivity: fraction of outside light reaching the crop. New single
       polyethylene film transmits ~0.85-0.90 (Roberts 1998, Rutgers CCEA glazing
-      workshop; U. Arkansas glazing table: single PE 85%); structure, dirt and
-      condensation take a measured whole-house winter PAR to 0.45-0.67 (Roberts
-      1998 Table 1). Default 0.70 = the placed mid-point for a normal house
-      (see GREENHOUSE_TRANSMISSIVITY note).
+      workshop; U. Arkansas glazing table: single PE 85%). Roberts 1998 Table 1
+      measured whole-house winter PAR on four institutional houses - single
+      glass, acrylic, double glass and double PE (at-glazing 0.58-0.67,
+      at-canopy 0.45-0.56); no single-poly house was measured. Default 0.70 is
+      PLACED above every whole-house value in the table, from the ~0.90 film
+      figure times a structure factor (see GREENHOUSE_TRANSMISSIVITY note).
       (Full glazing table with U-values: docs/twin_parameter_dossier.md §6.)
     unheated_lift_c: how much warmer the DAILY MEAN inside air runs than outside in a closed,
       unheated tunnel. Measured on-farm daily means across 36 US high tunnels
@@ -90,10 +92,10 @@ class GreenhouseParams:
       note; much higher at midday, near zero at night — ventilation eats the
       midday gain).
     water_tau_days: first-order time constant of the water mass toward inside air temperature.
-      A lumped-capacitance derivation for 1-10 m3 tanks under cover gives a
-      0.6-3.8 day band (see GREENHOUSE_WATER_TAU_DAYS note); no measured settling
-      time was found, so the band is placed, not measured. Sun-exposed shallow
-      beds are faster. Default 2.0.
+      A lumped-capacitance derivation gives a 0.6-3.8 day band, which corresponds to
+      a water-mass shape factor V/A of 0.19-0.39 m at h = 5-15 W/m2K (see
+      GREENHOUSE_WATER_TAU_DAYS note); no measured settling time was found, so the
+      band is placed, not measured. Sun-exposed shallow beds are faster. Default 2.0.
     heat_setpoint_c: if set, a heater holds water at or above this temperature — the model
       then reports the implied heating load as degree-days rather than pretending it is free.
     shade_to_ambient: True for an outdoor/shade-net system: no lift, full outside swing.
