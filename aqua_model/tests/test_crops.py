@@ -65,7 +65,7 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
     assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "moringa",
-                                      "water_spinach"], (
+                                      "roselle", "water_spinach"], (
         "amaranth, water_spinach, malabar_spinach (#125) and moringa are the leafy "
         f"crops that carry hot climates; if another joins them, widen this assertion "
         f"deliberately. Found: {leafy_above_30}"
@@ -205,6 +205,47 @@ def test_ethiopian_kale_sizes_a_system_without_error():
     from aqua_model import size_system, validate_design_input
 
     out = size_system(validate_design_input("tilapia", "ethiopian_kale", 12.0, 29.0, 3000.0))
+
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_roselle_is_the_sahelian_hibiscus_leafy():
+    """#125: roselle (Hibiscus sabdariffa), the last wanted heat-tolerant leafy.
+
+    Its identity is a measured 18-35 °C band — the only PROTA endpoint pair on the
+    heat-tolerant list stated as a direct quote rather than assembled from other
+    sources' fragments — paired with leaf protein (3.3) above every heat-tolerant
+    leafy-green sibling; only moringa, in its own leafy-legume class, sits higher.
+    If a future edit moves an endpoint off the quoted band, the reason this crop was
+    added reopens silently.
+    """
+    rs = get_crop("roselle")
+    assert rs.category == "leafy"
+    assert rs.temp_min_c >= 18.0
+    assert rs.temp_max_c >= 35.0
+    assert rs.temp_max_c <= 36.0  # exact PROTA endpoint, no headroom added
+    assert rs.edible_protein_pct > 3.0
+    greens = ("amaranth", "water_spinach", "malabar_spinach", "ethiopian_kale")
+    assert all(rs.edible_protein_pct > get_crop(g).edible_protein_pct for g in greens), (
+        "protein 3.3 must stay above the leafy-green siblings (moringa excluded — "
+        "its 9.4 is a different class)")
+    assert "18°C and 35°C" in rs.source, "band endpoints must quote the PROTA sentence"
+    assert "20 t/ha" in rs.source, "yield base must cite the PROTA leafy-branch figure"
+    assert "2.0 kg/m2 (20 t/ha per cycle) x 1.5 cycles/yr x 4x" in rs.source, (
+        "yield chain must state the unit conversion, cycle count and multiplier, "
+        "not skip the field-to-registered unit step")
+    assert "Leung" in rs.source, "protein figure must name its composition-table source"
+    assert "FRR placed" in rs.source, "FRR placement must be clearly stated"
+    assert 8.0 < rs.yield_kg_per_m2_year < 16.0  # held below the 14-16 siblings: reported max, not average
+
+
+def test_roselle_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "roselle", 12.0, 30.0, 3000.0))
 
     assert out.feed_g_per_day > 0
     assert out.fish_count > 0

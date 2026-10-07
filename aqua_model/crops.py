@@ -480,6 +480,60 @@ ETHIOPIAN_KALE = Crop(
         "measured for this species)."),
 )
 
+# ROSELLE (Hibiscus sabdariffa) — the hibiscus of karkade tea, grown as a leafy vegetable
+# across the Sahel. The last of #125's wanted crops that fits raft culture without special
+# pleading: a heat-tolerant leafy harvested by repeated branch picking, leaf harvest from
+# 6-8 weeks after sowing.
+ROSELLE = Crop(
+    name="roselle",
+    category="leafy",
+    # No H. sabdariffa-specific feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) at the water-spinach seed point —
+    # the closest analogue we carry: a fast tropical leafy harvested by repeated picking
+    # (PROTA: branches ~50 cm picked 2-3 times per vegetative period, which stimulates
+    # branching and raises leaf production).
+    frr_g_per_m2_day=65.0,
+    frr_low=45.0,
+    frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    # Field yield is measured, not placed: PROTA reports leafy-branch yields of up to
+    # 20 t/ha from three cuttings. 20 t/ha is 2.0 kg/m2 per cycle; roselle is a 4-6 month
+    # annual, so ~1.5 cycles/yr is assumed; 2.0 x 1.5 x 4x protected-culture multiplier
+    # (the same ~4x the leafy siblings use) = 12. Held at 12 — below amaranth and water
+    # spinach (16), below malabar spinach and moringa (14): the PROTA figure is a reported
+    # maximum, and African averages are described as much lower and variable. The
+    # multiplier and the cycle count are the soft links; the trial figure is measured.
+    yield_kg_per_m2_year=12.0,
+    # PROTA (Leung, Busson & Jardin 1968 composition table) gives leaf protein 3.3 g per
+    # 100 g edible portion — above every heat-tolerant leafy-green sibling (amaranth 2.5,
+    # water spinach 2.6, malabar spinach 1.8, Ethiopian kale 2.7); only moringa (9.4,
+    # its own leafy-legume class) sits higher.
+    edible_protein_pct=3.3,
+    ph_min=5.5,
+    ph_max=7.0,
+    # The band is measured, not placed — PROTA states it directly: "temperature
+    # requirements ranging between 18°C and 35°C", with growth stopping at 14°C. The 18
+    # floor is why roselle is a heat crop; 35 matches amaranth's ceiling (the only sibling
+    # that reaches it), but here it is the source's own upper endpoint, not headroom.
+    # Daylength sensitivity (flowers best under 12 h days) limits calyx production in the
+    # field, not leaf harvest — picking starts 6-8 weeks after sowing regardless.
+    temp_min_c=18.0,
+    temp_max_c=35.0,
+    source=("PROTA4U, McClintock & El Tahir 2011 ('Hibiscus sabdariffa L.', PROTA4U "
+        "record, Brink & Achigan-Dako eds): 'temperature requirements ranging between "
+        "18°C and 35°C' with growth stopping at 14°C for the band; leafy-branch yields "
+        "'up to 20 t/ha from three cuttings' for the yield base; leaf protein 3.3 g/100 g "
+        "from the Leung, Busson & Jardin 1968 composition table it cites. Leaf harvest "
+        "6-8 weeks after sowing, branches ~50 cm picked 2-3 times per vegetative period. "
+        "Yield 12 = 2.0 kg/m2 (20 t/ha per cycle) x 1.5 cycles/yr x 4x: the same "
+        "protected-culture multiplier the leafy siblings use, with the cycle count as a "
+        "second soft link; the trial figure is measured and held below the 14-16 siblings "
+        "because PROTA describes African averages as much lower and variable. FRR placed "
+        "at the water-spinach seed point in the FAO 589 / UVI leafy band (not measured "
+        "for this species). pH 5.5-7.0 is the FAO 589 / UVI leafy-band default, not "
+        "species-measured."),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -495,6 +549,7 @@ CROPS: dict[str, Crop] = {
         MALABAR_SPINACH,
         MORINGA,
         ETHIOPIAN_KALE,
+        ROSELLE,
     )
 }
 
