@@ -76,3 +76,37 @@ def test_reopening_an_current_database_leaves_the_stamp_alone(tmp_path):
     for _ in range(3):
         _Db(path)
     assert _user_version(path) == SCHEMA_VERSION
+
+
+def test_a_v1_database_gains_wa_message_id_on_upgrade(tmp_path):
+    """A database written at schema v1 holds followups without wa_message_id.
+    Opening it with v2 must add the column (ALTER, not rebuild) and keep rows."""
+    import agronaut_agent.store as store_mod
+
+    path = tmp_path / "v1.sqlite3"
+    raw = sqlite3.connect(str(path))
+    raw.executescript("""
+        CREATE TABLE followups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL, channel TEXT NOT NULL, channel_user TEXT NOT NULL,
+            question TEXT NOT NULL, about TEXT, due_at TEXT NOT NULL,
+            status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+            outcome TEXT, created_at TEXT NOT NULL, sent_at TEXT
+        );
+        INSERT INTO followups(user_id, channel, channel_user, question, due_at,
+                              status, attempts, created_at)
+        VALUES ('telegram:1', 'telegram', '1', 'did it work?',
+                '2000-01-01T00:00:00+00:00', 'sent', 0, '2000-01-01T00:00:00+00:00');
+        PRAGMA user_version = 1;
+    """)
+    raw.commit()
+    raw.close()
+
+    fs = store_mod.FollowupStore(store_mod._Db(path))
+    assert _user_version(path) == SCHEMA_VERSION
+    # The old row survived, with no message id (its send predates capture).
+    row = fs.by_message_id("wamid.ANY")
+    assert row is None
+    cols = [r[1] for r in sqlite3.connect(str(path)).execute(
+        "PRAGMA table_info(followups)").fetchall()]
+    assert "wa_message_id" in cols

@@ -633,3 +633,23 @@ def test_no_nudge_once_a_tool_has_run_this_turn(tmp_path):
     agent_ = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=fake)
     reply = agent_.handle_message("cli", "u7", "which fish can I use?")
     assert fake.calls == 2 and reply == "Done. I'll check back tomorrow."
+
+
+def test_non_131047_status_requeues_a_sent_followup_for_retry(tmp_path):
+    # #215 review: a failed status other than 131047 must not leave the row
+    # marked sent forever — due() only picks up pending rows, so without a
+    # requeue the retry never happens and the record falsely says delivered.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("whatsapp:7", "whatsapp", "15551234567", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid = agent.due_followups("whatsapp")[0]["id"]
+    agent.mark_followup_sent(fid)
+    agent.record_followup_message_id(fid, "wamid.FU7")
+    assert agent.due_followups("whatsapp") == []          # sent -> not due
+
+    agent.followup_status_failed("wamid.FU7", [131000])   # not the 24h-window code
+
+    row = agent._followups.open_for("whatsapp:7")
+    assert row["status"] == "pending"                     # back in the retry queue
+    assert row["attempts"] == 1
+    assert [f["id"] for f in agent.due_followups("whatsapp")] == [fid]  # picked up again
