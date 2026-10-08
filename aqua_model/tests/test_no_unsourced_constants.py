@@ -178,27 +178,20 @@ ALLOWLIST = {
         "hard refuse-outside sanity bound at the validation gate; order-of-magnitude guard, not a coefficient",
     ("validate", "_BOUNDS[water_budget_lpd]"):
         "hard refuse-outside sanity bound at the validation gate; order-of-magnitude guard, not a coefficient",
-    # climate.py — single-poly-tunnel envelope defaults. The docstrings state the
-    # defaults are meant to be overridden per site, but production.py builds its
-    # ProductionParams from C.GreenhouseParams() with no override, so the defaults
-    # drive every shipped season run and the lift/tau values carry no named source.
-    # Known debt, tracked in #213.
-    ("climate", "GreenhouseParams.transmissivity"):
-        "KNOWN DEBT #213: glazing tables cited in the field docstring, but the defaults drive every run",
-    ("climate", "GreenhouseParams.unheated_lift_c"):
-        "KNOWN DEBT #213: measured range stated in the field docstring, but the default drives every run",
-    ("climate", "GreenhouseParams.water_tau_days"):
-        "KNOWN DEBT #213: settling-time reasoning in the field docstring, but the default drives every run",
-    # advisory.py — evidence-class confidence ceilings. The comment above the dict
-    # explains where the three numbers come from (the MIXED validation verdict plus
-    # kit-vs-model trust ordering), but neither is a measured source. Known debt,
-    # tracked in #213.
+    # climate.py — the single-poly-tunnel envelope defaults moved to the registry
+    # (GREENHOUSE_* in coefficients.py, sourced/derived per #213); sourced is the
+    # default state, so no entries remain here. Add one back ONLY with a source
+    # or a stated derivation.
+    # advisory.py — evidence-class confidence ceilings. A confidence ceiling will
+    # never get a measured source: the ordering (measured > direction > level) is
+    # the claim, and it is policy, like NUDGE_WEIGHTS — reasoned in the comment
+    # above the dict, not physics to be cited.
     ("advisory", "EVIDENCE_CONFIDENCE[MEASURED]"):
-        "KNOWN DEBT #213: confidence ceiling from the twin-validation verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_DIRECTION]"):
-        "KNOWN DEBT #213: confidence ceiling from the twin-validation verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_LEVEL]"):
-        "KNOWN DEBT #213: confidence ceiling from the twin-validation verdict; no measured source yet",
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
     # system_types.py — per-system geometry defaults; each instance passes explicit, source-cited values
     ("system_types", "SystemType.footprint_ratio"):
         "class-level default; every SystemType instance sets its own value with a source",

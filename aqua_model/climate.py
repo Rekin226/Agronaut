@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import exp
 
+from . import coefficients as _coef
+
 NOT_MODELLED = (
     "hourly dynamics (day/night swings, dawn cold dips — daily means only)",
     "humidity and VPD (transpiration uses a fixed ET coefficient)",
@@ -70,24 +72,38 @@ def from_records(records: list[dict]) -> tuple[DailyClimate, ...]:
 class GreenhouseParams:
     """The envelope, as the twin sees it. Defaults describe a single-poly tunnel.
 
-    transmissivity: fraction of outside light reaching the crop. Single polyethylene film
-      transmits ~85% new (U. Arkansas greenhouse glazing tables; double poly ~77%, glass
-      ~90%); structure, dirt and condensation take a real house to ~0.60-0.75. Default 0.70.
+    The three defaults are registry coefficients (coefficients.py) — provenance
+    lives in their notes and is summarised here. A grower with their own
+    thermometer still beats any of these numbers; pass overrides per site.
+
+    transmissivity: fraction of outside light reaching the crop. New single
+      polyethylene film transmits ~0.85-0.90 (Roberts 1998, Rutgers CCEA glazing
+      workshop; U. Arkansas glazing table: single PE 85%). Roberts 1998 Table 1
+      measured whole-house winter PAR on four institutional houses - single
+      glass, acrylic, double glass and double PE (at-glazing 0.58-0.67,
+      at-canopy 0.45-0.56); no single-poly house was measured. Default 0.70 is
+      PLACED above every whole-house value in the table, from the ~0.90 film
+      figure times a structure factor (see GREENHOUSE_TRANSMISSIVITY note).
       (Full glazing table with U-values: docs/twin_parameter_dossier.md §6.)
     unheated_lift_c: how much warmer the DAILY MEAN inside air runs than outside in a closed,
-      unheated tunnel. Measured passive tunnels run ~1-5 C on the daily mean (much higher at
-      midday, near zero at night); ventilation eats most of the midday gain. Default 3.0.
+      unheated tunnel. Measured on-farm daily means across 36 US high tunnels
+      averaged +1.7 C over outside; Penn State Extension gives a yearly average
+      of +4.7 C (+8.4 F). Default 3.0 sits mid-band (see GREENHOUSE_UNHEATED_LIFT_C
+      note; much higher at midday, near zero at night — ventilation eats the
+      midday gain).
     water_tau_days: first-order time constant of the water mass toward inside air temperature.
-      Tanks of 1-10 m3 under cover settle in roughly 1-3 days; sun-exposed shallow beds are
-      faster. Default 2.0.
+      A lumped-capacitance derivation gives a 0.6-3.8 day band, which corresponds to
+      a water-mass shape factor V/A of 0.19-0.39 m at h = 5-15 W/m2K (see
+      GREENHOUSE_WATER_TAU_DAYS note); no measured settling time was found, so the
+      band is placed, not measured. Sun-exposed shallow beds are faster. Default 2.0.
     heat_setpoint_c: if set, a heater holds water at or above this temperature — the model
       then reports the implied heating load as degree-days rather than pretending it is free.
     shade_to_ambient: True for an outdoor/shade-net system: no lift, full outside swing.
     """
 
-    transmissivity: float = 0.70
-    unheated_lift_c: float = 3.0
-    water_tau_days: float = 2.0
+    transmissivity: float = _coef.GREENHOUSE_TRANSMISSIVITY.value
+    unheated_lift_c: float = _coef.GREENHOUSE_UNHEATED_LIFT_C.value
+    water_tau_days: float = _coef.GREENHOUSE_WATER_TAU_DAYS.value
     heat_setpoint_c: float | None = None
     shade_to_ambient: bool = False
 

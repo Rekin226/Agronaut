@@ -2,6 +2,7 @@
 
 import pytest
 
+from aqua_model import coefficients as C_
 from aqua_model.climate import (
     NOT_MODELLED,
     DailyClimate,
@@ -77,3 +78,45 @@ def test_a_heater_holds_the_setpoint_and_bills_for_it():
 def test_limits_are_declared():
     assert len(NOT_MODELLED) >= 3
     assert any("hourly" in x for x in NOT_MODELLED)
+
+
+# --- #213: the envelope defaults are traceable, not just reasonable ----------
+
+
+def test_greenhouse_defaults_come_from_the_registry():
+    """The shipped defaults must be the registry coefficients, not parallel literals.
+
+    A re-literalised default (0.70 typed back into climate.py) would pass every
+    behaviour test while silently cutting the provenance link.
+    """
+    gh = GreenhouseParams()
+    assert gh.transmissivity == C_.GREENHOUSE_TRANSMISSIVITY.value
+    assert gh.unheated_lift_c == C_.GREENHOUSE_UNHEATED_LIFT_C.value
+    assert gh.water_tau_days == C_.GREENHOUSE_WATER_TAU_DAYS.value
+
+
+def test_every_greenhouse_default_is_labelled_measured_or_placed():
+    """Each envelope default states where it comes from; the value never moves silently."""
+    for coef in (
+        C_.GREENHOUSE_TRANSMISSIVITY,
+        C_.GREENHOUSE_UNHEATED_LIFT_C,
+        C_.GREENHOUSE_WATER_TAU_DAYS,
+    ):
+        assert coef.note.startswith(("measured:", "PLACED")), (
+            f"{coef.name}: note must start measured:/PLACED: (got: {coef.note[:60]!r})"
+        )
+        assert coef.source, f"{coef.name} must name a source or state the derivation"
+        assert coef.low <= coef.value <= coef.high, coef.name
+
+
+def test_the_placed_lift_band_is_the_measured_band():
+    """The lift band is measured on-farm; the default is placed inside it.
+
+    If the literature moves, widen or shift THIS test deliberately alongside the
+    coefficient — never quietly.
+    """
+    lift = C_.GREENHOUSE_UNHEATED_LIFT_C
+    # 36-tunnel on-farm study: daily mean +3 F (+1.7 C); Penn State: yearly avg +8.4 F (+4.7 C)
+    assert lift.low == pytest.approx(1.7, abs=0.05)
+    assert lift.high == pytest.approx(4.7, abs=0.05)
+    assert lift.low <= lift.value <= lift.high
