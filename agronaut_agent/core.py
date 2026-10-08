@@ -1057,7 +1057,14 @@ class AgronautAgent:
         self._followups.mark_sent(followup_id)
 
     def followup_send_failed(self, followup_id: int) -> None:
-        """A delivery attempt failed; retry next tick, but give up after 3."""
+        """A delivery attempt failed; retry next tick, but give up after 3.
+
+        The row may already be marked sent — a delivery-status webhook can arrive
+        after the send — so put it back to pending first: due() only picks up
+        pending rows, and without the requeue the retry would never happen and
+        the record would falsely say delivered (#215).
+        """
+        self._followups.requeue(followup_id)
         if self._followups.bump_attempt(followup_id) >= 3:
             self._followups.mark_failed(followup_id)
 

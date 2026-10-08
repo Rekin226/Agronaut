@@ -427,6 +427,14 @@ class FollowupStore:
     def mark_sent(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='sent', sent_at=? WHERE id=?", (_now(), fid))
 
+    def requeue(self, fid: int) -> None:
+        """Put a sent follow-up back to pending so the next tick retries it (#215).
+
+        Only a sent row moves: anything already answered, failed, or cancelled
+        keeps its terminal state, and a pending row is already where it belongs.
+        """
+        self.db.execute("UPDATE followups SET status='pending' WHERE id=? AND status='sent'", (fid,))
+
     def record_message_id(self, fid: int, wa_message_id: str | None) -> None:
         """Remember the WhatsApp message id of the sent question, so a later
         delivery-status webhook can be matched back to this follow-up (#215)."""

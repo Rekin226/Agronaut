@@ -877,3 +877,28 @@ def test_a_failed_status_names_metas_error():
         {"code": 131047, "title": "Re-engagement message"}]}]}}]}]}
     out = WhatsAppAdapter.describe_payload(st)
     assert "failed" in out and "131047" in out
+
+
+def test_no_message_id_warning_logs_no_phone_number(monkeypatch, caplog):
+    # #215 review: a successful send response carries the recipient's number in
+    # contacts (input and wa_id) — the warning must not write it to the log.
+    import logging
+
+    a = _adapter()
+
+    class _Resp:
+        status_code = 200
+        text = (
+            '{"messages": [], "contacts": [{"input": "15551234567", "wa_id": "15551234567"}]}'
+        )
+
+        def json(self):
+            return {
+                "messages": [],
+                "contacts": [{"input": "15551234567", "wa_id": "15551234567"}],
+            }
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    with caplog.at_level(logging.WARNING):
+        assert a.send_text("15551234567", "hello") == []
+    assert "15551234567" not in caplog.text

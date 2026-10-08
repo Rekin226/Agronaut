@@ -332,8 +332,11 @@ class WhatsAppAdapter(ChannelAdapter):
             if mid:
                 ids.append(str(mid))
             else:
-                log.warning("whatsapp send response carried no message id: %s",
-                            resp.text[:200])
+                # A successful send response carries the recipient's number in
+                # contacts (input and wa_id): never log the body here, the
+                # status code alone says the send worked but left no handle (#215).
+                log.warning("whatsapp send response carried no message id (status %s)",
+                            resp.status_code)
         return ids
 
     def send_media(self, to: str, path: str, mime: str = "image/png") -> bool:
