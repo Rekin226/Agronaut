@@ -65,9 +65,10 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
     assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "moringa",
-                                      "water_spinach"], (
-        "amaranth, water_spinach, malabar_spinach (#125) and moringa are the leafy "
-        f"crops that carry hot climates; if another joins them, widen this assertion "
+                                      "sweet_potato_leaves", "water_spinach"], (
+        "amaranth, water_spinach, malabar_spinach (#125), moringa and "
+        f"sweet_potato_leaves are the leafy crops that carry hot climates; "
+        f"if another joins them, widen this assertion "
         f"deliberately. Found: {leafy_above_30}"
     )
 
@@ -205,6 +206,59 @@ def test_ethiopian_kale_sizes_a_system_without_error():
     from aqua_model import size_system, validate_design_input
 
     out = size_system(validate_design_input("tilapia", "ethiopian_kale", 12.0, 29.0, 3000.0))
+
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_sweet_potato_leaves_is_the_last_wanted_heat_tolerant_leafy():
+    """#125: sweet potato leaves (Ipomoea batatas), the last wanted heat-tolerant leafy.
+
+    Water spinach's sibling: same genus, different organ — vine tips instead of
+    semi-aquatic shoots, with a storage root the model deliberately ignores. Both
+    temperature endpoints are measured, neither copied: the floor is Ecocrop's
+    optimal minimum (the species survives to 10 °C, but a leaf-growth entry models
+    the optimal band of a chilling-sensitive tropical species), and the ceiling is
+    PROSEA's growth-retardation point. If a future edit narrows the band, the reason
+    this crop was added reopens silently.
+    """
+    sp = get_crop("sweet_potato_leaves")
+    assert sp.category == "leafy"
+    assert sp.temp_max_c >= 35.0, (
+        "PROSEA: growth is retarded where temperatures reach or exceed 35 °C; "
+        "below that the entry stops carrying real heat")
+    assert sp.temp_max_c <= 35.0, (
+        "the sourced ceiling is the retardation point itself; do not copy "
+        "amaranth's 35 upward or claim headroom the record does not state")
+    assert sp.temp_min_c == 18.0, "Ecocrop optimal minimum — measured, not placed"
+    assert sp.ph_min == 5.0 and sp.ph_max == 7.0, (
+        "Ecocrop optimal pH band — species-measured, replaces the leafy default")
+    assert "FRR placed" in sp.source, "FRR placement must be clearly stated"
+    assert "FDC 169303" in sp.source, "protein figure must cite its USDA record"
+    assert "Duke 1983" in sp.source, "yield base must name its source"
+    assert "10-32 t/ha" in sp.source, (
+        "yield chain must state the field band and the cuttings behind it")
+    assert 10.0 < sp.yield_kg_per_m2_year < 25.0
+
+
+def test_sweet_potato_leaves_protein_rank_is_computed_not_asserted():
+    """Sibling-rank guard, the roselle lesson: rank claims are computed, never written
+    from memory. 2.5 g/100 g is mid-band among the leafy entries — below moringa (9.4)
+    and the brassicas, level with amaranth — so the entry may claim nothing special.
+    """
+    sp = get_crop("sweet_potato_leaves")
+    leafies = [x for x in CROPS.values() if x.category == "leafy"]
+    higher = sorted((x.name for x in leafies if x.edible_protein_pct > sp.edible_protein_pct))
+    assert "moringa" in higher and "kale" in higher
+    assert sp.edible_protein_pct == 2.5  # USDA FDC 169303, measured
+
+
+def test_sweet_potato_leaves_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "sweet_potato_leaves", 12.0, 29.0, 3000.0))
 
     assert out.feed_g_per_day > 0
     assert out.fish_count > 0
