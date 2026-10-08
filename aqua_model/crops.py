@@ -500,8 +500,10 @@ ROSELLE = Crop(
     # 20 t/ha from three cuttings. 20 t/ha is 2.0 kg/m2 per cycle; roselle is a 4-6 month
     # annual, so ~1.5 cycles/yr is assumed; 2.0 x 1.5 x 4x protected-culture multiplier
     # (the same ~4x the leafy siblings use) = 12. Held at 12 — below amaranth and water
-    # spinach (16), below malabar spinach and moringa (14): the PROTA figure is a reported
-    # maximum, and African averages are described as much lower and variable. The
+    # spinach (16), below malabar spinach and moringa (14). PROTA's "much lower and
+    # variable" African averages belong to its calyx section (Sudan 93 kg/ha and Senegal
+    # 500 kg/ha are dry calyces), so they do not bear on leaf yield; 12 stands on the
+    # reported-maximum reason alone — the 20 t/ha is a maximum, not an average. The
     # multiplier and the cycle count are the soft links; the trial figure is measured.
     yield_kg_per_m2_year=12.0,
     # PROTA (Leung, Busson & Jardin 1968 composition table) gives leaf protein 3.3 g per
@@ -515,8 +517,13 @@ ROSELLE = Crop(
     # requirements ranging between 18°C and 35°C", with growth stopping at 14°C. The 18
     # floor is why roselle is a heat crop; 35 matches amaranth's ceiling (the only sibling
     # that reaches it), but here it is the source's own upper endpoint, not headroom.
-    # Daylength sensitivity (flowers best under 12 h days) limits calyx production in the
-    # field, not leaf harvest — picking starts 6-8 weeks after sowing regardless.
+    # Daylength sensitivity touches the leaf harvest too: roselle is a short-day plant
+    # and PROTA states it "requires 13 hours/day light during vegetative growth to
+    # prevent premature flowering". Across the Sahel and the tropics days run roughly
+    # 11-13 h, so in the short-day months it flowers early and the picking window
+    # closes. The model does not account for photoperiod — the 1.5 cycles/yr in the
+    # yield chain assumes the plant stays vegetative, which the field does not
+    # guarantee year-round.
     temp_min_c=18.0,
     temp_max_c=35.0,
     source=("PROTA4U, McClintock & El Tahir 2011 ('Hibiscus sabdariffa L.', PROTA4U "
@@ -525,13 +532,20 @@ ROSELLE = Crop(
         "'up to 20 t/ha from three cuttings' for the yield base; leaf protein 3.3 g/100 g "
         "from the Leung, Busson & Jardin 1968 composition table it cites. Leaf harvest "
         "6-8 weeks after sowing, branches ~50 cm picked 2-3 times per vegetative period. "
-        "Yield 12 = 2.0 kg/m2 (20 t/ha per cycle) x 1.5 cycles/yr x 4x: the same "
-        "protected-culture multiplier the leafy siblings use, with the cycle count as a "
-        "second soft link; the trial figure is measured and held below the 14-16 siblings "
-        "because PROTA describes African averages as much lower and variable. FRR placed "
-        "at the water-spinach seed point in the FAO 589 / UVI leafy band (not measured "
-        "for this species). pH 5.5-7.0 is the FAO 589 / UVI leafy-band default, not "
-        "species-measured."),
+        "PROTA also states roselle 'requires 13 hours/day light during vegetative growth "
+        "to prevent premature flowering' (short-day plant, flowers best under 12 h days): "
+        "across the Sahel and the tropics days run roughly 11-13 h, so in short-day "
+        "months it flowers early and the picking window closes — the model does not "
+        "account for photoperiod, and the 1.5 cycles/yr assumes the plant stays "
+        "vegetative. Yield 12 = 2.0 kg/m2 (20 t/ha per cycle) x 1.5 cycles/yr x 4x: the "
+        "same protected-culture multiplier the leafy siblings use, with the cycle count "
+        "as a second soft link; the trial figure is measured and held below the 14-16 "
+        "siblings because the 20 t/ha is a reported maximum, not an average (PROTA's "
+        "'much lower and variable' African averages sit in its calyx section — Sudan 93 "
+        "kg/ha and Senegal 500 kg/ha are dry calyces — not its leaf-yield sentence). FRR "
+        "placed at the water-spinach seed point in the FAO 589 / UVI leafy band (not "
+        "measured for this species). pH 5.5-7.0 is the FAO 589 / UVI leafy-band default, "
+        "not species-measured."),
 )
 
 CROPS: dict[str, Crop] = {

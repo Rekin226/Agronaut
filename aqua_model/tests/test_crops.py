@@ -237,6 +237,15 @@ def test_roselle_is_the_sahelian_hibiscus_leafy():
         "yield chain must state the unit conversion, cycle count and multiplier, "
         "not skip the field-to-registered unit step")
     assert "Leung" in rs.source, "protein figure must name its composition-table source"
+    assert "13 hours/day" in rs.source, (
+        "daylength caveat must quote PROTA's vegetative-light requirement — it "
+        "constrains the leaf harvest, not just calyx production")
+    assert "does not account for photoperiod" in rs.source, (
+        "the 1.5 cycles/yr assumes the plant stays vegetative; the model's "
+        "photoperiod blind spot must be stated, not implied")
+    assert "calyx section" in rs.source, (
+        "PROTA's 'much lower and variable' averages are calyx figures; holding 12 "
+        "below the siblings must stand on the reported-maximum reason, not that clause")
     assert "FRR placed" in rs.source, "FRR placement must be clearly stated"
     assert 8.0 < rs.yield_kg_per_m2_year < 16.0  # held below the 14-16 siblings: reported max, not average
 
