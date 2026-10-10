@@ -95,3 +95,15 @@ def with_sources(text: str, sources: list[str], limit: int = 3) -> str:
         return text
     head = "來源：" if _CJK.search(text) else "Sources: "
     return f"{text.rstrip()}\n\n{head}{'; '.join(missing)}"
+
+
+def cited_texts(content) -> list[str]:
+    """The passages a reply quotes through its citations. Web results reach Claude encrypted,
+    so a cited passage is the only readable trace of what a web search returned, and the
+    grounding check counts it as a source like any tool result."""
+    if not isinstance(content, list):
+        return []
+    return [str(c["cited_text"]) for block in content if isinstance(block, dict)
+            for c in block.get("citations") or []
+            if isinstance(c, dict) and c.get("cited_text")]
+

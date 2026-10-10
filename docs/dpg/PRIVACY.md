@@ -1,6 +1,6 @@
 # Agronaut — Privacy & Data Policy
 
-_Last updated: 2026-07-24_
+_Last updated: 2026-10-10_
 
 Agronaut is a personal agronomy assistant. This policy describes exactly what it collects,
 why, how long it keeps it, and how you control it. It is written to satisfy the
@@ -27,6 +27,21 @@ EXIF GPS above all — is stripped before an image is sent to a vision model, so
 geotagged camera file does not leak a location you did not type.
 Stripping is best-effort: an image the software cannot decode is sent as received rather
 than discarded, so an unusual or malformed file may still carry its metadata.
+
+## When the operator runs Agronaut on Claude
+
+Running on a local model keeps every message on the operator's machine. An operator who
+chooses Claude (`LLM_PROVIDER=anthropic`) sends the conversation to Anthropic to be answered,
+and on that provider two more things can leave the machine:
+
+- **Web search and web fetch.** To answer what the curated knowledge cannot (today's prices,
+  suppliers, regulations), Claude may run a web search, which sends a short search query
+  through Anthropic to a search provider, or read a public web page. Queries are written by
+  the model from your question, for example "prix aliment tilapia Ouagadougou"; they are not
+  your messages. The operator can switch either off (`AGRONAUT_WEB_SEARCH=off`,
+  `AGRONAUT_WEB_FETCH=off`).
+- Sources found on the web are shown with the reply, and a figure from a web page is never
+  used as an input to a sizing or design calculation.
 
 ## How it is used
 

@@ -123,6 +123,43 @@ def prompt_caching() -> bool:
     return (os.getenv("AGRONAUT_PROMPT_CACHE") or "").strip().lower() not in {"0", "off", "false", "no"}
 
 
+def _flag(name: str, default: bool = True) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    return default if not raw else raw not in {"0", "off", "false", "no"}
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name) or default))
+    except ValueError:
+        return default
+
+
+def claude_server_tools() -> list[dict]:
+    """Anthropic-run tools Agronaut adds on Claude: web search and web fetch.
+
+    Search is for what the curated knowledge cannot hold: today's prices in FCFA or TWD,
+    suppliers, rules, a disease outbreak this season. Fetch reads a page the grower links or
+    a search found. Both are the basic, direct versions; the dynamic-filtering ones run inside
+    a code-execution container, which buys token savings on search-heavy work at the cost of a
+    second server tool in every turn, and a farm chat is not search-heavy.
+
+    Capped per request because each search is billed ($10 per 1,000, checked 2026-10-10) and a
+    fetched page is input tokens: AGRONAUT_WEB_SEARCH_MAX (3) and AGRONAUT_WEB_FETCH_MAX (2).
+    AGRONAUT_WEB_SEARCH=off / AGRONAUT_WEB_FETCH=off remove them. Only Claude has these tools,
+    which is why they are not in AGRONAUT_TOOLS.
+    """
+    tools = []
+    if _flag("AGRONAUT_WEB_SEARCH"):
+        tools.append({"type": "web_search_20250305", "name": "web_search",
+                      "max_uses": _int_env("AGRONAUT_WEB_SEARCH_MAX", 3)})
+    if _flag("AGRONAUT_WEB_FETCH"):
+        tools.append({"type": "web_fetch_20250910", "name": "web_fetch",
+                      "max_uses": _int_env("AGRONAUT_WEB_FETCH_MAX", 2),
+                      "citations": {"enabled": True}, "max_content_tokens": 8000})
+    return tools
+
+
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
     """Pure resolution of (provider, model) from args -> env -> defaults. Testable, no I/O."""
     provider = (provider or os.getenv("LLM_PROVIDER") or "ollama").strip().lower()

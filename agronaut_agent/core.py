@@ -16,7 +16,14 @@ import time
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
+from agent.llm import (
+    ResilientChat,
+    build_fallback_chat,
+    claude_server_tools,
+    get_chat_model,
+    get_llm,
+    resolve,
+)
 from agent.vision import sanitize_observation
 
 from . import (
@@ -298,6 +305,28 @@ def _text_of(content) -> str:
     return "" if content is None else str(content)
 
 
+# Only on Claude, and only when web search or fetch is bound: a model without the tools must not
+# be told it has them. Appended to SYSTEM_PROMPT (see _build_context).
+_WEB_RULES = """
+
+WEB SEARCH AND WEB FETCH (you have both):
+- Use web_search for what the curated knowledge cannot hold: current local prices (feed, fish,
+  fingerlings, equipment) in the grower's currency, suppliers near them, regulations, disease
+  outbreaks or weather news this season. Search in the local language too (French in Burkina
+  Faso, Chinese in Taiwan) and name the place.
+- Do NOT search for husbandry basics (search_knowledge_base first) or for sizing and design
+  numbers (those come only from the sizing and design tools, never from a web page).
+- A figure from the web is context for the grower, quoted with its source and its date when the
+  page gives one. Never pass a web figure into a sizing or design tool as an input; if it
+  matters for a design, tell the grower and let them confirm it as their own number.
+- Name a supplier, shop, market or company only when a search result in this turn shows it,
+  and cite it. Otherwise say "a local feed supplier" or "the fish market": an invented name
+  sends a grower across town for nothing.
+- Use web_fetch to read a page the grower sends you or that a search found.
+- Prices and offers change: say "as of <date>" or "the page I found says", never present a
+  web price as a guarantee."""
+
+
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
@@ -327,7 +356,9 @@ class AgronautAgent:
             if fb is not None:
                 base = ResilientChat(base, fb)
             self._base = base                   # unbound: used to force a final text answer
-            self._bound = base.bind_tools(AGRONAUT_TOOLS)
+            # Claude also gets Anthropic-run web search and fetch (claude_server_tools).
+            self._server_tools = claude_server_tools() if self._provider == "anthropic" else []
+            self._bound = base.bind_tools(list(AGRONAUT_TOOLS) + self._server_tools)
         except Exception as exc:  # noqa: BLE001 — surfaced as chat_error, or re-raised
             if require_tools:
                 raise
@@ -381,7 +412,11 @@ class AgronautAgent:
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None,
                        channel: str | None = None) -> list:
-        messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
+        web = any(t.get("name") in {"web_search", "web_fetch"}
+                  for t in getattr(self, "_server_tools", []))
+        # Appended to the fixed prompt, not sent as a block of its own, so the cached prefix
+        # stays one stable block; it is fixed per process, so the cache still hits.
+        messages: list = [SystemMessage(content=SYSTEM_PROMPT + (_WEB_RULES if web else ""))]
 
         # Kept out of SYSTEM_PROMPT so the fixed prefix stays identical across channels.
         note = _CHANNEL_NOTES.get((channel or "").lower())
@@ -537,6 +572,21 @@ class AgronautAgent:
                 "0", "off", "false", "no"}
 
     @staticmethod
+    def _server_tool_usage(ai) -> dict:
+        """Web searches and fetches Anthropic ran inside this call. A search is billed on its
+        own ($10 per 1,000), so it is counted where the tokens are."""
+        usage = (getattr(ai, "response_metadata", None) or {}).get("usage") or {}
+        used = usage.get("server_tool_use") if isinstance(usage, dict) else None
+        if not isinstance(used, dict):
+            return {}
+        out = {}
+        if used.get("web_search_requests"):
+            out["web_searches"] = used["web_search_requests"]
+        if used.get("web_fetch_requests"):
+            out["web_fetches"] = used["web_fetch_requests"]
+        return out
+
+    @staticmethod
     def _cache_usage(ai) -> dict:
         """Prompt-cache reads and writes of a reply, as analytics fields; {} when the provider
         reports none. Recorded so the saving the cache is meant to make can be checked rather
@@ -567,7 +617,7 @@ class AgronautAgent:
             elapsed = int((time.perf_counter() - t0) * 1000)
         tin, tout = self._usage(ai)
         runtime.record_llm_call(elapsed, tin, tout)
-        attribution = dict(self._cache_usage(ai))
+        attribution = {**self._cache_usage(ai), **self._server_tool_usage(ai)}
         if self._provider:
             attribution["provider"] = self._provider
         model_name = self._answering_model(ai) or self._configured_model
@@ -615,6 +665,11 @@ class AgronautAgent:
                     messages.pop()
                     messages.append(AIMessage(content="", tool_calls=[rescued]))
                     tool_calls = [rescued]
+            if not tool_calls and (getattr(ai, "response_metadata", None) or {}).get(
+                    "stop_reason") == "pause_turn":
+                # The API paused a long web-search turn; sending the paused message back
+                # unchanged (it is already appended) lets it continue where it stopped.
+                continue
             if not tool_calls:
                 text = _text_of(ai.content).strip()
                 # Tripwire: a reply that cites an "earlier result" is only honest if this
@@ -822,6 +877,10 @@ class AgronautAgent:
         try:
             sources = [_text_of(m.content) for m in messages[1:]
                        if not isinstance(m, AIMessage)]
+            # What a web search returned reaches the model encrypted; the passages its reply
+            # cites are the readable part, and a figure quoted from one is sourced.
+            sources += [t for m in messages if isinstance(m, AIMessage)
+                        for t in citations.cited_texts(m.content)]
             flagged = grounding.ungrounded(reply, sources)
         except Exception:  # noqa: BLE001
             log.debug("grounding check failed", exc_info=True)
