@@ -52,7 +52,8 @@ from . import paths as _paths
 _ALLOWED_FIELDS = {"tool", "goal", "channel", "ok",
                    "outcome", "n_results", "k", "latency_ms", "top_score", "hybrid",
                    "filtered", "stage", "llm_ms", "llm_calls", "tokens_in", "tokens_out",
-                   "tool_calls", "rating", "provider", "model", "ungrounded_numbers"}
+                   "tool_calls", "rating", "provider", "model", "ungrounded_numbers",
+                   "cache_read_tokens", "cache_write_tokens"}
 
 _SIZING_TOOLS = {"size_aquaponics_system", "size_hydroponic_system_tool"}
 

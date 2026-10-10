@@ -112,6 +112,17 @@ def ollama_thinking() -> bool:
     return (os.getenv("AGRONAUT_OLLAMA_THINK") or "").strip().lower() in {"1", "on", "true", "yes"}
 
 
+def prompt_caching() -> bool:
+    """Whether Claude calls carry prompt-cache breakpoints. On unless AGRONAUT_PROMPT_CACHE=off.
+
+    Every agent call resends the same ~11K-token prefix (30 tool schemas and SYSTEM_PROMPT),
+    and one user message often makes several calls as the loop runs tools. A cached read
+    costs about a tenth of fresh input and comes back sooner. Off is for debugging a cache
+    problem, never a cost saving: a miss costs the same as no cache, plus a small write.
+    """
+    return (os.getenv("AGRONAUT_PROMPT_CACHE") or "").strip().lower() not in {"0", "off", "false", "no"}
+
+
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
     """Pure resolution of (provider, model) from args -> env -> defaults. Testable, no I/O."""
     provider = (provider or os.getenv("LLM_PROVIDER") or "ollama").strip().lower()
@@ -271,18 +282,49 @@ class _AnthropicSystemAdapter:
     tagged as an operator note. That keeps the instruction in the transcript, in position,
     and visible to the model, without inventing a role the API does not have. The wrapper
     only rewrites what it must; everything else is delegated untouched.
+
+    It is also where prompt caching is set, because it is the one place every Claude call of
+    the agent passes through. Two breakpoints, in the order the API requires (longer TTL
+    first): the first system block, which is SYSTEM_PROMPT and so caches the tool schemas and
+    the prompt together for every user and every turn, for an hour; then the API's automatic
+    breakpoint on the last block, which lets the second and later calls of one turn's tool
+    loop reuse everything before them. A plain string prompt (the judge, the session summary)
+    gets neither: it is never sent twice, and a cache write costs a quarter more than input.
     """
 
     _OPERATOR = "[operator note] "
+    _PROMPT_CACHE = {"type": "ephemeral", "ttl": "1h"}
+    _TURN_CACHE = {"type": "ephemeral"}
 
     def __init__(self, inner):
         self._inner = inner
 
-    def bind_tools(self, tools):
-        return _AnthropicSystemAdapter(self._inner.bind_tools(tools))
+    def bind_tools(self, tools, **kwargs):
+        return _AnthropicSystemAdapter(self._inner.bind_tools(tools, **kwargs))
 
     def invoke(self, messages, *args, **kwargs):
-        return self._inner.invoke(self._fold(messages), *args, **kwargs)
+        folded = self._fold(messages)
+        if not isinstance(messages, str) and prompt_caching():
+            folded = self._cache_prompt(folded)
+            kwargs.setdefault("cache_control", self._TURN_CACHE)
+        return self._inner.invoke(folded, *args, **kwargs)
+
+    def _cache_prompt(self, messages: list) -> list:
+        """The same messages with a cache breakpoint on the first system block."""
+        from langchain_core.messages import SystemMessage
+
+        if not messages or not isinstance(messages[0], SystemMessage):
+            return messages
+        head = messages[0]
+        if isinstance(head.content, str):
+            blocks = [{"type": "text", "text": head.content}]
+        else:
+            blocks = [dict(b) if isinstance(b, dict) else {"type": "text", "text": str(b)}
+                      for b in head.content]
+        if not blocks:
+            return messages
+        blocks[-1] = {**blocks[-1], "cache_control": self._PROMPT_CACHE}
+        return [SystemMessage(content=blocks)] + list(messages[1:])
 
     def _fold(self, messages):
         from langchain_core.messages import HumanMessage, SystemMessage

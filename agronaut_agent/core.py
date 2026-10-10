@@ -512,6 +512,22 @@ class AgronautAgent:
                     tu.get("completion_tokens") or tu.get("output_tokens"))
         return None, None
 
+    @staticmethod
+    def _cache_usage(ai) -> dict:
+        """Prompt-cache reads and writes of a reply, as analytics fields; {} when the provider
+        reports none. Recorded so the saving the cache is meant to make can be checked rather
+        than assumed: a breakpoint that never hits costs a write on every call."""
+        meta = getattr(ai, "usage_metadata", None)
+        details = meta.get("input_token_details") if isinstance(meta, dict) else None
+        if not isinstance(details, dict):
+            return {}
+        out = {}
+        if details.get("cache_read") is not None:
+            out["cache_read_tokens"] = details["cache_read"]
+        if details.get("cache_creation") is not None:
+            out["cache_write_tokens"] = details["cache_creation"]
+        return out
+
     def _invoke_model(self, model, messages: list, stage: str):
         """Call a chat model, timing it and accumulating its cost into the turn.
 
@@ -527,7 +543,7 @@ class AgronautAgent:
             elapsed = int((time.perf_counter() - t0) * 1000)
         tin, tout = self._usage(ai)
         runtime.record_llm_call(elapsed, tin, tout)
-        attribution = {}
+        attribution = dict(self._cache_usage(ai))
         if self._provider:
             attribution["provider"] = self._provider
         model_name = self._answering_model(ai) or self._configured_model

@@ -216,8 +216,9 @@ class _Echo:
     def bind_tools(self, tools):
         return self
 
-    def invoke(self, messages):
+    def invoke(self, messages, **kwargs):
         self.got = messages
+        self.kwargs = kwargs
         return "ok"
 
 
@@ -286,3 +287,34 @@ def test_normalize_drops_non_text_blocks():
                              {"type": "tool_use", "id": "t1", "name": "x", "input": {}},
                              "Then the aerator."])
     assert L.normalize(msg) == "Check the pump. Then the aerator."
+
+
+def test_the_fixed_prompt_is_cached_for_an_hour_and_the_turn_automatically(monkeypatch):
+    """SYSTEM_PROMPT and the 30 tool schemas are the same ~11K tokens on every call. The first
+    system block gets a 1-hour breakpoint (it caches the tools with it); the API's automatic
+    breakpoint covers the rest of the turn so the tool loop's later calls reuse it."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    monkeypatch.delenv("AGRONAUT_PROMPT_CACHE", raising=False)
+    inner = _Echo()
+    msgs = [SystemMessage(content="PROMPT"), SystemMessage(content="RECALL"),
+            HumanMessage(content="hello")]
+    L._AnthropicSystemAdapter(inner).invoke(msgs)
+    assert inner.got[0].content == [{"type": "text", "text": "PROMPT",
+                                     "cache_control": {"type": "ephemeral", "ttl": "1h"}}]
+    assert inner.got[1].content == "RECALL"          # per-user recall: never cached
+    assert inner.kwargs == {"cache_control": {"type": "ephemeral"}}
+    assert msgs[0].content == "PROMPT"               # the caller's messages are untouched
+
+
+def test_one_off_prompts_and_the_off_switch_carry_no_cache(monkeypatch):
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    inner = _Echo()
+    L._AnthropicSystemAdapter(inner).invoke("judge this claim")
+    assert inner.kwargs == {}
+    monkeypatch.setenv("AGRONAUT_PROMPT_CACHE", "off")
+    L._AnthropicSystemAdapter(inner).invoke([SystemMessage(content="P"),
+                                             HumanMessage(content="hi")])
+    assert inner.kwargs == {} and inner.got[0].content == "P"
+
