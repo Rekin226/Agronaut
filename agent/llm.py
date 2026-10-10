@@ -54,10 +54,12 @@ DEFAULT_MODELS = {
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
     "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
-    # Claude. Model ids carry no date suffix. Sonnet 5 is the default here: it calls
-    # tools reliably at a third of Opus pricing, which suits an agent whose job is
-    # routing to a deterministic engine rather than doing the reasoning itself.
-    "anthropic": "claude-sonnet-5",
+    # Claude. Model ids carry no date suffix. Sonnet is the default here: it calls tools
+    # reliably at half of Opus pricing, which suits an agent whose job is routing to a
+    # deterministic engine rather than doing the reasoning itself. Sonnet 5.5 replaced
+    # Sonnet 5 at the same price ($2/$10 per million tokens, checked 2026-10-10); see
+    # claude_effort for how hard it thinks.
+    "anthropic": "claude-sonnet-5-5",
     # Self-hostable OpenAI-compatible server (vLLM, llama.cpp --server, LM Studio, TGI...).
     # The zero-proprietary-API tool-calling path: point OPENAI_COMPAT_BASE_URL at your own
     # box and the agent runs with no hosted vendor. Tool-calling works (ChatOpenAI.bind_tools)
@@ -164,6 +166,15 @@ def claude_server_tools() -> list[dict]:
 # per request, 24 optional parameters and 16 union-typed parameters across them, and no
 # numeric or string bounds, pattern, or open additionalProperties anywhere in a schema.
 STRICT_MAX_TOOLS, STRICT_MAX_OPTIONAL, STRICT_MAX_UNION = 20, 24, 16
+
+# Measured 2026-10-10, consult_eval's 20 scenarios on the same code (Claude Sonnet 5 playing the
+# user and judging): Sonnet 5.5 at low beat medium on every axis (one question per reply 95%
+# vs 90%, median reply 121 vs 144 words, judged plain/reflective/actionable 1.0/1.0/0.6 vs
+# 0.9/0.95/0.5, turn p50 6.1 vs 6.9 s, cost 19% lower). Against Sonnet 5 at its default (high)
+# it was 45% faster and 26% cheaper, asked one question more often (95% vs 82%), and judged
+# better, but replies were longer (121 vs 92 words) and 7 of 20 conversations quoted a figure
+# no tool or user gave, against 5 (water-change shares and feed amounts it worked out itself).
+DEFAULT_CLAUDE_EFFORT = "low"
 _STRICT_UNSUPPORTED = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
                        "multipleOf", "minLength", "maxLength", "pattern", "maxItems",
                        "uniqueItems", "minProperties", "maxProperties"}
@@ -257,6 +268,32 @@ class StrictGuard:
         return self._loose.invoke(messages, *args, **kwargs)
 
 
+# Claude models that accept output_config.effort (checked 2026-10-10). Haiku 4.5 and Sonnet 4.5
+# reject it, so it is sent only to these.
+_EFFORT_MODELS = ("claude-sonnet-5", "claude-sonnet-4-6", "claude-opus-5", "claude-opus-4-6",
+                  "claude-opus-4-7", "claude-opus-4-8", "claude-fable", "claude-mythos")
+_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def claude_effort(model: str) -> str | None:
+    """How hard Claude thinks before answering: AGRONAUT_CLAUDE_EFFORT, else the default below,
+    or None for a model that does not take the setting.
+
+    Effort trades depth for tokens and latency. This agent routes to deterministic tools and
+    texts short replies, so it does not need the model's own default (high on Sonnet 5.5);
+    see DEFAULT_CLAUDE_EFFORT for what was measured.
+    """
+    if not model.startswith(_EFFORT_MODELS):
+        return None
+    raw = (os.getenv("AGRONAUT_CLAUDE_EFFORT") or "").strip().lower()
+    if raw in _EFFORT_LEVELS:
+        return raw
+    if raw:
+        log.warning("AGRONAUT_CLAUDE_EFFORT=%r is not one of %s; using %s",
+                    raw, ", ".join(_EFFORT_LEVELS), DEFAULT_CLAUDE_EFFORT)
+    return DEFAULT_CLAUDE_EFFORT
+
+
 def strict_tools_enabled() -> bool:
     """Strict tool schemas on Claude; AGRONAUT_STRICT_TOOLS=off sends them all loose."""
     return _flag("AGRONAUT_STRICT_TOOLS")
@@ -327,7 +364,11 @@ def _build_backend(provider: str, model: str, temperature: float):
         # one, so the shared signature offers it; this branch drops it rather than let a
         # caller's harmless-looking default break the provider.
         from langchain_anthropic import ChatAnthropic
-        return _AnthropicSystemAdapter(ChatAnthropic(model=model, max_tokens=4096))
+        kw = {"model": model, "max_tokens": 8192}     # thinking counts against max_tokens
+        effort = claude_effort(model)
+        if effort:
+            kw["effort"] = effort
+        return _AnthropicSystemAdapter(ChatAnthropic(**kw))
     if provider == "nvidia":
         # OpenAI-compatible NVIDIA API Catalog / NIM. Reads NVIDIA_API_KEY from env.
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -397,6 +438,8 @@ FALLBACK_MODELS: dict[str, str] = {
     # return 410 Gone, while mistralai/mistral-nemotron still serves. Until a second live
     # NVIDIA model is confirmed, the honest entry is no entry — build_fallback_chat
     # returns None and a failed turn says so instead of failing twice.
+    # The previous Sonnet: a different deployment from the default, so an outage or overload
+    # of one is unlikely to take the other, and it takes the same tools and strict schemas.
     "anthropic": "claude-sonnet-5",
     # Local fallback too: a grower self-hosting has no hosted tier to lean on, so a stalled
     # model on a laptop should drop to something smaller rather than lose the turn.

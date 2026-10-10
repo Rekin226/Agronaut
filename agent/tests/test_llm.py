@@ -318,3 +318,32 @@ def test_one_off_prompts_and_the_off_switch_carry_no_cache(monkeypatch):
                                              HumanMessage(content="hi")])
     assert inner.kwargs == {} and inner.got[0].content == "P"
 
+
+
+def test_effort_is_sent_only_to_models_that_take_it(monkeypatch):
+    """Haiku 4.5 rejects output_config.effort; the Sonnet 5 line and newer Opus take it.
+    The default is the measured one, and a typo falls back to it rather than failing."""
+    monkeypatch.delenv("AGRONAUT_CLAUDE_EFFORT", raising=False)
+    assert L.claude_effort("claude-sonnet-5-5") == L.DEFAULT_CLAUDE_EFFORT == "low"
+    assert L.claude_effort("claude-opus-5-5") == "low"
+    assert L.claude_effort("claude-haiku-4-5") is None
+    monkeypatch.setenv("AGRONAUT_CLAUDE_EFFORT", "HIGH")
+    assert L.claude_effort("claude-sonnet-5") == "high"
+    monkeypatch.setenv("AGRONAUT_CLAUDE_EFFORT", "hgih")
+    assert L.claude_effort("claude-sonnet-5-5") == "low"
+
+
+def test_the_claude_backend_carries_the_effort_and_room_to_think(monkeypatch):
+    seen = {}
+
+    class _FakeChat:
+        def __init__(self, **kw):
+            seen.update(kw)
+
+    import langchain_anthropic
+    monkeypatch.setattr(langchain_anthropic, "ChatAnthropic", _FakeChat)
+    monkeypatch.delenv("AGRONAUT_CLAUDE_EFFORT", raising=False)
+    L._build_backend("anthropic", "claude-sonnet-5-5", 0.0)
+    assert seen == {"model": "claude-sonnet-5-5", "max_tokens": 8192, "effort": "low"}
+    assert L.DEFAULT_MODELS["anthropic"] == "claude-sonnet-5-5"
+    assert L.FALLBACK_MODELS["anthropic"] == "claude-sonnet-5"
