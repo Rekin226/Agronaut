@@ -42,6 +42,10 @@ and on that provider two more things can leave the machine:
   `AGRONAUT_WEB_FETCH=off`).
 - Sources found on the web are shown with the reply, and a figure from a web page is never
   used as an input to a sizing or design calculation.
+- **PDFs.** A PDF you send (a water test, a feed label) is read by Claude into plain text and
+  then handled like a message; the file itself is not kept. Values read from it are shown back
+  to you to confirm before anything is logged, and nothing from it is saved to your profile.
+  On a local model PDFs are declined, and a photo of the page works instead.
 
 ## How it is used
 

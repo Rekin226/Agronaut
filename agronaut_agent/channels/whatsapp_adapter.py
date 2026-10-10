@@ -55,6 +55,11 @@ GRAPH = "https://graph.facebook.com/v20.0"
 POLL_SECONDS = 60
 
 
+def _is_pdf_doc(doc: dict) -> bool:
+    return (str(doc.get("mime_type", "")).lower() == "application/pdf"
+            or str(doc.get("filename", "")).lower().endswith(".pdf"))
+
+
 class WhatsAppSendError(RuntimeError):
     """The Graph API refused (or failed) a WhatsApp send. Raised by send_text on
     HTTP 4xx/5xx so callers can tell 'never arrived' apart from 'sent' — silently
@@ -226,6 +231,21 @@ class WhatsAppAdapter(ChannelAdapter):
                                     str(media.get("mime_type") or "audio/ogg")))
         return out
 
+    def parse_incoming_pdfs(self, payload: dict) -> list[tuple[str, str, str | None]]:
+        """Extract [(sender_wa_id, media_id, caption)] for inbound PDF documents: a water-lab
+        report or a feed label, read by agent.handle_document."""
+        out: list[tuple[str, str, str | None]] = []
+        for entry in (payload or {}).get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    doc = msg.get("document", {}) if msg.get("type") == "document" else {}
+                    if not _is_pdf_doc(doc):
+                        continue
+                    media_id, sender = doc.get("id"), msg.get("from")
+                    if media_id and sender:
+                        out.append((str(sender), str(media_id), doc.get("caption")))
+        return out
+
     def parse_unsupported_files(self, payload: dict) -> list[tuple[str, str]]:
         """[(sender, filename_or_type)] for inbound files we deliberately do NOT read —
         a PDF, a spreadsheet, a video. Surfaced so the user is told what we can read
@@ -239,8 +259,9 @@ class WhatsAppAdapter(ChannelAdapter):
                         continue          # all handled elsewhere
                     doc = msg.get(kind or "", {}) if isinstance(msg.get(kind or ""), dict) else {}
                     mime = str(doc.get("mime_type", ""))
-                    if kind == "document" and mime.startswith(("image/", "audio/")):
-                        continue          # those ARE readable — handled as photo / voice note
+                    if kind == "document" and (mime.startswith(("image/", "audio/"))
+                                                or _is_pdf_doc(doc)):
+                        continue          # those ARE readable: photo, voice note, PDF
                     sender = msg.get("from")
                     if sender and kind:
                         out.append((str(sender), str(doc.get("filename") or kind)))
@@ -412,6 +433,32 @@ class WhatsAppAdapter(ChannelAdapter):
             finally:
                 self._flush_attachments(sender, uid)
 
+        # PDFs: a lab report or a feed label, read then run as a normal turn.
+        for sender, media_id, caption in self.parse_incoming_pdfs(payload):
+            if not self._allowed(sender):
+                continue
+            uid = room_identity(sender, "private", sender)
+            data = self.download_media(media_id)
+            if not data:
+                try:
+                    self.send_text(sender, "I couldn't download that PDF. Could you send it "
+                                           "again, or a photo of the page?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
+                continue
+            try:
+                reply = self.agent.handle_document(self.channel_name, uid, data,
+                                                   "application/pdf", caption)
+            except Exception:
+                log.exception("agent.handle_document failed (whatsapp)")
+                reply = "Something went wrong reading that PDF. Try again, or send a photo of the page?"
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
+
         # Voice notes: the same agent seam Telegram uses, so the transcript runs through a
         # normal turn with memory, tools and cited knowledge intact.
         for sender, media_id, mime in self.parse_incoming_audio(payload):
@@ -444,9 +491,9 @@ class WhatsAppAdapter(ChannelAdapter):
                 continue
             log.info("whatsapp: declined unsupported inbound %r", what)
             try:
-                self.send_text(sender, "I can't read files like that yet. I work with text and "
-                                       "photos. Send a photo of the plants, fish, or water and "
-                                       "I'll take a look.")
+                self.send_text(sender, "I can't read files like that yet. I read text, photos "
+                                       "and PDFs (a water test, a feed label). Send a photo of "
+                                       "the plants, fish, or water and I'll take a look.")
             except WhatsAppSendError:
                 log.warning("whatsapp unsupported-file notice failed for %s", sender, exc_info=True)
 

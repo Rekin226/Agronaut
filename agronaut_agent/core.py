@@ -308,6 +308,15 @@ def _text_of(content) -> str:
     return "" if content is None else str(content)
 
 
+# A PDF's values are read by a model and can be misread (a smudged scan, a unit in the next
+# column). They go to the grower before they go anywhere else.
+_DOCUMENT_INSTRUCTION = (
+    "[Operator note: the values above were read from a document by a model. Before logging "
+    "any reading, recording a measurement, or using a value in a sizing or design tool, list "
+    "the values you would use and ask the user to confirm them. Never pass a value the user "
+    "has not confirmed into a tool.]")
+
+
 # Only on Claude, and only when web search or fetch is bound: a model without the tools must not
 # be told it has them. Appended to SYSTEM_PROMPT (see _build_context).
 _WEB_RULES = """
@@ -333,7 +342,7 @@ WEB SEARCH AND WEB FETCH (you have both):
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
-                 classify_fn=None, require_tools: bool = True):
+                 classify_fn=None, require_tools: bool = True, read_pdf_fn=None):
         """`require_tools=False` builds an agent whose DETERMINISTIC surfaces work even when
         no tool-calling provider is configured — the live twin (/log, /forecast, the twin
         dashboard) reaches no model, so a missing NVIDIA_API_KEY must not deny an operator
@@ -408,6 +417,12 @@ class AgronautAgent:
             from agent import transcribe
             transcribe_fn = transcribe.default_transcriber()
         self._transcribe = transcribe_fn
+        # PDFs (a water-lab report, a feed label): Claude reads them natively; no other
+        # provider here can, so None declines them honestly. Injectable for tests.
+        if read_pdf_fn is None and chat_model is None and self._provider == "anthropic":
+            from agent import documents
+            read_pdf_fn = documents.read_pdf
+        self._read_pdf = read_pdf_fn
         # Privacy-preserving usage analytics (counts/funnels, no content). Local-only;
         # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
         from .analytics import Analytics
@@ -979,6 +994,50 @@ class AgronautAgent:
                     f"{self._visual_triage(observation, classifier_features)}\n\n{ask}")
         # Facts come from the CAPTION only — never from the model's observation. See
         # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
+
+    def handle_document(self, channel: str, channel_user: str, data: bytes,
+                        mime: str | None = None, caption: str | None = None,
+                        display_name: str | None = None) -> str:
+        """A file arrives. A PDF is read into plain text (agent/documents.py) and run through
+        the NORMAL text turn, its values passed on as unconfirmed; anything else is declined
+        with what Agronaut can read instead."""
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_document_inner(channel, channel_user, data, mime, caption,
+                                               display_name)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _handle_document_inner(self, channel, channel_user, data, mime, caption, display_name):
+        from agent import documents
+
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._analytics.record("document", user_id=user_id, channel=channel)
+        if not documents.is_pdf(data, mime):
+            return ("I can't read that kind of file. I read PDFs (a water test, a feed label), "
+                    "photos and voice notes, or just tell me what's going on.")
+        if self._read_pdf is None:
+            return ("I can't read PDFs on this setup. Send a photo of the page, or type the "
+                    "numbers you want me to look at.")
+        if len(data) > documents.MAX_PDF_BYTES:
+            return ("That PDF is too large for me to read. Send just the page with the results, "
+                    "or a photo of it.")
+        try:
+            reading = (self._read_pdf(data, caption) or "").strip()
+        except Exception:
+            log.warning("pdf read failed", exc_info=True)
+            return ("I couldn't read that PDF just now. Try again, or send a photo of the page.")
+        if not reading:
+            return "I couldn't find any text in that PDF. Send a photo of the page instead?"
+        ask = (caption or "").strip() or "What does this tell me about my system?"
+        composed = (f"[The user sent a PDF. Read by a model, NOT yet confirmed by the user:\n"
+                    f"{reading}]\n\n{_DOCUMENT_INSTRUCTION}\n\n{ask}")
+        # Facts come from the CAPTION only, never from the reading: the same rule as photos.
         return self.handle_message(channel, channel_user, composed, display_name,
                                    fact_text=(caption or ""))
 
