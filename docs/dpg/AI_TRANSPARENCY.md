@@ -105,6 +105,15 @@ Batches API on 2026-10-10 (479 claims in about 2.5 minutes, at half the standard
 the strictest judge so far (faithfulness 0.78 on the 2026-09-30 answers) and agreed with the
 person less than gpt-oss-20b did (kappa 0.14 against 0.39 on the reviewed labels), so it is not
 the default either. A Claude judge rating Claude's answers is the same-family pairing the
-course warns about; the batch path stays for re-judging, not as the judge of record. More labels, ideally from a second person, are
+course warns about; the batch path stays for re-judging, not as the judge of record.
+
+On Claude, knowledge passages now reach the model as native search results, so the API ties
+each cited passage to the sentence that used it. Measured on 2026-10-10 (33 golden-set
+questions, Claude Sonnet 5.5 answering, Claude Opus 5.5 judging both arms through the Batch
+API because the free gpt-oss-20b endpoint did not respond): faithfulness 0.906 with native
+citations against 0.904 with "[source: ...]" labels, 12 questions better and 16 worse, no
+fabricated citation in either (2026-10-10_citations_*.json). It is no measured gain in
+grounding; it is kept for what it changes structurally, the API rather than the model
+recording which source backs which sentence, and the same path shows web sources to the user. More labels, ideally from a second person, are
 needed before the figure can be called validated. It is a report, never a gate, and it never
 runs in CI.
