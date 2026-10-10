@@ -100,6 +100,11 @@ How far to trust that number: the judge was checked against one person's labels 
 claims. Agreement is fair, not strong (Cohen's kappa 0.24 on the blind labels, 0.39 after the
 person took a second look at the 13 disputed claims and changed 2). Both figures are kept
 because the second look was not blind. One judge we tried, Claude Sonnet 5, agreed with the
-person no better than chance and is not used. More labels, ideally from a second person, are
+person no better than chance and is not used. Claude Opus 5.5, run through Anthropic's Message
+Batches API on 2026-10-10 (479 claims in about 2.5 minutes, at half the standard price), was
+the strictest judge so far (faithfulness 0.78 on the 2026-09-30 answers) and agreed with the
+person less than gpt-oss-20b did (kappa 0.14 against 0.39 on the reviewed labels), so it is not
+the default either. A Claude judge rating Claude's answers is the same-family pairing the
+course warns about; the batch path stays for re-judging, not as the judge of record. More labels, ideally from a second person, are
 needed before the figure can be called validated. It is a report, never a gate, and it never
 runs in CI.

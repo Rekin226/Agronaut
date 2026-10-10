@@ -63,6 +63,8 @@ def claude_batch(model: str, max_tokens: int = 4096, poll_seconds: float = 30.0,
     def submit(prompts: list[str]) -> dict[str, str]:
         import anthropic
 
+        import agent  # noqa: F401  (importing the package loads .env, where the API key lives)
+
         c = client or anthropic.Anthropic()
         ids = {_custom_id(i, p): p for i, p in enumerate(prompts)}
         batch = c.messages.batches.create(requests=[
