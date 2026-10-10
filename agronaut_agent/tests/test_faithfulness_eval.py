@@ -435,3 +435,76 @@ def test_a_native_citations_reply_reads_like_a_prompt_cited_one():
                    "[source: FAO 589] Ask a local supplier.")
     assert fe.cited_sources(out) == ["knowledge/do.md", "FAO 589"]
 
+
+
+# --- the Batch API judge -------------------------------------------------------
+
+def test_batched_scoring_matches_a_live_judge_stage_by_stage():
+    """Claims first, then verdicts: each pass sends what it could not answer as one batch, and
+    the last pass is exactly the score a live judge would have produced."""
+    from scripts.eval_batch import batched
+
+    sent = []
+
+    def submit(prompts):
+        sent.append(list(prompts))
+        return {p: _fake_ask(p) for p in prompts}
+
+    args = ("why is my water green",
+            "Green water is an algae bloom [source: knowledge/algae_control.md]. "
+            "Tilapia need 30 mg/l of nitrite [source: knowledge/ghost.md].",
+            "[source: knowledge/algae_control.md]\nGreen water is an algae bloom.",
+            ["knowledge/algae_control.md"])
+    row = batched(lambda ask: fe.score_query(*args, ask=ask, embed=_fake_embed), submit)
+    live = fe.score_query(*args, ask=_fake_ask, embed=_fake_embed)
+    assert row == live
+    assert len(sent) == 2                                     # claims + relevancy, then verdicts
+    assert all(p.startswith("Decide whether") for p in sent[1]) and len(sent[1]) == 2
+
+
+def test_a_batch_judge_needs_anthropic_and_names_itself(monkeypatch):
+    monkeypatch.delenv("AGRONAUT_JUDGE_BATCH", raising=False)
+    assert fe.batch_judge() is None
+    monkeypatch.setenv("AGRONAUT_JUDGE_BATCH", "1")
+    monkeypatch.setenv("AGRONAUT_JUDGE_PROVIDER", "nvidia")
+    with pytest.raises(RuntimeError):
+        fe.batch_judge()
+    monkeypatch.setenv("AGRONAUT_JUDGE_PROVIDER", "anthropic")
+    monkeypatch.delenv("AGRONAUT_JUDGE_MODEL", raising=False)
+    submit, name = fe.batch_judge()
+    assert callable(submit) and name == "anthropic/claude-opus-5-5 [batch]"
+
+
+def test_rejudging_through_batches_rules_on_every_saved_claim():
+    from scripts.eval_batch import batched
+
+    report = {"per_query": [{"context": "Green water is an algae bloom.", "claims": [
+        {"id": "q1:1", "claim": "Green water is an algae bloom", "verdict": None},
+        {"id": "q1:2", "claim": "Tilapia need 30 mg/l of nitrite", "verdict": None}]}]}
+    verdicts = batched(lambda ask: fe.rejudge(report, ask),
+                       lambda ps: {p: _fake_ask(p) for p in ps})
+    assert verdicts == {"q1:1": True, "q1:2": False}
+
+
+def test_claude_batch_sends_one_batch_and_reads_results_by_id():
+    """The submit function against a stand-in client: one request per prompt, results matched
+    by custom_id (they come back in any order), failures counted as unjudged ("")."""
+    from types import SimpleNamespace as NS
+
+    from scripts.eval_batch import claude_batch
+
+    class _Batches:
+        def create(self, requests):
+            self.requests = requests
+            return NS(id="b1", processing_status="ended")
+
+        def results(self, batch_id):
+            ok, bad = self.requests
+            return [NS(custom_id=bad["custom_id"], result=NS(type="errored")),
+                    NS(custom_id=ok["custom_id"], result=NS(type="succeeded", message=NS(
+                        content=[NS(type="thinking", text=None), NS(type="text", text="VERDICT")])))]
+
+    client = NS(messages=NS(batches=_Batches()))
+    out = claude_batch("claude-opus-5-5", client=client, log=lambda *a: None)(["a", "b"])
+    assert out == {"a": "VERDICT", "b": ""}
+    assert client.messages.batches.requests[0]["params"]["model"] == "claude-opus-5-5"
