@@ -413,3 +413,25 @@ def test_a_citation_cut_short_from_a_retrieved_label_is_not_fabricated():
                                 retrieved) == (1.0, [])
     # too short to name one source: still fabricated
     assert fe.citation_accuracy("x [source: Goddek]", retrieved)[1] == ["Goddek"]
+
+
+def test_a_native_citations_reply_reads_like_a_prompt_cited_one():
+    """Claude's citations ride on content blocks; the scorer reads "[source: X]" text. Each
+    cited sentence gets its sources after it, once each, so citation accuracy still checks
+    them against what was retrieved."""
+    from scripts import faithfulness_eval as fe
+
+    content = [
+        {"type": "thinking", "thinking": "", "signature": "s"},
+        {"type": "text", "text": "Keep DO at 5 mg/L.", "citations": [
+            {"type": "search_result_location", "source": "knowledge/do.md"},
+            {"type": "search_result_location", "source": "knowledge/do.md"}]},
+        {"type": "text", "text": " Aerate at night.", "citations": [
+            {"type": "search_result_location", "source": "FAO 589"}]},
+        {"type": "text", "text": " Ask a local supplier."},
+    ]
+    out = fe.render_native(content)
+    assert out == ("Keep DO at 5 mg/L. [source: knowledge/do.md] Aerate at night. "
+                   "[source: FAO 589] Ask a local supplier.")
+    assert fe.cited_sources(out) == ["knowledge/do.md", "FAO 589"]
+

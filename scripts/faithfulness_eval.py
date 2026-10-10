@@ -35,7 +35,8 @@ NOT HERMETIC. It calls the configured LLM over the network, so it is opt-in
 scoring functions are pure and take plain strings, so the arithmetic is unit-tested without a
 model (agronaut_agent/tests/test_faithfulness_eval.py).
 
-Run it:
+Run it (AGRONAUT_EVAL_CITATIONS=native answers from Claude's native search_result blocks
+instead of "[source: ...]" labels, to compare the two on the same answerer):
     AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval
     AGRONAUT_FAITHFULNESS_EVAL=1 python -m scripts.faithfulness_eval --limit 8 --save report.json
 """
@@ -525,6 +526,9 @@ def run_meta() -> dict:
             "answerer": _BACKENDS.get("answerer", "injected"),
             "judge": _BACKENDS.get("judge", "injected"),
             "prompt_version": _prompt_version(),
+            # How sources reached the answerer: "[source: ...]" labels in the prompt, or
+            # Claude's native search_result blocks (agronaut_agent/citations.py).
+            "citations": _BACKENDS.get("citations", "prompt"),
             # Which knowledge base the answers were written from, so a report measured on
             # an older corpus can be called stale (the 2026-09-30 baseline could not be).
             "corpus": _corpus_id()}
@@ -603,6 +607,45 @@ class _ReasoningJudge:
         return out.content if isinstance(out.content, str) else str(out.content)
 
 
+def render_native(content) -> str:
+    """A native-citations reply as the text this scorer reads: each cited sentence followed by
+    "[source: X]" for the sources the API attached to it, so citation accuracy and the claim
+    judge see the same shape as a prompt-cited answer."""
+    if isinstance(content, str):
+        return content
+    out = []
+    for block in content or []:
+        if not isinstance(block, dict) or block.get("type") != "text":
+            continue
+        out.append(block.get("text") or "")
+        cited = []
+        for c in block.get("citations") or []:
+            src = c.get("source") if isinstance(c, dict) else None
+            if src and src not in cited:
+                cited.append(src)
+        out.extend(f" [source: {src}]" for src in cited)
+    return "".join(out).strip()
+
+
+def _native_answerer():
+    """Answer from the passages as Claude search_result blocks, cited by the API."""
+    from langchain_core.messages import HumanMessage
+
+    from agent.llm import get_chat_model
+    from agronaut_agent import citations
+
+    chat = get_chat_model()
+
+    def _answer(query: str, context: str) -> str:
+        blocks = citations.search_result_blocks(context) or []
+        ask = ("You are Agronaut, an aquaponics assistant. Answer the QUESTION using ONLY the "
+               "search results above. If they do not answer it, say so plainly.\n\n"
+               f"QUESTION: {query}")
+        reply = chat.invoke([HumanMessage(content=[*blocks, {"type": "text", "text": ask}])])
+        return render_native(reply.content)
+    return _answer
+
+
 def _live_backends(ask, embed, answer_fn):
     """Build the real judge, embedder and answerer. Imported lazily so `run()` with fakes
     never needs a model installed or an API key set."""
@@ -611,7 +654,14 @@ def _live_backends(ask, embed, answer_fn):
 
     answerer = get_llm(temperature=0.0)
     judge = judge_llm()
-    _BACKENDS.update(answerer=_names(answerer), judge=_names(judge))
+    native = (os.getenv("AGRONAUT_EVAL_CITATIONS") or "").strip().lower() == "native"
+    if native and answerer.provider != "anthropic":
+        raise RuntimeError("AGRONAUT_EVAL_CITATIONS=native needs a Claude answerer "
+                           "(LLM_PROVIDER=anthropic): no other provider has search_result blocks.")
+    _BACKENDS.update(answerer=_names(answerer), judge=_names(judge),
+                     citations="native" if native else "prompt")
+    if native and answer_fn is None:
+        answer_fn = _native_answerer()
     ask = ask or patient(lambda prompt: judge.invoke(prompt))
     if embed is None:
         # semantic.default_embedder() is batch-shaped (list of texts -> array of vectors);

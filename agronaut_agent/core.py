@@ -9,6 +9,7 @@ figure must come from a tool result, with its cited coefficients and caveats pas
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
@@ -18,7 +19,16 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
 from agent.vision import sanitize_observation
 
-from . import grounding, memory_extract, profile, runtime, semantic, style, twin_view
+from . import (
+    citations,
+    grounding,
+    memory_extract,
+    profile,
+    runtime,
+    semantic,
+    style,
+    twin_view,
+)
 from .store import (
     CalibrationStore,
     CommunityStore,
@@ -199,9 +209,9 @@ HARD RULES (these are your credibility):
 - If the trust gate rejects an input (VALIDATION_FAILED), ask the user for a corrected value.
   Never guess or work around it.
 - For qualitative troubleshooting, use the knowledge tool and your general knowledge; say when
-  you are reasoning from general knowledge. Knowledge passages arrive labeled "[source: ...]".
-  When your advice uses one, NAME that source in your reply (e.g. "per FAO 589..."). Never
-  strip the attribution.
+  you are reasoning from general knowledge. Knowledge passages arrive with their source, as a
+  "[source: ...]" label or as a search result. When your advice uses one, NAME that source in
+  your reply (e.g. "per FAO 589..."). Never strip the attribution.
 - JUDGE EACH RETRIEVED PASSAGE BEFORE YOU USE IT. Retrieval returns the closest passages it has,
   which is not the same as passages that answer the question. If a passage is not actually about
   what the user asked, IGNORE it: do not stretch it to fit, and do not cite it. If none of them
@@ -279,6 +289,11 @@ def _text_of(content) -> str:
                 parts.append(block)
             elif isinstance(block, dict) and block.get("type") == "text":
                 parts.append(block.get("text") or "")
+            elif isinstance(block, dict) and block.get("type") == "search_result":
+                # A knowledge result sent to Claude as native search results: its passages
+                # are the text the grounding check must count as a source.
+                parts.append("\n".join(b.get("text") or "" for b in block.get("content") or []
+                                       if isinstance(b, dict)))
         return "".join(parts)
     return "" if content is None else str(content)
 
@@ -512,6 +527,15 @@ class AgronautAgent:
                     tu.get("completion_tokens") or tu.get("output_tokens"))
         return None, None
 
+    @property
+    def _native_citations(self) -> bool:
+        """Knowledge results go to Claude as search_result blocks (see citations.py). Only on
+        Claude, the one provider with the block type; AGRONAUT_NATIVE_CITATIONS=off reverts
+        to the labeled text every provider gets."""
+        return self._provider == "anthropic" and (
+            os.getenv("AGRONAUT_NATIVE_CITATIONS") or "").strip().lower() not in {
+                "0", "off", "false", "no"}
+
     @staticmethod
     def _cache_usage(ai) -> dict:
         """Prompt-cache reads and writes of a reply, as analytics fields; {} when the provider
@@ -631,6 +655,9 @@ class AgronautAgent:
                     # consultant eval (2026-09-30): natural phrasing like "I'll use your
                     # local weather" tripped the nudge, and the meta-reply was delivered.
                     return before_nudge
+                if text:
+                    # Citations ride in the content blocks; a chat message is plain text.
+                    text = citations.with_sources(text, citations.cited_sources(ai.content))
                 return text or "I'm not sure how to help with that yet."
             ran_a_tool = True
             for call in tool_calls:
@@ -649,7 +676,10 @@ class AgronautAgent:
                 captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
                 if captured:
                     self._mem.set_facts(user_id, captured, source="tool_call")
-                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+                content = result
+                if call["name"] == "search_knowledge_base" and self._native_citations:
+                    content = citations.search_result_blocks(str(result)) or result
+                messages.append(ToolMessage(content=content, tool_call_id=call["id"]))
         # Hit the tool-call cap (e.g. the model kept calling tools without answering). Force a
         # final natural-language reply with tools disabled, so the user always gets a real answer.
         try:
