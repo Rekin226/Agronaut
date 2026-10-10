@@ -141,3 +141,29 @@ def test_whatsapp_cleanup_on_runtime_error(tmp_path):
         adapter._flush_attachments("sender", "uid")
 
     assert not os.path.exists(html_path), "file cleaned even when send_media raises"
+
+
+def test_telegram_deletes_the_companion_layout_png(tmp_path):
+    """Telegram sends the interactive HTML and never the top-down PNG written beside it
+    under the same stem, so unlinking only the path it handled left a layout plan in the
+    temp folder after every 3D request there, forever (#167)."""
+    html_path = tmp_path / "scene.html"
+    png_path = tmp_path / "scene.png"
+    html_path.write_text("<html>3D scene</html>")
+    png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+
+    agent = _StubAgent({("telegram", "chat"): [str(html_path)]})
+    adapter = TelegramAdapter(agent=agent, token="x:y", allowed_ids=[])
+
+    class MockMessage:
+        async def reply_photo(self, *, photo): pass
+        async def reply_document(self, *, document): pass
+        async def reply_text(self, *a, **kw): pass
+
+    class MockUpdate:
+        message = MockMessage()
+
+    asyncio.run(adapter._deliver(MockUpdate(), "chat", "Here is your scene"))
+
+    assert not html_path.exists(), "the delivered HTML must be deleted"
+    assert not png_path.exists(), "the companion layout PNG must be deleted too"

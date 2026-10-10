@@ -24,7 +24,13 @@ from telegram.ext import (
 from ..core import AgronautAgent
 from ..style import to_bubbles
 from . import commands
-from .base import ChannelAdapter, chunk, delivery_chat_id, room_identity
+from .base import (
+    ChannelAdapter,
+    attachment_cleanup_paths,
+    chunk,
+    delivery_chat_id,
+    room_identity,
+)
 
 # Re-exported: these parsers moved to `commands` when both channels started
 # using them, and callers (and tests) still reach them by their old name.
@@ -291,10 +297,14 @@ class TelegramAdapter(ChannelAdapter):
             except Exception:
                 log.warning("failed to send attachment %s", path, exc_info=True)
             finally:
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
+                # The scene's companion PNG is written for every channel but delivered
+                # only by WhatsApp, so unlinking just `path` here left a top-down plan
+                # behind in the temp folder for good on every Telegram 3D request.
+                for stale in attachment_cleanup_paths(path):
+                    try:
+                        os.unlink(stale)
+                    except OSError:
+                        pass
 
     async def _on_reset(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._allowed(update):
