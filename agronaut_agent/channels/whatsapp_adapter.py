@@ -34,7 +34,7 @@ import requests
 from ..core import AgronautAgent
 from ..style import to_bubbles
 from . import commands
-from .base import ChannelAdapter, chunk, room_identity
+from .base import ChannelAdapter, attachment_cleanup_paths, chunk, room_identity
 
 log = logging.getLogger(__name__)
 
@@ -452,7 +452,6 @@ class WhatsAppAdapter(ChannelAdapter):
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
-            siblings: list[str] = []
             try:
                 if path.lower().endswith((".html", ".htm")):
                     # WhatsApp cannot carry the self-contained 3D HTML (no browser, no file
@@ -463,9 +462,23 @@ class WhatsAppAdapter(ChannelAdapter):
                     # render) still gets the honest availability line rather than silence.
                     plan = os.path.splitext(path)[0] + ".png"
                     if os.path.exists(plan):
-                        siblings.append(plan)
                         if self.send_media(sender, plan, mime="image/png") is False:
                             self._notify_send_failed(sender, plan)
+                        else:
+                            # A flat picture has just arrived, while the tool's own text tells
+                            # the model the scene "opens in any browser". Without this the
+                            # grower is told they have the 3D view and then handed a still.
+                            # #167 asks the still to state what is lost; the image cannot.
+                            try:
+                                self.send_text(
+                                    sender,
+                                    "This is a top-down plan of the layout, not the "
+                                    "interactive view. The 3D scene (orbit, zoom, and the "
+                                    "flow, fish and label toggles) opens on Telegram.",
+                                )
+                            except Exception:
+                                log.warning("whatsapp layout-plan note failed for %s",
+                                            sender, exc_info=True)
                     else:
                         self.send_text(
                             sender,
@@ -479,7 +492,9 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
                 self._notify_send_failed(sender, path)
             finally:
-                for stale in (path, *siblings):
+                # Both files go: the layout plan is written beside the HTML under the same
+                # stem, so cleanup has to know about the pair rather than the path alone.
+                for stale in attachment_cleanup_paths(path):
                     try:
                         os.unlink(stale)
                     except OSError:
