@@ -19,6 +19,7 @@ class _FakeAgent:
         self.calls = []
         self.images = []
         self.voices = []
+        self.documents = []
         self._atts = attachments or []
 
     def handle_message(self, channel, channel_user, text, display_name=None):
@@ -34,6 +35,11 @@ class _FakeAgent:
                      display_name=None):
         self.voices.append((channel, channel_user, audio_bytes, mime))
         return "reply about the voice note"
+
+    def handle_document(self, channel, channel_user, data, mime=None, caption=None,
+                        display_name=None):
+        self.documents.append((channel, channel_user, data, mime, caption))
+        return "reply about the document"
 
     def take_attachments(self, channel, channel_user):
         atts, self._atts = self._atts, []
@@ -516,10 +522,30 @@ def test_handle_payload_declines_an_unsupported_document(monkeypatch):
     sent = []
     monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
 
-    a.handle_payload(_document_payload(mime="application/pdf"))
-    assert agent.images == []                      # nothing invented from a PDF
+    a.handle_payload(_document_payload(mime="application/vnd.ms-excel", filename="costs.xls"))
+    assert agent.images == [] and agent.documents == []   # nothing invented from a spreadsheet
     assert len(sent) == 1
     assert "photo" in sent[0][1].lower()           # told what it CAN read
+
+
+def test_handle_payload_reads_a_pdf_through_handle_document(monkeypatch):
+    agent = _FakeAgent()
+    a = _adapter(agent)
+    sent = []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "send_reply", lambda to, text: sent.append((to, text)))
+    monkeypatch.setattr(a, "download_media", lambda mid: b"%PDF-1.4 lab report")
+    a.handle_payload(_document_payload(mime="application/pdf", filename="water.pdf"))
+    assert agent.documents == [("whatsapp", agent.documents[0][1], b"%PDF-1.4 lab report",
+                                "application/pdf", None)]
+    assert sent == [("15551234567", "reply about the document")]
+
+
+def test_a_pdf_is_not_also_reported_as_an_unsupported_file():
+    a = _adapter(_FakeAgent())
+    payload = _document_payload(mime="application/pdf", filename="water.pdf")
+    assert a.parse_unsupported_files(payload) == []
+    assert a.parse_incoming_pdfs(payload) == [("15551234567", "MEDIA456", None)]
 
 
 def test_handle_payload_survives_a_failed_media_download(monkeypatch):

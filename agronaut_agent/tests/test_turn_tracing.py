@@ -270,3 +270,21 @@ def test_summarize_breaks_calls_and_tokens_down_by_model(tmp_path, monkeypatch):
     assert models["claude-test-1"]["calls"] == 2
     assert models["claude-test-1"]["tokens_in"] == 20
     assert models["unrecorded"]["calls"] == 1
+
+
+def test_prompt_cache_reads_and_writes_are_recorded_per_call(tmp_path, monkeypatch):
+    """The cache exists to cut cost; recording its reads and writes is how that is checked
+    rather than assumed. Absent when the provider reports none, never a zero."""
+    class _Cached(_FakeChat):
+        def invoke(self, messages):
+            return AIMessage(content="hi", usage_metadata={
+                "input_tokens": 12000, "output_tokens": 10, "total_tokens": 12010,
+                "input_token_details": {"cache_read": 11000, "cache_creation": 900}})
+
+    monkeypatch.setenv("AGRONAUT_ANALYTICS_PATH", str(tmp_path / "a.jsonl"))
+    a = AgronautAgent(chat_model=_Cached(), db_path=str(tmp_path / "db.sqlite"))
+    a._analytics = Analytics(path=tmp_path / "a.jsonl")
+    a.handle_message("test", "u1", "hello")
+    call = [r for r in _rows(a) if r["event"] == "llm_call"][0]
+    assert call["cache_read_tokens"] == 11000 and call["cache_write_tokens"] == 900
+    assert AgronautAgent._cache_usage(AIMessage(content="x")) == {}

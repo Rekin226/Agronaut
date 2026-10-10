@@ -9,16 +9,36 @@ figure must come from a tool result, with its cited coefficients and caveats pas
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
+from agent.llm import (
+    ResilientChat,
+    StrictGuard,
+    build_fallback_chat,
+    claude_server_tools,
+    get_chat_model,
+    get_llm,
+    resolve,
+    strict_tools_enabled,
+    strict_where_possible,
+)
 from agent.vision import sanitize_observation
 
-from . import grounding, memory_extract, profile, runtime, semantic, style, twin_view
+from . import (
+    citations,
+    grounding,
+    memory_extract,
+    profile,
+    runtime,
+    semantic,
+    style,
+    twin_view,
+)
 from .store import (
     CalibrationStore,
     CommunityStore,
@@ -30,7 +50,7 @@ from .store import (
     _Db,
     _now,
 )
-from .tools import AGRONAUT_TOOLS
+from .tools import AGRONAUT_TOOLS, STRICT_TOOL_PRIORITY
 
 log = logging.getLogger(__name__)
 
@@ -199,9 +219,9 @@ HARD RULES (these are your credibility):
 - If the trust gate rejects an input (VALIDATION_FAILED), ask the user for a corrected value.
   Never guess or work around it.
 - For qualitative troubleshooting, use the knowledge tool and your general knowledge; say when
-  you are reasoning from general knowledge. Knowledge passages arrive labeled "[source: ...]".
-  When your advice uses one, NAME that source in your reply (e.g. "per FAO 589..."). Never
-  strip the attribution.
+  you are reasoning from general knowledge. Knowledge passages arrive with their source, as a
+  "[source: ...]" label or as a search result. When your advice uses one, NAME that source in
+  your reply (e.g. "per FAO 589..."). Never strip the attribution.
 - JUDGE EACH RETRIEVED PASSAGE BEFORE YOU USE IT. Retrieval returns the closest passages it has,
   which is not the same as passages that answer the question. If a passage is not actually about
   what the user asked, IGNORE it: do not stretch it to fit, and do not cite it. If none of them
@@ -279,14 +299,50 @@ def _text_of(content) -> str:
                 parts.append(block)
             elif isinstance(block, dict) and block.get("type") == "text":
                 parts.append(block.get("text") or "")
+            elif isinstance(block, dict) and block.get("type") == "search_result":
+                # A knowledge result sent to Claude as native search results: its passages
+                # are the text the grounding check must count as a source.
+                parts.append("\n".join(b.get("text") or "" for b in block.get("content") or []
+                                       if isinstance(b, dict)))
         return "".join(parts)
     return "" if content is None else str(content)
+
+
+# A PDF's values are read by a model and can be misread (a smudged scan, a unit in the next
+# column). They go to the grower before they go anywhere else.
+_DOCUMENT_INSTRUCTION = (
+    "[Operator note: the values above were read from a document by a model. Before logging "
+    "any reading, recording a measurement, or using a value in a sizing or design tool, list "
+    "the values you would use and ask the user to confirm them. Never pass a value the user "
+    "has not confirmed into a tool.]")
+
+
+# Only on Claude, and only when web search or fetch is bound: a model without the tools must not
+# be told it has them. Appended to SYSTEM_PROMPT (see _build_context).
+_WEB_RULES = """
+
+WEB SEARCH AND WEB FETCH (you have both):
+- Use web_search for what the curated knowledge cannot hold: current local prices (feed, fish,
+  fingerlings, equipment) in the grower's currency, suppliers near them, regulations, disease
+  outbreaks or weather news this season. Search in the local language too (French in Burkina
+  Faso, Chinese in Taiwan) and name the place.
+- Do NOT search for husbandry basics (search_knowledge_base first) or for sizing and design
+  numbers (those come only from the sizing and design tools, never from a web page).
+- A figure from the web is context for the grower, quoted with its source and its date when the
+  page gives one. Never pass a web figure into a sizing or design tool as an input; if it
+  matters for a design, tell the grower and let them confirm it as their own number.
+- Name a supplier, shop, market or company only when a search result in this turn shows it,
+  and cite it. Otherwise say "a local feed supplier" or "the fish market": an invented name
+  sends a grower across town for nothing.
+- Use web_fetch to read a page the grower sends you or that a search found.
+- Prices and offers change: say "as of <date>" or "the page I found says", never present a
+  web price as a guarantee."""
 
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
-                 classify_fn=None, require_tools: bool = True):
+                 classify_fn=None, require_tools: bool = True, read_pdf_fn=None):
         """`require_tools=False` builds an agent whose DETERMINISTIC surfaces work even when
         no tool-calling provider is configured — the live twin (/log, /forecast, the twin
         dashboard) reaches no model, so a missing NVIDIA_API_KEY must not deny an operator
@@ -312,7 +368,17 @@ class AgronautAgent:
             if fb is not None:
                 base = ResilientChat(base, fb)
             self._base = base                   # unbound: used to force a final text answer
-            self._bound = base.bind_tools(AGRONAUT_TOOLS)
+            # Claude also gets Anthropic-run web search and fetch (claude_server_tools).
+            self._server_tools = claude_server_tools() if self._provider == "anthropic" else []
+            loose = list(AGRONAUT_TOOLS) + self._server_tools
+            self._bound = base.bind_tools(loose)
+            self._strict_tools = []
+            if self._provider == "anthropic" and strict_tools_enabled():
+                tools, self._strict_tools = strict_where_possible(list(AGRONAUT_TOOLS),
+                                                                  STRICT_TOOL_PRIORITY)
+                if self._strict_tools:
+                    self._bound = StrictGuard(base.bind_tools(tools + self._server_tools),
+                                              self._bound)
         except Exception as exc:  # noqa: BLE001 — surfaced as chat_error, or re-raised
             if require_tools:
                 raise
@@ -351,6 +417,12 @@ class AgronautAgent:
             from agent import transcribe
             transcribe_fn = transcribe.default_transcriber()
         self._transcribe = transcribe_fn
+        # PDFs (a water-lab report, a feed label): Claude reads them natively; no other
+        # provider here can, so None declines them honestly. Injectable for tests.
+        if read_pdf_fn is None and chat_model is None and self._provider == "anthropic":
+            from agent import documents
+            read_pdf_fn = documents.read_pdf
+        self._read_pdf = read_pdf_fn
         # Privacy-preserving usage analytics (counts/funnels, no content). Local-only;
         # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
         from .analytics import Analytics
@@ -366,7 +438,11 @@ class AgronautAgent:
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None,
                        channel: str | None = None) -> list:
-        messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
+        web = any(t.get("name") in {"web_search", "web_fetch"}
+                  for t in getattr(self, "_server_tools", []))
+        # Appended to the fixed prompt, not sent as a block of its own, so the cached prefix
+        # stays one stable block; it is fixed per process, so the cache still hits.
+        messages: list = [SystemMessage(content=SYSTEM_PROMPT + (_WEB_RULES if web else ""))]
 
         # Kept out of SYSTEM_PROMPT so the fixed prefix stays identical across channels.
         note = _CHANNEL_NOTES.get((channel or "").lower())
@@ -512,6 +588,46 @@ class AgronautAgent:
                     tu.get("completion_tokens") or tu.get("output_tokens"))
         return None, None
 
+    @property
+    def _native_citations(self) -> bool:
+        """Knowledge results go to Claude as search_result blocks (see citations.py). Only on
+        Claude, the one provider with the block type; AGRONAUT_NATIVE_CITATIONS=off reverts
+        to the labeled text every provider gets."""
+        return self._provider == "anthropic" and (
+            os.getenv("AGRONAUT_NATIVE_CITATIONS") or "").strip().lower() not in {
+                "0", "off", "false", "no"}
+
+    @staticmethod
+    def _server_tool_usage(ai) -> dict:
+        """Web searches and fetches Anthropic ran inside this call. A search is billed on its
+        own ($10 per 1,000), so it is counted where the tokens are."""
+        usage = (getattr(ai, "response_metadata", None) or {}).get("usage") or {}
+        used = usage.get("server_tool_use") if isinstance(usage, dict) else None
+        if not isinstance(used, dict):
+            return {}
+        out = {}
+        if used.get("web_search_requests"):
+            out["web_searches"] = used["web_search_requests"]
+        if used.get("web_fetch_requests"):
+            out["web_fetches"] = used["web_fetch_requests"]
+        return out
+
+    @staticmethod
+    def _cache_usage(ai) -> dict:
+        """Prompt-cache reads and writes of a reply, as analytics fields; {} when the provider
+        reports none. Recorded so the saving the cache is meant to make can be checked rather
+        than assumed: a breakpoint that never hits costs a write on every call."""
+        meta = getattr(ai, "usage_metadata", None)
+        details = meta.get("input_token_details") if isinstance(meta, dict) else None
+        if not isinstance(details, dict):
+            return {}
+        out = {}
+        if details.get("cache_read") is not None:
+            out["cache_read_tokens"] = details["cache_read"]
+        if details.get("cache_creation") is not None:
+            out["cache_write_tokens"] = details["cache_creation"]
+        return out
+
     def _invoke_model(self, model, messages: list, stage: str):
         """Call a chat model, timing it and accumulating its cost into the turn.
 
@@ -527,7 +643,7 @@ class AgronautAgent:
             elapsed = int((time.perf_counter() - t0) * 1000)
         tin, tout = self._usage(ai)
         runtime.record_llm_call(elapsed, tin, tout)
-        attribution = {}
+        attribution = {**self._cache_usage(ai), **self._server_tool_usage(ai)}
         if self._provider:
             attribution["provider"] = self._provider
         model_name = self._answering_model(ai) or self._configured_model
@@ -575,6 +691,11 @@ class AgronautAgent:
                     messages.pop()
                     messages.append(AIMessage(content="", tool_calls=[rescued]))
                     tool_calls = [rescued]
+            if not tool_calls and (getattr(ai, "response_metadata", None) or {}).get(
+                    "stop_reason") == "pause_turn":
+                # The API paused a long web-search turn; sending the paused message back
+                # unchanged (it is already appended) lets it continue where it stopped.
+                continue
             if not tool_calls:
                 text = _text_of(ai.content).strip()
                 # Tripwire: a reply that cites an "earlier result" is only honest if this
@@ -615,6 +736,9 @@ class AgronautAgent:
                     # consultant eval (2026-09-30): natural phrasing like "I'll use your
                     # local weather" tripped the nudge, and the meta-reply was delivered.
                     return before_nudge
+                if text:
+                    # Citations ride in the content blocks; a chat message is plain text.
+                    text = citations.with_sources(text, citations.cited_sources(ai.content))
                 return text or "I'm not sure how to help with that yet."
             ran_a_tool = True
             for call in tool_calls:
@@ -633,7 +757,10 @@ class AgronautAgent:
                 captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
                 if captured:
                     self._mem.set_facts(user_id, captured, source="tool_call")
-                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+                content = result
+                if call["name"] == "search_knowledge_base" and self._native_citations:
+                    content = citations.search_result_blocks(str(result)) or result
+                messages.append(ToolMessage(content=content, tool_call_id=call["id"]))
         # Hit the tool-call cap (e.g. the model kept calling tools without answering). Force a
         # final natural-language reply with tools disabled, so the user always gets a real answer.
         try:
@@ -776,6 +903,10 @@ class AgronautAgent:
         try:
             sources = [_text_of(m.content) for m in messages[1:]
                        if not isinstance(m, AIMessage)]
+            # What a web search returned reaches the model encrypted; the passages its reply
+            # cites are the readable part, and a figure quoted from one is sourced.
+            sources += [t for m in messages if isinstance(m, AIMessage)
+                        for t in citations.cited_texts(m.content)]
             flagged = grounding.ungrounded(reply, sources)
         except Exception:  # noqa: BLE001
             log.debug("grounding check failed", exc_info=True)
@@ -863,6 +994,50 @@ class AgronautAgent:
                     f"{self._visual_triage(observation, classifier_features)}\n\n{ask}")
         # Facts come from the CAPTION only — never from the model's observation. See
         # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
+
+    def handle_document(self, channel: str, channel_user: str, data: bytes,
+                        mime: str | None = None, caption: str | None = None,
+                        display_name: str | None = None) -> str:
+        """A file arrives. A PDF is read into plain text (agent/documents.py) and run through
+        the NORMAL text turn, its values passed on as unconfirmed; anything else is declined
+        with what Agronaut can read instead."""
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_document_inner(channel, channel_user, data, mime, caption,
+                                               display_name)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _handle_document_inner(self, channel, channel_user, data, mime, caption, display_name):
+        from agent import documents
+
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._analytics.record("document", user_id=user_id, channel=channel)
+        if not documents.is_pdf(data, mime):
+            return ("I can't read that kind of file. I read PDFs (a water test, a feed label), "
+                    "photos and voice notes, or just tell me what's going on.")
+        if self._read_pdf is None:
+            return ("I can't read PDFs on this setup. Send a photo of the page, or type the "
+                    "numbers you want me to look at.")
+        if len(data) > documents.MAX_PDF_BYTES:
+            return ("That PDF is too large for me to read. Send just the page with the results, "
+                    "or a photo of it.")
+        try:
+            reading = (self._read_pdf(data, caption) or "").strip()
+        except Exception:
+            log.warning("pdf read failed", exc_info=True)
+            return ("I couldn't read that PDF just now. Try again, or send a photo of the page.")
+        if not reading:
+            return "I couldn't find any text in that PDF. Send a photo of the page instead?"
+        ask = (caption or "").strip() or "What does this tell me about my system?"
+        composed = (f"[The user sent a PDF. Read by a model, NOT yet confirmed by the user:\n"
+                    f"{reading}]\n\n{_DOCUMENT_INSTRUCTION}\n\n{ask}")
+        # Facts come from the CAPTION only, never from the reading: the same rule as photos.
         return self.handle_message(channel, channel_user, composed, display_name,
                                    fact_text=(caption or ""))
 

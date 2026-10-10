@@ -11,10 +11,27 @@ The chat layer is model-agnostic — pick a backend with one env var, no code ch
 | Provider | `LLM_PROVIDER` | Notes |
 |---|---|---|
 | Ollama (local) | `ollama` | **Offline, default (`qwen3.5:4b`), drives the full tool-calling agent.** The shortest path for a grower self-hosting with no API key: `ollama pull qwen3.5:4b` and go. Pick a tool-capable tag: older ones (`llama3`, `mistral`) bind tools and then never call any. Photos too: `VLM_PROVIDER=ollama` with `ollama pull llama3.2-vision`. |
-| Claude (hosted) | `anthropic` | Default `claude-sonnet-5`, native tool calling. Needs `ANTHROPIC_API_KEY`. |
+| Claude (hosted) | `anthropic` | Default `claude-sonnet-5-5`, native tool calling, plus prompt caching, native citations, web search, strict tool schemas and PDF reading (see [On Claude](#on-claude)). Needs `ANTHROPIC_API_KEY`. |
 | NVIDIA (hosted) | `nvidia` | OpenAI-compatible open models; free tier. Needs `NVIDIA_API_KEY`. |
 | Hugging Face | `hf` | Default `Qwen/Qwen2.5-7B-Instruct` (Apache-2.0, strong at JSON). Needs `HUGGINGFACEHUB_API_TOKEN`. |
 | Self-hosted (OpenAI-compatible) | `openai_compat` | Zero proprietary API — point `OPENAI_COMPAT_BASE_URL` at your own vLLM / llama.cpp / LM Studio / TGI server. Drives the full tool-calling agent with an open-weights model you host. |
+
+### On Claude
+
+Claude runs the same agent as every other provider, with these on top. Each is on by default
+and can be switched off:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `AGRONAUT_PROMPT_CACHE` | on | Caches the fixed prompt and tool definitions (about 18K tokens) for an hour, and each turn's earlier calls for the rest of the turn. A cached read costs about a tenth of fresh input. |
+| `AGRONAUT_NATIVE_CITATIONS` | on | Sends knowledge passages as search results, so the API ties each cited passage to the sentence that used it. Cited sources the reply does not already name are added as one short "Sources:" line. |
+| `AGRONAUT_WEB_SEARCH` / `AGRONAUT_WEB_SEARCH_MAX` | on / 3 | Web search for current, local facts (prices, suppliers, rules). Billed at $10 per 1,000 searches; the cap is per request. Web sources are always shown. |
+| `AGRONAUT_WEB_FETCH` / `AGRONAUT_WEB_FETCH_MAX` | on / 2 | Reads a page the grower sends or a search found. No fee beyond tokens. |
+| `AGRONAUT_STRICT_TOOLS` | on | Strict schemas on the eight tools whose arguments become numbers (sizing, design, readings, cost), so those arguments always match. The first call compiles the schemas (about 30 s), then they are cached for 24 hours after last use. |
+| `AGRONAUT_CLAUDE_EFFORT` | low | How hard the model thinks before answering: `low`, `medium`, `high`, `xhigh` or `max`. |
+
+PDFs (a water-lab report, a feed label) sent on Telegram or WhatsApp are read on Claude only;
+their values are shown back to the grower to confirm before anything is logged.
 
 ### Self-hosted, no vendor (the open-weights path)
 

@@ -506,8 +506,9 @@ def _setup_model(config: dict[str, str]) -> dict[str, str]:
             ok, msg = check_anthropic_key(key)
             print(f"  {'OK' if ok else 'x'} {msg}")
             if ok:
+                from agent.llm import DEFAULT_MODELS
                 model = (config.get("LLM_MODEL") if current == "anthropic" else None) \
-                    or "claude-sonnet-5"
+                    or DEFAULT_MODELS["anthropic"]
                 updates.update(LLM_PROVIDER="anthropic", LLM_MODEL=model)
                 if key != config.get("ANTHROPIC_API_KEY"):
                     updates["ANTHROPIC_API_KEY"] = key
