@@ -972,3 +972,31 @@ def test_no_message_id_warning_logs_no_phone_number(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
         assert a.send_text("15551234567", "hello") == []
     assert "15551234567" not in caplog.text
+
+
+def test_flush_attachments_labels_the_plan_it_sends(monkeypatch, tmp_path):
+    """WhatsApp can only carry the flat top-down plan, while the scene tool's own text tells
+    the model the file "opens in any browser". Left unlabelled, a grower is told they have
+    the 3D view and handed a still, so the plan arrives saying what it is and where the
+    interactive view actually is (#167)."""
+    html = tmp_path / "scene.html"
+    html.write_text("<html>3D</html>")
+    png = tmp_path / "scene.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    a = _adapter(_FakeAgent(attachments=[str(html)]))
+    sent_text, sent_media = [], []
+    monkeypatch.setattr(a, "send_text", lambda to, text: sent_text.append((to, text)))
+    monkeypatch.setattr(
+        a, "send_media",
+        lambda to, path, **kw: sent_media.append((to, path, kw.get("mime"))) or True)
+
+    a._flush_attachments("15551234567", "15551234567")
+
+    assert sent_media == [("15551234567", str(png), "image/png")]
+    assert len(sent_text) == 1, "the still must not arrive unlabelled"
+    body = sent_text[0][1]
+    assert "top-down plan" in body.lower()
+    assert "not the interactive view" in body.lower()
+    assert "Telegram" in body
+    assert "—" not in body  # house style avoids the em dash
+    assert not png.exists() and not html.exists(), "both temp files must be cleaned up"
