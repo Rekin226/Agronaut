@@ -160,6 +160,108 @@ def claude_server_tools() -> list[dict]:
     return tools
 
 
+# Strict tool use (Anthropic structured outputs), checked 2026-10-10: at most 20 strict tools
+# per request, 24 optional parameters and 16 union-typed parameters across them, and no
+# numeric or string bounds, pattern, or open additionalProperties anywhere in a schema.
+STRICT_MAX_TOOLS, STRICT_MAX_OPTIONAL, STRICT_MAX_UNION = 20, 24, 16
+_STRICT_UNSUPPORTED = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+                       "multipleOf", "minLength", "maxLength", "pattern", "maxItems",
+                       "uniqueItems", "minProperties", "maxProperties"}
+
+
+def _strict_compatible(schema) -> bool:
+    if isinstance(schema, dict):
+        for k, v in schema.items():
+            if k in _STRICT_UNSUPPORTED or (k == "minItems" and v not in (0, 1)):
+                return False
+            if k == "additionalProperties" and v is not False:
+                return False
+            if not _strict_compatible(v):
+                return False
+    elif isinstance(schema, list):
+        return all(_strict_compatible(x) for x in schema)
+    return True
+
+
+def _close_objects(schema):
+    """A copy with additionalProperties: false on every object, as strict mode requires."""
+    if isinstance(schema, dict):
+        out = {k: _close_objects(v) for k, v in schema.items()}
+        if out.get("type") == "object" or "properties" in out:
+            out["additionalProperties"] = False
+        return out
+    if isinstance(schema, list):
+        return [_close_objects(x) for x in schema]
+    return schema
+
+
+def strict_where_possible(tools: list, priority: list[str]) -> tuple[list, list[str]]:
+    """`tools` for Claude, with strict schemas on as many as the limits allow, in `priority`
+    order; the rest are passed through unchanged. Returns (tools, names made strict).
+
+    Strict means Claude's tool arguments always match the schema: a number is a number, a
+    required field is there. LangChain's own strict conversion follows OpenAI's rule and makes
+    every parameter required, which would force the model to choose a value for each
+    defaulted option; Anthropic allows optional parameters, so the schema keeps its
+    required list and only gains closed objects. Optional and union parameters count against
+    budgets shared by all strict tools, so priority decides who gets them.
+    """
+    from langchain_anthropic.chat_models import convert_to_anthropic_tool
+
+    by_name = {t.name: t for t in tools}
+    strict, used_opt, used_union = {}, 0, 0
+    for name in priority:
+        tool = by_name.get(name)
+        if tool is None or len(strict) >= STRICT_MAX_TOOLS:
+            continue
+        spec = dict(convert_to_anthropic_tool(tool))
+        schema = spec["input_schema"]
+        if not _strict_compatible(schema):
+            continue
+        props, required = schema.get("properties", {}), set(schema.get("required", []))
+        n_opt = sum(1 for p in props if p not in required)
+        n_union = sum(1 for d in props.values()
+                      if isinstance(d, dict) and ("anyOf" in d or isinstance(d.get("type"), list)))
+        if used_opt + n_opt > STRICT_MAX_OPTIONAL or used_union + n_union > STRICT_MAX_UNION:
+            continue
+        used_opt, used_union = used_opt + n_opt, used_union + n_union
+        strict[name] = {**spec, "input_schema": _close_objects(schema), "strict": True}
+    return [strict.get(t.name, t) for t in tools], list(strict)
+
+
+class StrictGuard:
+    """Invoke the strict-bound model; if the API rejects the strict schemas themselves, log it
+    and use the loose-bound model from then on.
+
+    The grammar-size limit is not published (see tools.STRICT_TOOL_PRIORITY), so a new tool,
+    a schema change or a change on Anthropic's side can push the strict set over it. That must
+    cost strictness, never a grower's turn. Any other error is re-raised for ResilientChat.
+    """
+
+    _MARKERS = ("grammar", "strict", "schema is too complex")
+
+    def __init__(self, strict, loose):
+        self._strict, self._loose, self._failed = strict, loose, False
+
+    def invoke(self, messages, *args, **kwargs):
+        if not self._failed:
+            try:
+                return self._strict.invoke(messages, *args, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                text = str(exc).lower()
+                if "400" not in text or not any(m in text for m in self._MARKERS):
+                    raise
+                self._failed = True
+                log.warning("strict tool schemas rejected by the API; continuing without "
+                            "strict mode: %s", str(exc)[:200])
+        return self._loose.invoke(messages, *args, **kwargs)
+
+
+def strict_tools_enabled() -> bool:
+    """Strict tool schemas on Claude; AGRONAUT_STRICT_TOOLS=off sends them all loose."""
+    return _flag("AGRONAUT_STRICT_TOOLS")
+
+
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
     """Pure resolution of (provider, model) from args -> env -> defaults. Testable, no I/O."""
     provider = (provider or os.getenv("LLM_PROVIDER") or "ollama").strip().lower()

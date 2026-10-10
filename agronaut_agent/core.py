@@ -18,11 +18,14 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.llm import (
     ResilientChat,
+    StrictGuard,
     build_fallback_chat,
     claude_server_tools,
     get_chat_model,
     get_llm,
     resolve,
+    strict_tools_enabled,
+    strict_where_possible,
 )
 from agent.vision import sanitize_observation
 
@@ -47,7 +50,7 @@ from .store import (
     _Db,
     _now,
 )
-from .tools import AGRONAUT_TOOLS
+from .tools import AGRONAUT_TOOLS, STRICT_TOOL_PRIORITY
 
 log = logging.getLogger(__name__)
 
@@ -358,7 +361,15 @@ class AgronautAgent:
             self._base = base                   # unbound: used to force a final text answer
             # Claude also gets Anthropic-run web search and fetch (claude_server_tools).
             self._server_tools = claude_server_tools() if self._provider == "anthropic" else []
-            self._bound = base.bind_tools(list(AGRONAUT_TOOLS) + self._server_tools)
+            loose = list(AGRONAUT_TOOLS) + self._server_tools
+            self._bound = base.bind_tools(loose)
+            self._strict_tools = []
+            if self._provider == "anthropic" and strict_tools_enabled():
+                tools, self._strict_tools = strict_where_possible(list(AGRONAUT_TOOLS),
+                                                                  STRICT_TOOL_PRIORITY)
+                if self._strict_tools:
+                    self._bound = StrictGuard(base.bind_tools(tools + self._server_tools),
+                                              self._bound)
         except Exception as exc:  # noqa: BLE001 — surfaced as chat_error, or re-raised
             if require_tools:
                 raise

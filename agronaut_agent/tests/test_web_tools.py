@@ -106,3 +106,26 @@ def test_the_claude_path_binds_the_web_tools_beside_agronauts_own(tmp_path, monk
     names = [getattr(t, "name", None) or t.get("name") for t in chat.bound]
     assert names[:len(AGRONAUT_TOOLS)] == [t.name for t in AGRONAUT_TOOLS]
     assert names[len(AGRONAUT_TOOLS):] == ["web_search", "web_fetch"]
+
+
+def test_the_claude_path_makes_the_priority_tools_strict_behind_a_guard(tmp_path, monkeypatch):
+    from agent.llm import StrictGuard
+    from agronaut_agent import core
+    from agronaut_agent.tools import STRICT_TOOL_PRIORITY
+
+    binds = []
+
+    class _Rec(_Chat):
+        def bind_tools(self, tools):
+            binds.append(list(tools))
+            return self
+
+    monkeypatch.setattr(core, "get_chat_model", lambda p=None, m=None: _Rec([]))
+    monkeypatch.setattr(core, "build_fallback_chat", lambda p=None, m=None: None)
+    monkeypatch.delenv("AGRONAUT_STRICT_TOOLS", raising=False)
+    off = lambda *a, **k: None  # noqa: E731
+    a = AgronautAgent(llm_provider="anthropic", db_path=str(tmp_path / "db.sqlite"),
+                      embed_fn=off, describe_fn=off, transcribe_fn=off, classify_fn=off)
+    assert isinstance(a._bound, StrictGuard) and a._strict_tools == STRICT_TOOL_PRIORITY
+    strict_names = [t["name"] for t in binds[-1] if isinstance(t, dict) and t.get("strict")]
+    assert sorted(strict_names) == sorted(STRICT_TOOL_PRIORITY)
