@@ -17,7 +17,9 @@ numeric values in string-keyed dicts AND in name-keyed dicts, non-zero defaults 
 `field(default=...)` form), bare-numeric keyword arguments AND bare-numeric
 positional arguments in module-level calls. A `Coefficient(...)` call never trips
 it: the call itself carries value, range and source, wherever in the package it is
-defined.
+defined. Since #214, an entity row (Crop/FishSpecies/SystemType) is exempt only
+when it is migrated to per-field provenance (or still listed as unmigrated in
+provenance_registry.py) — a bare `source=` string no longer covers a whole row.
 
 This guards the form, not the truth: a sourced number can still be the wrong
 number. The test makes the rule visible; a reviewer still reads the source.
@@ -25,6 +27,15 @@ number. The test makes the rule visible; a reviewer still reads the source.
 
 import ast
 from pathlib import Path
+
+from aqua_model.tests.provenance_registry import (
+    MIGRATED_CROPS,
+    MIGRATED_SPECIES,
+    MIGRATED_SYSTEM_TYPES,
+    UNMIGRATED_CROPS,
+    UNMIGRATED_SPECIES,
+    UNMIGRATED_SYSTEM_TYPES,
+)
 
 AQUA_MODEL_DIR = Path(__file__).resolve().parent.parent
 
@@ -450,18 +461,35 @@ def _call_numeric_values(call, prefix, lineno):
     ('PARAMS_FAST'); the call's own name is used when there is none. Two calls
     are skipped, keyed on the CALL's class rather than the display name: a
     Coefficient(...) (its arguments ARE the value/range/source triple) and a
-    sourced entity row — Crop(...), FishSpecies(...), SystemType(...) — because
-    a call that carries a non-empty `source=` string is the entity-table form
-    of rule 2, and flagging every row of the crop and species tables would
-    turn the guard into an allowlist mill. Keying the exemption on the class
-    name plus a non-empty string keeps an unsourced call on some other class
-    from borrowing it by adding `source=''`.
+    sourced entity row — Crop(...), FishSpecies(...), SystemType(...) — whose
+    numbers the row-level `source=` string used to cover wholesale.
+
+    The entity-row exemption is #214-narrowed: a row whose class carries a
+    complete provenance map (MIGRATED_*, derived from provenance_registry.py)
+    is exempt outright — every number now names its own basis. A row still on
+    the shrink-only UNMIGRATED_* lists keeps the pre-#214 exemption until it
+    migrates (the provenance tests hold the lists to the real tables); a NEW
+    row with neither map nor listing, and an empty `source=''`, exempt
+    nothing.
     """
     cls = _call_name(call.func)
     if cls == "Coefficient":
         return set()
-    if cls in _SOURCED_ENTITY_CLASSES and _carries_sourced_string(call):
-        return set()
+    if cls in _SOURCED_ENTITY_CLASSES:
+        if cls == "Crop":
+            if _entity_row_exempt(call, MIGRATED_CROPS, UNMIGRATED_CROPS):
+                return set()
+        elif cls == "FishSpecies":
+            if _entity_row_exempt(call, MIGRATED_SPECIES, UNMIGRATED_SPECIES):
+                return set()
+        elif cls == "SystemType":
+            if _entity_row_exempt(call, MIGRATED_SYSTEM_TYPES, UNMIGRATED_SYSTEM_TYPES):
+                return set()
+        else:
+            # Component(...) — flowsheet rows are built at runtime from sourced
+            # coefficients, not a module-level table; keep the pre-#212 behaviour.
+            if _carries_sourced_string(call):
+                return set()
     name = prefix if prefix is not None else cls
     found = set()
     for i, arg in enumerate(call.args):
@@ -479,6 +507,37 @@ def _call_numeric_values(call, prefix, lineno):
 
 
 _SOURCED_ENTITY_CLASSES = {"Crop", "FishSpecies", "SystemType", "Component"}
+
+
+def _row_name(call):
+    """The row's own name ('lettuce', 'tilapia', 'raft'), when the call states it."""
+    for kw in call.keywords:
+        if kw.arg in ("name", "key") and isinstance(kw.value, ast.Constant) \
+                and isinstance(kw.value.value, str):
+            return kw.value.value
+    return None
+
+
+def _entity_row_exempt(call, migrated, unmigrated):
+    """#214 exemption for one entity-row call.
+
+    - the row is migrated (its name is in the MIGRATED_* set derived from
+      provenance_registry.py): exempt — every number names its own basis in the
+      row's provenance map, which test_row_provenance checks against the real
+      tables;
+    - the row is on the shrink-only UNMIGRATED_* list AND still carries a
+      non-empty `source=` string: exempt until it migrates. The source-string
+      requirement is kept from #212 so an empty `source=''` cannot borrow a
+      listed row's name;
+    - anything else — a new row with neither map nor listing, a nameless call:
+      not exempt, the call falls through to the generic numeric-argument scan.
+    """
+    name = _row_name(call)
+    if name is None:
+        return False
+    if name in migrated:
+        return True
+    return name in unmigrated and _carries_sourced_string(call)
 
 
 def _carries_sourced_string(call):
@@ -590,7 +649,6 @@ def test_scanner_flags_numeric_args_in_module_level_calls():
         "PARAMS_POS = TwinParams(0.7, 1.0, 0.15)\n"
         "NAMED = TwinParams()\n"
         "REG = Coefficient(name='r', value=0.4, low=0.2, high=0.6, unit='x', source='LIT')\n"
-        "SOURCED = Crop(name='lettuce', frr=60.0, source='FAO589/UVI')\n"
         "BARE_SOURCE = Crop(name='lettuce', frr=60.0, source='')\n"
         "NOT_ENTITY = Band(top=9.0, source='LIT')\n"
         "get_system('raft')\n"
@@ -601,4 +659,33 @@ def test_scanner_flags_numeric_args_in_module_level_calls():
         "PARAMS_POS(#0)", "PARAMS_POS(#1)", "PARAMS_POS(#2)",
         "BARE_SOURCE(frr=...)",
         "NOT_ENTITY(top=...)",
+    }, found
+
+
+def test_entity_row_exemption_is_narrowed_to_provenance_rows():
+    # The pre-#214 rule exempted ANY entity call with a non-empty source=; the
+    # narrowed rule exempts a migrated row outright, a listed-unmigrated row
+    # with a real source string, and nothing else.
+    exempt = (
+        # a real migrated row (moringa carries a provenance map since #175/#214)
+        "M1 = Crop(name='moringa', frr=65.0, source='Mabapa2017')\n"
+        "M2 = FishSpecies(name='tilapia', fcr=1.7, source='FAO589/UVI')\n"
+        "M3 = SystemType(key='raft', water_depth_m=0.30, source='FAO589')\n"
+        # a real listed-unmigrated row keeps the pre-#214 exemption
+        "U1 = Crop(name='lettuce', frr=60.0, source='FAO589/UVI')\n"
+        "U2 = FishSpecies(name='trout', fcr=1.2, source='LIT')\n"
+    )
+    assert _module_level_constants(exempt) == set()
+
+    flagged = (
+        # an empty source cannot borrow a listed row's name (kept from #212)
+        "B1 = Crop(name='lettuce', frr=60.0, source='')\n"
+        # a NEW row with neither map nor listing cannot borrow the exemption
+        "N1 = Crop(name='moonfruit', frr=60.0, source='LIT')\n"
+        "N2 = FishSpecies(name='moonfish', fcr=1.2, source='LIT')\n"
+        "N3 = SystemType(key='moon_pond', water_depth_m=0.3, source='LIT')\n"
+    )
+    found = {name for name, _line in _module_level_constants(flagged)}
+    assert found == {
+        "B1(frr=...)", "N1(frr=...)", "N2(fcr=...)", "N3(water_depth_m=...)",
     }, found
