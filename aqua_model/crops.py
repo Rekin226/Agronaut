@@ -25,6 +25,10 @@ class Crop:
     temp_min_c: float
     temp_max_c: float
     source: str
+    # Per-field provenance (#214): {field: "measured:|placed:|inherited: <...>"}.
+    # Optional — rows without one still construct and keep the pre-#214 exemption
+    # exactly until they migrate (see aqua_model/tests/provenance_registry.py).
+    provenance: dict[str, str] | None = None
 
 
 # Leafy greens: lower feed ratio. FAO 589 / UVI cite ~40-100 g/m2/day for leafy raft.
@@ -418,7 +422,47 @@ MORINGA = Crop(
         "trial ran on soils of pH(KCl) 5.1-7.0 across its two sites and produced "
         "throughout; no species-level pH requirement was reached in the sources above. "
         "temp_min 20 °C placed: chilling-sensitive tropical species, growth poor below "
-        "~20 °C."),)
+        "~20 °C."),
+    # Per-field provenance (#214). Every numeric field accounted for; labels follow the
+    # row's own prose (measured = the source states this number; placed = reasoning;
+    # inherited = a peer row's value). The measured entries were checked against the
+    # cited sources when #175 landed (Mabapa Table/Fig. 2, Trigo abstract, USDA FDC).
+    provenance={
+        "frr_g_per_m2_day":
+            "placed: no Moringa-specific FRR is published for aquaponics; set to 65, mid "
+            "the FAO 589 / UVI leafy band (~40-100 g/m2/day) alongside its heat-tolerant "
+            "repeated-harvest siblings (amaranth, water spinach, malabar spinach)",
+        "frr_low":
+            "inherited: leafy-band floor shape shared with the fast-regrowth leafy rows; "
+            "band placement, not a measurement",
+        "frr_high":
+            "inherited: leafy-band ceiling shape shared with the fast-regrowth leafy rows",
+        "n_uptake_g_per_m2_day":
+            "inherited: leafy-green peer value (the leafy table clusters at 0.8-1.0); "
+            "consistency-check input only, never a sizing coefficient",
+        "yield_kg_per_m2_year":
+            "placed: Mabapa et al. 2017 field trial (dry shoot 527-2867 kg/ha per cutting, "
+            "4 cuts in ~14 months) annualizes to ~2.9-19.7 t/ha/yr field fresh-leaf "
+            "equivalent; the registered 14 = that base x a ~7-48x protected-culture "
+            "multiplier, and the multiplier — not the trial — is the soft link",
+        "edible_protein_pct":
+            "measured: USDA FoodData Central, 'Drumstick leaves, raw' — 9.4 g protein per "
+            "100 g fresh",
+        "ph_min":
+            "placed: the cited trial grew on soils of pH(KCl) 5.1-7.0 and produced "
+            "throughout; no species-level pH requirement was reached, so the leafy-table "
+            "floor is kept",
+        "ph_max":
+            "placed: as ph_min — trial soil pH(KCl) reached 7.0; leafy-table ceiling kept",
+        "temp_min_c":
+            "placed: chilling-sensitive tropical species, growth poor below ~20 °C — the "
+            "warmest floor in the table by design; Trigo et al. 2021 give the optimum, "
+            "not a floor",
+        "temp_max_c":
+            "measured: Trigo et al. 2021, Foods 10(1):31 — optimum 25-35 °C (survival to "
+            "48 °C for limited periods is not modelled); registered 35 is the optimum "
+            "ceiling",
+    },)
 
 # ETHIOPIAN KALE (Brassica carinata) — the leafy brassica that carries real heat. The
 # database already has kale, collards and mustard greens, and every one of them stops at
