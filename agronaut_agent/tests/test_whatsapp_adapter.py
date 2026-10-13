@@ -879,6 +879,25 @@ def test_a_failed_status_names_metas_error():
     assert "failed" in out and "131047" in out
 
 
+def test_reply_failure_warnings_mask_the_phone_number(monkeypatch, caplog):
+    # #215 review round 3: the inherited reply-failure warnings printed the full
+    # sender. Only the last two digits may reach the log.
+    import logging
+
+    a = _adapter()
+
+    class _Resp:
+        status_code = 401
+        text = '{"error": {"message": "expired token"}}'
+
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _Resp())
+    with caplog.at_level(logging.WARNING):
+        a.handle_payload(_incoming_payload("hello?", sender="15551234567"))
+    assert "whatsapp reply failed" in caplog.text
+    assert "15551234567" not in caplog.text
+    assert "ending 67" in caplog.text
+
+
 def test_no_message_id_warning_logs_no_phone_number(monkeypatch, caplog):
     # #215 review: a successful send response carries the recipient's number in
     # contacts (input and wa_id) — the warning must not write it to the log.

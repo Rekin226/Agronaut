@@ -44,6 +44,14 @@ def _digits(value) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
+def _masked_sender(sender) -> str:
+    """A sender safe to write to the log: only the last two digits, matching
+    the allowlist-drop convention. #215's acceptance criterion forbids full
+    phone numbers in logs, including reply-failure warnings."""
+    tail = _digits(sender)[-2:]
+    return f"ending {tail}" if tail else "unknown sender"
+
+
 def _same_but_trunk_zero(allowed: str, sender: str) -> bool:
     """True when `allowed` is `sender` with one extra 0 just after a 1-4 digit country code."""
     if len(allowed) != len(sender) + 1:
@@ -422,7 +430,7 @@ class WhatsAppAdapter(ChannelAdapter):
                     for part in chunk(cmd.text):
                         self.send_text(sender, part)
                 except WhatsAppSendError:
-                    log.warning("whatsapp command reply failed for %s", sender, exc_info=True)
+                    log.warning("whatsapp command reply failed for %s", _masked_sender(sender), exc_info=True)
                 if cmd.document:
                     doc_mime = cmd.document_mime or mimetypes.guess_type(cmd.document)[0] or "application/octet-stream"
                     if self.send_media(sender, cmd.document, doc_mime) is False:
@@ -437,7 +445,7 @@ class WhatsAppAdapter(ChannelAdapter):
             try:
                 self.send_reply(sender, reply)
             except WhatsAppSendError:
-                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
             finally:
                 self._flush_attachments(sender, uid)
 
@@ -453,7 +461,7 @@ class WhatsAppAdapter(ChannelAdapter):
                     self.send_text(sender, "I couldn't download that photo. Could you send it "
                                            "again, or describe what you see?")
                 except WhatsAppSendError:
-                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
+                    log.warning("whatsapp download-failure notice failed for %s", _masked_sender(sender), exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_image(self.channel_name, uid, image_bytes, caption)
@@ -463,7 +471,7 @@ class WhatsAppAdapter(ChannelAdapter):
             try:
                 self.send_reply(sender, reply)
             except WhatsAppSendError:
-                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
             finally:
                 self._flush_attachments(sender, uid)
 
@@ -479,7 +487,7 @@ class WhatsAppAdapter(ChannelAdapter):
                     self.send_text(sender, "I couldn't download that voice note. Could you send "
                                            "it again, or type your message?")
                 except WhatsAppSendError:
-                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
+                    log.warning("whatsapp download-failure notice failed for %s", _masked_sender(sender), exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_voice(self.channel_name, uid, audio_bytes, mime)
@@ -490,7 +498,7 @@ class WhatsAppAdapter(ChannelAdapter):
             try:
                 self.send_reply(sender, reply)
             except WhatsAppSendError:
-                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
             finally:
                 self._flush_attachments(sender, uid)
 
@@ -503,7 +511,7 @@ class WhatsAppAdapter(ChannelAdapter):
                                        "photos. Send a photo of the plants, fish, or water and "
                                        "I'll take a look.")
             except WhatsAppSendError:
-                log.warning("whatsapp unsupported-file notice failed for %s", sender, exc_info=True)
+                log.warning("whatsapp unsupported-file notice failed for %s", _masked_sender(sender), exc_info=True)
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):

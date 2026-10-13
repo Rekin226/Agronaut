@@ -459,6 +459,62 @@ class FollowupStore:
     def mark_failed(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='failed' WHERE id=?", (fid,))
 
+    def fail_closed_window(self, wa_message_id: str) -> bool:
+        """Atomically mark a sent follow-up failed: 131047 means the 24-hour
+        re-engagement window closed, so retrying the same free-form text would
+        fail the same way (#215).
+
+        A single guarded UPDATE — no separate lookup: webhook handlers run on
+        separate threads, so a read-then-write could overwrite an answer that
+        landed between the two. Only a row still marked sent moves; a late
+        status for an answered, already-failed, or cancelled row is a no-op.
+        Returns True when the row actually moved.
+        """
+        cur = self.db.execute(
+            "UPDATE followups SET status='failed' WHERE wa_message_id=? AND status='sent'",
+            (wa_message_id,),
+        )
+        return cur.rowcount > 0
+
+    def consume_status_retry(self, wa_message_id: str) -> bool:
+        """Atomically consume one retry attempt for a delivery-status failure
+        other than 131047 (#215).
+
+        One guarded UPDATE combines the attempt bump with the pending/failed
+        decision: duplicate webhooks for the same failure all race while the
+        row is still sent, and only the first one's UPDATE matches — the rest
+        see pending and consume nothing, so one failed delivery costs exactly
+        one attempt. A status for a row that is no longer sent is a no-op.
+        Returns True when an attempt was consumed.
+        """
+        cur = self.db.execute(
+            """UPDATE followups
+               SET attempts = attempts + 1,
+                   status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END
+               WHERE wa_message_id=? AND status='sent'""",
+            (wa_message_id,),
+        )
+        return cur.rowcount > 0
+
+    def consume_send_failure(self, fid: int) -> bool:
+        """Atomically consume one retry attempt after a synchronous send
+        failure (the send itself raised, so the row never left pending, or a
+        status arrived while it was still sent) (#215).
+
+        One guarded UPDATE combines the attempt bump with the pending/failed
+        decision, so concurrent handlers cannot each consume an attempt for the
+        same failure. Only an open row moves. Returns True when an attempt was
+        consumed.
+        """
+        cur = self.db.execute(
+            """UPDATE followups
+               SET attempts = attempts + 1,
+                   status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END
+               WHERE id=? AND status IN ('pending','sent')""",
+            (fid,),
+        )
+        return cur.rowcount > 0
+
     def mark_answered(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='answered' WHERE id=?", (fid,))
 
