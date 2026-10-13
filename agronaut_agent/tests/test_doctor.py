@@ -114,6 +114,76 @@ def test_a_present_corpus_passes(monkeypatch, tmp_path):
     assert D.check_knowledge()[0].status == OK
 
 
+# --- the provider backend import check (#163) -----------------------------------------------
+
+def test_a_selected_provider_with_no_backend_library_fails_with_the_install_line(monkeypatch):
+    """The issue's own repro: `sys.modules[name] = None` makes the lazy import raise even
+    when the library is installed, which is exactly the "doctor says OK, chat says
+    ModuleNotFoundError" split this check exists to close."""
+    import sys
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
+    monkeypatch.setitem(sys.modules, "langchain_openai", None)
+    checks = D.check_provider()
+    backend = [c for c in checks if "langchain_openai" in c.label]
+    assert backend and backend[0].status == FAIL
+    assert "pip install" in backend[0].fix
+
+
+def test_a_missing_backend_says_install_and_a_broken_one_says_force_reinstall(monkeypatch):
+    """A plain missing package needs one install; a wheel that cannot load (the wrong-arch
+    jiter from the issue thread) usually needs a force-reinstall, and the error's last line
+    is the part a stuck human can act on."""
+
+    def missing(name):
+        raise ModuleNotFoundError(f"No module named '{name}'")
+
+    def broken(name):
+        raise OSError("dlopen(.../jiter/jiter.cpython-314-darwin.so): "
+                      "incompatible architecture (have 'x86_64', need 'arm64')")
+
+    monkeypatch.setattr(D.importlib, "import_module", missing)
+    check = D._backend_import_check("openai_compat")
+    assert check is not None and check.status == FAIL
+    assert check.fix == "pip install langchain-openai"
+
+    monkeypatch.setattr(D.importlib, "import_module", broken)
+    check = D._backend_import_check("anthropic")
+    assert check is not None and check.status == FAIL
+    assert "--force-reinstall" in check.fix
+    assert "incompatible architecture" in check.label
+
+
+def test_every_providers_backend_imports_ok(monkeypatch):
+    """The happy path, without needing any library installed: import_module succeeds, and
+    the check reads OK rather than being skipped."""
+    monkeypatch.setattr(D.importlib, "import_module", lambda name: None)
+    for provider, module in D._PROVIDER_BACKENDS.items():
+        check = D._backend_import_check(provider)
+        assert check is not None and check.status == OK
+        assert module in check.label
+
+
+def test_an_unknown_provider_gets_no_backend_check():
+    assert D._backend_import_check("carrier_pigeon") is None
+
+
+def test_check_provider_reports_the_backend_before_reachability(monkeypatch):
+    """The backend line comes before any network probe, so a broken install is named even
+    when the server itself would also be unreachable."""
+    import sys
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
+    monkeypatch.setitem(sys.modules, "langchain_openai", None)
+    checks = D.check_provider()
+    statuses = [c.status for c in checks]
+    assert FAIL in statuses
+    # the first line is still the provider OK line; the backend FAIL follows it
+    assert checks[0].status == OK and "provider openai_compat" in checks[0].label
+    backend = checks[1]
+    assert backend.status == FAIL and "langchain_openai" in backend.label
+
+
 # --- the report contract -------------------------------------------------------------------
 
 def test_exit_code_is_nonzero_only_when_something_failed():

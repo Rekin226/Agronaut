@@ -20,6 +20,7 @@ Two rules the checks all follow:
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 from pathlib import Path
@@ -27,6 +28,47 @@ from pathlib import Path
 from .whatsapp_doctor import FAIL, OK, WARN, Check
 
 SKIP = "warn"          # rendered as WARN; a check that could not run is not a pass
+
+# The library `_build_backend` imports lazily for each provider (agent/llm.py). Doctor
+# imports the same one so it can say "this provider cannot start" before the first message
+# dies with ModuleNotFoundError (#163) — or with the ImportError/OSError of a package that
+# IS installed but cannot load (a wrong-architecture wheel; the maintainer's jiter case).
+_PROVIDER_BACKENDS = {
+    "ollama": "langchain_ollama",
+    "anthropic": "langchain_anthropic",
+    "nvidia": "langchain_nvidia_ai_endpoints",
+    "hf": "langchain_huggingface",
+    "openai_compat": "langchain_openai",
+    "hf_local": "langchain_huggingface",
+}
+
+
+def _backend_import_check(provider: str) -> Check | None:
+    """Import the selected provider's backend library now, and report what it takes to fix.
+
+    find_spec is not enough: finding a module says nothing about whether it can load.
+    Importing it is also what surfaces a broken install — when the wheel cannot load,
+    importlib raises the package's own ImportError/OSError, which becomes a FAIL with the
+    error's last line, not an OK.
+    """
+    module = _PROVIDER_BACKENDS.get(provider)
+    if module is None:
+        return None
+    try:
+        importlib.import_module(module)
+    except (ImportError, OSError) as exc:
+        text = str(exc).strip()
+        reason = text.splitlines()[-1] if text else exc.__class__.__name__
+        # A wrong-arch/broken wheel usually cannot be repaired by a plain reinstall, so the
+        # fix line says force-reinstall; a plain missing package just needs installing.
+        reinstall = "" if isinstance(exc, ModuleNotFoundError) else " --force-reinstall"
+        return Check(
+            FAIL, f"backend {module} cannot be imported: {reason}",
+            "the provider was selected, but its library is missing or broken, so the first "
+            "message would die with a traceback",
+            f"pip install{reinstall} {module.replace('_', '-')}",
+        )
+    return Check(OK, f"backend {module} imports")
 
 
 def _safe(fn, label: str) -> list[Check]:
@@ -142,6 +184,9 @@ def check_provider() -> list[Check]:
                       "run `agronaut setup`, or pick Ollama to run one locally with no key")]
 
     out = [Check(OK, f"provider {provider}" + (f", model {model}" if model else ""))]
+    backend = _backend_import_check(provider)
+    if backend is not None:
+        out.append(backend)
     if provider == "ollama":
         ok, msg = W.check_ollama()
         out.append(Check(OK if ok else FAIL, f"ollama: {msg}",
