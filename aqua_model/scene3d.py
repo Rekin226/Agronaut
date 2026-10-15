@@ -332,6 +332,17 @@ def to_scene(layout: Layout, out: DesignOutput, *,
              "pumped": p.pumped, "length_m": p.length_m}
             for p in layout.pipes
         ],
+        # The air side (#113): the viewer draws it, but it must never be confused with the
+        # gravity-checked water pipes above — separate keys, separate rendering.
+        "air_lines": [
+            {"from": a.from_id, "to": a.to_id, "stone": a.stone_id,
+             "path": [list(q) for q in a.path], "length_m": a.length_m}
+            for a in layout.air_lines
+        ],
+        "air_stones": [
+            {"id": s.id, "anchor": s.anchor_id, "x": s.x, "y": s.y, "z": s.z}
+            for s in layout.air_stones
+        ],
         "fish": fish,
         "assumptions": list(layout.assumptions),
         "hydraulics": (asdict(layout.hydraulics)
