@@ -22,6 +22,7 @@ import math
 from dataclasses import dataclass, field
 
 from . import hydraulics
+from .coefficients import AERATION_AIR_RATE_LPM_M3, AIR_PUMP_WATT_PER_LPM, SAFETY_FACTOR
 from .system_types import SystemType, get_system_type
 from .types import DesignOutput
 
@@ -40,6 +41,10 @@ NFT_BENCH_H_M = 0.85      # channels on benches at working height
 MEDIA_BED_STAND_H_M = 0.55
 TOWER_H_M = 2.0
 TOWER_ROW_SPACING_M = 1.0
+# The overhead air main (#113). Air does not fall, so it can ride above the water loop: the
+# tank row tops out at TANK_DEPTH_M and the blower box is short, so a main at this height
+# clears everything it crosses between blower and diffusers.
+AIR_MAIN_Z = TANK_DEPTH_M + 0.4
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,50 @@ class PipeRun:
 
 
 @dataclass(frozen=True)
+class AirStone:
+    """A diffuser inside an aerated vessel.
+
+    Deliberately NOT a Placed component: by FAO 589 §7.3.3 the stones sit INSIDE the
+    vessels they serve, so the no-overlap rule would (correctly) reject them as
+    components. They are drawing annotations, not floor space."""
+
+    id: str
+    anchor_id: str            # the vessel the stone sits in
+    x: float
+    y: float
+    z: float
+
+
+@dataclass(frozen=True)
+class AirLine:
+    """A blower-to-diffuser run.
+
+    Deliberately NOT a PipeRun: air does not need grading or fall, and the gravity
+    checks in test_hydraulics would be lies if air pretended to be water. The run rises
+    from the blower to the overhead main, crosses the row, then drops to its stone."""
+
+    from_id: str
+    to_id: str                # the vessel the line serves
+    stone_id: str
+    path: tuple[tuple[float, float, float], ...]
+    length_m: float = 0.0
+
+
+@dataclass(frozen=True)
+class Aeration:
+    """The air side of the fish zone, sized from FAO 589 §7.3.3.
+
+    What this does NOT model: oxygen transfer efficiency of a given stone, altitude and
+    water-temperature effects on DO, redundancy (a real install keeps a spare blower)."""
+
+    blower_id: str
+    air_lpm: float            # demanded air flow, incl. the safety-factor headroom
+    power_w: float            # blower electrical draw estimate (wire-to-air, not shaft)
+    stones: int               # diffuser count across all aerated vessels
+    aerated_m3: float         # water volume the rate was applied to
+
+
+@dataclass(frozen=True)
 class Greenhouse:
     width_m: float
     length_m: float
@@ -96,6 +145,9 @@ class Layout:
     pipes: tuple[PipeRun, ...]
     assumptions: tuple[str, ...] = field(default_factory=tuple)
     hydraulics: "hydraulics.HydraulicReport | None" = None
+    aeration: "Aeration | None" = None
+    air_lines: tuple["AirLine", ...] = ()
+    air_stones: tuple["AirStone", ...] = ()
 
     def by_role(self, role: str) -> list[Placed]:
         return [c for c in self.components if c.role == role]
@@ -221,6 +273,23 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
     beds_span_y = n_rows * bl + (n_rows - 1) * AISLE_M
 
     # --- greenhouse envelope ---
+    aeration = None
+    if out.rearing_tank_volume_l > 0:
+        # --- aeration sizing (#113), BEFORE the envelope: the blower's bay must be part
+        # of the building, not an afterthought poking through the side wall. FAO 589
+        # §7.3.3 sizes air from the water it aerates: 5-8 L/min per m³, from at least two
+        # stones per tank. The headroom is the registry's SAFETY_FACTOR — under-aeration
+        # kills the fish faster than any undersized pipe.
+        aerated_m3 = (
+            sum(v * 0.85 for v in tank_vols)                     # tanks: water_frac 0.85
+            + sum((d / 2.0) ** 2 * math.pi * 1.0 * 0.8           # biofilter vessel: h 1.0, 0.8
+                  for r, _i, d, _n in filters if r == "biofilter"))
+        air_lpm = aerated_m3 * AERATION_AIR_RATE_LPM_M3.value * SAFETY_FACTOR.value
+        power_w = round(air_lpm * AIR_PUMP_WATT_PER_LPM.value, 1)
+        fish_span += AISLE_M + 0.4           # the blower bay joins the tank row, aisle apart
+        aeration = Aeration(blower_id="blower", air_lpm=air_lpm, power_w=power_w,
+                            stones=0, aerated_m3=aerated_m3)
+
     width = max(fish_span, filter_span, beds_span_x) + 2 * MARGIN_M
     tank_zone_y = max(max(tank_ds, default=0.0), 0.0) + AISLE_M
     filter_zone_y = max((d for _r, _i, d, _n in filters), default=0.0) + AISLE_M
@@ -263,6 +332,17 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
                                 d=round(d, 2), h=1.0, water_frac=0.8,
                                 detail=note if flowsheet is None else role_f))
         x += d + AISLE_M
+
+    # the blower sits at the end of the tank row, one aisle past the last tank — its bay
+    # is already inside fish_span, so the envelope closes around it
+    if aeration is not None:
+        comps.append(Placed(
+            id=aeration.blower_id, kind="box", role="blower",
+            label=f"Air blower ({aeration.power_w:.0f} W)",
+            x=round(x0 + fish_span - 0.2, 2), y=round(y_t, 2), w=0.4, l=0.4, h=0.5,
+            detail=f"{aeration.air_lpm:.0f} L/min for {aeration.aerated_m3:.1f} m³ "
+                   f"aerated water (FAO 589 §7.3.3: 5-8 L air/min per m³, "
+                   f"x{SAFETY_FACTOR.value} headroom)"))
 
     # grow units, gridded
     z0 = {"nft_channel": NFT_BENCH_H_M, "media_bed": MEDIA_BED_STAND_H_M}.get(role, 0.0)
@@ -334,6 +414,42 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
                   (mineraliser.x, mineraliser.y, mineraliser.z + mineraliser.h * 0.9)),
             diameter_m=pipe_d, flow_lpm=0.0, pumped=False, length_m=0.0))
 
+    # --- aeration routes (#113) ---
+    # Two stones per rearing tank in different places, one in the biofilter vessel (the
+    # FAO 589 §4.2.5 injector), all kept off the vessel centre so the bubbles do not
+    # re-suspend the solids that just settled. The runs rise to the overhead main, cross
+    # the row at AIR_MAIN_Z, then drop — and stay out of `pipes`, because air does not
+    # fall and the gravity checks must never see it.
+    if aeration is not None:
+        blower = next(c for c in comps if c.id == aeration.blower_id)
+        stones: list[AirStone] = []
+        for t in [c for c in comps if c.role == "fish_tank"]:
+            for i, sx in enumerate((t.x - t.d / 4.0, t.x + t.d / 4.0), 1):
+                stones.append(AirStone(
+                    id=f"stone_{t.id}_{i}", anchor_id=t.id,
+                    x=round(sx, 2), y=t.y, z=round(t.z + 0.1, 2)))
+        for b in [c for c in comps if c.role == "biofilter"]:
+            stones.append(AirStone(
+                id=f"stone_{b.id}", anchor_id=b.id,
+                x=round(b.x, 2), y=b.y, z=round(b.z + 0.1, 2)))
+        air_lines = tuple(
+            AirLine(
+                from_id=blower.id, to_id=s.anchor_id, stone_id=s.id,
+                path=((blower.x, blower.y, round(blower.h, 2)),
+                      (blower.x, blower.y, AIR_MAIN_Z),
+                      (s.x, s.y, AIR_MAIN_Z),
+                      (s.x, s.y, s.z)),
+                length_m=round(
+                    abs(AIR_MAIN_Z - blower.h)
+                    + math.dist((blower.x, blower.y), (s.x, s.y))
+                    + abs(AIR_MAIN_Z - s.z), 2))
+            for s in stones)
+        aeration = Aeration(blower_id=aeration.blower_id, air_lpm=aeration.air_lpm,
+                            power_w=aeration.power_w, stones=len(stones),
+                            aerated_m3=aeration.aerated_m3)
+    else:
+        stones, air_lines = [], ()
+
     assumptions += [
         f"greenhouse sized from the layout: {gh.width_m} x {gh.length_m} m "
         f"({gh.width_m * gh.length_m:.0f} m² floor for {out.grow_area_m2:.0f} m² grow area)",
@@ -341,6 +457,16 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
         f"aisles {AISLE_M} m, wall margin {MARGIN_M} m",
         "positions are a deterministic proposal, not a site plan — doors, slope and services move things",
     ]
+    if aeration is not None:
+        assumptions += [
+            f"aeration: {aeration.air_lpm:.0f} L/min for {aeration.aerated_m3:.1f} m³ of "
+            f"aerated water at {AERATION_AIR_RATE_LPM_M3.value} L air/min/m³ "
+            f"x{SAFETY_FACTOR.value} headroom (FAO 589 §7.3.3) — a {aeration.power_w:.0f} W "
+            f"blower with {aeration.stones} air stones",
+            "air stones sit off the tank centre so bubbles do not re-suspend settled "
+            "solids (FAO 589 §4.2.5); the air main rides overhead, outside the water loop",
+        ]
     assumptions += hydro.summary().splitlines()
     return Layout(greenhouse=gh, components=tuple(comps), pipes=tuple(pipes),
-                  assumptions=tuple(assumptions), hydraulics=hydro)
+                  assumptions=tuple(assumptions), hydraulics=hydro, aeration=aeration,
+                  air_lines=air_lines, air_stones=tuple(stones))

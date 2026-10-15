@@ -167,6 +167,7 @@ const ROLE_STYLE = {
   biofilter:   { color: 0x7a4f9e, label: "biofilter",     grp: "Water treatment" },
   mineraliser: { color: 0x9e6a4f, label: "mineraliser",   grp: "Water treatment" },
   degasser:    { color: 0x5f7d8b, label: "degasser",      grp: "Water treatment" },
+  blower:      { color: 0x5d4037, label: "air blower",    grp: "Water treatment" },
   dwc_bed:     { color: 0xa8bcc4, label: "DWC raft bed",  grp: "Growing" },
   media_bed:   { color: 0x8d6e63, label: "media bed",     grp: "Growing" },
   nft_channel: { color: 0x9fb0b8, label: "NFT channel",   grp: "Growing" },
@@ -674,6 +675,38 @@ for (const p of SCENE.pipes || []) {
   const drops = new THREE.InstancedMesh(new THREE.SphereGeometry((p.d || 0.05) * 0.62, 6, 5), dropMat, n);
   flowGroup.add(drops);
   flows.push({ curve, drops, n, speed: 0.10 + 0.06 * Math.min(1, (p.flow_lpm || 30) / 90), off: rnd() });
+}
+
+/* ---------- air side (#113) ----------
+   Blower, overhead main and diffusers. Deliberately OUTSIDE flowGroup: air is not water,
+   so it gets no flow particles and no fall read-out — a tube whose ends have the same
+   height would be labelled "falls 0.00 m", which is a lie about how air moves. */
+{
+  const airMat = new THREE.MeshLambertMaterial({ color: 0x455a64 });
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  for (const a of SCENE.air_lines || []) {
+    const pts = a.path.map(q => new THREE.Vector3(q[0], q[2], q[1]));
+    const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.05);
+    const len = curve.getLength();
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, Math.max(12, (len * 6) | 0), 0.014, 8), airMat);
+    tube.userData = {
+      label: "air line " + a.from + " → " + a.to,
+      detail: [(a.length_m ? a.length_m.toFixed(2) + " m" : ""),
+               "no fall required — air does not care about elevation"]
+              .filter(Boolean).join(" · ") };
+    pickables.push(tube);
+    scene.add(tube);
+  }
+  for (const s of SCENE.air_stones || []) {
+    const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 12), stoneMat);
+    stone.position.set(s.x, s.z, s.y);
+    stone.userData = {
+      label: "air diffuser " + s.id,
+      detail: "in " + s.anchor + " — FAO 589: ≥2 stones per tank, off centre" };
+    pickables.push(stone);
+    scene.add(stone);
+  }
 }
 
 /* ---------- fish ----------
