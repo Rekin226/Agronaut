@@ -18,7 +18,7 @@ stocking, warm water, or lots of solids/biofilm consuming oxygen.
 - Warm water + high stocking density.
 - Weak aeration, or a single point of failure (one air pump, no backup).
 - Poor surface agitation / weak water return (gas exchange happens at the surface).
-- Heavy organic load (uneaten feed, accumulated solids) — decomposition burns oxygen.
+- Heavy organic load (uneaten feed, accumulated solids), decomposition burns oxygen.
 - Pump or power failure overnight (see common-failures).
 
 ## Immediate actions
@@ -30,5 +30,5 @@ stocking, warm water, or lots of solids/biofilm consuming oxygen.
 
 ## Prevention
 - Size aeration for the warmest expected water, not the average.
-- Keep a **battery-backup air pump** — a power cut on a warm night can wipe out a tank within hours.
+- Keep a **battery-backup air pump**, a power cut on a warm night can wipe out a tank within hours.
 - Don't overstock; don't overfeed; keep solids under control.
