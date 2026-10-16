@@ -128,6 +128,33 @@ def test_gasping_fish_leads_with_dissolved_oxygen():
     assert "oxygen" in result.candidates[0].cause.lower()
 
 
+def test_seedling_collapse_offers_conditions_before_the_disease():
+    """knowledge/plant_pests_and_ipm.md describes damping-off in one line that names both the
+    disease and its trigger ("seedlings collapse at the soil line; caused by wet, stagnant,
+    over-warm starts"). The trigger is the cheap, safe check, so it ranks first."""
+    result = triage_symptoms(_f(subject=["plant"], stem_state="pinched_base"))
+    causes = [c.cause for c in result.candidates]
+    assert any("start conditions" in c for c in causes)
+    assert any("Damping-off" in c for c in causes)
+    conditions = next(i for i, c in enumerate(causes) if "start conditions" in c)
+    disease = next(i for i, c in enumerate(causes) if "Damping-off" in c)
+    assert conditions < disease
+
+
+def test_damping_off_check_names_the_lesion_discriminator():
+    """A photo CAN tell the disease apart from mere wet conditions: the constriction at the
+    line. The check must say so explicitly instead of asking for a lab."""
+    result = triage_symptoms(_f(subject=["plant"], stem_state="pinched_base"))
+    disease = next(c for c in result.candidates if "Damping-off" in c.cause)
+    blob = " ".join(disease.checks)
+    assert "constriction" in blob
+    assert "clean green stem" in blob
+
+
+def test_stem_observation_alone_is_not_empty():
+    assert not validate_observation_features(stem_state="pinched_base").is_empty()
+
+
 def test_green_water_points_at_an_algae_bloom_and_warns_about_dawn_oxygen():
     result = triage_symptoms(_f(subject=["water"], water_state="green"))
     algae = next(c for c in result.candidates if "algae" in c.cause.lower())
@@ -180,6 +207,8 @@ def test_triage_never_raises_on_any_valid_feature_combination():
     for water in sorted(triage_mod.WATER_STATES):
         for root in sorted(triage_mod.ROOT_STATES):
             triage_symptoms(_f(water_state=water, root_state=root))
+    for stem in sorted(triage_mod.STEM_STATES):
+        triage_symptoms(_f(subject=["plant"], stem_state=stem))
 
 
 def test_sources_lists_distinct_documents_in_order():
@@ -205,6 +234,8 @@ def test_gate_rejects_an_unknown_scalar():
         validate_observation_features(leaf_age="ancient")
     with pytest.raises(ValidationError):
         validate_observation_features(water_state="purple")
+    with pytest.raises(ValidationError):
+        validate_observation_features(stem_state="mushy")
 
 
 def test_gate_normalises_case_and_deduplicates():

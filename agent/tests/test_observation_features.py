@@ -75,6 +75,28 @@ def test_roots_and_leaves_described_separately_do_not_cross_contaminate():
     assert "margin_scorch" in f.leaf_pattern
 
 
+def test_damping_off_picture():
+    f = extract("The seedlings have collapsed at the soil line and the stems look pinched "
+                "and brown at the base.")
+    assert "plant" in f.subject
+    assert f.stem_state == "pinched_base"
+
+
+def test_seedling_collapse_drives_the_damping_off_differential():
+    f = extract("The seedlings are collapsing at the soil line.")
+    result = triage_symptoms(f)
+    assert not result.is_empty()
+    causes = [c.cause for c in result.candidates]
+    assert any("Damping-off" in c for c in causes)
+    assert all(c.source.startswith("knowledge/") for c in result.candidates)
+
+
+def test_a_stem_flop_without_a_line_lesion_is_not_pinched_base():
+    """Collapse alone is not the damping-off lesion; the constriction at the line is."""
+    f = extract("Some of the seedlings have flopped over but the stems still look green.")
+    assert f.stem_state == "unknown"
+
+
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
     assert f.water_state == "green"
@@ -172,3 +194,8 @@ def test_brown_leaves_in_another_sentence_do_not_make_the_roots_rotten():
 def test_cloudy_described_of_something_other_than_water_is_not_a_water_state():
     f = extract("The lettuce leaves are pale. The cover looks cloudy with condensation.")
     assert f.water_state == "unknown"
+
+
+def test_a_collapse_word_in_a_non_plant_sentence_sets_no_stem_state():
+    f = extract("The pump housing cracked and collapsed. The basil looks healthy.")
+    assert f.stem_state == "unknown"
