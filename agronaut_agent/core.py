@@ -1057,9 +1057,40 @@ class AgronautAgent:
         self._followups.mark_sent(followup_id)
 
     def followup_send_failed(self, followup_id: int) -> None:
-        """A delivery attempt failed; retry next tick, but give up after 3."""
-        if self._followups.bump_attempt(followup_id) >= 3:
-            self._followups.mark_failed(followup_id)
+        """A delivery attempt failed synchronously (the send itself raised);
+        retry next tick, but give up after 3 (#215).
+
+        The transition is one guarded UPDATE in the store: due() only picks up
+        pending rows, so a sent row goes back to pending, and the attempt bump
+        and the pending/failed decision happen together so concurrent handlers
+        cannot each consume an attempt for the same failure.
+        """
+        self._followups.consume_send_failure(followup_id)
+
+    def record_followup_message_id(self, followup_id: int, wa_message_id: str | None) -> None:
+        """Remember the WhatsApp message id of a sent follow-up question, so a later
+        delivery-status webhook can be matched back to it (#215)."""
+        self._followups.record_message_id(followup_id, wa_message_id)
+
+    def followup_status_failed(self, wa_message_id: str, error_codes: list[int]) -> None:
+        """A delivery-status webhook said a send failed. If the message was a
+        follow-up, make the record true (#215): 131047 (the 24-hour re-engagement
+        window) is marked failed directly — retrying the same free-form text would
+        fail the same way — while any other error goes through the normal
+        retry-then-fail path. A status for a message that was not a follow-up
+        changes nothing.
+
+        Webhook handlers run on separate threads, so both transitions are
+        single guarded UPDATEs in the store — no lookup-then-write: an answer
+        arriving between the two must never be overwritten to failed, and
+        duplicate webhooks for one failure must consume exactly one attempt.
+        """
+        if 131047 in error_codes:
+            if self._followups.fail_closed_window(wa_message_id):
+                log.info("whatsapp follow-up failed: 131047 (outside the 24-hour "
+                         "window); marked failed without retry (message %s)", wa_message_id)
+        else:
+            self._followups.consume_status_retry(wa_message_id)
 
     def set_goal(self, channel: str, channel_user: str, goal: str) -> str:
         """Explicitly set the consultation goal (backs the /design, /optimize, /troubleshoot
