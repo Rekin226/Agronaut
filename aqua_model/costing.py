@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from .coefficients import SAFETY_FACTOR
 from .layout import Layout
 from .system_types import get_system_type
 from .types import DesignOutput
@@ -143,10 +144,18 @@ def takeoff(out: DesignOutput, layout: Layout, *, species_key: str = "tilapia",
     lines.append(TakeoffLine("pump_small", "water pump",
                              max(1, len(tanks) // 3 + 1), "unit",
                              f"≥{out.pump_turnover_lph:.0f} L/h at ~{out.pump_head_m:.1f} m head"))
-    # Air stones ship bundled with pumps in every surveyed market; FAO 589 wants one
-    # stone per 2-4 m2 of raft canal, which sets the pump class, not a separate line.
-    lines.append(TakeoffLine("air_pump", "air pump/blower (incl. stones + tubing)", 1,
-                             "unit", "size for ~1 stone per 3 m² of raft area + 1 per tank"))
+    # Air stones ship bundled with pumps in every surveyed market, so the air side stays
+    # one BOM line — but since #113 the layout sizes it, and the line carries that figure
+    # instead of the old static guess. Layouts with no fish keep the old note.
+    aer = layout.aeration
+    if aer is not None:
+        lines.append(TakeoffLine(
+            "air_pump", f"air blower + {aer.stones} air stones + tubing", 1, "unit",
+            f"{aer.power_w:.0f} W for {aer.air_lpm:.0f} L/min — FAO 589 §7.3.3: "
+            f"5-8 L air/min per m³ water x{SAFETY_FACTOR.value} headroom"))
+    else:
+        lines.append(TakeoffLine("air_pump", "air pump/blower (incl. stones + tubing)", 1,
+                                 "unit", "size for ~1 stone per 3 m² of raft area + 1 per tank"))
 
     pipe_m = sum(
         math.dist(a, b)
