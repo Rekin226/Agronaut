@@ -683,6 +683,20 @@
       ]
     },
     {
+      "id": "vt-damping-off-conditions-before-the-disease",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The seedlings have collapsed at the soil line and the stems look pinched and brown at the base."
+      },
+      "must_include": [
+        "start conditions",
+        "Damping-off",
+        "knowledge/plant_pests_and_ipm.md"
+      ]
+    },
+    {
       "id": "sizing-high-protein-feed-nitrogen",
       "category": "sizing",
       "severity": "critical",
