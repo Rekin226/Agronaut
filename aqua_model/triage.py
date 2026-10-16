@@ -59,6 +59,10 @@ LEAF_PATTERNS = frozenset({
 })
 COLOURS = frozenset({"yellow", "brown", "white", "purple", "dark_green", "red"})
 ROOT_STATES = frozenset({"brown_slimy", "white_healthy", "unknown"})
+STEM_STATES = frozenset({
+    "pinched_base",  # a pinched, water-soaked constriction right at the media line
+    "unknown",
+})
 WATER_STATES = frozenset({"clear", "green", "cloudy", "brown", "unknown"})
 FISH_BEHAVIOURS = frozenset({
     "gasping_surface", "lethargic", "not_eating", "flashing", "clamped_fins",
@@ -94,6 +98,7 @@ class ObservationFeatures:
     leaf_pattern: tuple[str, ...] = ()
     colour: tuple[str, ...] = ()
     root_state: str = "unknown"
+    stem_state: str = "unknown"
     water_state: str = "unknown"
     fish_behaviour: tuple[str, ...] = ()
     fish_body: tuple[str, ...] = ()
@@ -104,7 +109,8 @@ class ObservationFeatures:
         description rather than produce a differential from nothing."""
         return not any((self.subject, self.leaf_pattern, self.colour, self.fish_behaviour,
                         self.fish_body, self.pests_visible)) and \
-            self.root_state == "unknown" and self.water_state == "unknown"
+            self.root_state == "unknown" and self.stem_state == "unknown" and \
+            self.water_state == "unknown"
 
 
 @dataclass(frozen=True)
@@ -282,6 +288,47 @@ _RULES: tuple[_Rule, ...] = (
                           "check and restore steady flow to all grow channels"),
             source=_KB_CHEATSHEET,
             priority=_P_ENVIRONMENT,
+        ),
+    ),
+    # -- plant: seedlings collapsing at the soil line ------------------------------------
+    # knowledge/plant_pests_and_ipm.md describes damping-off in one line: "seedlings
+    # collapse at the soil line; caused by wet, stagnant, over-warm starts." That line is
+    # also the differential: the start CONDITIONS and the established DISEASE are separable
+    # in a photo (a pinched, water-soaked constriction at the line versus a floppy but
+    # clean green stem), and the conditions are the cheap, safe thing to fix first — the
+    # same environment-before-pathogen ordering the fish rules follow.
+    _Rule(
+        matches=lambda f: f.stem_state == "pinched_base",
+        candidate=TriageCandidate(
+            cause="Wet, stagnant, over-warm seedling start conditions",
+            because="collapsed seedlings are the described picture for damping-off, whose "
+                    "named trigger is exactly these start conditions",
+            checks=("media moisture: soggy at the surface versus just moist",
+                    "stagnant water and air movement around the seedlings",
+                    "warmth at seedling level, which speeds the collapse"),
+            safe_actions=("let the media surface dry between waterings",
+                          "increase air movement and cool or ventilate the seedling area",
+                          "remove collapsed seedlings together with the media around them"),
+            source=_KB_PESTS,
+            priority=_P_ENVIRONMENT,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: f.stem_state == "pinched_base",
+        candidate=TriageCandidate(
+            cause="Damping-off",
+            because="seedlings collapsing at the soil line — the described picture for "
+                    "damping-off",
+            checks=("the stem base: a pinched, water-soaked constriction right at the media "
+                    "line points at damping-off; a floppy but clean green stem does not",
+                    "spread pattern: seedlings lost in patches overnight is the disease; a "
+                    "uniform tray-wide flop points back at the conditions"),
+            safe_actions=("remove affected seedlings and the adjacent media rather than "
+                          "leaving them in place to spread",
+                          "improve airflow and drainage; nothing that reaches the water — "
+                          "no fungicide drench in a coupled system"),
+            source=_KB_PESTS,
+            priority=_P_PATHOGEN,
         ),
     ),
     # -- plant: pests and surface disease ------------------------------------------------
@@ -509,7 +556,8 @@ _NOT_MODELED: tuple[str, ...] = (
 
 def validate_observation_features(
     subject=(), leaf_age="unknown", leaf_pattern=(), colour=(), root_state="unknown",
-    water_state="unknown", fish_behaviour=(), fish_body=(), pests_visible=(),
+    stem_state="unknown", water_state="unknown", fish_behaviour=(), fish_body=(),
+    pests_visible=(),
 ) -> ObservationFeatures:
     """The trust gate for triage input.
 
@@ -552,6 +600,7 @@ def validate_observation_features(
         leaf_pattern=_seq("leaf_pattern", leaf_pattern, LEAF_PATTERNS),
         colour=_seq("colour", colour, COLOURS),
         root_state=_one("root_state", root_state, ROOT_STATES),
+        stem_state=_one("stem_state", stem_state, STEM_STATES),
         water_state=_one("water_state", water_state, WATER_STATES),
         fish_behaviour=_seq("fish_behaviour", fish_behaviour, FISH_BEHAVIOURS),
         fish_body=_seq("fish_body", fish_body, FISH_BODY),
