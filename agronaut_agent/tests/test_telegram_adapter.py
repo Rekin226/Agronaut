@@ -141,6 +141,10 @@ class _ImgAgent:
         assert image_bytes == b"imgbytes"
         return f"saw image (caption={caption})"
 
+    def handle_document(self, channel, chat_id, data, mime, caption, display_name=None):
+        assert mime == "application/pdf" and data
+        return f"read pdf (caption={caption})"
+
     def handle_voice(self, channel, chat_id, audio_bytes, mime, display_name=None):
         assert audio_bytes == b"oggbytes"
         return f"heard voice (mime={mime})"
@@ -168,11 +172,18 @@ def test_document_image_routes_to_handle_image():
     assert any("saw image" in r for r in msg.recorder.replies)
 
 
-def test_non_image_document_declined_gracefully():
+def test_an_unreadable_document_is_declined_gracefully():
     a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
-    msg = _FakeMessage(document=_FakeDoc("application/pdf"))
+    msg = _FakeMessage(document=_FakeDoc("application/vnd.ms-excel"))
     asyncio.run(a._on_document(_FakeUpdate(msg), _FakeCtx()))
     assert any("can't read files like that yet" in r.lower() for r in msg.recorder.replies)
+
+
+def test_a_pdf_routes_to_handle_document():
+    a = TelegramAdapter(agent=_ImgAgent(), token="x:y", allowed_ids=[])
+    msg = _FakeMessage(document=_FakeDoc("application/pdf"), caption="my water test")
+    asyncio.run(a._on_document(_FakeUpdate(msg), _FakeCtx()))
+    assert any("read pdf" in r and "my water test" in r for r in msg.recorder.replies)
 
 
 def test_text_handler_sends_schematic_attachment_as_photo(tmp_path):

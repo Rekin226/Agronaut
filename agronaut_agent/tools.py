@@ -1743,3 +1743,19 @@ try:
 except ImportError:
     _TWIN_TOOLS = []
 AGRONAUT_TOOLS += _TWIN_TOOLS
+
+
+# Which tools get strict schemas on Claude, most important first. Tools whose arguments become
+# numbers in a design, a cost or a stored reading: a "12 m2" string where a number belongs, or a
+# missing temperature, is the failure strict mode removes.
+#
+# Eight, because that is what compiles. Besides its published limits (agent.llm), the API caps
+# the size of the grammar all strict schemas compile to, and it is not published as a number.
+# Measured 2026-10-10 on claude-sonnet-5 by adding tools in this order: the first eight compile,
+# a ninth (any of them) fails with "The compiled grammar is too large". agent.llm.StrictGuard
+# drops to loose schemas if the API ever rejects these, so a drift costs strictness, not a turn.
+STRICT_TOOL_PRIORITY = [
+    "size_aquaponics_system", "size_hydroponic_system_tool", "design_full_system",
+    "log_my_readings", "estimate_system_cost", "optimize_fish_crop_ratio",
+    "record_measurement", "schedule_followup",
+]

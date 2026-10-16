@@ -54,10 +54,12 @@ DEFAULT_MODELS = {
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
     "hf_local": "Qwen/Qwen2.5-1.5B-Instruct",
-    # Claude. Model ids carry no date suffix. Sonnet 5 is the default here: it calls
-    # tools reliably at a third of Opus pricing, which suits an agent whose job is
-    # routing to a deterministic engine rather than doing the reasoning itself.
-    "anthropic": "claude-sonnet-5",
+    # Claude. Model ids carry no date suffix. Sonnet is the default here: it calls tools
+    # reliably at half of Opus pricing, which suits an agent whose job is routing to a
+    # deterministic engine rather than doing the reasoning itself. Sonnet 5.5 replaced
+    # Sonnet 5 at the same price ($2/$10 per million tokens, checked 2026-10-10); see
+    # claude_effort for how hard it thinks.
+    "anthropic": "claude-sonnet-5-5",
     # Self-hostable OpenAI-compatible server (vLLM, llama.cpp --server, LM Studio, TGI...).
     # The zero-proprietary-API tool-calling path: point OPENAI_COMPAT_BASE_URL at your own
     # box and the agent runs with no hosted vendor. Tool-calling works (ChatOpenAI.bind_tools)
@@ -110,6 +112,191 @@ def ollama_thinking() -> bool:
     cannot think (checked on llama3: accepted); asking for it ON makes such a model error.
     """
     return (os.getenv("AGRONAUT_OLLAMA_THINK") or "").strip().lower() in {"1", "on", "true", "yes"}
+
+
+def prompt_caching() -> bool:
+    """Whether Claude calls carry prompt-cache breakpoints. On unless AGRONAUT_PROMPT_CACHE=off.
+
+    Every agent call resends the same ~11K-token prefix (30 tool schemas and SYSTEM_PROMPT),
+    and one user message often makes several calls as the loop runs tools. A cached read
+    costs about a tenth of fresh input and comes back sooner. Off is for debugging a cache
+    problem, never a cost saving: a miss costs the same as no cache, plus a small write.
+    """
+    return (os.getenv("AGRONAUT_PROMPT_CACHE") or "").strip().lower() not in {"0", "off", "false", "no"}
+
+
+def _flag(name: str, default: bool = True) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    return default if not raw else raw not in {"0", "off", "false", "no"}
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name) or default))
+    except ValueError:
+        return default
+
+
+def claude_server_tools() -> list[dict]:
+    """Anthropic-run tools Agronaut adds on Claude: web search and web fetch.
+
+    Search is for what the curated knowledge cannot hold: today's prices in FCFA or TWD,
+    suppliers, rules, a disease outbreak this season. Fetch reads a page the grower links or
+    a search found. Both are the basic, direct versions; the dynamic-filtering ones run inside
+    a code-execution container, which buys token savings on search-heavy work at the cost of a
+    second server tool in every turn, and a farm chat is not search-heavy.
+
+    Capped per request because each search is billed ($10 per 1,000, checked 2026-10-10) and a
+    fetched page is input tokens: AGRONAUT_WEB_SEARCH_MAX (3) and AGRONAUT_WEB_FETCH_MAX (2).
+    AGRONAUT_WEB_SEARCH=off / AGRONAUT_WEB_FETCH=off remove them. Only Claude has these tools,
+    which is why they are not in AGRONAUT_TOOLS.
+    """
+    tools = []
+    if _flag("AGRONAUT_WEB_SEARCH"):
+        tools.append({"type": "web_search_20250305", "name": "web_search",
+                      "max_uses": _int_env("AGRONAUT_WEB_SEARCH_MAX", 3)})
+    if _flag("AGRONAUT_WEB_FETCH"):
+        tools.append({"type": "web_fetch_20250910", "name": "web_fetch",
+                      "max_uses": _int_env("AGRONAUT_WEB_FETCH_MAX", 2),
+                      "citations": {"enabled": True}, "max_content_tokens": 8000})
+    return tools
+
+
+# Strict tool use (Anthropic structured outputs), checked 2026-10-10: at most 20 strict tools
+# per request, 24 optional parameters and 16 union-typed parameters across them, and no
+# numeric or string bounds, pattern, or open additionalProperties anywhere in a schema.
+STRICT_MAX_TOOLS, STRICT_MAX_OPTIONAL, STRICT_MAX_UNION = 20, 24, 16
+
+# Measured 2026-10-10, consult_eval's 20 scenarios on the same code (Claude Sonnet 5 playing the
+# user and judging): Sonnet 5.5 at low beat medium on every axis (one question per reply 95%
+# vs 90%, median reply 121 vs 144 words, judged plain/reflective/actionable 1.0/1.0/0.6 vs
+# 0.9/0.95/0.5, turn p50 6.1 vs 6.9 s, cost 19% lower). Against Sonnet 5 at its default (high)
+# it was 45% faster and 26% cheaper, asked one question more often (95% vs 82%), and judged
+# better, but replies were longer (121 vs 92 words) and 7 of 20 conversations quoted a figure
+# no tool or user gave, against 5 (water-change shares and feed amounts it worked out itself).
+DEFAULT_CLAUDE_EFFORT = "low"
+_STRICT_UNSUPPORTED = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+                       "multipleOf", "minLength", "maxLength", "pattern", "maxItems",
+                       "uniqueItems", "minProperties", "maxProperties"}
+
+
+def _strict_compatible(schema) -> bool:
+    if isinstance(schema, dict):
+        for k, v in schema.items():
+            if k in _STRICT_UNSUPPORTED or (k == "minItems" and v not in (0, 1)):
+                return False
+            if k == "additionalProperties" and v is not False:
+                return False
+            if not _strict_compatible(v):
+                return False
+    elif isinstance(schema, list):
+        return all(_strict_compatible(x) for x in schema)
+    return True
+
+
+def _close_objects(schema):
+    """A copy with additionalProperties: false on every object, as strict mode requires."""
+    if isinstance(schema, dict):
+        out = {k: _close_objects(v) for k, v in schema.items()}
+        if out.get("type") == "object" or "properties" in out:
+            out["additionalProperties"] = False
+        return out
+    if isinstance(schema, list):
+        return [_close_objects(x) for x in schema]
+    return schema
+
+
+def strict_where_possible(tools: list, priority: list[str]) -> tuple[list, list[str]]:
+    """`tools` for Claude, with strict schemas on as many as the limits allow, in `priority`
+    order; the rest are passed through unchanged. Returns (tools, names made strict).
+
+    Strict means Claude's tool arguments always match the schema: a number is a number, a
+    required field is there. LangChain's own strict conversion follows OpenAI's rule and makes
+    every parameter required, which would force the model to choose a value for each
+    defaulted option; Anthropic allows optional parameters, so the schema keeps its
+    required list and only gains closed objects. Optional and union parameters count against
+    budgets shared by all strict tools, so priority decides who gets them.
+    """
+    from langchain_anthropic.chat_models import convert_to_anthropic_tool
+
+    by_name = {t.name: t for t in tools}
+    strict, used_opt, used_union = {}, 0, 0
+    for name in priority:
+        tool = by_name.get(name)
+        if tool is None or len(strict) >= STRICT_MAX_TOOLS:
+            continue
+        spec = dict(convert_to_anthropic_tool(tool))
+        schema = spec["input_schema"]
+        if not _strict_compatible(schema):
+            continue
+        props, required = schema.get("properties", {}), set(schema.get("required", []))
+        n_opt = sum(1 for p in props if p not in required)
+        n_union = sum(1 for d in props.values()
+                      if isinstance(d, dict) and ("anyOf" in d or isinstance(d.get("type"), list)))
+        if used_opt + n_opt > STRICT_MAX_OPTIONAL or used_union + n_union > STRICT_MAX_UNION:
+            continue
+        used_opt, used_union = used_opt + n_opt, used_union + n_union
+        strict[name] = {**spec, "input_schema": _close_objects(schema), "strict": True}
+    return [strict.get(t.name, t) for t in tools], list(strict)
+
+
+class StrictGuard:
+    """Invoke the strict-bound model; if the API rejects the strict schemas themselves, log it
+    and use the loose-bound model from then on.
+
+    The grammar-size limit is not published (see tools.STRICT_TOOL_PRIORITY), so a new tool,
+    a schema change or a change on Anthropic's side can push the strict set over it. That must
+    cost strictness, never a grower's turn. Any other error is re-raised for ResilientChat.
+    """
+
+    _MARKERS = ("grammar", "strict", "schema is too complex")
+
+    def __init__(self, strict, loose):
+        self._strict, self._loose, self._failed = strict, loose, False
+
+    def invoke(self, messages, *args, **kwargs):
+        if not self._failed:
+            try:
+                return self._strict.invoke(messages, *args, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                text = str(exc).lower()
+                if "400" not in text or not any(m in text for m in self._MARKERS):
+                    raise
+                self._failed = True
+                log.warning("strict tool schemas rejected by the API; continuing without "
+                            "strict mode: %s", str(exc)[:200])
+        return self._loose.invoke(messages, *args, **kwargs)
+
+
+# Claude models that accept output_config.effort (checked 2026-10-10). Haiku 4.5 and Sonnet 4.5
+# reject it, so it is sent only to these.
+_EFFORT_MODELS = ("claude-sonnet-5", "claude-sonnet-4-6", "claude-opus-5", "claude-opus-4-6",
+                  "claude-opus-4-7", "claude-opus-4-8", "claude-fable", "claude-mythos")
+_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def claude_effort(model: str) -> str | None:
+    """How hard Claude thinks before answering: AGRONAUT_CLAUDE_EFFORT, else the default below,
+    or None for a model that does not take the setting.
+
+    Effort trades depth for tokens and latency. This agent routes to deterministic tools and
+    texts short replies, so it does not need the model's own default (high on Sonnet 5.5);
+    see DEFAULT_CLAUDE_EFFORT for what was measured.
+    """
+    if not model.startswith(_EFFORT_MODELS):
+        return None
+    raw = (os.getenv("AGRONAUT_CLAUDE_EFFORT") or "").strip().lower()
+    if raw in _EFFORT_LEVELS:
+        return raw
+    if raw:
+        log.warning("AGRONAUT_CLAUDE_EFFORT=%r is not one of %s; using %s",
+                    raw, ", ".join(_EFFORT_LEVELS), DEFAULT_CLAUDE_EFFORT)
+    return DEFAULT_CLAUDE_EFFORT
+
+
+def strict_tools_enabled() -> bool:
+    """Strict tool schemas on Claude; AGRONAUT_STRICT_TOOLS=off sends them all loose."""
+    return _flag("AGRONAUT_STRICT_TOOLS")
 
 
 def resolve(provider: str | None = None, model: str | None = None) -> tuple[str, str]:
@@ -177,7 +364,11 @@ def _build_backend(provider: str, model: str, temperature: float):
         # one, so the shared signature offers it; this branch drops it rather than let a
         # caller's harmless-looking default break the provider.
         from langchain_anthropic import ChatAnthropic
-        return _AnthropicSystemAdapter(ChatAnthropic(model=model, max_tokens=4096))
+        kw = {"model": model, "max_tokens": 8192}     # thinking counts against max_tokens
+        effort = claude_effort(model)
+        if effort:
+            kw["effort"] = effort
+        return _AnthropicSystemAdapter(ChatAnthropic(**kw))
     if provider == "nvidia":
         # OpenAI-compatible NVIDIA API Catalog / NIM. Reads NVIDIA_API_KEY from env.
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
@@ -247,6 +438,8 @@ FALLBACK_MODELS: dict[str, str] = {
     # return 410 Gone, while mistralai/mistral-nemotron still serves. Until a second live
     # NVIDIA model is confirmed, the honest entry is no entry — build_fallback_chat
     # returns None and a failed turn says so instead of failing twice.
+    # The previous Sonnet: a different deployment from the default, so an outage or overload
+    # of one is unlikely to take the other, and it takes the same tools and strict schemas.
     "anthropic": "claude-sonnet-5",
     # Local fallback too: a grower self-hosting has no hosted tier to lean on, so a stalled
     # model on a laptop should drop to something smaller rather than lose the turn.
@@ -271,18 +464,49 @@ class _AnthropicSystemAdapter:
     tagged as an operator note. That keeps the instruction in the transcript, in position,
     and visible to the model, without inventing a role the API does not have. The wrapper
     only rewrites what it must; everything else is delegated untouched.
+
+    It is also where prompt caching is set, because it is the one place every Claude call of
+    the agent passes through. Two breakpoints, in the order the API requires (longer TTL
+    first): the first system block, which is SYSTEM_PROMPT and so caches the tool schemas and
+    the prompt together for every user and every turn, for an hour; then the API's automatic
+    breakpoint on the last block, which lets the second and later calls of one turn's tool
+    loop reuse everything before them. A plain string prompt (the judge, the session summary)
+    gets neither: it is never sent twice, and a cache write costs a quarter more than input.
     """
 
     _OPERATOR = "[operator note] "
+    _PROMPT_CACHE = {"type": "ephemeral", "ttl": "1h"}
+    _TURN_CACHE = {"type": "ephemeral"}
 
     def __init__(self, inner):
         self._inner = inner
 
-    def bind_tools(self, tools):
-        return _AnthropicSystemAdapter(self._inner.bind_tools(tools))
+    def bind_tools(self, tools, **kwargs):
+        return _AnthropicSystemAdapter(self._inner.bind_tools(tools, **kwargs))
 
     def invoke(self, messages, *args, **kwargs):
-        return self._inner.invoke(self._fold(messages), *args, **kwargs)
+        folded = self._fold(messages)
+        if not isinstance(messages, str) and prompt_caching():
+            folded = self._cache_prompt(folded)
+            kwargs.setdefault("cache_control", self._TURN_CACHE)
+        return self._inner.invoke(folded, *args, **kwargs)
+
+    def _cache_prompt(self, messages: list) -> list:
+        """The same messages with a cache breakpoint on the first system block."""
+        from langchain_core.messages import SystemMessage
+
+        if not messages or not isinstance(messages[0], SystemMessage):
+            return messages
+        head = messages[0]
+        if isinstance(head.content, str):
+            blocks = [{"type": "text", "text": head.content}]
+        else:
+            blocks = [dict(b) if isinstance(b, dict) else {"type": "text", "text": str(b)}
+                      for b in head.content]
+        if not blocks:
+            return messages
+        blocks[-1] = {**blocks[-1], "cache_control": self._PROMPT_CACHE}
+        return [SystemMessage(content=blocks)] + list(messages[1:])
 
     def _fold(self, messages):
         from langchain_core.messages import HumanMessage, SystemMessage
