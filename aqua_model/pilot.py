@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from . import report
 from .crops import get_crop
+from .sensitivity import render_sensitivity, sensitivity_table
 from .types import DesignInput, DesignOutput
 
 
@@ -88,6 +89,12 @@ def to_pilot_proposal(design: DesignInput, out: DesignOutput, pilot: PilotInfo) 
                  "**calibrated to reality** as the install reports measured outcomes (below), so "
                  "the numbers a funder sees improve from real data, not optimism.\n")
 
+    # Where the sensitivity table earns the most: right after the headline projections, so
+    # the funder sees the model's range, not just the point estimate. The embedded
+    # engineering report below suppresses its own copy so the table appears exactly once.
+    lines.extend(render_sensitivity(sensitivity_table(design)))
+    lines.append("")
+
     lines.append("## Data the install will produce (monitoring & evaluation)\n")
     lines.append(
         "This is not just a system — it is an instrumented one. Following Agronaut's versioned "
@@ -103,6 +110,6 @@ def to_pilot_proposal(design: DesignInput, out: DesignOutput, pilot: PilotInfo) 
     lines.append("## System specification & assumptions\n")
     lines.append("_Full computed design, cited coefficients, and an explicit list of what the "
                  "model does not cover — reproduced from the engineering report:_\n")
-    lines.append(report.to_markdown(design, out, site=pilot.site))
+    lines.append(report.to_markdown(design, out, site=pilot.site, include_sensitivity=False))
 
     return "\n".join(lines)
