@@ -7,6 +7,7 @@ tools, memory, and persistence live in AgronautAgent and never change per channe
 
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 
 from ..core import AgronautAgent
@@ -59,6 +60,20 @@ def chunk(text: str, size: int = 4000) -> list[str]:
     if buf:
         parts.append(buf)
     return parts
+
+
+def attachment_cleanup_paths(path: str) -> tuple[str, ...]:
+    """Every temp file one attachment leaves behind once it has been delivered.
+
+    A 3D scene is attached as the self-contained HTML, with a top-down layout PNG written
+    beside it under the SAME STEM (`scene.html` -> `scene.png`), because WhatsApp cannot
+    carry the interactive file and delivers that still instead (#167). The PNG is rendered
+    for every channel, not just the one that sends it, so a channel that unlinks only the
+    path it handled leaves the companion on disk for good: the #124 leak, back through a
+    different door. Telegram renders it and never sends it, which is exactly that case."""
+    if str(path).lower().endswith((".html", ".htm")):
+        return (path, os.path.splitext(path)[0] + ".png")
+    return (path,)
 
 
 def explain_turn_failure(exc: BaseException) -> str:
