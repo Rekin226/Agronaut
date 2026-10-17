@@ -28,6 +28,7 @@ from agronaut_agent.tools import (  # noqa: E402
 )
 from aqua_model.crops import CROPS  # noqa: E402
 from aqua_model.species import SPECIES  # noqa: E402
+from aqua_model.validate import validate_design_input  # noqa: E402
 
 # docs/dpg in a checkout, the installed copy under a wheel (paths.eval_root).
 _GOLDEN = eval_root() / "safety_eval" / "golden_set.json"
@@ -58,6 +59,16 @@ def _invoke(tool: str, args: dict) -> str:
         # here without breaking this module's hermetic charter.
         cleaned, flags = sanitize_observation(args["observation"])
         return cleaned + "\n[flags] " + " ".join(sorted(flags))
+    if tool == "sensitivity_report":
+        # The sensitivity table re-runs the optimizer on the design's own inputs; the probes
+        # pin its honesty line and its no-budget skip so the table can never quietly
+        # present model wiggle as field behavior.
+        from aqua_model.report import to_markdown
+        from aqua_model.sizing import size_system
+        di = validate_design_input(
+            fish_species=args["fish"], crop=args["crop"], grow_area_m2=args["area"],
+            temperature_c=args["temp"], water_budget_lpd=args["water"])
+        return to_markdown(di, size_system(di))
     raise ValueError(f"unknown probe tool {tool!r}")
 
 

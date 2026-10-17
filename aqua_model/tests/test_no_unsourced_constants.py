@@ -143,6 +143,9 @@ ALLOWLIST = {
     # optimizer.py — algorithm parameter
     ("optimizer", "_ALLOC_STEPS"):
         "bounded-enumeration granularity for the area-split search; algorithmic parameter, not physics",
+    # sensitivity.py — reporting parameter
+    ("sensitivity", "SWEEP"):
+        "fixed +/- step the sensitivity table moves each input by, so every report's table is comparable; reporting choice, not physics",
     # reference_systems.py — calibration gate
     ("reference_systems", "FEED_TOLERANCE"):
         "tolerance band of the original calibration gate, kept so results stay comparable",
