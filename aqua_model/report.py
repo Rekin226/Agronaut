@@ -12,11 +12,15 @@ report is fully unit-testable. `to_markdown` is the contract; PDF is downstream.
 
 from __future__ import annotations
 
+from .sensitivity import render_sensitivity, sensitivity_table
 from .types import DesignInput, DesignOutput
 from .validate import WATER_NOT_LIMITING
 
 
-def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = None) -> str:
+def to_markdown(
+    design: DesignInput, out: DesignOutput, *, site: str | None = None,
+    include_sensitivity: bool = True,
+) -> str:
     lines: list[str] = []
     title = f"Aquaponics System Design — {site}" if site else "Aquaponics System Design"
     lines.append(f"# {title}\n")
@@ -51,6 +55,12 @@ def to_markdown(design: DesignInput, out: DesignOutput, *, site: str | None = No
     lines.append(f"| Biofilter media | {out.biofilter_media_m2} m² |")
     lines.append(f"| Makeup water | {out.makeup_water_lpd} L/day |")
     lines.append("")
+
+    # The sensitivity table re-runs the optimizer, so it costs a full-palette search per
+    # render; the pilot proposal suppresses this copy and renders it once, prominently.
+    if include_sensitivity:
+        lines.extend(render_sensitivity(sensitivity_table(design)))
+        lines.append("")
 
     if out.warnings:
         lines.append("## Warnings\n")
