@@ -480,6 +480,67 @@ ETHIOPIAN_KALE = Crop(
         "measured for this species)."),
 )
 
+# SWEET POTATO LEAVES (Ipomoea batatas) — the seventh-most-important food crop in the
+# world grown here for its vine tips instead of its roots: the last wanted heat-tolerant
+# leafy on #125's list, and water spinach's sibling in the same genus (Ipomoea).
+# Different organ, same plant habit: I. aquatica is grown semi-aquatically for its
+# shoots, I. batatas grows a storage root AND keeps producing vine tips that are a
+# standard cooked green across the tropics. Day-heat is what the leaf use wants — FAO
+# notes high day temperatures favour vegetative (vine) development while cool nights
+# favour tubers, which this crop entry does not model.
+SWEET_POTATO_LEAVES = Crop(
+    name="sweet_potato_leaves",
+    category="leafy",
+    # No sweet-potato-leaf feeding-rate ratio is published for aquaponics. Placed in
+    # the FAO 589 / UVI leafy band (~40-100 g/m2/day) at the water-spinach seed point:
+    # the closest analogue we carry — same genus, same cut-and-come-again vine-tip
+    # harvest off standing plants, repeated ratoon cuttings.
+    frr_g_per_m2_day=65.0,
+    frr_low=45.0,
+    frr_high=90.0,
+    n_uptake_g_per_m2_day=0.9,
+    # Field tops yield (Duke 1983, Handbook of Energy Crops, Purdue): in India, tops
+    # add up to 10-32 t/ha across 3 or 4 cuttings per year — a measured multi-harvest
+    # field figure, though reported as an "up to" band rather than a trial mean.
+    # Midpoint ~2.5 kg/m2/yr of field fresh tops, times a ~5-6x protected-culture
+    # multiplier (the leafy siblings' step) registers as 14: tied with moringa and
+    # malabar spinach, under water spinach's 16. The multiplier, not the trial, is
+    # the soft link in that chain.
+    yield_kg_per_m2_year=14.0,
+    # USDA FoodData Central 'Sweet potato leaves, raw' (FDC 169303): 2.5 g protein /
+    # 100 g fresh — measured, mid-band for the leafy entries.
+    edible_protein_pct=2.5,
+    # pH 5.0-7.0 is Ecocrop's OPTIMAL band (absolute 4-8.7): species-measured, so it
+    # replaces the leafy-band default rather than sitting on it.
+    ph_min=5.0,
+    ph_max=7.0,
+    # Both endpoints measured, neither copied from amaranth: the floor is Ecocrop's
+    # optimal minimum (18 °C; the species survives to 10 °C but the optimal band is
+    # what a leaf-growth entry models, and it is a chilling-sensitive tropical
+    # species). The ceiling is PROSEA's growth-retardation point — growth is retarded
+    # where temperatures reach or exceed 35 °C — which puts it one notch above
+    # Ethiopian kale's placed 30 and inside the heat-tolerant leafy cohort's 35.
+    temp_min_c=18.0,
+    temp_max_c=35.0,
+    source=("FAO Ecocrop record 1265 (ecocrop.apps.fao.org) for temperature — optimal "
+        "18-28 °C, absolute 10-38 °C — and pH 5-7 optimal (4-8.7 absolute); "
+        "PROSEA (prosea.prota4u.org, Ipomoea batatas): growth is retarded where "
+        "temperatures reach or exceed 35 °C, the sourced ceiling; FAO 'Roots, tubers, "
+        "plantains and bananas in animal feeding' (t0554e): the vegetative cycle runs "
+        "15-33 °C and 'high temperatures by day favour vegetative development' — the "
+        "leaf-use reading of the same plant; "
+        "USDA FoodData Central 'Sweet potato leaves, raw' (FDC 169303, 2.5 g protein/"
+        "100 g fresh) for protein; Duke 1983 (Handbook of Energy Crops, Purdue newcrop "
+        "server): in India tops add up to 10-32 t/ha over 3-4 cuttings per year, the "
+        "yield base. FRR placed in FAO 589 / UVI leafy band (not measured for this "
+        "species), at the water-spinach seed point — closest analogue, same genus, "
+        "same vine-tip cut-and-come-again harvest. Yield 14 = ~2.5 kg/m2/yr field "
+        "midpoint of Duke's 10-32 t/ha tops across 3-4 cuttings, times a ~5-6x "
+        "protected-culture multiplier; the multiplier, not the trial, is the soft "
+        "link. temp_min 18 is Ecocrop's optimal minimum (measured); temp_max 35 is "
+        "PROSEA's growth-retardation point (measured endpoint)."),
+)
+
 CROPS: dict[str, Crop] = {
     c.name: c for c in (
         LETTUCE, BASIL, TOMATO, KALE, SWISS_CHARD, SPINACH, CUCUMBER, PEPPER,
@@ -495,6 +556,7 @@ CROPS: dict[str, Crop] = {
         MALABAR_SPINACH,
         MORINGA,
         ETHIOPIAN_KALE,
+        SWEET_POTATO_LEAVES,
     )
 }
 
