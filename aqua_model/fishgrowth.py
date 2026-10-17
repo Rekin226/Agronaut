@@ -94,6 +94,18 @@ TGC = {
                "at the stated 30.3 C. Low/high span both readings of the trial (its own "
                "TGC arithmetic vs its stated temperature; the four diets agree within 9%). "
                "Seeds at 1.3; calibrate against farm records"),
+    "tambaqui": Coefficient(
+        name="tambaqui.tgc", value=1.0, low=0.87, high=1.08, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Rodrigues, Freitas, Maciel-Honda, Lima, Lima & Lima "
+               "(2024), Aquac. Rep. 39:102000 (DOI 10.1016/j.aqrep.2024.102000), Table 1 — "
+               "94.5 g juveniles in earthen ponds (Palmas, Brazil), 340.53-365.53 g after "
+               "84 d at 29.5 C: TGC = 1000 x (340.53^(1/3) - 94.5^(1/3)) / (29.5 x 84) = "
+               "0.98 on the 3%BW/twice-daily diet, 1.05 at 4%BW/thrice-daily; the four "
+               "treatments span 0.98-1.05 and do not differ statistically. Cross-checked "
+               "against eight independent pond grow-out timelines (Hilsdorf et al. 2022, "
+               "Rev. Aquac. 14:993-1027, Table 1; ambient ~29 C), which back-compute to "
+               "0.87-1.08. Low/high span the timelines plus the trial; the trial sits "
+               "inside. Seeds at 1.0; calibrate against farm records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",
