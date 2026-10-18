@@ -3,7 +3,8 @@
 Date: 2026-10-17. Status: proposed roadmap; implementation has not started.
 
 The enduring product direction is saved in [Agronaut vision](VISION.md). Contributor work
-is tracked in [GitHub epic #78](https://github.com/Rekin226/Agronaut/issues/78).
+is tracked in [GitHub epic #78](https://github.com/Rekin226/Agronaut/issues/78). See the
+[contributor issue map](AGRICULTURE_CONTRIBUTING.md) for live tasks and dependencies.
 
 Agronaut will grow into a whole-farm agricultural intelligence platform that helps farmers
 plan, design, operate, troubleshoot, and improve different agricultural enterprises. The
