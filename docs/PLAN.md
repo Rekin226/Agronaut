@@ -1,5 +1,10 @@
 # Agronaut Gap-Closure Plan (2026 H2)
 
+Agricultural expansion is tracked in the [Agronaut agriculture platform plan](AGRICULTURE_PLATFORM_PLAN.md)
+(2026-10-17): farm records, field irrigation, seasonal crop management, and whole-farm
+coordination. This file retains the infrastructure and existing-product backlog; see the
+expansion plan for how to prioritize the two workstreams together.
+
 Source: the 2026-07-23 gap analysis (Agronaut vs `NousResearch/hermes-agent`) + NGO funding
 research. Strategy in one line: **protect the moat (deterministic, cited, calibratable core),
 close the agent-infrastructure gap around it, then earn users and the DPG/FAO funding ladder.**
