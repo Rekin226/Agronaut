@@ -37,7 +37,7 @@ def _rx(*alternatives: str) -> re.Pattern:
 # --- subject detection ------------------------------------------------------------------
 _PLANT_CUE = _rx(r"\bleaf\b", r"\bleaves\b", r"\bplant", r"\bfoliage\b", r"\bseedlings?\b",
                  r"\bcrop\b", r"\blettuce\b", r"\bbasil\b", r"\bkale\b", r"\bspinach\b",
-                 r"\btomato", r"\bchard\b", r"\bherb\b", r"\bstems?\b", r"\bcanopy\b")
+                 r"\btomato", r"\bchard\b", r"\bherbs?\b", r"\bstems?\b", r"\bcanopy\b")
 _FISH_CUE = _rx(r"\bfish\b", r"\btilapia\b", r"\bcatfish\b", r"\bclarias\b", r"\btrout\b",
                 r"\bcarp\b", r"\bkoi\b", r"\bperch\b", r"\bgill", r"\bfins?\b", r"\bscale")
 _WATER_CUE = _rx(r"\bwater\b", r"\btank\b", r"\bsump\b", r"\bpond\b")
@@ -85,13 +85,18 @@ _ROOT_GOOD = _rx(r"\bwhite\b", r"\bfirm\b", r"\bhealthy\b", r"\bcream")
 # --- stems (seedlings) ------------------------------------------------------------------
 # Damping-off's described picture is a seedling collapsing AT the media line; the lesion
 # words describe the pinched, water-soaked constriction itself. Collapse alone is not
-# enough (a plant merely lying over is not a stem lesion), and the lesion words alone are.
+# enough (a plant merely lying over is not a stem lesion) — and a lesion word alone is
+# not either: "I pinched off the basil tips" and "the lettuce leaves are brown at the
+# base" are ordinary sentences about mature plants. The KB line is about seedlings, so
+# every stem reading needs a seedling cue in the sentence, and the lesion words need a
+# base-or-line cue beside them.
+_SEEDLING = _rx(r"\bseedlings?\b")
 _STEM_COLLAPSE = _rx(r"\bcollaps", r"\btoppl", r"\bfall(?:en|ing)? over\b", r"\bflopp",
                      r"\bkeel(?:ed|ing)? over\b")
 _STEM_BASE = _rx(r"\b(?:soil|media|grow(?:ing)?|stem|compost) line\b", r"\bstem base\b",
                  r"\bbase of the (?:stem|plant)s?\b", r"\bat the base\b")
-_STEM_PINCHED = _rx(r"\bpinch(?:ed|ing)?\b", r"\bwater.?soaked\b", r"\bconstrict",
-                    r"\bbrown at the base\b", r"\bnarrow(?:ed|ing)? at the base\b")
+_STEM_LESION = _rx(r"\bpinch(?:ed|ing)?\b", r"\bwater.?soaked\b", r"\bconstrict",
+                   r"\bbrown at the base\b", r"\bnarrow(?:ed|ing)? at the base\b")
 
 # --- water ------------------------------------------------------------------------------
 _WATER_GREEN = _rx(r"\bgreen water\b", r"\bpea.?soup\b", r"\bwater (?:is |looks |appears )?"
@@ -253,8 +258,8 @@ def _feature_kwargs(text: str) -> dict:
             if cue.search(pt):
                 colour.append(name)
 
-        if _STEM_PINCHED.search(pt) or (
-                _STEM_COLLAPSE.search(pt) and _STEM_BASE.search(pt)):
+        if (_SEEDLING.search(pt) and _STEM_BASE.search(pt)
+                and (_STEM_LESION.search(pt) or _STEM_COLLAPSE.search(pt))):
             stem_state = "pinched_base"
 
     root_state = "unknown"

@@ -96,6 +96,25 @@ def test_a_stem_flop_without_a_line_lesion_is_not_pinched_base():
     f = extract("Some of the seedlings have flopped over but the stems still look green.")
     assert f.stem_state == "unknown"
 
+def test_a_pinch_word_without_a_seedling_is_not_pinched_base():
+    """A gardener pinches basil tips all the time; that is pruning, not a stem lesion."""
+    f = extract("I pinched off the basil tips yesterday and now the leaves look yellow.")
+    assert f.stem_state == "unknown"
+
+
+def test_a_base_lesion_without_a_seedling_is_not_pinched_base():
+    """Brown at the base of mature lettuce is a different problem: the KB line describes
+    seedlings collapsing at the soil line, and this sentence has no seedling in it."""
+    f = extract("The lettuce leaves are brown at the base.")
+    assert f.stem_state == "unknown"
+
+
+def test_a_seedling_pinch_without_a_base_or_line_cue_is_not_pinched_base():
+    """Even with the seedling cue, the lesion words need the base-or-line cue beside
+    them — pinching seedlings back is normal pruning, not a lesion."""
+    f = extract("I pinched back the basil seedlings to keep them bushy.")
+    assert f.stem_state == "unknown"
+
 
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
