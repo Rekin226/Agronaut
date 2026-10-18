@@ -106,6 +106,21 @@ TGC = {
                "Rev. Aquac. 14:993-1027, Table 1; ambient ~29 C), which back-compute to "
                "0.87-1.08. Low/high span the timelines plus the trial; the trial sits "
                "inside. Seeds at 1.0; calibrate against farm records"),
+    "silver_perch": Coefficient(
+        name="silver_perch.tgc", value=0.7, low=0.51, high=0.80, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Foley, Rowland, Wilson, Winters, Nixon & Mifsud "
+               "(2010), Aquac. Res. 41:1574-1581 (DOI 10.1111/j.1365-2109.2009.02453.x) — "
+               "38 g fingerlings over-wintered in a tank RAS reached 146 g after 125 d at "
+               "19-25 C (the abstract reports SGR 1.07 %/d; 1000 x (146^(1/3) - 38^(1/3)) "
+               "reproduces it). The paper states the temperature range, not the mean: "
+               "base-0 TGC = 0.61-0.80 across the stated range, 0.69 at the 22 C midpoint "
+               "read. Cross-checked against grow-out timelines in the extension guides the "
+               "species row already cites — Business Queensland (400-600 g marketable in "
+               "10-12 months) back-computes to 0.57-0.74 at effective 23-25 C, NSW DPI "
+               "(600-800 g market size in ~18 months, a two-winter cycle) to 0.51-0.54 at "
+               "effective 21-22 C; the timelines bracket the trial from both sides. "
+               "Low/high span the timelines plus the trial; the trial sits inside. Seeds "
+               "at 0.7; calibrate against farm records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",

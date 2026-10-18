@@ -168,6 +168,24 @@
       ]
     },
     {
+      "id": "size-silver-perch-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "silver_perch",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 25,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
       "id": "size-water-infeasible",
       "category": "sizing",
       "severity": "critical",
