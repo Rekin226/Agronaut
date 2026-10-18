@@ -167,6 +167,53 @@ def test_barramundi_days_to_weight_lands_in_a_plausible_farm_range():
     assert 150.0 <= days <= 300.0, f"20 g -> 500 g at 28 C took {days:.0f} days"
 
 
+def test_tambaqui_has_its_own_seed_not_the_generic_default():
+    # Issue #106: tambaqui is the third species to get a real seed. This fails while
+    # the key is missing.
+    assert "tambaqui" in TGC
+    assert tgc_for("tambaqui").name == "tambaqui.tgc"
+
+
+def test_tambaqui_seed_comes_from_the_cited_pond_trial():
+    # Rodrigues et al. (2024), Table 1: 94.5 -> 340.53-365.53 g over 84 d at 29.5 C.
+    # The four treatments span 0.98-1.05; eight independent pond timelines
+    # (Hilsdorf et al. 2022, Table 1) back-compute to 0.87-1.08. Seed 1.0 sits inside
+    # both, and inside the published juvenile envelope (Marquez et al. 2024).
+    c = TGC["tambaqui"]
+    assert c.name == "tambaqui.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.0)
+    assert c.low == pytest.approx(0.87) and c.high == pytest.approx(1.08)
+    assert "Rodrigues" in c.source and "2024" in c.source
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_tambaqui_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute the seed from the paper's numbers inside the test, so the seed and the
+    # citation can not drift apart silently.
+    wi, days, temp = 94.5, 84.0, 29.5
+    finals = {"3%2x": 340.53, "3%3x": 341.23, "4%2x": 353.82, "4%3x": 365.53}
+    for name, wf in finals.items():
+        tgc = 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (temp * days)
+        assert 0.97 <= tgc <= 1.06, f"{name}: base-0 TGC {tgc:.3f} outside the trial span"
+    # the eight pond timelines bracket the trial from both sides
+    timelines = [(90.4, 883.7, 170), (121.8, 664.7, 150), (115.8, 705.8, 150),
+                 (163.78, 1036.5, 149), (55.3, 979.0, 210), (70.24, 903.0, 180),
+                 (42.7, 1949.6, 356), (160.0, 2620.0, 300)]
+    for w0, w1, d in timelines:
+        tgc = 1000.0 * (w1 ** (1.0 / 3.0) - w0 ** (1.0 / 3.0)) / (29.0 * d)
+        assert 0.86 <= tgc <= 1.09, f"{w0}->{w1} g in {d} d: TGC {tgc:.3f} outside the band"
+    assert TGC["tambaqui"].low <= 0.98 and 1.05 <= TGC["tambaqui"].high
+
+
+def test_tambaqui_days_to_weight_lands_in_a_plausible_farm_range():
+    # Semi-intensive pond practice: 2-5 g stocking to 1-2.5 kg harvest with a cycle of
+    # roughly 10-14 months (Valenti et al. 2021 via Rodrigues et al. 2024 intro; the
+    # species row rides the feed chart below the thermal ceiling the seed sets).
+    days = days_to_weight(20.0, 1200.0, "tambaqui", 29.0)
+    assert 200.0 <= days <= 360.0, f"20 g -> 1.2 kg at 29 C took {days:.0f} days"
+
+
 def test_limits_are_declared():
     assert any("mortality" in x for x in NOT_MODELLED)
     assert any("spawn" in x.lower() for x in NOT_MODELLED)
