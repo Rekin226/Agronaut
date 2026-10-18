@@ -130,16 +130,45 @@ def check_config() -> list[Check]:
     return out
 
 
+_PROVIDER_BACKENDS: dict[str, tuple[str, str, str]] = {
+    "ollama": ("langchain_ollama", "ChatOllama", "langchain-ollama"),
+    "anthropic": ("langchain_anthropic", "ChatAnthropic", "langchain-anthropic"),
+    "nvidia": ("langchain_nvidia_ai_endpoints", "ChatNVIDIA", "langchain-nvidia-ai-endpoints"),
+    "hf": ("langchain_huggingface", "ChatHuggingFace", "langchain-huggingface"),
+    "hf_local": ("langchain_huggingface", "HuggingFacePipeline", "langchain-huggingface"),
+    "openai_compat": ("langchain_openai", "ChatOpenAI", "langchain-openai"),
+}
+
+
 def check_provider() -> list[Check]:
-    """Is a model configured, and can it be reached. Network, so it can be skipped."""
+    """Is a model configured, is its library importable, and can it be reached."""
+    import importlib
+
     from . import setup_wizard as W
 
-    provider = (os.getenv("LLM_PROVIDER") or "").strip()
+    provider = (os.getenv("LLM_PROVIDER") or "").strip().lower()
     model = (os.getenv("LLM_MODEL") or "").strip()
     if not provider:
         return [Check(WARN, "no model provider configured",
                       "chat is off. The sizing engine does not need one and still works.",
                       "run `agronaut setup`, or pick Ollama to run one locally with no key")]
+
+    if provider not in _PROVIDER_BACKENDS:
+        return [Check(
+            FAIL, f"unknown provider {provider!r}",
+            f"supported: {', '.join(_PROVIDER_BACKENDS)}",
+            "set LLM_PROVIDER to one of the supported providers or run `agronaut setup`")]
+
+    mod_name, attr_name, pip_pkg = _PROVIDER_BACKENDS[provider]
+    try:
+        mod = importlib.import_module(mod_name)
+        getattr(mod, attr_name)
+    except Exception as err:  # noqa: BLE001 — broken wheel / ImportError / ModuleNotFoundError
+        fix = f"pip install {pip_pkg}" if isinstance(err, ModuleNotFoundError) else f"pip install --force-reinstall {pip_pkg}"
+        return [Check(
+            FAIL, f"provider {provider} cannot load {mod_name}.{attr_name}",
+            f"{type(err).__name__}: {err}",
+            fix)]
 
     out = [Check(OK, f"provider {provider}" + (f", model {model}" if model else ""))]
     if provider == "ollama":
