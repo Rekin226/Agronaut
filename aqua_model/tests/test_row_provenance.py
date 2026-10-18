@@ -12,7 +12,9 @@ this module and the unsourced-constant guard read):
 - a migrated row's map covers EVERY numeric field of its table, with no unknown
   keys, and every value carries one of the three labels with content after it;
 - the UNMIGRATED_* lists can only shrink: a row not on them must already be
-  migrated, a listed row must still be unmigrated, and every name must exist.
+  migrated, a listed row must still be unmigrated, every name must exist, and
+  no list grows beyond the frozen pre-regime baseline (#214's third
+  acceptance item: new rows ship with a map).
 """
 
 import pytest
@@ -21,6 +23,9 @@ from aqua_model.crops import CROPS, Crop
 from aqua_model.species import SPECIES, FishSpecies
 from aqua_model.system_types import SYSTEM_TYPES, SystemType
 from aqua_model.tests.provenance_registry import (
+    _BASELINE_CROPS,
+    _BASELINE_SPECIES,
+    _BASELINE_SYSTEM_TYPES,
     MIGRATED_CROPS,
     MIGRATED_SPECIES,
     MIGRATED_SYSTEM_TYPES,
@@ -97,10 +102,31 @@ def test_every_row_is_migrated_or_listed(table):
     accounted = _MIGRATED[table] | _UNMIGRATED[table]
     assert accounted == set(rows), (
         f"rows not accounted for: {sorted(set(rows) - accounted)}. "
-        "Either give the row a provenance map (and it is migrated), or list it "
-        "as unmigrated in provenance_registry.py."
+        "Give the row a provenance map (and it is migrated) — listing it as "
+        "unmigrated is only available to rows inside the frozen baseline."
     )
     assert not (_MIGRATED[table] & _UNMIGRATED[table]), "a row cannot be both"
+
+
+@pytest.mark.parametrize("table", sorted(TABLES))
+def test_unmigrated_lists_stay_within_baseline(table):
+    """The shrink-only rule, mechanically: each UNMIGRATED_* list is pinned to
+    the baseline frozen when the provenance regime landed — the rows that
+    predate it. A row that arrives later must ship with a provenance map;
+    growing an unmigrated list to absorb it defeats the registry's purpose.
+    """
+    baselines = {
+        "crops": _BASELINE_CROPS,
+        "species": _BASELINE_SPECIES,
+        "system_types": _BASELINE_SYSTEM_TYPES,
+    }
+    grown = _UNMIGRATED[table] - baselines[table]
+    assert not grown, (
+        f"{sorted(grown)} joined the UNMIGRATED_{table} registry beyond the "
+        "frozen baseline. New rows ship with a provenance map (#214's third "
+        "acceptance item); extend the baseline only for rows that genuinely "
+        "predate the regime."
+    )
 
 
 @pytest.mark.parametrize("table", sorted(TABLES))
