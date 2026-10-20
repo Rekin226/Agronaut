@@ -41,6 +41,10 @@ def test_comparison_report_and_download_do_not_change_farm_records(tmp_path):
     assert any(button.label == "Download soil comparison and evidence" for button in at.get("download_button"))
     assert at.selectbox(key="field_plan").value == plan["id"]
     assert at.session_state[prefix+"report"]["result"]["metrics"]["count"] == 1
+    at.text_area(key=prefix+"note").set_value("Changed coverage rationale").run(timeout=15)
+    assert not at.exception
+    assert not any("DIAGNOSTIC" in block.value for block in at.text)
+    assert brain._farms.export(plan["owner_id"]) == before
 
 
 def test_quality_review_changes_hide_stale_report_and_require_fresh_comparison(tmp_path):

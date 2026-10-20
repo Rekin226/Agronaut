@@ -73,7 +73,9 @@ def test_changed_reviews_or_declarations_hide_previous_diagnostic(tmp_path):
     assert not any("coupled soil prediction comparison — DIAGNOSTIC" in t.value for t in at.text)
     assert any("Run the coupled comparison again" in c.value for c in at.caption)
     submit(at)
-    at.selectbox(key=PREFIX+reading["id"]+"_independence").set_value("used_for_calibration")
+    at.selectbox(key=PREFIX+reading["id"]+"_independence").set_value("used_for_calibration").run(timeout=15)
+    assert not at.exception
+    assert not any("coupled soil prediction comparison — DIAGNOSTIC" in t.value for t in at.text)
     submit(at)
     assert at.session_state[PREFIX+"report"]["result"]["metrics"]["count"] == 0
     reviews.review(plan["owner_id"], unit["id"], reading["id"], "rejected", "Sensor fault", "Synthetic",

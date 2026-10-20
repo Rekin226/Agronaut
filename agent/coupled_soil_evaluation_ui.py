@@ -62,7 +62,8 @@ def render_coupled_soil_evaluation(call, saved):
         result = saved["result"]["result"]
         patches = [p["id"] for p in result["days"][0]["ending_soil"]["patches"]]
         reviews = {i: readings[i]["quality_review"]["id"] if readings[i]["quality_review"] else None for i in selected}
-        with st.form(prefix+"form"):
+        # Do not keep a comparison visible while its declarations are being edited.
+        with st.container():
             kind = st.selectbox("Coupled comparison dataset kind", ["synthetic", "field"], index=None, key=prefix+"kind")
             note = st.text_area("Coupled observation selection rationale", key=prefix+"note")
             for identifier in selected:
@@ -79,7 +80,7 @@ def render_coupled_soil_evaluation(call, saved):
                 st.text_input("Timing adjustment evidence or explicit zero-change assumption", key=p+"source")
                 st.selectbox("Use of this reading in model development", ["held_out", "used_for_initialization", "used_for_calibration", "unknown"],
                     index=None, key=p+"independence")
-            st.form_submit_button("Compare coupled predictions without changing state", on_click=_compare,
+            st.button("Compare coupled predictions without changing state", on_click=_compare,
                 args=(call, saved["id"], prefix, selected, reviews))
         request = dict(calculation_id=saved["id"], comparisons=[_entry(prefix, i, reviews[i]) for i in selected], dataset_kind=kind, selection_note=note)
         cached = st.session_state.get(prefix+"report")

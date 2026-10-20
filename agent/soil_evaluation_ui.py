@@ -51,7 +51,8 @@ def render_soil_evaluation(call, saved):
         selected = st.multiselect("Measurements to compare", list(readings), key=key,
             format_func=lambda identifier: f"{readings[identifier]['observed_at']} · {readings[identifier]['value']:g} {readings[identifier]['unit']} · {identifier}")
         first, last = saved["inputs"]["weather"][0]["day"], saved["inputs"]["weather"][-1]["day"]
-        with st.form(prefix+"form"):
+        # Declaration edits invalidate the visible comparison before another submit.
+        with st.container():
             kind = st.selectbox("Declared dataset kind", ["synthetic", "field"], index=None, key=prefix+"kind")
             note = st.text_area("Observation selection and independence rationale", key=prefix+"note")
             entries = []
@@ -67,7 +68,7 @@ def render_soil_evaluation(call, saved):
                 entries.append(dict(observation_id=identifier, as_of=day.isoformat() if day else None, represented_depth_m=depth,
                     representation_note=representation, depletion_adjustment_mm=adjustment, adjustment_source=source,
                     expected_review=reading["quality_review"]["id"] if reading["quality_review"] else None))
-            st.form_submit_button("Compare without changing soil state", on_click=_compare,
+            st.button("Compare without changing soil state", on_click=_compare,
                 args=(call, saved["id"], prefix, selected, {identifier: readings[identifier]["quality_review"]["id"]
                       if readings[identifier]["quality_review"] else None for identifier in selected}))
         request = dict(calculation_id=saved["id"], comparisons=entries, dataset_kind=kind, selection_note=note)
