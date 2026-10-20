@@ -10,8 +10,9 @@ drift from the answer it sits beside.
 Fixed, stated perturbation set (small on purpose — legible beats general):
   - water budget +20% / -20%   (only when the design actually gives a budget)
   - grow area +20% / -20%
-  - crop mix → the optimizer's best allocation over the full crop palette, ranked by its
-    default objective, at the optimizer's existing allocation steps
+  - crop mix → the optimizer's best allocation over the crops in band at the design's
+    own temperature, ranked by its default objective, at the optimizer's existing
+    allocation steps
 
 The table states its own limit once, plainly: it shows how the MODEL responds, not how a
 real system would. Pure and deterministic — no LLM, no network.
@@ -31,8 +32,8 @@ from .validate import _BOUNDS, WATER_NOT_LIMITING
 # module constant with a stated reason rather than a Coefficient in coefficients.py.
 SWEEP = 0.20
 
-# The crop-mix row ranks the optimizer's full-palette search by the optimizer's default
-# objective. Stated in the row label so a reader knows what "best" means there.
+# The crop-mix row ranks the optimizer's in-band-palette search by the optimizer's
+# default objective. Stated in the row label so a reader knows what "best" means there.
 _MIX_OBJECTIVE = "water_efficiency"
 
 _HONESTY = (
@@ -135,6 +136,21 @@ def _crop_mix_row(
     design: DesignInput, base_food: float | None, base_weff: float | None
 ) -> SensitivityRow:
     """What re-allocating the same area across crops would buy, per the optimizer itself."""
+    # The "best" row may only recommend what can actually grow in the room: the palette
+    # is filtered to crops whose temperature band covers the design's own temperature
+    # before ranking (review on #241 — cucumber topping out at 30 °C was being offered
+    # for a 33 °C design). Same optimizer, same objective — a pre-filtered palette,
+    # never a second scoring path.
+    palette = tuple(sorted(
+        k for k, c in CROPS.items()
+        if c.temp_min_c <= design.temperature_c <= c.temp_max_c))
+    change = "crop mix → optimizer's best"
+    if not palette:
+        return SensitivityRow(
+            change=change,
+            feasible=False,
+            detail=f"no crop in the palette grows at {design.temperature_c:g} °C",
+        )
     res = optimize(
         OptimizeInput(
             grow_area_m2=design.grow_area_m2,
@@ -142,10 +158,9 @@ def _crop_mix_row(
             water_budget_lpd=design.water_budget_lpd,
             objective=_MIX_OBJECTIVE,
             fish_palette=(design.fish_species,),
-            crop_palette=tuple(sorted(CROPS)),
+            crop_palette=palette,
         )
     )
-    change = "crop mix → optimizer's best"
     best = res.best
     if best is None:
         return SensitivityRow(change=change, feasible=False)
@@ -157,7 +172,9 @@ def _crop_mix_row(
         water_efficiency_kg_per_m3=best.water_efficiency_kg_per_m3,
         food_delta_pct=_delta(best.food_kg_yr, base_food),
         water_efficiency_delta_pct=_delta(best.water_efficiency_kg_per_m3, base_weff),
-        detail=f"by {_MIX_OBJECTIVE.replace('_', ' ')}; best allocation: {mix}",
+        detail=(f"by {_MIX_OBJECTIVE.replace('_', ' ')}; best allocation: {mix}; "
+                f"palette: {len(palette)} of {len(CROPS)} crops in band at "
+                f"{design.temperature_c:g} °C"),
     )
 
 
@@ -175,7 +192,7 @@ def sensitivity_table(design: DesignInput) -> SensitivityResult:
     if design.crop_plan:
         result.notes.append(
             f"Mixed bed: the +/- rows pin the mix to the dominant crop ({design.crop}); "
-            "the crop-mix row searches the full crop palette."
+            "the crop-mix row searches the crops in band at the design's temperature."
         )
     if base is None:
         result.notes.append(
