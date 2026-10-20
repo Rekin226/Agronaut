@@ -89,7 +89,7 @@ import app
 from agent.tests.test_farm_ui import _SHARED
 st.session_state.agent = _SHARED['brain']
 st.session_state.web_user = 'operator'
-st.session_state.app_mode = 'Assistant (chat)'
+st.session_state.app_mode = 'Assistant'
 if 'messages' not in st.session_state:
     st.session_state.messages = [{'role':'assistant','content':'Private pond dosing note'}]
 app.main()
@@ -142,7 +142,7 @@ st.session_state.web_user = 'operator'
 app.main()
 """
     at = AppTest.from_string(script).run(timeout=15)
-    at.radio(key="app_mode").set_value("Assistant (chat)").run(timeout=15)
+    at.radio(key="app_mode").set_value("Assistant").run(timeout=15)
     at.chat_input[0].set_value("Calculate water demand from the supplied weather.").run(timeout=30)
     assert not at.exception
     assert any("3.88 mm/day" in item.value for item in at.markdown)
