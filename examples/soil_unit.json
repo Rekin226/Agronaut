@@ -1,0 +1,11 @@
+{
+  "farm": {"name": "Example farm", "timezone": "Africa/Accra"},
+  "unit": {
+    "name": "Tomato field",
+    "production_system": "soil",
+    "medium": "soil",
+    "environment": "open_field",
+    "water_strategy": "fully_irrigated",
+    "irrigation_method": "drip"
+  }
+}

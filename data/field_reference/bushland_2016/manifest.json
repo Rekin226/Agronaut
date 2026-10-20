@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "audited_on": "2026-10-20",
+  "scope": "Source screening only; no model predictions, fitting, regional transfer or farm import.",
+  "license": "CC0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "license_evidence": [
+    "https://api.figshare.com/v2/articles/24855957/versions/1",
+    "https://api.figshare.com/v2/articles/25316362/versions/1"
+  ],
+  "files": [
+    {
+      "name": "2016_Maize_water_balance.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44531636",
+      "bytes": 4963828,
+      "repository_md5": "45caa3c4dd3a2ddbfee05d12dbd47901",
+      "sha256": "c4c0cbc83802ac802e0c3649cf8a88aac9b4c30e10184f4a9c61dee4a4ec1fba",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526334",
+      "dataset_version": 1
+    },
+    {
+      "name": "Conventions for Bushland, TX, Weighing Lysimeter Datasets.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44751106",
+      "bytes": 16584,
+      "repository_md5": "603b5ae8b7da32515ffb1f1ee01aa407",
+      "sha256": "eb0ace111da3bb2bf7d8b43a5ebfacbf3f2a33beda463b14764ec4a08d498515",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526317",
+      "dataset_version": 1
+    },
+    {
+      "name": "Bushland_TX_soil_properties.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44751118",
+      "bytes": 29451,
+      "repository_md5": "ce4c4e5707e7278084786c7ad5201884",
+      "sha256": "3770155f5ac604131b210c622b7bd8e3af72105526af3bfbb1ffa15bc076e34e",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526317",
+      "dataset_version": 1
+    }
+  ],
+  "publication_note": "Repository metadata declares CC0. Workbook introductions also request contacting the named scientists and their participation for scientific research/publication. Retain this discrepancy for review before publishing a benchmark; no contact or publication has occurred."
+}

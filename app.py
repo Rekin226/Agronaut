@@ -14,6 +14,7 @@ from uuid import uuid4
 import streamlit as st
 
 from agent.calculator_ui import render_calculator
+from agent.farm_ui import render_unit_controls
 from agent.optimizer_ui import render_optimizer
 from agent.quality_ui import render_quality
 from agent.twin_ui import render_twin
@@ -53,7 +54,7 @@ def _agent_error() -> str | None:
         if agent.chat_error:
             reason = ("The Assistant needs a tool-calling model provider; run `agronaut "
                       f"setup` to pick one (couldn't start one: {agent.chat_error}). "
-                      "**Design** and **My Twin** are fully deterministic and keep working.")
+                      "**Design**, **My Twin** and the farm record views work without a model.")
             st.session_state.agent_error = reason
             return reason
         return None
@@ -124,6 +125,11 @@ def _route_turn(agent, user_id: str, text: str, image_bytes: bytes | None) -> st
     Streamlit script run."""
     if image_bytes:
         return agent.handle_image("web", user_id, image_bytes, caption=(text or None))
+    from agronaut_agent.channels import commands
+    if commands.looks_like_command(text) and commands._split(text)[0] in {
+        "newunit", "fieldplan", "scout", "plant", "harvest", "task", "waterlog", "measure", "overview", "guide", "back", "cancel", "unit", "units",
+    }:
+        return commands.dispatch(agent, "web", user_id, text).text
     return agent.handle_message("web", user_id, text)
 
 
@@ -150,6 +156,7 @@ def _read_chat_input() -> tuple[str, bytes | None]:
 def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     _add_message("user", user_text, image=image_bytes)
     agent = st.session_state.agent
+    before_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
     spinner = "Looking at your photo..." if image_bytes else "Thinking (running the numbers)..."
     try:
         with st.spinner(spinner):
@@ -157,10 +164,18 @@ def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     except Exception:
         reply = ("Something went wrong talking to the model. Your message wasn't lost, "
                  "please try again.")
+    after_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
+    if after_unit != before_unit:
+        # Setup/select commands can change units without the sidebar callback.
+        st.session_state.messages = []
+        for key in list(st.session_state):
+            if key.startswith(("twin_", "log_", "field_", "crop_")) or key == "farm_unit_choice":
+                del st.session_state[key]
     _add_message("assistant", reply)
 
 
-MODES = ("Assistant", "Design", "My Twin", "Quality")
+MODES = ("Assistant", "Design", "My Twin", "Quality", "Farm overview",
+         "Field records", "Crop records", "Farm resources")
 _WIDE = (TWIN_STUDIO, "Quality")
 
 
@@ -190,7 +205,7 @@ def main() -> None:
         st.session_state.app_mode = "Assistant" if _agent_error() is None else "Design"
 
     st.sidebar.markdown(f"## {APP_TITLE}")
-    st.sidebar.caption("Design, run and troubleshoot an aquaponics system.")
+    st.sidebar.caption("Aquatic design, farm records and experimental field irrigation.")
     mode = st.sidebar.radio(
         "Mode",
         MODES + ((TWIN_STUDIO,) if render_twin_studio else ()),
@@ -212,18 +227,34 @@ def main() -> None:
 
     # My Twin is deterministic — it must render even when no LLM is configured, because
     # surviving model weather is the entire promise of the twin's command layer.
-    if mode == "My Twin":
+    if mode in ("Farm overview", "My Twin", "Field records", "Crop records", "Farm resources"):
         reason = _agent_error()
         if "agent" not in st.session_state:
             st.warning(reason or "The twin is unavailable in this install.")
             return
-        render_twin(brain=st.session_state.agent, user=_web_user())
+        render_unit_controls(st.session_state.agent, _web_user())
+        if mode == "Farm overview":
+            from agent.farm_overview_ui import render_farm_overview
+            render_farm_overview(st.session_state.agent, _web_user())
+        elif mode == "Field records":
+            from agent.field_ui import render_field_records
+            render_field_records(st.session_state.agent, _web_user())
+        elif mode == "Crop records":
+            from agent.crop_ui import render_crop_records
+            render_crop_records(st.session_state.agent, _web_user())
+        elif mode == "Farm resources":
+            from agent.resource_ui import render_farm_resources
+            render_farm_resources(st.session_state.agent, _web_user())
+        else:
+            render_twin(brain=st.session_state.agent, user=_web_user())
         return
 
     # Assistant — the real consultative agent, degrading gracefully when the chat stack
     # or an LLM provider is missing (never a traceback in the UI).
     st.subheader("Assistant")
     reason = _agent_error()
+    if "agent" in st.session_state:
+        render_unit_controls(st.session_state.agent, _web_user())
     if reason:
         st.warning(reason)
         return

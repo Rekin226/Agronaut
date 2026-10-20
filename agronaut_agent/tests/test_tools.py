@@ -23,7 +23,9 @@ def test_tool_registry():
     assert "remember_about_user" in names
     assert "recommend_actions" in names
     assert "decide_on_recommendations" in names
-    assert len(_public(AGRONAUT_TOOLS)) == 30
+    assert "crop_records" in names
+    assert "farm_resources" in names
+    assert len(_public(AGRONAUT_TOOLS)) == 35
 
 
 def test_size_valid_carries_numbers_and_sources():
@@ -175,7 +177,7 @@ def test_registry_includes_update_profile():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "update_profile" in names
-    assert len(_public(AGRONAUT_TOOLS)) == 30
+    assert len(_public(AGRONAUT_TOOLS)) == 35
 
 
 def test_update_profile_writes_canonical_drops_unknown():
@@ -206,7 +208,7 @@ def test_registry_includes_schedule_followup():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "schedule_followup" in names
-    assert len(_public(AGRONAUT_TOOLS)) == 30
+    assert len(_public(AGRONAUT_TOOLS)) == 35
 
 
 def test_schedule_followup_writes_a_row_and_guards_duplicates():
@@ -250,7 +252,7 @@ def test_registry_includes_community_tools():
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "nominate_shared_insight" in names
     assert "search_community_knowledge" in names
-    assert len(_public(AGRONAUT_TOOLS)) == 30
+    assert len(_public(AGRONAUT_TOOLS)) == 35
 
 
 def test_nominate_writes_pending_and_rejects_blank():
@@ -301,7 +303,7 @@ def test_registry_includes_record_measurement():
     from agronaut_agent.tools import AGRONAUT_TOOLS
     names = {t.name for t in AGRONAUT_TOOLS}
     assert "record_measurement" in names
-    assert len(_public(AGRONAUT_TOOLS)) == 30
+    assert len(_public(AGRONAUT_TOOLS)) == 35
 
 
 def test_record_measurement_maps_metric_to_qualified_key():
@@ -736,7 +738,7 @@ def test_a_given_budget_gets_no_water_note():
 def test_every_sizing_tool_accepts_a_missing_budget_in_its_schema():
     from agronaut_agent.tools import AGRONAUT_TOOLS
 
-    for t in AGRONAUT_TOOLS:
+    for t in _public(AGRONAUT_TOOLS):
         field = t.args.get("water_budget_lpd")
         if field is not None and t.name != "simulate_season":
             assert {"type": "null"} in field.get("anyOf", []), t.name

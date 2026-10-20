@@ -20,7 +20,7 @@ from agronaut_agent.core import AgronautAgent
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    brain = AgronautAgent()
+    brain = AgronautAgent(require_tools=False)
     TelegramAdapter(brain).run()
 
 

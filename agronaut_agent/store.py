@@ -13,7 +13,9 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -179,7 +181,7 @@ def _now() -> str:
 # this reason; the store deserves the same contract.
 #
 # Bump this whenever `_SCHEMA` changes shape, and add the matching step to `_migrate`.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 25
 
 
 class SchemaTooNewError(RuntimeError):
@@ -202,9 +204,98 @@ def _migrate(conn: sqlite3.Connection, found: int) -> None:
             f"{SCHEMA_VERSION}. It was written by a newer version — upgrade Agronaut "
             f"(`pip install -U agronaut`) rather than letting an older build write to it."
         )
-    # No historical migrations yet: v0 adopts to v1 by stamping. Later versions add their
-    # ALTER TABLE steps here, one `if found < N` block each, in order.
-    if found < 2:
+    # Public v2 added WhatsApp IDs; local field builds used v2 for farms.
+    # Reconcile both upgrade paths before the dependent field migrations.
+    if found < 2 or (found < 25 and not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='farms'"
+    ).fetchone()):
+        from .farm_store import migrate_farms
+
+        migrate_farms(conn)
+    if found < 3:
+        from .unit_context import migrate_contexts
+
+        migrate_contexts(conn)
+    if found < 4:
+        from .field_workflow import migrate_field_workflow
+
+        migrate_field_workflow(conn)
+    if found < 5:
+        from .unit_setup import SCHEMA as UNIT_SETUP_SCHEMA
+
+        conn.execute(UNIT_SETUP_SCHEMA)
+    if found < 6:
+        from .crop_records import migrate_crop_records
+
+        migrate_crop_records(conn)
+    if found < 7:
+        from .observation_quality import migrate_observation_reviews
+
+        migrate_observation_reviews(conn)
+    if found < 8:
+        from .farm_resources import migrate_resource_plans
+
+        migrate_resource_plans(conn)
+    if found < 9:
+        from .field_consultation import SCHEMA as FIELD_INTAKE_SCHEMA
+
+        conn.execute(FIELD_INTAKE_SCHEMA)
+    if found < 10:
+        from .resource_outcomes import migrate_resource_outcomes
+
+        migrate_resource_outcomes(conn)
+    if found < 11:
+        from .soil_reports import migrate_soil_reports
+
+        migrate_soil_reports(conn)
+    if found < 12:
+        from .resource_ledger import migrate_resource_ledger
+
+        migrate_resource_ledger(conn)
+    # v13 adds charged settlement states to existing ledger payloads. Older readers
+    # must refuse these databases rather than treat recorded use as free capacity.
+    if found < 14:
+        from .equipment_calendar import migrate_equipment_calendar
+
+        migrate_equipment_calendar(conn)
+    if found < 15:
+        from .irrigation_zones import migrate_irrigation_zones
+
+        migrate_irrigation_zones(conn)
+    if found < 16:
+        from .surface_water_records import migrate_surface_water
+
+        migrate_surface_water(conn)
+    # v17 stores reviewed coupled continuation checkpoints in calculation payloads.
+    # Older readers must refuse rather than silently continue the unreconciled prediction.
+    if found < 18:
+        from .scouting_consultation import SCHEMA as SCOUTING_INTAKE_SCHEMA
+
+        conn.execute(SCOUTING_INTAKE_SCHEMA)
+    if found < 19:
+        from .planting_consultation import SCHEMA as PLANTING_INTAKE_SCHEMA
+
+        conn.execute(PLANTING_INTAKE_SCHEMA)
+    if found < 20:
+        from .water_log_consultation import SCHEMA as WATER_LOG_SCHEMA
+
+        conn.execute(WATER_LOG_SCHEMA)
+    if found < 21:
+        from .measurement_consultation import SCHEMA as MEASUREMENT_INTAKE_SCHEMA
+
+        for statement in MEASUREMENT_INTAKE_SCHEMA:
+            conn.execute(statement)
+    if found < 22:
+        from .harvest_consultation import SCHEMA as HARVEST_INTAKE_SCHEMA
+
+        conn.execute(HARVEST_INTAKE_SCHEMA)
+    if found < 23:
+        from .task_consultation import SCHEMA as TASK_INTAKE_SCHEMA
+
+        conn.execute(TASK_INTAKE_SCHEMA)
+    # v24 adds task-trigger snapshots and review flags. Older readers must not
+    # silently omit changed source evidence from calendar decisions.
+    if found < 25:
         # v2: followups gained wa_message_id, so a delivery-status webhook can be
         # matched back to the follow-up it belongs to (#215). Nullable, so existing
         # rows (whose sends predate message-id capture) simply have none. The column
@@ -226,21 +317,59 @@ class _Db:
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        with self._lock:
+        self._conn.execute("PRAGMA foreign_keys=ON")
+        try:
             found = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
-            # Version check BEFORE the schema runs. On a database from the future,
-            # `_SCHEMA` could otherwise re-create a table that version deliberately
-            # changed, so the refusal has to come first to mean anything.
-            _migrate(self._conn, found)
-            self._conn.executescript(_SCHEMA)
-            self._conn.commit()
+            if found > SCHEMA_VERSION:
+                _migrate(self._conn, found)  # refuses before any schema or journal change
+            has_schema = self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
+            if found < SCHEMA_VERSION and has_schema:
+                # SQLite backup includes committed WAL contents, unlike copying the file.
+                fd, backup_path = tempfile.mkstemp(
+                    prefix=f"{self.path.name}.pre-v{SCHEMA_VERSION}-", suffix=".bak",
+                    dir=self.path.parent)
+                os.close(fd)
+                backup = sqlite3.connect(backup_path)
+                try:
+                    self._conn.backup(backup)
+                finally:
+                    backup.close()
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            with self.transaction() as conn:
+                # executescript implicitly commits, so execute complete statements ourselves.
+                statement = ""
+                for line in _SCHEMA.splitlines(keepends=True):
+                    statement += line
+                    if sqlite3.complete_statement(statement):
+                        conn.execute(statement)
+                        statement = ""
+                _migrate(conn, found)
+        except BaseException:
+            self._conn.close()
+            raise
+
+    @contextmanager
+    def transaction(self):
+        """One atomic unit under the connection lock; helpers must use the yielded connection."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield self._conn
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def execute(self, sql: str, params: tuple = ()):
         with self._lock:
-            cur = self._conn.execute(sql, params)
-            self._conn.commit()
-            return cur
+            try:
+                cur = self._conn.execute(sql, params)
+                self._conn.commit()
+                return cur
+            except BaseException:
+                self._conn.rollback()
+                raise
 
     def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         with self._lock:

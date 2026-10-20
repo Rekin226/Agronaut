@@ -9,6 +9,7 @@ rejected loudly instead of producing a confidently-wrong design.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from langchain_core.tools import tool
@@ -28,10 +29,11 @@ from aqua_model import (
 from aqua_model.crops import CROPS
 from aqua_model.reference_data import reference_path
 from aqua_model.species import SPECIES, get_species
-from aqua_model.validate import WATER_NOT_LIMITING, check_design_field
+from aqua_model.validate import WATER_NOT_LIMITING
 
 from . import profile as profile_mod
 from . import rag, runtime, serialize, twin_view
+from .domains import capabilities, consultation, run_capability
 
 log = logging.getLogger(__name__)
 
@@ -413,9 +415,8 @@ def render_system_schematic(
 
 @tool
 def search_knowledge_base(query: str) -> str:
-    """Retrieve passages from Agronaut's curated aquaponics knowledge (local docs + cited
-    sources) for qualitative troubleshooting and husbandry guidance (symptoms, water
-    quality, pests). Use for explanation — NOT for sizing numbers (use the sizing tool).
+    """Retrieve cited guidance for the active production system: soil irrigation or aquatic
+    husbandry. Preserve evidence levels and applicability. Use calculators for numbers.
 
     The knowledge is in English and matched by meaning, so write `query` in ENGLISH whatever
     language the grower wrote in. Keep their symptom in plain English words, and add the
@@ -424,7 +425,14 @@ def search_knowledge_base(query: str) -> str:
     # #199: the embedder and BM25 are English-only. A French or Mandarin query passed through
     # unchanged hit 0.18 / 0.09 against English's 0.88, and the floor silenced 19 of 33 real
     # questions in each (docs/dpg/retrieval_eval/baseline_multilingual.json).
-    text, stats = rag.search_with_stats(query)
+    unit = runtime.get_unit_context()
+    if unit is not None:
+        if unit.production_system is None:
+            return "KNOWLEDGE_UNAVAILABLE: identify this unit's production system first."
+        domains = ["soil", "irrigation"] if unit.production_system == "soil" else [unit.production_system]
+        text, stats = rag.search_with_stats(query, filters={"domain": domains})
+    else:
+        text, stats = rag.search_with_stats(query)
     try:
         from .analytics import Analytics
         cur = runtime.get_current()
@@ -476,24 +484,26 @@ def remember_about_user(note: str, category: str = "profile") -> str:
 
 @tool
 def update_profile(updates: dict) -> str:
-    """Save typed facts about THIS user's system to their profile so you recall and reuse
-    them across the conversation and future sessions. Pass a dict of canonical fields you
-    have learned, e.g. {"goal": "optimize", "objective": "protein", "grow_area_m2": 10,
-    "tank_volume_l": 1000, "dissolved_oxygen_mgl": 5.5}. Canonical keys: system_stage,
-    fish_species, crop, grow_area_m2, temperature_c, water_budget_lpd, ph, tank_volume_l,
-    fish_count, fish_avg_weight_g, system_type, climate_site, dissolved_oxygen_mgl,
-    ammonia_mgl, water_source, location, goal, goal_detail, objective, experience_level.
-    Unknown keys are ignored. Call this whenever the user reveals a durable fact — do not
-    wait for the end of the conversation. For a user with a RUNNING system, fish_count,
-    fish_avg_weight_g, tank_volume_l and climate_site are what simulate_my_system needs."""
+    """Save stated facts about the ACTIVE unit, e.g. {"crop":"tomato","grow_area_m2":100}.
+    Common fields: system_stage, crop, grow_area_m2, water_budget_lpd, water_source,
+    location, goal, goal_detail, experience_level.
+    Soil fields: crop_stage, soil_type, soil_water_status, planting_date, soil_ph.
+    Aquatic fields: temperature_c, ph, system_type, climate_site, dissolved_oxygen_mgl.
+    Aquaponic fields: fish_species, tank_volume_l, fish_count, fish_avg_weight_g,
+    ammonia_mgl, objective. Fields outside the active domain are not saved.
+    Record each durable answer as it arrives. Do not turn guesses into measured facts;
+    unknown daily water can be saved as "unknown". This cannot change the active unit."""
     cur = runtime.get_current()
     if cur is None:
         return "Profile unavailable right now."
     mem, user_id = cur
+    unit = runtime.get_unit_context()
+    domain = unit.production_system if unit else None
+    keys = consultation.fields_for(domain)
     updates = updates or {}
     accepted = {k: v for k, v in updates.items()
-                if k in profile_mod.PROFILE_KEYS and str(v).strip() not in ("", "None")}
-    rejected = [k for k in updates if k not in profile_mod.PROFILE_KEYS]
+                if k in keys and str(v).strip() not in ("", "None")}
+    rejected = [k for k in updates if k not in keys]
     if rejected:
         log.debug("update_profile dropped unknown keys: %s", rejected)
     # The design gate's bounds apply here too: an input the gate would reject is never
@@ -502,7 +512,7 @@ def update_profile(updates: dict) -> str:
         accepted["water_budget_lpd"] = "unknown"    # a real answer: stop asking for it
     problems = {k: err for k in list(accepted)
                 if accepted[k] != "unknown"
-                and (err := check_design_field(k, accepted[k])) is not None}
+                and (err := consultation.field_problem(k, accepted[k], domain)) is not None}
     for k in problems:
         accepted.pop(k)
     refused = ("VALIDATION_FAILED, not saved: " + "; ".join(problems.values())
@@ -534,7 +544,7 @@ def schedule_followup(question: str, hours: float, about: str = "") -> str:
     if not (1.0 <= h <= 336.0):
         return "Follow-up delay must be between 1 hour and 14 days (336 hours)."
     from datetime import datetime, timedelta, timezone
-    channel, _, channel_user = user_id.partition(":")
+    channel, _, channel_user = (runtime.get_owner_id() or user_id).partition(":")
     due_at = (datetime.now(timezone.utc) + timedelta(hours=h)).isoformat()
     ok = fs.schedule(user_id, channel, channel_user, question, about or "", due_at)
     return ("Got it — I'll check back on that." if ok
@@ -1704,7 +1714,229 @@ def business_case(
     return (f"[{site} · {mode} · {system_type}]\n\n" + format_case(case))
 
 
+@tool
+def agriculture_capabilities(production_system: str | None = None) -> str:
+    """List supported agricultural tasks, required inputs, limits and evidence levels.
+    production_system is soil, hydroponics or aquaponics; omit for the active unit.
+    An unavailable task is not a calculator. Check before proposing an irrigation design."""
+    unit = runtime.get_unit_context()
+    if unit is not None:
+        if production_system is not None and production_system != unit.production_system:
+            return json.dumps({"status": "VALIDATION_FAILED", "error": "switch units before requesting another production system"})
+        production_system = unit.production_system
+    try:
+        return json.dumps(capabilities(production_system))
+    except ValueError as exc:
+        return json.dumps({"status": "VALIDATION_FAILED", "error": str(exc)})
+
+
+@tool
+def calculate_agriculture(production_system: str, task: str, inputs: dict) -> str:
+    """Run a registered agricultural task with supplied inputs, never guessed data.
+    production_system must match the active unit; task comes from agriculture_capabilities.
+    Soil field_guidance reads offline: inputs={"topic":"drip","language":"fr"}.
+    language=en (default), fr or zh-Hant. Translations are drafts; retain their review limits.
+    Topics: water-needs, choose-method, drip, sprinkler, surface, crop-scouting. Guidance only;
+    no calculation, confirmed diagnosis or local prescription. Use for observation preparation.
+    Soil drip_lateral predicts one surveyed closed-tail pipe with identical pressure-curve emitters.
+    Read agriculture_capabilities for its site/pipe/emitter/inlet/limits/conditions/stations schema.
+    Requires explicit elevations, curve band and running inlet head; no runtime or field-uniformity claim.
+    Soil sprinkler_lateral solves surveyed nozzle/riser pressures and flows from its input_schema;
+    explicit nozzle curves and riser losses are required. Nominal flows are not catch-can uniformity.
+    Soil tasks crop_water and root_zone_budget require schema_version=1, site={name,timezone},
+    area_m2, crop={name,coefficient:{value,source,stage}}, and a weather array. Alternatively use
+    crop.coefficient_schedule; agriculture_capabilities describes its dated endpoint contract.
+    Use fetch_weather output with weather_sources unchanged, or supply daily meteorology:
+    day (YYYY-MM-DD), t_min_c, t_max_c, rh_min_pct, rh_max_pct,
+    wind_m_s, wind_height_m, elevation_m, net_radiation_mj_m2, rainfall_mm, source and kind
+    (observed/forecast/historical/scenario). Forecasts require issued_at with timezone.
+    Net radiation is NOT solar radiation. Unknown rainfall is null, never zero.
+    root_zone_budget also needs soil={field_capacity,wilting_point,root_depth_m,depletion_fraction,source},
+    application_efficiency={value,source}, and daily events={day,net_irrigation_mm,runoff_mm,source}.
+    Optional initial_state={as_of,depletion_mm,source} initializes the previous end-of-day state;
+    without it irrigation amounts stay unknown. Soil water contents are m3/m3; efficiency
+    is a fraction. These are experimental budgets, not equipment designs or runtime schedules.
+    Soil drip_design and sprinkler_design use input_schema from agriculture_capabilities; collect all
+    equipment, layout, supply and application records with sources before calculating.
+    Soil surface_evaluation uses its declared input_schema for measured/scenario event analysis;
+    it requires complete flow intervals, advance/recession stations and sourced intake coefficients.
+    It does not predict a cutoff time. Inconsistent water accounting withholds performance scores.
+    Soil surface_advance predicts half/full-length advance for a sloping furrow/border scenario
+    using its declared input_schema. It requires sourced hydraulics, intake and explicit limits;
+    advance is not cutoff timing, and this task does not validate an operating schedule.
+    Soil drip_zone jointly solves surveyed laterals at one explicitly common junction against total-flow
+    source pressure; never sum independent lateral operating points or infer a distributed manifold.
+    Soil drip_manifold solves distinct takeoff pressures on one surveyed closed-tail manifold;
+    require its complete input_schema and a manifold-inlet curve at total flow. No schedule.
+    Soil nutrient_budget uses its declared input_schema for mineral-product N/P2O5/K2O accounting
+    against sourced remaining application targets. Never infer targets from soil ppm or crop names.
+    Unknown analyses/density stay unknown; matching targets is not application advice or feasibility.
+    Aquatic size tasks use existing crop, area, temperature and water-budget inputs.
+    Returns complete calculations, source provenance, assumptions and missing inputs."""
+    unit = runtime.get_unit_context()
+    try:
+        if unit is not None and production_system != unit.production_system:
+            raise ValueError("switch units before calculating for another production system")
+        return json.dumps(run_capability(production_system, task, inputs), allow_nan=False)
+    except (ValueError, TypeError) as exc:
+        return json.dumps({"status": "VALIDATION_FAILED", "error": str(exc)})
+
+
+@tool
+def field_records(operation: str, data: dict) -> str:
+    """Manage requested soil records.
+    operation=list uses data={}; get uses {calculation_id}.
+    start_water_log uses {language?}; get_water_log {}; answer_water_log {answer,expected_revision,back?};
+    save_water_log {draft_id,expected_revision} only after explicit review/save; cancel_water_log {expected_revision}.
+    compare_surface_advance uses {calculation_id,comparisons:[{event_calculation_id,independence,
+    representation_note}],dataset_kind,selection_note}. Choose synthetic/field; independence is
+    held_out/used_for_calibration/unknown. Read-only diagnostics, not field validation or cutoff advice.
+    compare_drip_lateral uses {calculation_id,dataset_kind,selection_note,comparisons:[{
+    test_calculation_id,lateral,mappings:[{sample_id,station_id,mapping_note}],independence,
+    representation_note,conditions_note,water_density_kg_m3,density_source,pressure_reference}]}. Pressure
+    reference is gauge_at_emitter/unknown. Same dataset/independence
+    labels; map every selected-lateral sample. Unknown station/density use null. Read-only diagnostics.
+    compare_drip_network applies to drip_zone/manifold: omit entry lateral, add lateral_id to every
+    mapping; map ALL test samples. Unmatched lateral_id and station_id both null. Same other fields.
+    describe_soil_tests uses {} for lab-report schemas.
+    describe_zones uses {} for irrigation-zone creation and identity schemas; creation preserves selection.
+    describe_sprinkler_comparison uses {} for the reviewed pressure/flow comparison contract;
+    review_sprinkler_measurements uses {calculation_id}; compare_sprinkler_lateral follows that contract.
+    start_intake uses {language?:en|fr|zh-Hant}; get_intake uses {}. Collect water, equipment or surface-event inputs; translations are drafts, reports/errors English.
+    answer_intake uses {answer,expected_revision,back?}; use the returned revision. Never invent answers.
+    At the weather fetch question, answer="fetch" sends the displayed coordinates/dates to Open-Meteo;
+    use it only on the grower's request. Provider estimates are not observed measurements.
+    cancel_intake uses {expected_revision}; save_intake uses {draft_id,expected_revision} after the grower
+    reviews the ready preview and requests saving. Drafts are not calculations or completed irrigation.
+    review_target uses {calculation_id} to flag changed evidence behind an adopted equipment water target.
+    save uses {task,inputs,request_id,cycle_id?}, with the calculate_agriculture input contract.
+    record_day uses {request_id,cycle_id?,supersedes_id?,data:{day,rainfall_mm,net_irrigation_mm,
+    runoff_mm,source,provenance,quality}}. Day is a COMPLETED local YYYY-MM-DD; amounts are
+    whole-day totals. Net irrigation means water entering the root zone, not pumped volume.
+    provenance is measured/reported/estimated; quality is unverified/checked/rejected. Never
+    claim checked without review. Unknown water is not zero. Corrections name supersedes_id.
+    record_surface_day uses {calculation_id,data:{day,patches:[{id,rainfall_mm,rainfall_runoff_mm,
+    irrigation_at_surface_mm,source}],source,representation_note,provenance,quality},request_id,
+    supersedes_id?,reason?}. For coupled_soil_water only: all represented patches, completed local day,
+    explicit decimal-string local depths in mm (0–2000), runoff <= rain. Irrigation is water arriving
+    at the soil surface after upstream losses, not pumped or net-root-zone water. Never convert old
+    net-water logs implicitly. Corrections require reason and latest supersedes_id; rejection retains history.
+    review_surface_water uses {calculation_id}; inspect footprint, records and corrections to applied evidence.
+    replay_surface_water uses {calculation_id,record_ids,request_id,weather_policy?:observed_only|allow_historical};
+    explicitly selected current accepted records replace surface inputs and save a child, never add to existing
+    inputs. Weather/soil/crop inputs remain retained. Corrections to initial-checkpoint evidence require
+    replaying the ancestor and continuing that revised branch, never silently replacing historical states.
+    replay uses {calculation_id,water_record_ids:[IDs],request_id,weather_policy?}; it replaces totals
+    separately from weather for root_zone_budget or dual_crop_water. Dual replay retains coefficients
+    and surface/wetting assumptions; review their applicability to recorded events. Default observed_only requires observed meteorology; allow_historical
+    needs the grower's explicit choice to use historical estimates. Forecasts/scenarios stay blocked.
+    fetch_weather uses {latitude,longitude,start,end}; sends supplied coordinates to Open-Meteo
+    only on request. Returns weather and weather_sources to retain together in calculation inputs.
+    preview_equipment_revision uses {calculation_id,patch,reason,target_policy:preserve|detach} for saved drip/sprinkler designs.
+    patch supplies changed section fields plus each changed section's source. Preserve enforces the linked budget target;
+    detach requires an explicit application source. revise_equipment adds preview_token and request_id to save a child.
+    review_weather uses {calculation_id,max_age_hours,as_of?}; read-only timestamp review, not accuracy validation.
+    review_crop uses {calculation_id}; inspect current stage reports and linked evidence status.
+    revise_crop uses {calculation_id,coefficients:{coefficient OR coefficient_schedule},reason,
+    stage_record_ids?,request_id}; supply dates/values/sources, never infer Kc from a stage label.
+    review_soil uses {calculation_id}; inspect eligible measurements and changed quality reviews.
+    compare_soil uses {calculation_id,comparisons,dataset_kind:synthetic|field,selection_note}; read-only
+    root-zone prediction diagnostics. Each comparison has observation_id,as_of,represented_depth_m,
+    representation_note,depletion_adjustment_mm,adjustment_source,expected_review. Requires full-root
+    sampling and explicit timing adjustment. Reports errors before same-day state adoption; never
+    label these metrics as independent field validation or use them to automatically recalibrate.
+    For coupled_soil_water, compare_soil instead requires each entry to contain observation_id,as_of,
+    patch_id,top_m,bottom_m,representation_note,water_content_adjustment,adjustment_source,expected_review,
+    independence:held_out|used_for_initialization|used_for_calibration|unknown. Depths are decimal strings
+    in meters; adjustment is a signed number in m3/m3 (positive wetter). Only soil_water_content
+    observations in m3/m3 are supported. Require declared interval/patch coverage; never infer it from
+    a point sensor. Only declared held_out observations enter metrics; independence remains unverified.
+    review_coupled_state uses {calculation_id}; inspect current continuation state, measurements and changed adopted reviews.
+    apply_coupled_state uses {calculation_id,readings:[{observation_id,patch_id,layer_id,top_m,bottom_m,
+    representation_note,water_content_adjustment,adjustment_source,expected_review}],evaporation_memories,
+    dataset_kind:synthetic|field,reason,request_id}. Applies at the saved final local-day boundary only.
+    Require complete layer/patch coverage; no point-to-layer inference. Readings have the same units/time
+    adjustment as coupled comparison. Each affected patch needs {id,retain:true,source} after explicit
+    drying-history review, or {id,stage_one_remaining_mm,active_depth_m,stage_two_start_fraction,source}
+    with decimal strings and null stage-two reference only in stage one. Never infer memory from a sensor reading.
+    Saves a child continuation checkpoint and separate storage adjustment; original predictions/fluxes stay intact.
+    remove_coupled_state uses {calculation_id,reason,request_id}; withdraws all revisions at that ending boundary,
+    retaining earlier initial-state evidence. Reapply revised readings at the ancestor when review changes.
+    apply_soil_state uses {calculation_id,observation_id,as_of,represented_depth_m,representation_note,
+    depletion_adjustment_mm,adjustment_source,reason,expected_review,request_id}. expected_review is
+    the current quality_review.id or null. Require full-root/field representation and an explicit
+    signed adjustment to closing midnight; positive means drier, zero requires an assumption.
+    remove_soil_state uses {calculation_id,as_of,reason,request_id}. Both create new versions, never water logs.
+    revise_roots uses {calculation_id,root_zone_schedule,reason,request_id}; use the root_zone_budget
+    input schema. [] restores initial fixed depth. Retained soil readings must match each day's depth.
+    revise_weather uses {calculation_id,weather,weather_sources?,events?,root_zone_days?,dual_days?,request_id};
+    replaces weather or appends consecutive days, preserving initial soil state and applied logs.
+    Supply events for exactly the appended budget days, including explicit zeros and source.
+    With dated root depths, also supply root_zone_days for exactly the appended days; no extrapolation.
+    For dual_crop_water, supply dual_days with complete daily coefficients, fractions, net irrigation,
+    runoff and source for exactly appended dates; existing daily inputs and surface state stay unchanged.
+    Existing events stay unchanged. Observations cannot become forecasts; replacement forecasts
+    need newer issued_at (or retrieved_at when issuance is unknown). Never relabel model data as observations.
+    continue_coupled_water uses {calculation_id,weather,days,reason,request_id,weather_sources?}
+    to append consecutive days from an owned coupled_soil_water ending checkpoint. Supply all
+    daily patch coefficients and surface-water inputs explicitly; existing net-root-zone logs
+    are not surface-water application inputs. This creates a child calculation, not field action. Use stable request_id
+    per intended write and reuse it for retries. Never record proposed work as completed."""
+    from .field_workflow import execute_field_workflow
+
+    current, unit = runtime.get_current(), runtime.get_unit_context()
+    try:
+        if current is None or unit is None or unit.production_system != "soil":
+            raise ValueError("select a soil production unit first")
+        result = execute_field_workflow(current[0].db, runtime.get_owner_id(), unit.unit_id, operation, data)
+        return json.dumps(result, allow_nan=False)
+    except (ValueError, TypeError) as exc:
+        return json.dumps({"status": "VALIDATION_FAILED", "error": str(exc)})
+
+
+@tool
+def crop_records(operation: str, data: dict) -> str:
+    """Selected-unit crop records, calendar and seasons. Read describe {} before writing for
+    schemas and revision/evidence rules. Never invent answers, quantities or treatments.
+    Guided entries and batches need user review and an explicit save request;
+    preview_measurements must precede import_measurements. Closure and quality reviews
+    also require explicit requests. Save only supplied events/plans."""
+    from .crop_records import execute_crop_records
+
+    current, unit = runtime.get_current(), runtime.get_unit_context()
+    try:
+        if current is None or unit is None:
+            raise ValueError("select a production unit first")
+        return json.dumps(execute_crop_records(current[0].db, runtime.get_owner_id(), unit.unit_id,
+                                               operation, data), allow_nan=False)
+    except (ValueError, TypeError) as exc:
+        return json.dumps({"status": "VALIDATION_FAILED", "error": str(exc)})
+
+
+@tool
+def farm_resources(operation: str, data: dict) -> str:
+    """Farm plans, budgets and equipment calendar for the selected unit. Call describe {} for schemas.
+    Evaluate scenarios; commit, book, release or settle only explicitly. No device control."""
+    from .farm_resources import execute_farm_resources
+
+    current, unit = runtime.get_current(), runtime.get_unit_context()
+    try:
+        if current is None or unit is None:
+            raise ValueError("select a production unit in the farm first")
+        row = current[0].db.query("SELECT farm_id FROM production_units WHERE id=?", (unit.unit_id,))
+        if not row:
+            raise ValueError("unknown production unit")
+        return json.dumps(execute_farm_resources(current[0].db, runtime.get_owner_id(), row[0]["farm_id"], operation, data), allow_nan=False)
+    except (ValueError, TypeError) as exc:
+        return json.dumps({"status": "VALIDATION_FAILED", "error": str(exc)})
+
+
 AGRONAUT_TOOLS = [
+    farm_resources,
+    crop_records,
+    field_records,
+    agriculture_capabilities,
+    calculate_agriculture,
     size_aquaponics_system,
     size_mixed_bed_aquaponics,
     size_hydroponic_system_tool,

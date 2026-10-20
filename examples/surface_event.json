@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "site": {"name": "Synthetic border-irrigation event", "timezone": "UTC"},
+  "geometry": {
+    "method": "border", "length_m": 100, "width_m": 10, "slope_m_m": 0.001,
+    "source": "Synthetic rectangular border; no surveyed field"
+  },
+  "event": {
+    "started_at": "2026-07-06T08:00:00+00:00", "cutoff_min": 90, "monitoring_end_min": 120,
+    "rainfall_mm": 0, "initial_surface_water_l": 0, "surface_drained": true,
+    "kind": "scenario", "source": "Hypothetical rain-free event with initially unponded soil and complete recession"
+  },
+  "infiltration": {
+    "k": 0, "exponent": 0.5, "steady_rate": 0.5, "basis": "depth_mm",
+    "min_opportunity_min": 0, "max_opportunity_min": 180,
+    "source": "Synthetic constant 0.5 mm/min intake chosen for arithmetic checks; not a calibrated soil"
+  },
+  "inflow": [
+    {"start_min": 0, "end_min": 90, "mean_lps": 10, "source": "Synthetic interval-average inlet flow"},
+    {"start_min": 90, "end_min": 120, "mean_lps": 0, "source": "Explicit zero inflow after cutoff"}
+  ],
+  "tailwater": [
+    {"start_min": 0, "end_min": 60, "mean_lps": 0, "source": "Scenario: no tailwater before full advance"},
+    {"start_min": 60, "end_min": 120, "mean_lps": 2.5, "source": "Synthetic interval-average tailwater flow"}
+  ],
+  "stations": [
+    {"distance_m": 0, "advance_min": 0, "recession_min": 120, "source": "Synthetic inlet timing"},
+    {"distance_m": 50, "advance_min": 30, "recession_min": 120, "source": "Synthetic midpoint timing"},
+    {"distance_m": 100, "advance_min": 60, "recession_min": 120, "source": "Synthetic field-end timing"}
+  ],
+  "assessment": {
+    "root_zone_deficit_mm": 40, "balance_tolerance_fraction": 0.02,
+    "source": "Hypothetical uniform pre-event root-zone deficit and accounting tolerance; not agronomic advice"
+  }
+}

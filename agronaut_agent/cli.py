@@ -229,7 +229,7 @@ class _ShowVersion(argparse.Action):
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agronaut",
-        description="Aquaponics assistant: chat, computed sizing, web app, bot.",
+        description="Agriculture assistant: chat, aquatic sizing, field water, web app, bot.",
         epilog="Run with no arguments to start chatting.",
     )
     p.add_argument("--version", "-V", action=_ShowVersion,
@@ -245,6 +245,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size", "design"],
                                          "size-hydroponics": ["size-hydro"]})
+
+    from .farm_cli import add_farm_commands
+    from .field_cli import add_field_commands
+
+    add_field_commands(sub)
+    add_farm_commands(sub)
+    from .field_guides import add_guide_command
+    add_guide_command(sub)
+    from .field_workflow_cli import add_workflow_commands
+    add_workflow_commands(sub)
+    from .crop_cli import add_crop_commands
+    add_crop_commands(sub)
+    from .resource_cli import add_resource_commands
+    add_resource_commands(sub)
 
     web = sub.add_parser("web", help="run the Streamlit web app "
                                      "(trailing flags are passed to streamlit)")

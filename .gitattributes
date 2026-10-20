@@ -1,0 +1,7 @@
+# Published research inputs are retained byte-for-byte for checksum verification.
+# Do not normalize source line endings, encodings, or whitespace on checkout.
+data/field_reference/*.tsv -text -diff
+data/field_reference/*.csv -text -diff
+data/field_reference/irridrone_README.txt -text -diff
+data/field_reference/**/*.xlsx -text -diff
+data/field_reference/*.pdf -text -diff

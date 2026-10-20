@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic surveyed lateral",
+    "timezone": "UTC"
+  },
+  "supply": {
+    "curve": [
+      {
+        "flow_lph": 0,
+        "pressure_head_m": 14
+      },
+      {
+        "flow_lph": 30,
+        "pressure_head_m": 6
+      }
+    ],
+    "max_static_head_m": 20,
+    "max_flow_lph": 25,
+    "head_reference": "lateral_inlet_pressure",
+    "configuration": "Synthetic common junction with both laterals active, fixed upstream equipment/settings",
+    "source": "Synthetic junction pressure versus TOTAL zone flow, not standalone lateral flow"
+  },
+  "laterals": [
+    {
+      "pipe": {
+        "internal_diameter_mm": 13.6,
+        "roughness_mm": 0.0015,
+        "max_head_m": 40,
+        "source": "Hypothetical constant-diameter pipe; not a product specification"
+      },
+      "emitter": {
+        "reference_flow_lph": 2,
+        "reference_head_m": 10,
+        "exponent": 0.5,
+        "min_head_m": 2,
+        "max_head_m": 30,
+        "max_static_head_m": 40,
+        "source": "Synthetic non-compensating power curve; no measured emitter calibration"
+      },
+      "limits": {
+        "viscosity_m2_s": 1e-06,
+        "max_velocity_m_s": 1,
+        "max_flow_variation_fraction": 0.2,
+        "source": "Synthetic fluid and designer limits; no universal thresholds"
+      },
+      "conditions": {
+        "closed_tail": true,
+        "surface_emitters": true,
+        "steady_inlet_head": true,
+        "surveyed_profile": true,
+        "identical_emitters": true,
+        "source": "Synthetic single lateral with a piecewise-linear elevation profile"
+      },
+      "stations": [
+        {
+          "identifier": "E1",
+          "distance_m": 5,
+          "elevation_m": 0.2,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E2",
+          "distance_m": 10,
+          "elevation_m": 0.5,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E3",
+          "distance_m": 15,
+          "elevation_m": 0.1,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E4",
+          "distance_m": 20,
+          "elevation_m": -0.4,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E5",
+          "distance_m": 25,
+          "elevation_m": -1,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        }
+      ],
+      "identifier": "L1",
+      "max_flow_lph": 15,
+      "source": "Synthetic surveyed branch and capacity; not field evidence"
+    },
+    {
+      "pipe": {
+        "internal_diameter_mm": 13.6,
+        "roughness_mm": 0.0015,
+        "max_head_m": 40,
+        "source": "Hypothetical constant-diameter pipe; not a product specification"
+      },
+      "emitter": {
+        "reference_flow_lph": 1.6,
+        "reference_head_m": 10,
+        "exponent": 0.5,
+        "min_head_m": 2,
+        "max_head_m": 30,
+        "max_static_head_m": 40,
+        "source": "Synthetic non-compensating power curve; no measured emitter calibration"
+      },
+      "limits": {
+        "viscosity_m2_s": 1e-06,
+        "max_velocity_m_s": 1,
+        "max_flow_variation_fraction": 0.2,
+        "source": "Synthetic fluid and designer limits; no universal thresholds"
+      },
+      "conditions": {
+        "closed_tail": true,
+        "surface_emitters": true,
+        "steady_inlet_head": true,
+        "surveyed_profile": true,
+        "identical_emitters": true,
+        "source": "Synthetic single lateral with a piecewise-linear elevation profile"
+      },
+      "stations": [
+        {
+          "identifier": "E1",
+          "distance_m": 5,
+          "elevation_m": 0.2,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E2",
+          "distance_m": 10,
+          "elevation_m": 0.5,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E3",
+          "distance_m": 15,
+          "elevation_m": 0.1,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E4",
+          "distance_m": 20,
+          "elevation_m": -0.4,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        },
+        {
+          "identifier": "E5",
+          "distance_m": 25,
+          "elevation_m": -1,
+          "upstream_minor_k": 0.1,
+          "source": "Synthetic survey and upstream fitting; not measured terrain"
+        }
+      ],
+      "identifier": "L2",
+      "max_flow_lph": 15,
+      "source": "Synthetic surveyed branch and capacity; not field evidence"
+    }
+  ],
+  "junction": {
+    "common_hydraulic_junction": true,
+    "all_active_laterals_included": true,
+    "no_unmodeled_connection_losses": true,
+    "steady_source_configuration": true,
+    "source": "Synthetic explicit common-junction topology; not field verified"
+  }
+}

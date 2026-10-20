@@ -35,6 +35,8 @@ web_cache.sqlite
 data/*.sqlite3
 data/*.sqlite3-shm
 data/*.sqlite3-wal
+# Migration backups contain the same private records as the live database.
+data/*.sqlite3.pre-v*.bak
 
 # Local models
 bge-large-en/

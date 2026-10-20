@@ -30,6 +30,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..harvest_language import error_text as harvest_error
+from ..measurement_language import error_text as measurement_error
+from ..planting_language import planting_error
+from ..scouting_language import LANGUAGES, scouting_error
+from ..water_log_language import error_text as water_log_error
+
 log = logging.getLogger(__name__)
 
 
@@ -42,7 +48,7 @@ class Reply:
     document_mime: str = "application/json"
 
 
-HELP = """🌱 *Agronaut*, your aquaponics assistant.
+HELP = """🌱 *Agronaut*, your agriculture assistant.
 
 Just describe your system or ask a question. Or use a command:
 
@@ -51,6 +57,19 @@ Just describe your system or ask a question. Or use a command:
 /forecast: your twin now + the week ahead (add shade/poly/heated)
 /advise: what to do, numbered; then /approve 1 3 or /reject 2
 /design, /optimize, /troubleshoot: start a guided consultation
+/units: list your fields and other production units
+/overview [en|fr|zh-Hant] [page]: crop cycles and recorded work across your farms
+/guide [topic] [en|fr|zh-Hant] [page]: read sourced field guides; omit topic to list
+/newunit [soil|hydroponics|aquaponics]: create a unit with guided questions
+/fieldplan [en|fr|zh-Hant]: guided water budgets, drip/sprinkler checks and surface events
+/scout [en|fr|zh-Hant]: record a crop scouting observation step by step
+/measure [en|fr|zh-Hant]: record a raw field reading with time and source
+/waterlog [en|fr|zh-Hant]: record or correct completed daily water totals
+/task [en|fr|zh-Hant]: plan crop work or report completion, cancellation or reopening
+/harvest [en|fr|zh-Hant]: record an actual harvest batch with quantity and source
+/plant [en|fr|zh-Hant]: record an actual planting and create its crop cycle
+/back, /cancel: edit or cancel the active setup or record-entry draft
+/unit <id>: select the unit to discuss and keep its records separate
 /whoami: what I remember about you
 /export: download everything I hold about you (open JSON)
 /reset: clear this conversation (keeps long-term memory)
@@ -150,6 +169,92 @@ def dispatch(agent, channel: str, identity: str, text: str) -> Reply | None:
 
     if name in ("help", "start"):
         return Reply(HELP)
+
+    if name == "units":
+        return Reply(agent.units_text(channel, identity))
+    if name == "guide":
+        from ..field_guide_text import render_guide
+        try:
+            return Reply(render_guide(rest))
+        except ValueError as exc:
+            return Reply(str(exc))
+    if name == "overview":
+        from ..farm_overview_text import parse_overview_args
+        try:
+            language, page = parse_overview_args(rest)
+            return Reply(agent.farm_overview_text(channel, identity, language, page))
+        except ValueError as exc:
+            return Reply(str(exc))
+    if name == "newunit":
+        try:
+            return Reply(agent.start_unit_setup(channel, identity, rest.lower() or None))
+        except ValueError as exc:
+            return Reply(str(exc))
+    if name == "fieldplan":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /fieldplan en, /fieldplan fr or /fieldplan zh-Hant.")
+        try:
+            return Reply(agent.start_field_intake(channel, identity, language=rest) if rest else agent.start_field_intake(channel, identity))
+        except ValueError as exc:
+            return Reply(str(exc))
+    if name == "task":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /task en, /task fr or /task zh-Hant.")
+        try:
+            return Reply(agent.start_task_intake(channel, identity, language=rest or None))
+        except ValueError as exc:
+            return Reply(str(exc))
+    if name == "harvest":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /harvest en, /harvest fr or /harvest zh-Hant.")
+        try:
+            return Reply(agent.start_harvest_intake(channel, identity, language=rest or None))
+        except ValueError as exc:
+            return Reply(harvest_error({"language": rest or "en"}, exc))
+    if name == "measure":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /measure en, /measure fr or /measure zh-Hant.")
+        try:
+            return Reply(agent.start_measurement_intake(channel, identity, language=rest or None))
+        except ValueError as exc:
+            return Reply(measurement_error({"language": rest or "en"}, exc))
+    if name == "waterlog":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /waterlog en, /waterlog fr or /waterlog zh-Hant.")
+        try:
+            return Reply(agent.start_water_log(channel, identity, language=rest or None))
+        except ValueError as exc:
+            return Reply(water_log_error({"language": rest or "en"}, exc))
+    if name == "plant":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /plant en, /plant fr or /plant zh-Hant.")
+        try:
+            return Reply(agent.start_planting_intake(channel, identity, language=rest or None))
+        except ValueError as exc:
+            return Reply(planting_error({"language": rest or "en"}, exc))
+    if name == "scout":
+        if rest and rest not in LANGUAGES:
+            return Reply("Use /scout en, /scout fr or /scout zh-Hant.")
+        try:
+            if rest:
+                return Reply(agent.start_scouting_intake(channel, identity, language=rest))
+            return Reply(agent.start_scouting_intake(channel, identity))
+        except ValueError as exc:
+            return Reply(scouting_error({"language": rest if rest in LANGUAGES else "en"}, exc))
+    if name == "back":
+        return Reply(agent.back_unit_setup(channel, identity))
+    if name == "cancel":
+        return Reply(agent.cancel_unit_setup(channel, identity))
+    if name == "unit":
+        parts = rest.split()
+        if not parts:
+            return Reply(agent.units_text(channel, identity))
+        if len(parts) > 2:
+            return Reply("Use /unit <id>, or /unit <id> soil|hydroponics|aquaponics for an unresolved unit.")
+        try:
+            return Reply(agent.select_unit(channel, identity, parts[0], *parts[1:]))
+        except ValueError as exc:
+            return Reply(str(exc))
 
     if name == "log":
         args = parse_log_args(rest)

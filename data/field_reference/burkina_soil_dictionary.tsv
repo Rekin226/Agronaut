@@ -1,0 +1,27 @@
+N_Labo	sample ID from the lab
+Field_ID	Unique identifier of the studied rice field
+Zone	Geographical zone (3 zones were studied: BAMA, BANZON, KARFIGUELA)
+Rice_system	Type of rice system: IR= irrigated perimeter or RL= rainfed lowland
+Site	Geographical precise site (7 sites were studied: 3 in irrigated perimeters: Bama, Banzon, Karfiguela and 3 rainfed lowland: Badala, Senzon, Tengrela)
+LATITUDE	Latitude
+LONGITUDE	Longitude
+pHeau	pH estimated in water
+pHkcl	pH estimated in KCl (Potassium chloride)
+C_Organique	Total organic carbon (%)
+M_Organique	Total organic material (%)
+N-total	Nitrogen total (%)
+C/N	Ratio Carbon/Nitrogen
+P-total	Phosphorus total (mg/kg)
+P_Bray1	Available phosphorus (mg/kg)
+K-total	Total potassium (mg/kg)
+K-dispo	Available potassium (mg/kg)
+Ca2+	Calcium (Ca2+) concentration (cmol/kg)
+Mg2+	Magnesium (Mg2+) concentration (cmol/kg)
+K+ 	Potassium (Ca2+) concentration (cmol/kg)
+Na+ 	Sodium (Na+) concentration (cmol/kg)
+SBE(S)	Sorptive Bioaccessibility Extraction (SBE) (cmol/kg)
+CEC	Cation exchange capacity (CEC) (cmol/kg)
+Taux_satur_V_%	Soil saturation rate (%)
+Argile_%	Proportion of clay in considered sample
+Limons_totaux_%	Proportion of silt in considered sample
+Sables_totaux_%    	Proportion of sans in considered sample

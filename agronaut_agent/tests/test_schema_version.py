@@ -38,14 +38,20 @@ def test_a_fresh_database_is_stamped(tmp_path):
 def test_a_pre_stamp_database_keeps_its_history_and_is_adopted(tmp_path):
     """A 1.0.0 database carries user_version 0 and the v1 layout. That IS v1."""
     path = tmp_path / "old.sqlite3"
-    db = _Db(path)
-    convo = ConversationStore(db)
-    user = convo.get_or_create_user("telegram", "77", "Rekin")
-    convo.append_message(user, "user", "how big a tank for 50 tilapia?")
-
-    # Rewind the stamp to simulate a file written before this version existed.
+    # Construct legacy storage independently; relabeling the current layout would
+    # leave future-version tables behind and is not a real upgrade fixture.
+    user = "telegram:77"
     raw = sqlite3.connect(str(path))
-    raw.execute("PRAGMA user_version = 0")
+    raw.executescript("""
+        CREATE TABLE users (user_id TEXT PRIMARY KEY, channel TEXT NOT NULL,
+            channel_user TEXT NOT NULL, display_name TEXT, created_at TEXT NOT NULL,
+            UNIQUE(channel,channel_user));
+        CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
+            role TEXT NOT NULL, content TEXT NOT NULL, tool_name TEXT, created_at TEXT NOT NULL);
+    """)
+    raw.execute("INSERT INTO users VALUES(?,?,?,?,?)", (user, "telegram", "77", "Rekin", "2025-01-01"))
+    raw.execute("INSERT INTO messages(user_id,role,content,created_at) VALUES(?,?,?,?)",
+                (user, "user", "how big a tank for 50 tilapia?", "2025-01-01"))
     raw.commit()
     raw.close()
     assert _user_version(path) == 0
@@ -110,3 +116,53 @@ def test_a_v1_database_gains_wa_message_id_on_upgrade(tmp_path):
     cols = [r[1] for r in sqlite3.connect(str(path)).execute(
         "PRAGMA table_info(followups)").fetchall()]
     assert "wa_message_id" in cols
+
+
+def test_public_v2_upgrade_creates_field_tables_and_keeps_delivery_ids(tmp_path):
+    """Public v2 means WhatsApp IDs, not the unreleased field schema's farms."""
+    path = tmp_path / "public-v2.sqlite3"
+    with sqlite3.connect(path) as raw:
+        raw.executescript("""
+            CREATE TABLE users (user_id TEXT PRIMARY KEY, channel TEXT NOT NULL,
+                channel_user TEXT NOT NULL, display_name TEXT, created_at TEXT NOT NULL,
+                UNIQUE(channel,channel_user));
+            INSERT INTO users VALUES ('whatsapp:1','whatsapp','1','Grower','2026-01-01');
+            CREATE TABLE followups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
+                channel TEXT NOT NULL, channel_user TEXT NOT NULL, question TEXT NOT NULL,
+                about TEXT, due_at TEXT NOT NULL, status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0, outcome TEXT, created_at TEXT NOT NULL,
+                sent_at TEXT, wa_message_id TEXT);
+            INSERT INTO followups(user_id,channel,channel_user,question,due_at,status,
+                                  created_at,wa_message_id)
+                VALUES ('whatsapp:1','whatsapp','1','How is it?','2026-01-01','sent',
+                        '2026-01-01','wamid.kept');
+            PRAGMA user_version = 2;
+        """)
+    db = _Db(path)
+    assert _user_version(path) == SCHEMA_VERSION
+    assert db.query("SELECT wa_message_id FROM followups")[0][0] == "wamid.kept"
+    assert db.query("SELECT owner_id FROM farms")[0][0] == "whatsapp:1"
+    assert db.query("SELECT id FROM production_units")
+    assert db.query("SELECT name FROM sqlite_master WHERE name='unit_contexts'")
+    backups = list(tmp_path.glob("public-v2.sqlite3.pre-v*.bak"))
+    assert len(backups) == 1 and _user_version(backups[0]) == 2
+    _Db(path)
+    assert len(list(tmp_path.glob("public-v2.sqlite3.pre-v*.bak"))) == 1
+
+
+def test_local_field_v24_upgrade_adds_delivery_ids_without_readopting_users(tmp_path):
+    path = tmp_path / "field-v24.sqlite3"
+    db = _Db(path)
+    db.execute("INSERT INTO users VALUES (?,?,?,?,?)",
+               ("web:1", "web", "1", "Grower", "2026-01-01"))
+    db.execute("INSERT INTO farms(id,owner_id,name,legacy) VALUES (?,?,?,0)",
+               ("farm-kept", "web:1", "My farm"))
+    db.execute("ALTER TABLE followups DROP COLUMN wa_message_id")
+    db.execute("PRAGMA user_version = 24")
+    upgraded = _Db(path)
+    assert [r[0] for r in upgraded.query("SELECT id FROM farms")] == ["farm-kept"]
+    assert "wa_message_id" in [r[1] for r in upgraded.query("PRAGMA table_info(followups)")]
+    assert _user_version(path) == SCHEMA_VERSION
+    backups = list(tmp_path.glob("field-v24.sqlite3.pre-v*.bak"))
+    assert len(backups) == 1 and _user_version(backups[0]) == 24

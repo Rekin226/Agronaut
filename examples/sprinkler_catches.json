@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic catch-grid example",
+    "timezone": "UTC"
+  },
+  "event": {
+    "zone_name": "Example zone",
+    "started_at": "2026-07-07T09:00:00Z",
+    "duration_seconds": 1800,
+    "kind": "scenario",
+    "rain_free": true,
+    "same_exposure": true,
+    "wind_m_s": 1,
+    "conditions_source": "Synthetic equal exposure, rain-free test conditions; not field evidence"
+  },
+  "grid": {
+    "rows": 4,
+    "columns": 4,
+    "spacing_x_m": 2,
+    "spacing_y_m": 2,
+    "equal_area": true,
+    "source": "Synthetic equally represented grid; no field applicability claim"
+  },
+  "catches": [
+    {
+      "row": 1,
+      "column": 1,
+      "depth_mm": 6,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 1,
+      "column": 2,
+      "depth_mm": 7,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 1,
+      "column": 3,
+      "depth_mm": 7,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 1,
+      "column": 4,
+      "depth_mm": 8,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 2,
+      "column": 1,
+      "depth_mm": 8,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 2,
+      "column": 2,
+      "depth_mm": 8,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 2,
+      "column": 3,
+      "depth_mm": 9,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 2,
+      "column": 4,
+      "depth_mm": 9,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 3,
+      "column": 1,
+      "depth_mm": 10,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 3,
+      "column": 2,
+      "depth_mm": 10,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 3,
+      "column": 3,
+      "depth_mm": 10,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 3,
+      "column": 4,
+      "depth_mm": 10,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 4,
+      "column": 1,
+      "depth_mm": 11,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 4,
+      "column": 2,
+      "depth_mm": 11,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 4,
+      "column": 3,
+      "depth_mm": 12,
+      "source": "Synthetic calibrated-depth example"
+    },
+    {
+      "row": 4,
+      "column": 4,
+      "depth_mm": 12,
+      "source": "Synthetic calibrated-depth example"
+    }
+  ]
+}

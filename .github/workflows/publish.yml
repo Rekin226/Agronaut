@@ -1,4 +1,4 @@
-# Publish to PyPI when a GitHub Release is created.
+# Publish a verified version tag, or an existing GitHub Release, to PyPI.
 #
 # Trusted publishing (OIDC), so no API token is stored anywhere: PyPI verifies the workflow
 # identity itself. One-time setup at https://pypi.org/manage/account/publishing/ —
@@ -14,15 +14,26 @@
 name: Publish
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:          # a dry run without cutting a release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -31,7 +42,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip build
           pip install -e .
-          pip install pytest ruff
+          pip install pytest ruff==0.16.3
+
+      - name: Releases must come from main and match the package version
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG does not match pyproject version $PKG"; exit 1; }
 
       - name: Test suite
         run: python -m pytest -q
@@ -52,14 +71,6 @@ jobs:
         run: |
           pip install --quiet twine
           python -m twine check dist/*
-
-      - name: The version being released must match pyproject
-        if: github.event_name == 'release'
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
-          echo "tag=$TAG  pyproject=$PKG"
-          [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG does not match pyproject version $PKG"; exit 1; }
 
       - name: The wheel must work with no checkout present
         run: |
@@ -93,15 +104,47 @@ jobs:
               "installed package cannot find its own validation record"
           print(f"reference tables OK: {len(SHIPPED)} files")
           PY
+          /tmp/fresh/bin/agronaut capabilities --system soil
+          /tmp/fresh/bin/agronaut field-guide --topic choose-method --language fr
+          /tmp/fresh/bin/python -m scripts.safety_eval
 
       - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
 
-  publish:
+  release:
     needs: verify
-    if: github.event_name == 'release'
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Create the verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GITHUB_TOKEN-created releases do not trigger another workflow run.
+          # The publish job below uploads this same verified artifact to PyPI.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag \
+              --title "Agronaut $GITHUB_REF_NAME" \
+              --notes-file "docs/releases/$GITHUB_REF_NAME.md"
+          fi
+
+  publish:
+    needs: [verify, release]
+    if: >-
+      always() && needs.verify.result == 'success' &&
+      (github.event_name == 'release' ||
+       (github.event_name == 'push' && needs.release.result == 'success'))
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic sprinkler lateral",
+    "timezone": "UTC"
+  },
+  "pipe": {
+    "internal_diameter_mm": 50,
+    "roughness_mm": 0.01,
+    "max_head_m": 60,
+    "source": "Hypothetical lateral pipe; not a product specification"
+  },
+  "riser": {
+    "internal_diameter_mm": 25,
+    "roughness_mm": 0.01,
+    "max_head_m": 60,
+    "source": "Hypothetical riser pipe; not a product specification"
+  },
+  "nozzle": {
+    "reference_flow_lph": 1000,
+    "reference_head_m": 30,
+    "min_head_m": 10,
+    "max_head_m": 45,
+    "max_static_head_m": 60,
+    "source": "Synthetic square-root nozzle relation; no field calibration"
+  },
+  "inlet": {
+    "running_head_m": 35,
+    "max_static_head_m": 50,
+    "max_flow_lph": 5000,
+    "source": "Hypothetical pressure maintained at the lateral inlet after upstream equipment"
+  },
+  "limits": {
+    "viscosity_m2_s": 1e-06,
+    "max_velocity_m_s": 3,
+    "max_flow_variation_fraction": 0.2,
+    "source": "Synthetic fluid and operator limits; no universal design thresholds"
+  },
+  "conditions": {
+    "closed_tail": true,
+    "steady_full_pipes": true,
+    "surveyed_profile": true,
+    "identical_nozzles": true,
+    "unregulated_atmospheric_outlets": true,
+    "source": "Synthetic surveyed series pipe with unregulated stationary sprinklers"
+  },
+  "stations": [
+    {
+      "identifier": "S1",
+      "distance_m": 12,
+      "elevation_m": 0,
+      "upstream_minor_k": 0.1,
+      "source": "Synthetic lateral and riser survey with separate branch fittings",
+      "riser_height_m": 1,
+      "riser_length_m": 1.3,
+      "riser_minor_k": 1.5
+    },
+    {
+      "identifier": "S2",
+      "distance_m": 24,
+      "elevation_m": 1,
+      "upstream_minor_k": 0.1,
+      "source": "Synthetic lateral and riser survey with separate branch fittings",
+      "riser_height_m": 1.5,
+      "riser_length_m": 1.8,
+      "riser_minor_k": 1.5
+    },
+    {
+      "identifier": "S3",
+      "distance_m": 36,
+      "elevation_m": -1,
+      "upstream_minor_k": 0.1,
+      "source": "Synthetic lateral and riser survey with separate branch fittings",
+      "riser_height_m": 1,
+      "riser_length_m": 1.3,
+      "riser_minor_k": 1.5
+    },
+    {
+      "identifier": "S4",
+      "distance_m": 48,
+      "elevation_m": 0,
+      "upstream_minor_k": 0.1,
+      "source": "Synthetic lateral and riser survey with separate branch fittings",
+      "riser_height_m": 2,
+      "riser_length_m": 2.3,
+      "riser_minor_k": 1.5
+    }
+  ]
+}
