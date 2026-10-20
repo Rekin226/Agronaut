@@ -14,6 +14,7 @@ from uuid import uuid4
 import streamlit as st
 
 from agent.calculator_ui import render_calculator
+from agent.farm_ui import render_unit_controls
 from agent.optimizer_ui import render_optimizer
 from agent.twin_ui import render_twin
 
@@ -49,7 +50,7 @@ def _agent_error() -> str | None:
         if agent.chat_error:
             reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` "
                       f"with `NVIDIA_API_KEY`) — couldn't start one: {agent.chat_error}. "
-                      "**My Twin**, **Design Calculator** and **Optimize Ratio** are fully "
+                      "**Farm overview**, **My Twin**, **Field records**, **Crop records**, **Farm resources**, **Design Calculator** and **Optimize Ratio** are fully "
                       "deterministic and keep working.")
             st.session_state.agent_error = reason
             return reason
@@ -87,7 +88,7 @@ def _rerun() -> None:
 
 def _render_header() -> None:
     st.title(APP_TITLE)
-    st.write("Your agronomy agent: design, optimize, and troubleshoot aquaponics systems.")
+    st.write("Agricultural guidance for your production units, with aquatic system design and experimental crop-water calculations.")
 
 
 def _render_chat_sidebar() -> None:
@@ -127,6 +128,11 @@ def _route_turn(agent, user_id: str, text: str, image_bytes: bytes | None) -> st
     Streamlit script run."""
     if image_bytes:
         return agent.handle_image("web", user_id, image_bytes, caption=(text or None))
+    from agronaut_agent.channels import commands
+    if commands.looks_like_command(text) and commands._split(text)[0] in {
+        "newunit", "fieldplan", "scout", "plant", "harvest", "task", "waterlog", "measure", "overview", "guide", "back", "cancel", "unit", "units",
+    }:
+        return commands.dispatch(agent, "web", user_id, text).text
     return agent.handle_message("web", user_id, text)
 
 
@@ -153,6 +159,7 @@ def _read_chat_input() -> tuple[str, bytes | None]:
 def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     _add_message("user", user_text, image=image_bytes)
     agent = st.session_state.agent
+    before_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
     spinner = "Looking at your photo..." if image_bytes else "Thinking (running the numbers)..."
     try:
         with st.spinner(spinner):
@@ -160,6 +167,13 @@ def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     except Exception:
         reply = ("Something went wrong talking to the model. Your message wasn't lost, "
                  "please try again.")
+    after_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
+    if after_unit != before_unit:
+        # Setup/select commands can change units without the sidebar callback.
+        st.session_state.messages = []
+        for key in list(st.session_state):
+            if key.startswith(("twin_", "log_", "field_", "crop_")) or key == "farm_unit_choice":
+                del st.session_state[key]
     _add_message("assistant", reply)
 
 
@@ -177,12 +191,14 @@ def main() -> None:
     # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
     mode = st.sidebar.radio(
         "Mode",
-        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)")
+        ("Design Calculator", "Optimize Ratio", "Farm overview", "My Twin", "Field records", "Crop records", "Farm resources", "Assistant (chat)")
         + ((TWIN_STUDIO,) if render_twin_studio else ()),
         key="app_mode",
         help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. My Twin mirrors the system you actually run (deterministic, "
-             "no LLM). Chat runs a consultation with the full agent (needs an LLM).",
+             "your constraint. Farm overview summarizes records and work. Field records handles "
+             "calculations, weather and water logs; Crop records tracks the season; Farm resources "
+             "coordinates shared supplies and equipment. My Twin mirrors your aquatic system. "
+             "These record views need no running language model. Free-form chat needs a model.",
     )
 
     if mode == "Design Calculator":
@@ -197,17 +213,33 @@ def main() -> None:
 
     # My Twin is deterministic — it must render even when no LLM is configured, because
     # surviving model weather is the entire promise of the twin's command layer.
-    if mode == "My Twin":
+    if mode in ("Farm overview", "My Twin", "Field records", "Crop records", "Farm resources"):
         reason = _agent_error()
         if "agent" not in st.session_state:
             st.warning(reason or "The twin is unavailable in this install.")
             return
-        render_twin(brain=st.session_state.agent, user=_web_user())
+        render_unit_controls(st.session_state.agent, _web_user())
+        if mode == "Farm overview":
+            from agent.farm_overview_ui import render_farm_overview
+            render_farm_overview(st.session_state.agent, _web_user())
+        elif mode == "Field records":
+            from agent.field_ui import render_field_records
+            render_field_records(st.session_state.agent, _web_user())
+        elif mode == "Crop records":
+            from agent.crop_ui import render_crop_records
+            render_crop_records(st.session_state.agent, _web_user())
+        elif mode == "Farm resources":
+            from agent.resource_ui import render_farm_resources
+            render_farm_resources(st.session_state.agent, _web_user())
+        else:
+            render_twin(brain=st.session_state.agent, user=_web_user())
         return
 
     # Assistant (chat) — the real consultative agent, degrading gracefully when the
     # chat stack or an LLM provider is missing (never a traceback in the UI).
     reason = _agent_error()
+    if "agent" in st.session_state:
+        render_unit_controls(st.session_state.agent, _web_user())
     if reason:
         st.warning(reason)
         return

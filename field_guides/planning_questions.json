@@ -1,0 +1,1154 @@
+{
+  "schema_version": 1,
+  "translation_status": "draft",
+  "entries": [
+    {
+      "english": "Are these pressure-compensating emitters? Reply yes only if documented. Other emitters are outside this model.",
+      "fr": "Ces goutteurs sont-ils autorégulants ? Répondez yes uniquement si cela est documenté. Les autres goutteurs sortent du cadre de ce modèle.",
+      "zh-Hant": "這些滴頭是否為壓力補償型？僅在有資料支持時回答 yes。其他滴頭不在此模型範圍內。",
+      "translate_slots": []
+    },
+    {
+      "english": "At what reference head was the nozzle flow specified, in metres of water? It must lie within the operating band.",
+      "fr": "À quelle charge de référence le débit de la buse a-t-il été spécifié, en mètres d’eau ? Elle doit être dans la plage de fonctionnement.",
+      "zh-Hant": "噴嘴流量是在多少公尺水頭的參考條件下指定的？此值須在操作範圍內。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many additional hours are budgeted for maintenance this day? Enter zero only if explicitly assumed.",
+      "fr": "Combien d’heures supplémentaires sont prévues pour l’entretien ce jour ? Saisissez zéro seulement comme hypothèse explicite.",
+      "zh-Hant": "當天另外預留多少小時維護？僅在明確假設無維護時間時輸入零。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many additional litres are budgeted for flushing and other maintenance this day? Enter zero only if explicitly assumed.",
+      "fr": "Combien de litres supplémentaires sont prévus pour le rinçage et l’entretien ce jour ? Saisissez zéro seulement comme hypothèse explicite.",
+      "zh-Hant": "當天另外預留多少公升沖洗及維護用水？僅在明確假設無此用水時輸入零。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many contiguous laterals run together in a zone? Zones run sequentially. Enter a whole number.",
+      "fr": "Combien de rampes contiguës fonctionnent ensemble dans un secteur ? Les secteurs fonctionnent successivement. Saisissez un entier.",
+      "zh-Hant": "一個分區內有幾條相鄰支管同時運轉？各分區依序運轉。請輸入整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many contiguous rows run together in one zone? Zones run sequentially. Enter a whole number.",
+      "fr": "Combien de rangs contigus fonctionnent ensemble dans un secteur ? Les secteurs fonctionnent successivement. Saisissez un entier.",
+      "zh-Hant": "一個分區內有幾行相鄰種植行同時運轉？各分區依序運轉。請輸入整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many emitters are on EACH identical lateral? Enter a whole number.",
+      "fr": "Combien de goutteurs y a-t-il sur CHAQUE rampe identique ? Saisissez un entier.",
+      "zh-Hant": "每條相同支管上有幾個滴頭？請輸入整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many hours are available for irrigation and maintenance this day?",
+      "fr": "Combien d’heures sont disponibles pour l’irrigation et l’entretien ce jour ?",
+      "zh-Hant": "當天可供灌溉及維護的時間有多少小時？",
+      "translate_slots": []
+    },
+    {
+      "english": "How many identical laterals are installed? Enter a whole number.",
+      "fr": "Combien de rampes identiques sont installées ? Saisissez un entier.",
+      "zh-Hant": "安裝了幾條相同的支管？請輸入整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many litres are available for this irrigation day? Explicit zero is allowed; unknown is not zero.",
+      "fr": "Combien de litres sont disponibles pour cette journée d’irrigation ? Un zéro explicite est permis ; inconnu ne signifie pas zéro.",
+      "zh-Hant": "該灌溉日可用多少公升水？可明確輸入零；未知不等於零。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many rows/laterals are installed? Enter a whole number.",
+      "fr": "Combien de rangs/rampes sont installés ? Saisissez un entier.",
+      "zh-Hant": "安裝了幾行／條支管？請輸入整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many sprinklers are on EACH lateral? Enter a whole number. The layout supports at most 10,000 sprinklers.",
+      "fr": "Combien d’asperseurs y a-t-il sur CHAQUE rampe ? Saisissez un entier. Ce modèle accepte au maximum 10 000 asperseurs.",
+      "zh-Hant": "每條支管上有幾個噴頭？請輸入整數。此配置最多支援 10,000 個噴頭。",
+      "translate_slots": []
+    },
+    {
+      "english": "This experimental check supports flat fields with identical laterals and sequential zones. Enter flat only if this layout applies.",
+      "fr": "Ce contrôle expérimental couvre les terrains plats, les rampes identiques et les secteurs successifs. Saisissez flat seulement si cette configuration s’applique.",
+      "zh-Hant": "此實驗性檢查適用於平坦地形、相同支管及依序運轉的分區。僅當配置符合時輸入 flat。",
+      "translate_slots": []
+    },
+    {
+      "english": "This experimental check supports flat, fixed solid-set, full-circle grids with sequential zones. Enter flat only if this layout applies.",
+      "fr": "Ce contrôle expérimental couvre les réseaux fixes sur terrain plat, avec arrosage circulaire complet et secteurs successifs. Saisissez flat seulement si cette configuration s’applique.",
+      "zh-Hant": "此實驗性檢查適用於平坦地形、固定全圓噴灌網格及依序運轉的分區。僅當配置符合時輸入 flat。",
+      "translate_slots": []
+    },
+    {
+      "english": "What GROSS irrigation depth is planned for this day, in mm over the whole layout area? This includes application losses; crop ET alone is not a refill target.",
+      "fr": "Quelle lame BRUTE d’irrigation est prévue ce jour, en mm sur toute la surface du réseau ? Elle inclut les pertes d’application ; l’ET de la culture seule ne définit pas un objectif de remplissage.",
+      "zh-Hant": "當天計畫的總灌溉水深是多少毫米，以整個配置面積計？此值包含施灌損失；作物蒸散量本身不能作為補水目標。",
+      "translate_slots": []
+    },
+    {
+      "english": "What NET irrigation depth is planned for this day, in mm over the whole layout area? This is before accounting for application losses; crop ET alone is not a refill target.",
+      "fr": "Quelle lame NETTE d’irrigation est prévue ce jour, en mm sur toute la surface du réseau ? Elle exclut les pertes d’application ; l’ET de la culture seule ne définit pas un objectif de remplissage.",
+      "zh-Hant": "當天計畫的淨灌溉水深是多少毫米，以整個配置面積計？此值尚未計入施灌損失；作物蒸散量本身不能作為補水目標。",
+      "translate_slots": []
+    },
+    {
+      "english": "What absolute pipe roughness applies, in mm? Supply a value for this material and condition.",
+      "fr": "Quelle rugosité absolue de conduite s’applique, en mm ? Fournissez une valeur correspondant au matériau et à son état.",
+      "zh-Hant": "管線的絕對粗糙度是多少毫米？請提供符合材質及現況的數值。",
+      "translate_slots": []
+    },
+    {
+      "english": "What application efficiency applies, as a percentage greater than 0 and at most 100? Include boundary and wind losses in this supplied value.",
+      "fr": "Quelle efficacité d’application s’applique, en pourcentage supérieur à 0 et au plus égal à 100 ? Incluez les pertes en bordure et dues au vent dans cette valeur fournie.",
+      "zh-Hant": "施灌效率是多少百分比？須大於 0 且不超過 100。提供的數值應包含邊界及風造成的損失。",
+      "translate_slots": []
+    },
+    {
+      "english": "What combined dimensionless K loss coefficient applies to EACH riser's fittings?",
+      "fr": "Quel coefficient total de perte K, sans dimension, s’applique aux raccords de CHAQUE rehausse ?",
+      "zh-Hant": "每根立管接頭的合計無因次局部損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What dated irrigation plan or explicit scenario supports this day's target depth, wetted area or efficiency/pattern, local soil limits and maintenance allowances? Include applicability to this layout area.",
+      "fr": "Quel plan d’irrigation daté ou scénario explicite justifie la lame visée, la surface mouillée ou l’efficacité/répartition, les limites locales du sol et les réserves d’entretien ? Précisez son applicabilité à cette surface.",
+      "zh-Hant": "哪份有日期的灌溉計畫或明確情境支持當日目標水深、濕潤面積或效率／分布、局部土壤限制及維護預留量？請說明其適用於此配置面積的理由。",
+      "translate_slots": []
+    },
+    {
+      "english": "What dimensionless K insertion-loss coefficient applies at EACH emitter?",
+      "fr": "Quel coefficient K de perte d’insertion, sans dimension, s’applique à CHAQUE goutteur ?",
+      "zh-Hant": "每個滴頭的無因次插入損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What dimensionless K loss coefficient applies at EACH lateral takeoff?",
+      "fr": "Quel coefficient K de perte, sans dimension, s’applique à CHAQUE départ de rampe ?",
+      "zh-Hant": "每個支管分支接頭的無因次局部損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What dimensionless K loss coefficient applies at EACH sprinkler through-connection?",
+      "fr": "Quel coefficient K de perte, sans dimension, s’applique à CHAQUE raccord traversant d’asperseur ?",
+      "zh-Hant": "每個噴頭直通接頭的無因次局部損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What dimensionless K loss coefficient applies at EACH through-connection on the manifold?",
+      "fr": "Quel coefficient K de perte, sans dimension, s’applique à CHAQUE raccord traversant du collecteur ?",
+      "zh-Hant": "分配管上每個直通接頭的無因次局部損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact emitter specification supports these flow, pressure, filtration and insertion-loss values?",
+      "fr": "Quelle spécification précise du goutteur justifie ces valeurs de débit, pression, filtration et perte d’insertion ?",
+      "zh-Hant": "哪份滴頭規格支持這些流量、壓力、過濾及插入損失數值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact lateral pipe specification supports its internal diameter, roughness and pressure rating?",
+      "fr": "Quelle spécification précise de la rampe justifie son diamètre intérieur, sa rugosité et sa pression admissible ?",
+      "zh-Hant": "哪份支管規格支持其內徑、粗糙度及耐壓額定值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact main pipe specification supports its internal diameter, roughness and pressure rating?",
+      "fr": "Quelle spécification précise de la conduite principale justifie son diamètre intérieur, sa rugosité et sa pression admissible ?",
+      "zh-Hant": "哪份主管規格支持其內徑、粗糙度及耐壓額定值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact manifold pipe specification supports its internal diameter, roughness and pressure rating?",
+      "fr": "Quelle spécification précise du collecteur justifie son diamètre intérieur, sa rugosité et sa pression admissible ?",
+      "zh-Hant": "哪份分配管規格支持其內徑、粗糙度及耐壓額定值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact nozzle specification and field/pattern evidence support these values across the supplied pressure and wind range?",
+      "fr": "Quelles spécifications précises de buse et données de terrain/répartition justifient ces valeurs sur toute la plage de pression et de vent fournie ?",
+      "zh-Hant": "哪些噴嘴規格及田間／噴灑分布資料支持所提供壓力與風速範圍內的這些數值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What exact riser pipe specification supports its internal diameter, roughness and pressure rating?",
+      "fr": "Quelle spécification précise de la rehausse justifie son diamètre intérieur, sa rugosité et sa pression admissible ?",
+      "zh-Hant": "哪份立管規格支持其內徑、粗糙度及耐壓額定值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What filtration opening is installed, in micrometres (microns)?",
+      "fr": "Quelle ouverture de filtration est installée, en micromètres (microns) ?",
+      "zh-Hant": "已安裝濾網的孔徑是多少微米？",
+      "translate_slots": []
+    },
+    {
+      "english": "What height above the lateral is each sprinkler nozzle, in metres?",
+      "fr": "À quelle hauteur au-dessus de la rampe chaque buse est-elle placée, en mètres ?",
+      "zh-Hant": "每個噴嘴比支管高多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is each emitter's nominal flow, in L/hour?",
+      "fr": "Quel est le débit nominal de chaque goutteur, en litres/heure ?",
+      "zh-Hant": "每個滴頭的額定流量是多少公升／小時？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the combined dimensionless K loss coefficient for the main-pipe fittings?",
+      "fr": "Quel est le coefficient total de perte K, sans dimension, des raccords de la conduite principale ?",
+      "zh-Hant": "主管接頭的合計無因次局部損失係數 K 是多少？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the pipe's INTERNAL diameter in mm? Nominal trade sizes are not internal diameters.",
+      "fr": "Quel est le diamètre INTÉRIEUR de la conduite, en mm ? Les dimensions commerciales nominales ne sont pas des diamètres intérieurs.",
+      "zh-Hant": "管線的內徑是多少毫米？標稱商品管徑不等於內徑。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the spacing between emitters, in metres? The engine assumes the first outlet is half a spacing from the inlet.",
+      "fr": "Quel est l’espacement entre goutteurs, en mètres ? Le moteur suppose que le premier orifice est à un demi-espacement de l’entrée.",
+      "zh-Hant": "滴頭間距是多少公尺？模型假設第一個出水口距入口為半個間距。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the spacing between laterals, in metres?",
+      "fr": "Quel est l’espacement entre rampes, en mètres ?",
+      "zh-Hant": "支管間距是多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the spacing between rows/laterals, in metres?",
+      "fr": "Quel est l’espacement entre rangs/rampes, en mètres ?",
+      "zh-Hant": "種植行／支管間距是多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the spacing between sprinklers, in metres? The first sprinkler is half a spacing from the inlet.",
+      "fr": "Quel est l’espacement entre asperseurs, en mètres ? Le premier asperseur est à un demi-espacement de l’entrée.",
+      "zh-Hant": "噴頭間距是多少公尺？第一個噴頭距入口為半個間距。",
+      "translate_slots": []
+    },
+    {
+      "english": "What kinematic viscosity applies to the water, in m²/s? Scientific notation is accepted; supply the value for its temperature.",
+      "fr": "Quelle viscosité cinématique de l’eau s’applique, en m²/s ? La notation scientifique est acceptée ; fournissez la valeur correspondant à sa température.",
+      "zh-Hant": "水的運動黏度是多少 m²/s？可用科學記號；請提供對應水溫的數值。",
+      "translate_slots": []
+    },
+    {
+      "english": "What main-pipe length leads to the first zone, in metres? Subsequent zones extend along the field edge.",
+      "fr": "Quelle longueur de conduite principale mène au premier secteur, en mètres ? Les secteurs suivants s’étendent le long du bord du champ.",
+      "zh-Hant": "通往第一分區的主管長度是多少公尺？後續分區沿田區邊緣延伸。",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum LOCAL application rate can the soil accept, in mm/hour? Supply a soil/site-specific limit.",
+      "fr": "Quelle intensité LOCALE maximale d’application le sol peut-il accepter, en mm/heure ? Fournissez une limite propre au sol/site.",
+      "zh-Hant": "土壤可接受的最大局部施灌強度是多少毫米／小時？請提供適用於該土壤／地點的限制。",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum LOCAL applied depth is permitted on the wetted soil, in mm? Supply a soil/site-specific limit.",
+      "fr": "Quelle lame LOCALE maximale est permise sur le sol mouillé, en mm ? Fournissez une limite propre au sol/site.",
+      "zh-Hant": "濕潤土壤可容許的最大局部施灌水深是多少毫米？請提供適用於該土壤／地點的限制。",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum dirty-filter head loss applies over the operating flows, in metres of water?",
+      "fr": "Quelle perte de charge maximale du filtre encrassé s’applique aux débits de fonctionnement, en mètres d’eau ?",
+      "zh-Hant": "在操作流量範圍內，髒污濾器的最大水頭損失是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum filtration opening does the emitter specification permit, in micrometres?",
+      "fr": "Quelle ouverture maximale de filtration la spécification du goutteur permet-elle, en micromètres ?",
+      "zh-Hant": "滴頭規格允許的最大濾網孔徑是多少微米？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum filtration opening does the sprinkler permit, in micrometres?",
+      "fr": "Quelle ouverture maximale de filtration l’asperseur permet-il, en micromètres ?",
+      "zh-Hant": "噴頭允許的最大濾網孔徑是多少微米？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum nozzle operating head is permitted, in metres of water?",
+      "fr": "Quelle charge maximale de fonctionnement de la buse est permise, en mètres d’eau ?",
+      "zh-Hant": "噴嘴允許的最大操作水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum permitted emitter head applies, in metres of water?",
+      "fr": "Quelle charge maximale admissible du goutteur s’applique, en mètres d’eau ?",
+      "zh-Hant": "滴頭允許的最大水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum pipe velocity does the designer permit, in metres/second?",
+      "fr": "Quelle vitesse maximale dans les conduites le concepteur autorise-t-il, en mètres/seconde ?",
+      "zh-Hant": "設計者允許的最大管內流速是多少公尺／秒？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum rated filter flow applies, in L/hour?",
+      "fr": "Quel débit nominal maximal du filtre s’applique, en litres/heure ?",
+      "zh-Hant": "濾器的最大額定流量是多少公升／小時？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum running head applies over the operating flow range, in metres of water?",
+      "fr": "Quelle charge maximale en fonctionnement s’applique sur la plage de débit, en mètres d’eau ?",
+      "zh-Hant": "在操作流量範圍內，最大運轉水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum source flow is available in L/hour? The running-head bounds must apply throughout 0 to this flow.",
+      "fr": "Quel débit maximal de la source est disponible, en litres/heure ? Les bornes de charge en fonctionnement doivent s’appliquer de 0 jusqu’à ce débit.",
+      "zh-Hant": "水源最大可用流量是多少公升／小時？運轉水頭上下限須適用於 0 至此流量的整個範圍。",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum spacing is permitted, as a percentage of wetted diameter (greater than 0, at most 100)?",
+      "fr": "Quel espacement maximal est permis, en pourcentage du diamètre mouillé (supérieur à 0, au plus 100) ?",
+      "zh-Hant": "允許的最大間距佔濕潤直徑多少百分比？須大於 0 且不超過 100。",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum static head applies when flow is stopped, in metres of water?",
+      "fr": "Quelle charge statique maximale s’applique quand l’écoulement est arrêté, en mètres d’eau ?",
+      "zh-Hant": "停止流動時，最大靜水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum static head can the filter/headworks withstand, in metres of water?",
+      "fr": "Quelle charge statique maximale le filtre/la tête de réseau peuvent-ils supporter, en mètres d’eau ?",
+      "zh-Hant": "濾器／首部設備可承受的最大靜水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum static head can the sprinkler withstand, in metres of water?",
+      "fr": "Quelle charge statique maximale l’asperseur peut-il supporter, en mètres d’eau ?",
+      "zh-Hant": "噴頭可承受的最大靜水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum static pressure rating applies, in metres of water head?",
+      "fr": "Quelle pression statique maximale admissible s’applique, en mètres de colonne d’eau ?",
+      "zh-Hant": "允許的最大靜壓額定值是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum wind speed does that pattern/spacing evidence cover, in metres/second?",
+      "fr": "Quelle vitesse maximale du vent ces données de répartition/espacement couvrent-elles, en mètres/seconde ?",
+      "zh-Hant": "這些噴灑分布／間距資料適用的最大風速是多少公尺／秒？",
+      "translate_slots": []
+    },
+    {
+      "english": "What measurements or documented source envelope support these running/static heads, flow and daily water/time availability?",
+      "fr": "Quelles mesures ou plage de fonctionnement documentée justifient les charges en marche/à l’arrêt, le débit et les disponibilités journalières d’eau et de temps ?",
+      "zh-Hant": "哪些量測或有文件支持的水源操作範圍，支持這些運轉／靜止水頭、流量以及每日可用水量與時間？",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum clean-filter head loss applies, in metres of water?",
+      "fr": "Quelle perte de charge minimale du filtre propre s’applique, en mètres d’eau ?",
+      "zh-Hant": "乾淨濾器的最小水頭損失是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum emitter head is required for pressure compensation, in metres of water?",
+      "fr": "Quelle charge minimale est requise pour la compensation de pression du goutteur, en mètres d’eau ?",
+      "zh-Hant": "滴頭進行壓力補償所需的最低水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum nozzle operating head is permitted, in metres of water?",
+      "fr": "Quelle charge minimale de fonctionnement de la buse est permise, en mètres d’eau ?",
+      "zh-Hant": "噴嘴允許的最低操作水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum running head can the source maintain upstream of the filter, in metres of water?",
+      "fr": "Quelle charge minimale la source peut-elle maintenir en fonctionnement en amont du filtre, en mètres d’eau ?",
+      "zh-Hant": "水源在濾器上游可維持的最低運轉水頭是多少公尺水頭？",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum wetted diameter is supported throughout the pressure/wind envelope, in metres?",
+      "fr": "Quel diamètre mouillé minimal est justifié sur toute la plage de pression et de vent, en mètres ?",
+      "zh-Hant": "在整個壓力與風速範圍內，有資料支持的最小濕潤直徑是多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "What nozzle flow is specified at the reference head, in L/hour?",
+      "fr": "Quel débit de buse est spécifié à la charge de référence, en litres/heure ?",
+      "zh-Hant": "在參考水頭下，噴嘴的指定流量是多少公升／小時？",
+      "translate_slots": []
+    },
+    {
+      "english": "What per-emitter flow tolerance applies, as a percentage from 0 to 99?",
+      "fr": "Quelle tolérance de débit par goutteur s’applique, en pourcentage de 0 à 99 ?",
+      "zh-Hant": "每個滴頭的流量容差是多少百分比（0 至 99）？",
+      "translate_slots": []
+    },
+    {
+      "english": "What per-nozzle flow tolerance applies, as a percentage from 0 to 99?",
+      "fr": "Quelle tolérance de débit par buse s’applique, en pourcentage de 0 à 99 ?",
+      "zh-Hant": "每個噴嘴的流量容差是多少百分比（0 至 99）？",
+      "translate_slots": []
+    },
+    {
+      "english": "What percentage of the layout area is wetted, greater than 0 and at most 100? Supply a measured or explicitly sourced value.",
+      "fr": "Quel pourcentage de la surface du réseau est mouillé, supérieur à 0 et au plus égal à 100 ? Fournissez une valeur mesurée ou une source explicite.",
+      "zh-Hant": "配置面積中有多少百分比受到濕潤？須大於 0 且不超過 100。請提供量測值或明確來源。",
+      "translate_slots": []
+    },
+    {
+      "english": "What sources and operating conditions support the water viscosity and chosen velocity limit?",
+      "fr": "Quelles sources et conditions de fonctionnement justifient la viscosité de l’eau et la limite de vitesse choisie ?",
+      "zh-Hant": "哪些來源及操作條件支持水的黏度與所選流速上限？",
+      "translate_slots": []
+    },
+    {
+      "english": "What specifications or calculations support these filter, pressure and fitting-loss values?",
+      "fr": "Quelles spécifications ou calculs justifient ces valeurs de filtration, de pression et de pertes aux raccords ?",
+      "zh-Hant": "哪些規格或計算支持這些濾器、壓力及接頭損失數值？",
+      "translate_slots": []
+    },
+    {
+      "english": "What sprinkler pattern is installed? Enter full_circle; partial-circle and moving systems are outside this model.",
+      "fr": "Quel motif d’aspersion est installé ? Saisissez full_circle ; les secteurs de cercle et les systèmes mobiles sortent de ce modèle.",
+      "zh-Hant": "安裝的噴灑模式是什麼？請輸入 full_circle；部分圓及移動式系統不在此模型範圍內。",
+      "translate_slots": []
+    },
+    {
+      "english": "What survey, layout or explicit scenario supports this geometry and terrain?",
+      "fr": "Quel levé, plan ou scénario explicite justifie cette géométrie et ce terrain ?",
+      "zh-Hant": "哪份測量、配置圖或明確情境支持此幾何配置及地形？",
+      "translate_slots": []
+    },
+    {
+      "english": "What whole-grid peak-to-average application factor applies, including overlap? Enter a supplied factor of at least 1.",
+      "fr": "Quel facteur maximal/moyen d’application sur l’ensemble du réseau s’applique, recouvrement compris ? Fournissez un facteur au moins égal à 1.",
+      "zh-Hant": "整個網格的最大施灌量與平均施灌量之比是多少（包含重疊）？請提供不小於 1 的係數。",
+      "translate_slots": []
+    },
+    {
+      "english": "What wind speed applies during the planned irrigation, in metres/second?",
+      "fr": "Quelle vitesse du vent s’applique pendant l’irrigation prévue, en mètres/seconde ?",
+      "zh-Hant": "計畫灌溉期間的風速是多少公尺／秒？",
+      "translate_slots": []
+    },
+    {
+      "english": "Which crop will this calculation describe?",
+      "fr": "Quelle culture ce calcul décrira-t-il ?",
+      "zh-Hant": "此計算要描述哪種作物？",
+      "translate_slots": []
+    },
+    {
+      "english": "What planted area does this calculation cover? Include units, for example 1 ha or 10000 m2.",
+      "fr": "Quelle surface plantée ce calcul couvre-t-il ? Indiquez l’unité, par exemple 1 ha ou 10000 m2.",
+      "zh-Hant": "此計算涵蓋多少種植面積？請附單位，例如 1 ha 或 10000 m2。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the first weather date? Use YYYY-MM-DD in the farm's local timezone.",
+      "fr": "Quelle est la première date météo ? Utilisez AAAA-MM-JJ dans le fuseau local de l’exploitation.",
+      "zh-Hant": "第一個氣象日期是哪一天？請使用農場當地時區的 YYYY-MM-DD。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many consecutive days? Enter a whole number from 1 to 31.",
+      "fr": "Combien de jours consécutifs ? Saisissez un entier de 1 à 31.",
+      "zh-Hant": "共有幾個連續日？請輸入 1 至 31 的整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "What crop stage does your supplied coefficient represent?",
+      "fr": "Quel stade cultural votre coefficient fourni représente-t-il ?",
+      "zh-Hant": "所提供的係數代表哪個作物生育階段？",
+      "translate_slots": []
+    },
+    {
+      "english": "What applicable crop coefficient (Kc) will you use? Enter a supplied value from 0 to 3; no value is inferred from the crop.",
+      "fr": "Quel coefficient cultural (Kc) applicable utiliserez-vous ? Fournissez une valeur de 0 à 3 ; aucune valeur n’est déduite du nom de la culture.",
+      "zh-Hant": "要使用哪個適用的作物係數 Kc？請提供 0 至 3 的數值；系統不會根據作物名稱推定。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source and local applicability of that Kc? This intake uses one Kc; dated curves can be added after saving.",
+      "fr": "Quelle est la source et l’applicabilité locale de ce Kc ? Cette saisie utilise un Kc unique ; des courbes datées peuvent être ajoutées après enregistrement.",
+      "zh-Hant": "此 Kc 的來源及在地適用性為何？此流程使用單一 Kc；儲存後可加入有日期的係數曲線。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose manual to enter daily ET0/rainfall, or open_meteo to fetch model estimates. Open-Meteo supports windows of 1–16 days, within the last 90 days through 14 days ahead.",
+      "fr": "Choisissez manual pour saisir l’ET0 et la pluie journalières, ou open_meteo pour obtenir des estimations de modèle. Open-Meteo accepte 1 à 16 jours, entre les 90 derniers jours et les 14 jours à venir.",
+      "zh-Hant": "選 manual 輸入每日 ET0／降雨，或選 open_meteo 取得模型估計。Open-Meteo 支援 1 至 16 日的期間，日期須介於過去 90 日與未來 14 日之間。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the field's WGS84 latitude in decimal degrees (−90 to 90)?",
+      "fr": "Quelle est la latitude WGS84 du champ en degrés décimaux (−90 à 90) ?",
+      "zh-Hant": "田區的 WGS84 緯度是多少十進位度（−90 至 90）？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the field's WGS84 longitude in decimal degrees (−180 to 180)?",
+      "fr": "Quelle est la longitude WGS84 du champ en degrés décimaux (−180 à 180) ?",
+      "zh-Hant": "田區的 WGS84 經度是多少十進位度（−180 至 180）？",
+      "translate_slots": []
+    },
+    {
+      "english": "What type of weather input is this? Choose observed, historical (model estimate), scenario, or forecast.",
+      "fr": "De quel type de météo s’agit-il ? Choisissez observed (observations), historical (estimation de modèle), scenario (scénario) ou forecast (prévision).",
+      "zh-Hant": "這是哪種氣象資料？請選 observed（觀測）、historical（模型估計）、scenario（情境）或 forecast（預報）。",
+      "translate_slots": []
+    },
+    {
+      "english": "What method produced your daily grass-reference ET0 totals? This intake requires supplied ET0 in mm per local day.",
+      "fr": "Quelle méthode a produit vos totaux journaliers d’ET0 de référence sur gazon ? Il faut fournir l’ET0 en mm par jour local.",
+      "zh-Hant": "每日草地參考蒸散量 ET0 總量由哪種方法產生？須提供每個當地日的 ET0，單位為毫米。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source of these daily ET0 and rainfall values? Unknown weather must not be entered as zero.",
+      "fr": "Quelle est la source de ces valeurs journalières d’ET0 et de pluie ? Une météo inconnue ne doit pas être saisie comme zéro.",
+      "zh-Hant": "這些每日 ET0 與降雨數值的來源是什麼？未知氣象值不可填為零。",
+      "translate_slots": []
+    },
+    {
+      "english": "When was this forecast issued? Supply an ISO timestamp with UTC offset.",
+      "fr": "Quand cette prévision a-t-elle été émise ? Fournissez un horodatage ISO avec décalage UTC.",
+      "zh-Hant": "這份預報何時發布？請提供包含 UTC 時差的 ISO 時間戳記。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is soil field capacity as a volumetric percentage (0–100)? Example: enter 32 for 0.32 m³/m³.",
+      "fr": "Quelle est la capacité au champ du sol, en pourcentage volumique (0–100) ? Exemple : saisissez 32 pour 0,32 m³/m³.",
+      "zh-Hant": "土壤田間容水量的體積百分比是多少（0–100）？例如 0.32 m³/m³ 請輸入 32。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is soil wilting point as a volumetric percentage? It must be below field capacity.",
+      "fr": "Quel est le point de flétrissement du sol, en pourcentage volumique ? Il doit être inférieur à la capacité au champ.",
+      "zh-Hant": "土壤萎凋點的體積百分比是多少？須低於田間容水量。",
+      "translate_slots": []
+    },
+    {
+      "english": "What effective root depth applies initially, in metres? This intake keeps it fixed; daily depths can be added after saving.",
+      "fr": "Quelle profondeur racinaire efficace s’applique initialement, en mètres ? Elle reste fixe dans cette saisie ; des profondeurs journalières peuvent être ajoutées après enregistrement.",
+      "zh-Hant": "初始有效根深是多少公尺？此流程將其保持固定；儲存後可加入每日根深。",
+      "translate_slots": []
+    },
+    {
+      "english": "What fraction of available water may be depleted before stress? Enter a supplied percentage strictly between 0 and 100.",
+      "fr": "Quelle fraction de l’eau disponible peut être épuisée avant le stress ? Fournissez un pourcentage strictement entre 0 et 100.",
+      "zh-Hant": "可利用水分中，有多少比例可消耗而不產生水分逆境？請提供嚴格介於 0 與 100 之間的百分比。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source and applicability of those soil properties, depth and depletion fraction?",
+      "fr": "Quelle est la source et l’applicabilité de ces propriétés du sol, de la profondeur et de la fraction d’épuisement ?",
+      "zh-Hant": "這些土壤性質、根深及允許耗水比例的來源與適用性為何？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is root-zone depletion in mm at the end of the day BEFORE the window? Reply unknown if unavailable; zero means field capacity.",
+      "fr": "Quel est l’épuisement hydrique de la zone racinaire, en mm, à la fin du jour PRÉCÉDANT la période ? Répondez unknown si inconnu ; zéro signifie capacité au champ.",
+      "zh-Hant": "在計算期間前一天結束時，根區水分虧缺是多少毫米？若未知請回答 unknown；零代表田間容水量。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source of that initial depletion?",
+      "fr": "Quelle est la source de cet épuisement initial ?",
+      "zh-Hant": "此初始水分虧缺的來源是什麼？",
+      "translate_slots": []
+    },
+    {
+      "english": "What application efficiency applies, as a percentage greater than 0 and at most 100?",
+      "fr": "Quelle efficacité d’application s’applique, en pourcentage supérieur à 0 et au plus égal à 100 ?",
+      "zh-Hant": "施灌效率是多少百分比？須大於 0 且不超過 100。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source and applicability of that efficiency?",
+      "fr": "Quelle est la source et l’applicabilité de cette efficacité ?",
+      "zh-Hant": "此效率的來源與適用性為何？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source of the irrigation and rainfall-runoff assumptions you will supply? These will be calculation inputs, not completed-work logs.",
+      "fr": "Quelle est la source des hypothèses d’irrigation et de ruissellement de pluie que vous fournirez ? Elles seront des entrées de calcul, pas des relevés de travaux effectués.",
+      "zh-Hant": "所提供灌溉及降雨逕流假設的來源是什麼？它們是計算輸入，不是已完成工作的紀錄。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose 1 for crop-water demand, or 2 for a soil-water budget (needs soil properties).",
+      "fr": "Choisissez 1 pour la demande en eau de la culture, ou 2 pour un bilan hydrique du sol (propriétés du sol requises).",
+      "zh-Hant": "選 1 計算作物需水量，或選 2 計算土壤水分收支（需要土壤性質）。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose 1 for crop-water demand, or 2 for a soil-water budget (needs soil properties). Choose 3 to check a flat pressure-compensating drip layout, or 4 to check a flat fixed full-circle sprinkler grid. Equipment checks are experimental and require supplied specifications.",
+      "fr": "Choisissez 1 pour la demande en eau de la culture, ou 2 pour un bilan hydrique du sol (propriétés du sol requises). Choisissez 3 pour vérifier un réseau de goutteurs autorégulants sur terrain plat, ou 4 pour un réseau fixe d’asperseurs à cercle complet sur terrain plat. Ces vérifications sont expérimentales et nécessitent des spécifications fournies.",
+      "zh-Hant": "選 1 計算作物需水量，或選 2 計算土壤水分收支（需要土壤性質）。 選 3 檢查平坦地形上的壓力補償滴灌配置，或選 4 檢查平坦地形上的固定全圓噴灌網格。設備檢查屬實驗性質，須提供規格。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose 1 for crop-water demand, or 2 for a soil-water budget (needs soil properties). Choose 3 to check a flat pressure-compensating drip layout, or 4 to check a flat fixed full-circle sprinkler grid. Equipment checks are experimental and require supplied specifications. Choose 5 to evaluate a supplied surface-irrigation event (furrow, border or basin).",
+      "fr": "Choisissez 1 pour la demande en eau de la culture, ou 2 pour un bilan hydrique du sol (propriétés du sol requises). Choisissez 3 pour vérifier un réseau de goutteurs autorégulants sur terrain plat, ou 4 pour un réseau fixe d’asperseurs à cercle complet sur terrain plat. Ces vérifications sont expérimentales et nécessitent des spécifications fournies. Choisissez 5 pour évaluer un événement fourni d’irrigation de surface (sillon, planche ou bassin).",
+      "zh-Hant": "選 1 計算作物需水量，或選 2 計算土壤水分收支（需要土壤性質）。 選 3 檢查平坦地形上的壓力補償滴灌配置，或選 4 檢查平坦地形上的固定全圓噴灌網格。設備檢查屬實驗性質，須提供規格。 選 5 評估所提供的地面灌溉事件（溝灌、畦灌或盆灌）。",
+      "translate_slots": []
+    },
+    {
+      "english": "Which crop cycle? Reply 0 for no assigned cycle, or choose:\n{cycles}",
+      "fr": "Quel cycle cultural ? Répondez 0 pour ne pas associer de cycle, ou choisissez :\n{cycles}",
+      "zh-Hant": "是哪個作期？若不指定作期請回答 0，或選擇：\n{cycles}",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is total grass-reference ET0 in mm over this entire local day?",
+      "fr": "{day} : quel est le total d’ET0 de référence sur gazon, en mm sur toute cette journée locale ?",
+      "zh-Hant": "{day}：這整個當地日的草地參考 ET0 總量是多少毫米？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is total rainfall in mm? Enter zero only if explicitly known or assumed in your scenario.",
+      "fr": "{day} : quel est le total de pluie en mm ? Saisissez zéro uniquement si connu ou explicitement supposé dans le scénario.",
+      "zh-Hant": "{day}：降雨總量是多少毫米？僅在明確已知或情境明確假設時輸入零。",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what net irrigation in mm enters the root zone? This is after application losses, not pumped volume; explicit zero is allowed.",
+      "fr": "{day} : quelle irrigation nette en mm entre dans la zone racinaire ? Il s’agit de l’eau après pertes d’application, pas du volume pompé ; un zéro explicite est permis.",
+      "zh-Hant": "{day}：進入根區的淨灌溉水深是多少毫米？此值已扣除施灌損失，不是抽水量；可明確輸入零。",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what rainfall runoff in mm is assumed? It cannot exceed that day's rainfall.",
+      "fr": "{day} : quel ruissellement de pluie en mm est supposé ? Il ne peut pas dépasser la pluie du jour.",
+      "zh-Hant": "{day}：假設的降雨逕流是多少毫米？不可超過當天降雨量。",
+      "translate_slots": []
+    },
+    {
+      "english": "Reply fetch to send these coordinates and dates to Open-Meteo and retrieve model weather. Coordinates: {latitude}, {longitude}; dates: {start} through {end}; timezone: {timezone}. /back edits the location or returns to manual input. Coverage may vary by model.",
+      "fr": "Répondez fetch pour envoyer ces coordonnées et dates à Open-Meteo et obtenir la météo de modèle. Coordonnées : {latitude}, {longitude} ; dates : {start} à {end} ; fuseau : {timezone}. /back modifie le lieu ou revient à la saisie manuelle. La couverture dépend du modèle.",
+      "zh-Hant": "回答 fetch 將座標與日期傳送至 Open-Meteo 並取得模型氣象資料。座標：{latitude}, {longitude}；日期：{start} 至 {end}；時區：{timezone}。/back 可修改位置或返回手動輸入。涵蓋範圍可能因模型而異。",
+      "translate_slots": []
+    },
+    {
+      "english": "Review the calculation below. Reply save to store it, /back to edit, or /cancel to discard the draft.",
+      "fr": "Vérifiez le calcul ci-dessous. Répondez enregistrer pour le conserver, /back pour modifier, ou /cancel pour abandonner le brouillon.",
+      "zh-Hant": "請檢查下方計算。回答儲存以保存，/back 修改，或 /cancel 放棄草稿。",
+      "translate_slots": []
+    },
+    {
+      "english": "{section} — {prompt}",
+      "fr": "{section} — {prompt}",
+      "zh-Hant": "{section} — {prompt}",
+      "translate_slots": [
+        "section",
+        "prompt"
+      ]
+    },
+    {
+      "english": "Layout",
+      "fr": "Configuration",
+      "zh-Hant": "配置",
+      "translate_slots": []
+    },
+    {
+      "english": "Emitter",
+      "fr": "Goutteur",
+      "zh-Hant": "滴頭",
+      "translate_slots": []
+    },
+    {
+      "english": "Main",
+      "fr": "Conduite principale",
+      "zh-Hant": "主管",
+      "translate_slots": []
+    },
+    {
+      "english": "Manifold",
+      "fr": "Collecteur",
+      "zh-Hant": "分配管",
+      "translate_slots": []
+    },
+    {
+      "english": "Lateral",
+      "fr": "Rampe",
+      "zh-Hant": "支管",
+      "translate_slots": []
+    },
+    {
+      "english": "Riser",
+      "fr": "Rehausse",
+      "zh-Hant": "立管",
+      "translate_slots": []
+    },
+    {
+      "english": "Supply",
+      "fr": "Source d’eau",
+      "zh-Hant": "水源",
+      "translate_slots": []
+    },
+    {
+      "english": "Headworks",
+      "fr": "Tête de réseau",
+      "zh-Hant": "首部設備",
+      "translate_slots": []
+    },
+    {
+      "english": "Application",
+      "fr": "Application",
+      "zh-Hant": "施灌",
+      "translate_slots": []
+    },
+    {
+      "english": "Limits",
+      "fr": "Limites",
+      "zh-Hant": "限制",
+      "translate_slots": []
+    },
+    {
+      "english": "Sprinkler",
+      "fr": "Asperseur",
+      "zh-Hant": "噴頭",
+      "translate_slots": []
+    },
+    {
+      "english": "Evaluate ONE furrow, border or basin with supplied timings. Choose furrow, border or basin. This experimental model does not predict advance/recession or recommend a cutoff time.",
+      "fr": "Évaluez UN sillon, une planche ou un bassin avec des temps fournis. Choisissez furrow, border ou basin. Ce modèle expérimental ne prédit ni avancement/retrait ni heure d’arrêt.",
+      "zh-Hant": "評估一條灌溉溝、一個畦區或灌溉盆，並提供時間資料。選 furrow、border 或 basin。此實驗模型不預測水流推進／消退，也不建議停水時間。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the evaluated length from inlet to field end, in metres?",
+      "fr": "Quelle est la longueur évaluée, de l’entrée à l’extrémité du champ, en mètres ?",
+      "zh-Hant": "由入口至田區末端的評估長度是多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "What spacing in metres does this ONE furrow represent? This is not wetted perimeter.",
+      "fr": "Quel espacement en mètres ce seul sillon représente-t-il ? Ce n’est pas le périmètre mouillé.",
+      "zh-Hant": "這一條灌溉溝所代表的間距是多少公尺？此值不是濕周。",
+      "translate_slots": []
+    },
+    {
+      "english": "What longitudinal slope applies, in metres/metre (not percent)? Supply a measured or explicit scenario value from 0 to 0.2.",
+      "fr": "Quelle pente longitudinale s’applique, en mètre/mètre (pas en pourcentage) ? Fournissez une mesure ou une hypothèse explicite de 0 à 0,2.",
+      "zh-Hant": "縱坡是多少公尺／公尺（非百分比）？請提供 0 至 0.2 的量測值或明確情境值。",
+      "translate_slots": []
+    },
+    {
+      "english": "What survey or explicit scenario supports the method, dimensions and slope?",
+      "fr": "Quel levé ou scénario explicite justifie la méthode, les dimensions et la pente ?",
+      "zh-Hant": "哪份測量或明確情境支持此方法、尺寸及坡度？",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose observed for a completed measured/reported event, or scenario for hypothetical timings and flows. Scenario results are not predictions of advance or recession.",
+      "fr": "Choisissez observed pour un événement mesuré/rapporté terminé, ou scenario pour des temps et débits hypothétiques. Un résultat de scénario n’est pas une prédiction d’avancement ou de retrait.",
+      "zh-Hant": "已完成的量測／回報事件請選 observed；假設的時間及流量請選 scenario。情境結果不是水流推進或消退的預測。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many elapsed minutes after the start did monitoring end, after all surface water had receded? Maximum 10080 minutes.",
+      "fr": "Combien de minutes après le début la surveillance s’est-elle terminée, une fois toute l’eau de surface retirée ? Maximum 10080 minutes.",
+      "zh-Hant": "開始後經過多少分鐘，在全部地表水消退後結束監測？最多 10080 分鐘。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many elapsed minutes after the start was inflow stopped? Supply the observed or scenario cutoff; this model does not choose it.",
+      "fr": "Combien de minutes après le début l’arrivée d’eau a-t-elle été arrêtée ? Fournissez l’arrêt observé ou supposé ; le modèle ne le choisit pas.",
+      "zh-Hant": "開始後經過多少分鐘停止入流？請提供觀測或情境停水時間；模型不會選擇此值。",
+      "translate_slots": []
+    },
+    {
+      "english": "How much rainfall occurred during the event, in mm? This model supports rain-free events only: enter 0 only if documented or explicitly assumed.",
+      "fr": "Combien de pluie est tombée pendant l’événement, en mm ? Ce modèle ne couvre que les événements sans pluie : saisissez 0 seulement si documenté ou explicitement supposé.",
+      "zh-Hant": "事件期間降雨多少毫米？此模型僅支援無雨事件：僅在有紀錄或明確假設時輸入 0。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many litres were already ponded at the start? This model supports initially unponded events only: enter 0 only if documented or explicitly assumed.",
+      "fr": "Combien de litres stagnaient déjà au début ? Le modèle exige l’absence initiale de lame d’eau : saisissez 0 seulement si documenté ou explicitement supposé.",
+      "zh-Hant": "開始時已有多少公升地表積水？模型僅支援初始無積水的事件：僅在有紀錄或明確假設時輸入 0。",
+      "translate_slots": []
+    },
+    {
+      "english": "Had all surface water drained/receded by monitoring end? Reply yes only if documented or explicitly assumed. Residual ponding is unsupported.",
+      "fr": "Toute l’eau de surface s’était-elle retirée à la fin du suivi ? Répondez yes seulement si documenté ou explicitement supposé. Une lame d’eau résiduelle n’est pas prise en charge.",
+      "zh-Hant": "監測結束時，地表水是否已全部排除／消退？僅在有紀錄或明確假設時回答 yes。不支援殘留積水。",
+      "translate_slots": []
+    },
+    {
+      "english": "What event log or explicit scenario supports the start, cutoff, monitoring end and rain/ponding conditions?",
+      "fr": "Quel journal ou scénario explicite justifie le début, l’arrêt, la fin du suivi et les conditions de pluie/stockage de surface ?",
+      "zh-Hant": "哪份事件紀錄或明確情境支持開始、停水、監測結束及降雨／積水條件？",
+      "translate_slots": []
+    },
+    {
+      "english": "What supplied exponent a applies in Z = k × t^a + steady_rate × t? Enter greater than 0 and at most 1.",
+      "fr": "Quel exposant fourni a s’applique dans Z = k × t^a + steady_rate × t ? Saisissez une valeur supérieure à 0 et au plus égale à 1.",
+      "zh-Hant": "Z = k × t^a + steady_rate × t 中提供的指數 a 是多少？須大於 0 且不超過 1。",
+      "translate_slots": []
+    },
+    {
+      "english": "What minimum infiltration opportunity time, in elapsed minutes, is covered by the coefficient evidence?",
+      "fr": "Quelle durée minimale d’infiltration, en minutes écoulées, est couverte par les données justifiant les coefficients ?",
+      "zh-Hant": "支持係數的資料涵蓋多少分鐘的最短入滲機會時間？",
+      "translate_slots": []
+    },
+    {
+      "english": "What maximum infiltration opportunity time, in elapsed minutes, is covered by the coefficient evidence? Every station's recession minus advance must fall in this range.",
+      "fr": "Quelle durée maximale d’infiltration, en minutes écoulées, est couverte par ces données ? À chaque station, retrait moins arrivée doit être dans cette plage.",
+      "zh-Hant": "支持係數的資料涵蓋多少分鐘的最長入滲機會時間？每個測站的消退時間減去到達時間都須在此範圍內。",
+      "translate_slots": []
+    },
+    {
+      "english": "What calibration or explicit scenario supports these infiltration coefficients and their opportunity-time range? For a furrow, include applicability to this discharge and wetted perimeter.",
+      "fr": "Quelle calibration ou hypothèse explicite justifie ces coefficients et leur plage de durée d’infiltration ? Pour un sillon, précisez l’applicabilité au débit et au périmètre mouillé.",
+      "zh-Hant": "哪份校正資料或明確情境支持這些入滲係數及機會時間範圍？溝灌需說明其對此流量及濕周的適用性。",
+      "translate_slots": []
+    },
+    {
+      "english": "How many advance/recession stations are supplied, including inlet and field end? Enter a whole number from 2 to 10000.",
+      "fr": "Combien de stations d’avancement/retrait fournissez-vous, entrée et extrémité comprises ? Saisissez un entier de 2 à 10000.",
+      "zh-Hant": "提供幾個水流推進／消退測站（包括入口及田區末端）？請輸入 2 至 10000 的整數。",
+      "translate_slots": []
+    },
+    {
+      "english": "What uniform root-zone deficit applied BEFORE this event, in mm? Reply unknown if unavailable; zero means no deficit, not missing data.",
+      "fr": "Quel déficit uniforme de la zone racinaire s’appliquait AVANT l’événement, en mm ? Répondez unknown si inconnu ; zéro signifie aucun déficit, pas une donnée manquante.",
+      "zh-Hant": "事件前的均勻根區水分虧缺是多少毫米？未知請回答 unknown；零代表無虧缺，不是缺少資料。",
+      "translate_slots": []
+    },
+    {
+      "english": "What water-accounting tolerance is justified by the measurements, as a percentage from 0 to 20? Supply the value; no default is selected.",
+      "fr": "Quelle tolérance de bilan hydrique les mesures justifient-elles, en pourcentage de 0 à 20 ? Fournissez la valeur ; aucune valeur par défaut n’est choisie.",
+      "zh-Hant": "量測所支持的水量收支容差是多少百分比（0 至 20）？請提供數值；系統不選預設值。",
+      "translate_slots": []
+    },
+    {
+      "english": "What evidence and applicability support the pre-event deficit (or its absence) and accounting tolerance?",
+      "fr": "Quelles données et conditions d’application justifient le déficit avant événement (ou son absence) et la tolérance du bilan ?",
+      "zh-Hant": "哪些證據及適用條件支持事件前虧缺（或其未知狀態）與收支容差？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is this border or basin's constant width, in metres?",
+      "fr": "Quelle est la largeur constante de cette planche ou de ce bassin, en mètres ?",
+      "zh-Hant": "此畦區或灌溉盆的固定寬度是多少公尺？",
+      "translate_slots": []
+    },
+    {
+      "english": "When did the event start? Supply an ISO timestamp with UTC offset. The farm timezone is {timezone}; all following times are elapsed minutes from this instant.",
+      "fr": "Quand l’événement a-t-il commencé ? Fournissez un horodatage ISO avec décalage UTC. Le fuseau de l’exploitation est {timezone} ; tous les temps suivants sont des minutes écoulées depuis cet instant.",
+      "zh-Hant": "事件何時開始？請提供包含 UTC 時差的 ISO 時間戳記。農場時區為 {timezone}；以下所有時間均為從此時刻起算的經過分鐘數。",
+      "translate_slots": []
+    },
+    {
+      "english": "Confirm the infiltration coefficient basis by entering {basis}. Cumulative intake Z is in {unit}; elapsed opportunity time t is in minutes.",
+      "fr": "Confirmez la base des coefficients en saisissant {basis}. L’infiltration cumulée Z est en {unit} ; la durée d’infiltration t est en minutes.",
+      "zh-Hant": "請輸入 {basis} 確認入滲係數基準。累積入滲量 Z 的單位為 {unit}；入滲機會時間 t 以分鐘計。",
+      "translate_slots": [
+        "unit"
+      ]
+    },
+    {
+      "english": "What supplied Kostiakov coefficient k applies, in {unit} per minute^a? No soil intake family is inferred.",
+      "fr": "Quel coefficient de Kostiakov k fourni s’applique, en {unit} par minute^a ? Aucune famille d’infiltration n’est déduite.",
+      "zh-Hant": "提供的 Kostiakov 係數 k 是多少，單位為 {unit}／分鐘^a？不會推定土壤入滲類別。",
+      "translate_slots": [
+        "unit"
+      ]
+    },
+    {
+      "english": "What supplied steady intake rate applies, in {unit} per minute?",
+      "fr": "Quel taux d’infiltration permanent fourni s’applique, en {unit} par minute ?",
+      "zh-Hant": "提供的穩定入滲率是多少，單位為 {unit}／分鐘？",
+      "translate_slots": [
+        "unit"
+      ]
+    },
+    {
+      "english": "m² (m³ per metre of furrow)",
+      "fr": "m² (m³ par mètre de sillon)",
+      "zh-Hant": "m²（每公尺灌溉溝的 m³）",
+      "translate_slots": []
+    },
+    {
+      "english": "mm of depth",
+      "fr": "mm de lame d’eau",
+      "zh-Hant": "毫米水深",
+      "translate_slots": []
+    },
+    {
+      "english": "inlet flow",
+      "fr": "débit entrant",
+      "zh-Hant": "入口流量",
+      "translate_slots": []
+    },
+    {
+      "english": "tailwater outflow",
+      "fr": "débit sortant en aval",
+      "zh-Hant": "尾水出流",
+      "translate_slots": []
+    },
+    {
+      "english": "Inlet Flow",
+      "fr": "Débit entrant",
+      "zh-Hant": "入口流量",
+      "translate_slots": []
+    },
+    {
+      "english": "Tailwater Outflow",
+      "fr": "Débit sortant en aval",
+      "zh-Hant": "尾水出流",
+      "translate_slots": []
+    },
+    {
+      "english": "Station {number}: distance from the inlet in metres? {rule}",
+      "fr": "Station {number} : distance depuis l’entrée, en mètres ? {rule}",
+      "zh-Hant": "測站 {number}：距入口多少公尺？{rule}",
+      "translate_slots": [
+        "rule"
+      ]
+    },
+    {
+      "english": "This endpoint must be {distance} m.",
+      "fr": "Cette extrémité doit être à {distance} m.",
+      "zh-Hant": "此端點必須為 {distance} 公尺。",
+      "translate_slots": []
+    },
+    {
+      "english": "Use increasing distances strictly between the endpoints.",
+      "fr": "Utilisez des distances croissantes strictement entre les extrémités.",
+      "zh-Hant": "請使用嚴格位於兩端點之間且依序增加的距離。",
+      "translate_slots": []
+    },
+    {
+      "english": "Station {number}: elapsed minutes from event start when water first arrived? {rule}",
+      "fr": "Station {number} : combien de minutes depuis le début à la première arrivée de l’eau ? {rule}",
+      "zh-Hant": "測站 {number}：水首次到達時，距事件開始已經過多少分鐘？{rule}",
+      "translate_slots": [
+        "rule"
+      ]
+    },
+    {
+      "english": "At the inlet this must be 0.",
+      "fr": "À l’entrée, cette valeur doit être 0.",
+      "zh-Hant": "入口的此值必須為 0。",
+      "translate_slots": []
+    },
+    {
+      "english": "Advance cannot precede the preceding station's advance.",
+      "fr": "L’arrivée ne peut pas précéder celle à la station précédente.",
+      "zh-Hant": "到達時間不可早於前一測站的到達時間。",
+      "translate_slots": []
+    },
+    {
+      "english": "Station {number}: elapsed minutes from event start when surface water receded? This is an absolute elapsed time, not a duration after arrival.",
+      "fr": "Station {number} : combien de minutes depuis le début à la disparition de l’eau de surface ? Ce temps est compté depuis le début de l’événement, pas depuis l’arrivée.",
+      "zh-Hant": "測站 {number}：地表水消退時，距事件開始已經過多少分鐘？這是從事件開始起算的時間，不是到達後的持續時間。",
+      "translate_slots": []
+    },
+    {
+      "english": "Station {number}: what observation log or explicit scenario supports its location and advance/recession times?",
+      "fr": "Station {number} : quel relevé ou scénario explicite justifie son emplacement et ses temps d’arrivée/retrait ?",
+      "zh-Hant": "測站 {number}：哪份觀測紀錄或明確情境支持其位置與推進／消退時間？",
+      "translate_slots": []
+    },
+    {
+      "english": "How many consecutive {label} intervals cover the ENTIRE monitoring window? Enter a whole number from 1 to 10000, including explicit zero-flow intervals. {rule}",
+      "fr": "Combien d’intervalles consécutifs de {label} couvrent TOUTE la période de suivi ? Saisissez un entier de 1 à 10000, intervalles explicites de débit nul compris. {rule}",
+      "zh-Hant": "有幾個連續的{label}區間涵蓋整個監測期間？請輸入 1 至 10000 的整數，包括明確的零流量區間。{rule}",
+      "translate_slots": [
+        "label",
+        "rule"
+      ]
+    },
+    {
+      "english": "Inflow must split at cutoff and be zero afterwards; surge irrigation is unsupported.",
+      "fr": "Découpez l’arrivée d’eau à l’instant d’arrêt ; elle doit être nulle ensuite. L’irrigation par impulsions n’est pas prise en charge.",
+      "zh-Hant": "入流區間須在停水時分開，之後流量為零；不支援間歇波湧灌溉。",
+      "translate_slots": []
+    },
+    {
+      "english": "No runoff still requires an explicit zero-flow interval and source.",
+      "fr": "Même sans écoulement sortant, fournissez un intervalle explicite de débit nul et sa source.",
+      "zh-Hant": "即使沒有尾水流出，也須提供明確的零流量區間及來源。",
+      "translate_slots": []
+    },
+    {
+      "english": "{label} interval {number}: start time in elapsed minutes? {rule}",
+      "fr": "Intervalle {number} de {label} : début en minutes écoulées ? {rule}",
+      "zh-Hant": "{label}區間 {number}：開始時間是經過多少分鐘？{rule}",
+      "translate_slots": [
+        "label",
+        "rule"
+      ]
+    },
+    {
+      "english": "To cover time continuously, enter {start}.",
+      "fr": "Pour couvrir le temps sans interruption, saisissez {start}.",
+      "zh-Hant": "為使時間連續，請輸入 {start}。",
+      "translate_slots": []
+    },
+    {
+      "english": "It must equal the preceding interval's end.",
+      "fr": "Il doit être égal à la fin de l’intervalle précédent.",
+      "zh-Hant": "須等於前一區間的結束時間。",
+      "translate_slots": []
+    },
+    {
+      "english": "{label} interval {number}: end time in elapsed minutes? {rule}",
+      "fr": "Intervalle {number} de {label} : fin en minutes écoulées ? {rule}",
+      "zh-Hant": "{label}區間 {number}：結束時間是經過多少分鐘？{rule}",
+      "translate_slots": [
+        "label",
+        "rule"
+      ]
+    },
+    {
+      "english": "The final interval must end at monitoring end, {end} minutes.",
+      "fr": "Le dernier intervalle doit finir à la fin du suivi, à {end} minutes.",
+      "zh-Hant": "最後一個區間須在監測結束的 {end} 分鐘終止。",
+      "translate_slots": []
+    },
+    {
+      "english": "It must be after its start and before monitoring end.",
+      "fr": "La fin doit être après le début de cet intervalle et avant la fin du suivi.",
+      "zh-Hant": "須晚於該區間開始，且早於監測結束。",
+      "translate_slots": []
+    },
+    {
+      "english": "{label} interval {number}: mean flow over this interval, in litres/SECOND (not litres/hour)? Enter zero only when documented or explicitly assumed.",
+      "fr": "Intervalle {number} de {label} : débit moyen sur cet intervalle, en litres/SECONDE (pas par heure) ? Saisissez zéro seulement si documenté ou explicitement supposé.",
+      "zh-Hant": "{label}區間 {number}：此區間的平均流量是多少公升／秒（非公升／小時）？僅在有紀錄或明確假設時輸入零。",
+      "translate_slots": [
+        "label"
+      ]
+    },
+    {
+      "english": "{label} interval {number}: what measurement or explicit scenario supports this interval-average flow?",
+      "fr": "Intervalle {number} de {label} : quelle mesure ou hypothèse explicite justifie ce débit moyen ?",
+      "zh-Hant": "{label}區間 {number}：哪份量測或明確情境支持此區間平均流量？",
+      "translate_slots": [
+        "label"
+      ]
+    },
+    {
+      "english": "Choose manual to supply an application target, or budget to adopt a saved soil-water budget's end-of-day refill amount.",
+      "fr": "Choisissez manual pour fournir une cible d’application, ou budget pour adopter le besoin de remplissage de fin de journée d’un bilan hydrique enregistré.",
+      "zh-Hant": "選 manual 自行提供施灌目標，或選 budget 採用已儲存土壤水分收支的日末補水量。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose a listed number or enter a saved soil-water calculation ID for this unit and crop cycle. Its whole area must match the layout. Recent versions:\n{budgets}",
+      "fr": "Choisissez un numéro ou l’identifiant d’un bilan hydrique enregistré pour cette unité et ce cycle. Sa surface totale doit correspondre au réseau. Versions récentes :\n{budgets}",
+      "zh-Hant": "請選清單編號或輸入此生產單位及作期已儲存的土壤水分計算 ID。整體面積須與配置相符。近期版本：\n{budgets}",
+      "translate_slots": []
+    },
+    {
+      "english": "Which closing soil-state date supplies the refill target? Choose YYYY-MM-DD from: {dates}. This is an END-OF-DAY budget, not an irrigation action on that day.",
+      "fr": "Quelle date d’état final du sol fournit la cible de remplissage ? Choisissez AAAA-MM-JJ parmi : {dates}. C’est un bilan de FIN DE JOURNÉE, pas une irrigation effectuée ce jour.",
+      "zh-Hant": "要用哪個日末土壤狀態日期提供補水目標？請從 {dates} 選 YYYY-MM-DD。這是日末水分收支，不是當天已進行的灌溉。",
+      "translate_slots": []
+    },
+    {
+      "english": "Why is this budget applicable to the entire equipment layout? Describe crop/root-zone applicability and, for drip, the limitations of using a uniform soil bucket with localized wetting.",
+      "fr": "Pourquoi ce bilan s’applique-t-il à tout le réseau ? Décrivez l’applicabilité à la culture et à la zone racinaire ; pour le goutte-à-goutte, précisez les limites d’un réservoir de sol uniforme avec mouillage localisé.",
+      "zh-Hant": "為何此水分收支適用於整個設備配置？請描述作物／根區適用性；滴灌另需說明均勻土壤水桶模型用於局部濕潤的限制。",
+      "translate_slots": []
+    },
+    {
+      "english": "Water target from calculation {id}: END-OF-DAY state {day} ({timezone}); selected-day weather: {kind}; {area} m². Refill: net {net} mm, gross {gross} mm; efficiency {efficiency}%. This target includes that day's water inputs and describes the closing soil state; it is not a same-day completed irrigation or a timed schedule.\nReply use to adopt this amount and efficiency as an equipment-sizing scenario. It is not a timed irrigation schedule and adds no allowance for later weather. /back edits the selection.",
+      "fr": "Cible du calcul {id} : état de FIN DE JOURNÉE au {day} ({timezone}) ; météo du jour : {kind} ; {area} m². Remplissage net : {net} mm, brut : {gross} mm ; efficacité : {efficiency} %. Cette cible inclut les apports d’eau du jour et décrit l’état final du sol ; ce n’est ni une irrigation effectuée ce jour ni un programme horaire.\nRépondez use pour adopter ce montant et cette efficacité comme scénario de dimensionnement. Ce n’est pas un programme horaire et aucune météo ultérieure n’est ajoutée. /back modifie le choix.",
+      "zh-Hant": "計算 {id} 的水量目標：{day}（{timezone}）日末狀態；當日氣象類型：{kind}；{area} m²。淨補水量 {net} mm，總補水量 {gross} mm；效率 {efficiency}%。此目標包含當天的水分輸入，描述日末土壤狀態；不是當天已完成的灌溉，也不是定時灌溉排程。\n回答 use 可將此水量與效率採用為設備尺寸評估情境。這不是定時灌溉排程，亦未加入後續氣象的水量。/back 可修改選擇。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose manual for supplied daily ET0/rainfall, meteorology for daily station readings, or open_meteo to fetch model estimates. Open-Meteo supports windows of 1–16 days, within the last 90 days through 14 days ahead.",
+      "fr": "Choisissez manual pour fournir les totaux quotidiens ET0/pluie, meteorology pour les relevés météorologiques quotidiens, ou open_meteo pour récupérer des estimations de modèle. Open-Meteo accepte des périodes de 1 à 16 jours, des 90 derniers jours jusqu’à 14 jours à venir.",
+      "zh-Hant": "選 manual 輸入每日 ET0／雨量，選 meteorology 輸入每日氣象站資料，或選 open_meteo 取得模型估計值。Open-Meteo 支援 1–16 天的期間，範圍為過去 90 天至未來 14 天。",
+      "translate_slots": []
+    },
+    {
+      "english": "Choose net for supplied daily net radiation, or solar to estimate net radiation from daily incoming solar energy using FAO-56.",
+      "fr": "Choisissez net pour fournir le rayonnement net quotidien, ou solar pour estimer le rayonnement net à partir de l’énergie solaire incidente quotidienne selon FAO-56.",
+      "zh-Hant": "選 net 輸入每日淨輻射量，或選 solar 以每日入射太陽能量依 FAO-56 估算淨輻射量。",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the site elevation above sea level, in metres (−500 to 9000)?",
+      "fr": "Quelle est l’altitude du site au-dessus du niveau de la mer, en mètres (−500 à 9000) ?",
+      "zh-Hant": "測站海拔高度是多少公尺（−500 至 9000）？",
+      "translate_slots": []
+    },
+    {
+      "english": "At what height above ground was wind speed measured, in metres (0.5 to 100)?",
+      "fr": "À quelle hauteur au-dessus du sol la vitesse du vent a-t-elle été mesurée, en mètres (0.5 à 100) ?",
+      "zh-Hant": "風速是在離地多少公尺處量測的（0.5 至 100）？",
+      "translate_slots": []
+    },
+    {
+      "english": "What is the source of the daily temperature, humidity, wind and radiation values, site information, and any rainfall? Supply daily extremes; interval averages do not establish them.",
+      "fr": "Quelle est la source des valeurs quotidiennes de température, d’humidité, de vent et de rayonnement, des informations du site et, le cas échéant, des précipitations ? Fournissez les extrêmes quotidiens ; les moyennes par intervalle ne permettent pas de les établir.",
+      "zh-Hant": "每日溫度、濕度、風速、輻射量、測站資訊及雨量（如有）的資料來源是什麼？請提供全日最高與最低值；時段平均值無法確定這些極值。",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is the minimum air temperature over the full day, in °C?",
+      "fr": "{day} : quelle est la température minimale de l’air sur la journée entière, en °C ?",
+      "zh-Hant": "{day}：全日最低氣溫是多少 °C？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is the maximum air temperature over the full day, in °C?",
+      "fr": "{day} : quelle est la température maximale de l’air sur la journée entière, en °C ?",
+      "zh-Hant": "{day}：全日最高氣溫是多少 °C？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is the minimum relative humidity over the full day, in percent?",
+      "fr": "{day} : quelle est l’humidité relative minimale sur la journée entière, en pourcentage ?",
+      "zh-Hant": "{day}：全日最低相對濕度是多少百分比？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is the maximum relative humidity over the full day, in percent?",
+      "fr": "{day} : quelle est l’humidité relative maximale sur la journée entière, en pourcentage ?",
+      "zh-Hant": "{day}：全日最高相對濕度是多少百分比？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is the mean wind speed over the full day, in m/s, at the stated measurement height?",
+      "fr": "{day} : quelle est la vitesse moyenne du vent sur la journée entière, en m/s, à la hauteur de mesure indiquée ?",
+      "zh-Hant": "{day}：在所填量測高度，全日平均風速是多少 m/s？",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is total daily net radiation in MJ/m²? This is not incoming solar energy.",
+      "fr": "{day} : quel est le rayonnement net total quotidien en MJ/m² ? Il ne s’agit pas de l’énergie solaire incidente.",
+      "zh-Hant": "{day}：全日淨輻射總量是多少 MJ/m²？此值不是入射太陽能量。",
+      "translate_slots": []
+    },
+    {
+      "english": "{day}: what is total daily incoming solar energy in MJ/m²? This is a full-day energy total, not an instantaneous W/m² reading.",
+      "fr": "{day} : quelle est l’énergie solaire incidente totale quotidienne en MJ/m² ? Il s’agit du total énergétique sur une journée entière, pas d’une mesure instantanée en W/m².",
+      "zh-Hant": "{day}：全日入射太陽能量總和是多少 MJ/m²？請輸入一整天的能量總和，不是瞬時 W/m² 讀值。",
+      "translate_slots": []
+    }
+  ]
+}

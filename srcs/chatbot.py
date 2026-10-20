@@ -198,6 +198,8 @@ def load_urls_from_file(file_path: str) -> List[str]:
 
 
 def load_local_knowledge_documents(knowledge_dir: str = KNOWLEDGE_DIR):
+    from agronaut_agent.field_guides import guide_metadata
+
     docs = []
     base = pathlib.Path(knowledge_dir)
     if not base.exists():
@@ -214,6 +216,7 @@ def load_local_knowledge_documents(knowledge_dir: str = KNOWLEDGE_DIR):
                 d.metadata["source_path"] = str(fp)
                 d.metadata["kb_tag"] = fp.stem.lower()
                 d.metadata["domain"] = guide_domain(d.page_content)
+                d.metadata.update(guide_metadata(d.page_content))
             docs.extend(loaded)
         except Exception as err:  # noqa: BLE001
             logging.warning("Failed to load local file %s – %s", fp, err)
@@ -233,15 +236,15 @@ def _probe_url(url: str) -> dict | None:
     publisher for no reason.
 
     Returns None when the source must not be indexed (non-2xx). Returns a dict on success.
-    On a transport error it returns a dict with no content, letting WebBaseLoader try and apply
-    its own error handling rather than silently dropping a healthy source on one flaky request.
+    On a transport error it returns a dict with status 0. The caller can retry the probe;
+    an unknown response type must never send PDF bytes through the HTML loader.
     """
     try:
         import requests
         r = requests.get(url, timeout=WEB_LOAD_TIMEOUT, allow_redirects=True,
-                         headers={"User-Agent": "Mozilla/5.0 (compatible; Agronaut/1.0)"})
+                         headers={"User-Agent": "Agronaut/1.0"})
     except Exception as err:  # noqa: BLE001 — a probe failure must not cost us the source
-        logging.debug("Probe failed for %s (%s); deferring to the loader", url, err)
+        logging.debug("Probe failed for %s (%s)", url, err)
         return {"status": 0, "content": b"", "content_type": "", "is_pdf": False}
 
     if not (200 <= r.status_code < 300):
@@ -486,6 +489,11 @@ def _jats_documents(content: bytes, url: str):
 
 def load_web_page(url: str):
     probe = _probe_url(url)
+    if probe is not None and probe.get("status") == 0:
+        probe = _probe_url(url)
+        if probe is not None and probe.get("status") == 0:
+            logging.warning("Skipping %s — unable to determine content type after retry", url)
+            return []
     if probe is None:
         return []
     if probe["is_pdf"]:
@@ -1866,7 +1874,7 @@ INDEX_CACHE_TTL = 7 * 86_400   # web sources are re-fetched at most weekly
 # Bumped when the metadata attached to chunks changes. An index cached under the old schema
 # has the old fields, and a filter on a new one would quietly match nothing.
 #   2: licence, domain, year, doi
-META_SCHEMA = 2
+META_SCHEMA = 3
 
 
 def _corpus_fingerprint() -> str:

@@ -1,0 +1,995 @@
+{
+  "description": "Synthetic development probes for field calculation boundaries. These check the real deterministic tool output, not LLM behavior, independent agronomic review or field validity. Fixture inputs come from examples and retain their scenario/source labels.",
+  "probes": [
+    {
+      "id": "field-demand-is-not-feasibility",
+      "task": "crop_water",
+      "fixture": "field_water.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-unknown-soil-is-not-zero",
+      "task": "root_zone_budget",
+      "fixture": "field_water.json",
+      "edits": [
+        {
+          "path": [
+            "initial_state"
+          ],
+          "value": null
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "missing_inputs"
+          ],
+          "contains": "soil_state"
+        },
+        {
+          "path": [
+            "result",
+            "days",
+            0,
+            "balance"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "days",
+            0,
+            "requirement",
+            "values",
+            "net_irrigation_mm"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "days",
+            0,
+            "requirement",
+            "values",
+            "gross_irrigation_l"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-unknown-rain-rejected",
+      "task": "root_zone_budget",
+      "fixture": "field_water.json",
+      "edits": [
+        {
+          "path": [
+            "weather",
+            0,
+            "rainfall_mm"
+          ],
+          "value": null
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "status"
+          ],
+          "equals": "VALIDATION_FAILED"
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "contains": "rainfall_mm"
+        }
+      ]
+    },
+    {
+      "id": "field-unsupported-surface-cutoff",
+      "task": "surface_cutoff",
+      "inputs": {},
+      "assertions": [
+        {
+          "path": [
+            "status"
+          ],
+          "equals": "VALIDATION_FAILED"
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "contains": "not implemented"
+        }
+      ]
+    },
+    {
+      "id": "field-failed-drip-has-no-schedule",
+      "task": "drip_design",
+      "fixture": "drip_design.json",
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "max_flow_lph"
+          ],
+          "value": 1
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": false
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "source_flow_lph"
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-failed-sprinkler-has-no-schedule",
+      "task": "sprinkler_design",
+      "fixture": "sprinkler_design.json",
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "max_flow_lph"
+          ],
+          "value": 1
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": false
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "source_flow_lph"
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-surface-balance-mismatch-withholds-performance",
+      "task": "surface_evaluation",
+      "fixture": "surface_event.json",
+      "edits": [
+        {
+          "path": [
+            "infiltration",
+            "steady_rate"
+          ],
+          "value": 2
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "water_balance_accepted"
+          ],
+          "equals": false
+        },
+        {
+          "path": [
+            "result",
+            "performance"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "cutoff_recommendation"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-advance-is-not-cutoff",
+      "task": "surface_advance",
+      "fixture": "surface_advance.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "event_kind"
+          ],
+          "equals": "scenario"
+        },
+        {
+          "path": [
+            "result",
+            "cutoff_recommendation"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-unsupported-advance-withheld",
+      "task": "surface_advance",
+      "fixture": "surface_advance.json",
+      "edits": [
+        {
+          "path": [
+            "limits",
+            "max_advance_min"
+          ],
+          "value": 1
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "cutoff_recommendation"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-lateral-is-not-irrigation-schedule",
+      "task": "drip_lateral",
+      "fixture": "drip_lateral.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "event_kind"
+          ],
+          "equals": "scenario"
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-lateral-does-not-extrapolate-curve",
+      "task": "drip_lateral",
+      "fixture": "drip_lateral.json",
+      "edits": [
+        {
+          "path": [
+            "inlet",
+            "running_head_m"
+          ],
+          "value": 0.01
+        }
+      ],
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "no_solution_within_emitter_curve_envelope"
+        }
+      ]
+    },
+    {
+      "id": "field-curve-source-required",
+      "task": "drip_lateral",
+      "fixture": "drip_lateral.json",
+      "edits": [
+        {
+          "path": [
+            "emitter",
+            "source"
+          ],
+          "value": ""
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "status"
+          ],
+          "equals": "VALIDATION_FAILED"
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "contains": "source"
+        }
+      ]
+    },
+    {
+      "id": "field-domain-is-not-an-aquatic-fallback",
+      "task": "drip_lateral",
+      "production_system": "aquaponics",
+      "fixture": "drip_lateral.json",
+      "assertions": [
+        {
+          "path": [
+            "status"
+          ],
+          "equals": "VALIDATION_FAILED"
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "contains": "unsupported capability"
+        }
+      ]
+    },
+    {
+      "id": "field-nutrition-accounting-is-not-prescription",
+      "task": "nutrient_budget",
+      "fixture": "nutrient_budget.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "nutrients"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-french-guide-remains-draft",
+      "task": "field_guidance",
+      "inputs": {
+        "topic": "drip",
+        "language": "fr"
+      },
+      "evidence_status": "guidance",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "translation_status"
+          ],
+          "equals": "draft"
+        },
+        {
+          "path": [
+            "result",
+            "language"
+          ],
+          "equals": "fr"
+        },
+        {
+          "path": [
+            "result",
+            "translation_note"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-traditional-chinese-guide-remains-draft",
+      "task": "field_guidance",
+      "inputs": {
+        "topic": "surface",
+        "language": "zh-Hant"
+      },
+      "evidence_status": "guidance",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "translation_status"
+          ],
+          "equals": "draft"
+        },
+        {
+          "path": [
+            "result",
+            "language"
+          ],
+          "equals": "zh-Hant"
+        },
+        {
+          "path": [
+            "result",
+            "translation_note"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-catch-statistics-are-not-feasibility",
+      "task": "sprinkler_catch_test",
+      "fixture": "sprinkler_catches.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "statistics"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-emitter-statistics-are-not-feasibility",
+      "task": "drip_emitter_test",
+      "fixture": "drip_emitters.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "statistics"
+          ],
+          "nonempty": true
+        }
+      ]
+    },
+    {
+      "id": "field-inlet-curve-retains-operating-point",
+      "task": "drip_lateral",
+      "fixture": "drip_lateral_curve.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "schema_version"
+          ],
+          "equals": 2
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "event_kind"
+          ],
+          "equals": "scenario"
+        }
+      ]
+    },
+    {
+      "id": "field-inlet-curve-does-not-extrapolate",
+      "task": "drip_lateral",
+      "fixture": "drip_lateral_curve.json",
+      "evidence_status": "experimental",
+      "edits": [
+        {
+          "path": [
+            "emitter",
+            "exponent"
+          ],
+          "value": 0
+        },
+        {
+          "path": [
+            "inlet",
+            "curve"
+          ],
+          "value": [
+            {
+              "flow_lph": 0,
+              "pressure_head_m": 14
+            },
+            {
+              "flow_lph": 9,
+              "pressure_head_m": 12
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "no_solution_within_inlet_and_emitter_curves"
+        }
+      ]
+    },
+    {
+      "id": "field-zone-shares-one-source",
+      "task": "drip_zone",
+      "fixture": "drip_zone.json",
+      "evidence_status": "experimental",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "prediction",
+            "laterals",
+            0,
+            "identifier"
+          ],
+          "equals": "L1"
+        },
+        {
+          "path": [
+            "result",
+            "prediction",
+            "laterals",
+            1,
+            "identifier"
+          ],
+          "equals": "L2"
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-zone-capacity-failure-is-visible",
+      "task": "drip_zone",
+      "fixture": "drip_zone.json",
+      "evidence_status": "experimental",
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "max_flow_lph"
+          ],
+          "value": 1
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": false
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "source_flow_lph"
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-zone-cannot-drop-unsupported-branch",
+      "task": "drip_zone",
+      "fixture": "drip_zone.json",
+      "evidence_status": "experimental",
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "curve"
+          ],
+          "value": [
+            {
+              "flow_lph": 0,
+              "pressure_head_m": 14
+            },
+            {
+              "flow_lph": 1,
+              "pressure_head_m": 6
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ]
+    },
+    {
+      "id": "field-manifold-retains-all-takeoffs",
+      "task": "drip_manifold",
+      "fixture": "drip_manifold.json",
+      "assertions": [
+        {
+          "path": [
+            "result",
+            "prediction",
+            "nodes",
+            0,
+            "identifier"
+          ],
+          "equals": "L1"
+        },
+        {
+          "path": [
+            "result",
+            "prediction",
+            "nodes",
+            1,
+            "identifier"
+          ],
+          "equals": "L2"
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ],
+      "evidence_status": "experimental"
+    },
+    {
+      "id": "field-manifold-capacity-failure-is-visible",
+      "task": "drip_manifold",
+      "fixture": "drip_manifold.json",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": false
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "source_flow_lph"
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "nonempty": true
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ],
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "max_flow_lph"
+          ],
+          "value": 1
+        }
+      ],
+      "evidence_status": "experimental"
+    },
+    {
+      "id": "field-manifold-rejects-lateral-pressure-reference",
+      "task": "drip_manifold",
+      "fixture": "drip_manifold.json",
+      "assertions": [
+        {
+          "path": [
+            "status"
+          ],
+          "equals": "VALIDATION_FAILED"
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "contains": "head_reference"
+        }
+      ],
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "head_reference"
+          ],
+          "value": "lateral_inlet_pressure"
+        }
+      ]
+    },
+    {
+      "id": "field-manifold-does-not-omit-unsupported-takeoffs",
+      "task": "drip_manifold",
+      "fixture": "drip_manifold.json",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "binding_constraints"
+          ],
+          "contains": "no_supported_manifold_operating_point"
+        }
+      ],
+      "edits": [
+        {
+          "path": [
+            "supply",
+            "curve",
+            1,
+            "flow_lph"
+          ],
+          "value": 1
+        }
+      ],
+      "evidence_status": "experimental"
+    },
+    {
+      "id": "field-scouting-is-guidance-not-diagnosis",
+      "task": "field_guidance",
+      "inputs": {
+        "topic": "crop-scouting",
+        "language": "en"
+      },
+      "evidence_status": "guidance",
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "topic"
+          ],
+          "equals": "crop-scouting"
+        },
+        {
+          "path": [
+            "result",
+            "applicability"
+          ],
+          "contains": "no confirmed pest or disease diagnosis"
+        }
+      ]
+    },
+    {
+      "id": "field-sprinkler-lateral-withholds-outside-source-curve",
+      "task": "sprinkler_lateral",
+      "evidence_status": "experimental",
+      "edits": [
+        {
+          "path": [
+            "inlet",
+            "curve"
+          ],
+          "value": [
+            {
+              "flow_lph": 0,
+              "pressure_head_m": 40
+            },
+            {
+              "flow_lph": 100,
+              "pressure_head_m": 30
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "path": [
+            "feasible"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "prediction"
+          ],
+          "equals": null
+        },
+        {
+          "path": [
+            "result",
+            "schedule"
+          ],
+          "equals": null
+        }
+      ],
+      "fixture": "sprinkler_lateral_curve.json"
+    }
+  ]
+}

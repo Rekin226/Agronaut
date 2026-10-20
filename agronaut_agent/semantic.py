@@ -111,7 +111,10 @@ class SemanticMemory:
 
     def _store(self, memory_id: int, vec: np.ndarray) -> None:
         self.db.execute(
-            "INSERT INTO memory_embeddings(memory_id, dim, vector) VALUES (?,?,?) "
+            # An embedder may finish after the owner erased the underlying memory.
+            # Check and write in the same SQL statement so no orphan vector is recreated.
+            "INSERT INTO memory_embeddings(memory_id, dim, vector) "
+            "SELECT id,?,? FROM memories WHERE id=? "
             "ON CONFLICT(memory_id) DO UPDATE SET dim=excluded.dim, vector=excluded.vector",
-            (memory_id, int(vec.shape[0]), vec.tobytes()),
+            (int(vec.shape[0]), vec.tobytes(), memory_id),
         )

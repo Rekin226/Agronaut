@@ -73,3 +73,22 @@ def test_export_is_scoped_to_the_requesting_user(tmp_path):
 
     data = agent.export_user_data("telegram", "1")
     assert "location" not in data["profile"]          # never leak another user's data
+
+
+def test_farm_records_follow_export_and_erasure(tmp_path):
+    from agro_model.farm import Farm, ProductionCycle, ProductionUnit
+    from agronaut_agent.unit_context import UnitContexts
+
+    agent = AgronautAgent(db_path=tmp_path / "farms.sqlite3", chat_model=_Chatty())
+    uid = _seed(agent)
+    agent._farms.create_farm(Farm("farm", uid, "Home", "Asia/Taipei"))
+    agent._farms.create_unit(uid, ProductionUnit(
+        "field", "farm", "Tomatoes", "soil", "soil", "open_field", "fully_irrigated", "drip"))
+    agent._farms.create_cycle(uid, ProductionCycle("cycle", "field", "tomato", "2026-07-01"))
+    context = UnitContexts(agent._farms.db).select(uid, "field")
+    agent._mem.set_fact(context.context_id, "crop", "tomato")
+    assert agent.export_user_data("telegram", "1")["farms"]["cycles"][0]["crop"] == "tomato"
+    assert agent.export_user_data("telegram", "1")["farms"]["contexts"][0]["facts"][0]["value"] == "tomato"
+    agent.delete_me("telegram", "1")
+    assert agent._mem.get_facts(context.context_id) == {}
+    assert all(not items for items in agent.export_user_data("telegram", "1")["farms"].values())

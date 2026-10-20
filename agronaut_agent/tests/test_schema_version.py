@@ -38,14 +38,20 @@ def test_a_fresh_database_is_stamped(tmp_path):
 def test_a_pre_stamp_database_keeps_its_history_and_is_adopted(tmp_path):
     """A 1.0.0 database carries user_version 0 and the v1 layout. That IS v1."""
     path = tmp_path / "old.sqlite3"
-    db = _Db(path)
-    convo = ConversationStore(db)
-    user = convo.get_or_create_user("telegram", "77", "Rekin")
-    convo.append_message(user, "user", "how big a tank for 50 tilapia?")
-
-    # Rewind the stamp to simulate a file written before this version existed.
+    # Construct legacy storage independently; relabeling the current layout would
+    # leave future-version tables behind and is not a real upgrade fixture.
+    user = "telegram:77"
     raw = sqlite3.connect(str(path))
-    raw.execute("PRAGMA user_version = 0")
+    raw.executescript("""
+        CREATE TABLE users (user_id TEXT PRIMARY KEY, channel TEXT NOT NULL,
+            channel_user TEXT NOT NULL, display_name TEXT, created_at TEXT NOT NULL,
+            UNIQUE(channel,channel_user));
+        CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
+            role TEXT NOT NULL, content TEXT NOT NULL, tool_name TEXT, created_at TEXT NOT NULL);
+    """)
+    raw.execute("INSERT INTO users VALUES(?,?,?,?,?)", (user, "telegram", "77", "Rekin", "2025-01-01"))
+    raw.execute("INSERT INTO messages(user_id,role,content,created_at) VALUES(?,?,?,?)",
+                (user, "user", "how big a tank for 50 tilapia?", "2025-01-01"))
     raw.commit()
     raw.close()
     assert _user_version(path) == 0

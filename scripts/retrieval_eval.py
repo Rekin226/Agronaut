@@ -37,7 +37,7 @@ _GOLDEN_ML = _ROOT / "docs" / "dpg" / "retrieval_eval" / "golden_set_multilingua
 
 # The baseline the shipped retrieval constants (floor, cap, beta in agronaut_agent/rag.py) were
 # tuned against. When a re-sweep moves them, save a new baseline and point this at it.
-CURRENT_BASELINE = _ROOT / "docs" / "dpg" / "retrieval_eval" / "baseline_tuned_2026_09.json"
+CURRENT_BASELINE = _ROOT / "docs" / "dpg" / "retrieval_eval" / "baseline_all_field_guides_2026_10.json"
 
 # How far the knowledge/ guides may drift, in bytes, before the constants must be re-measured.
 # This is a trigger to re-measure, NOT a measured tolerance: nobody has measured how much drift
@@ -235,7 +235,7 @@ def _chunk_count() -> int | None:
 # --- the live run ------------------------------------------------------------
 
 def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = False,
-        multilingual: bool = False) -> dict:
+        multilingual: bool = False, golden: dict | None = None) -> dict:
     """Score the golden set.
 
     `retrieve` is injectable (query, k) -> list of hit dicts; defaults to the real index.
@@ -243,20 +243,24 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
     need raw distances, because a floor that has already discarded them tells us nothing about
     whether it was set at the right place.
     `multilingual` adds the French and Mandarin translations and splits the summary by language.
+    `golden` optionally supplies another set and its metadata filters. Injected retrievers
+    must apply those filters themselves; the live default applies them to both paths.
     """
-    golden = json.loads(_GOLDEN.read_text())
+    golden = json.loads(_GOLDEN.read_text()) if golden is None else golden
+    filters = golden.get("filters")
     if multilingual:
         golden = merge_golden(golden, json.loads(_GOLDEN_ML.read_text()))
     k = k or golden.get("k", 3)
     if retrieve is None:
         from agronaut_agent import rag
         inf = float("inf")
-        retrieve = (lambda q, kk: rag.retrieve(q, kk, max_dist=inf)) if no_floor else rag.retrieve
+        retrieve = lambda q, kk: rag.retrieve(q, kk, filters=filters, **(  # noqa: E731
+            {"max_dist": inf} if no_floor else {}))
         if unfiltered is None:
             # No floor AND no per-source cap. The cap can displace the very chunk that is closest
             # in L2 (when it is a source's second passage), so a "raw" distance measured through
             # a capped result set is too high and would overstate how tight a floor can be.
-            unfiltered = lambda q, kk: rag.retrieve(q, kk, max_dist=inf, max_per_source=0)  # noqa: E731
+            unfiltered = lambda q, kk: rag.retrieve(q, kk, max_dist=inf, max_per_source=0, filters=filters)  # noqa: E731
     if unfiltered is None:
         unfiltered = retrieve
 
@@ -309,7 +313,8 @@ def run(k: int | None = None, retrieve=None, unfiltered=None, no_floor: bool = F
     summary["negative_controls"] = len(negatives)
     if multilingual:
         summary["by_lang"] = by_language(per_query, negatives, k)
-    return {"summary": summary, "per_query": per_query, "negative_controls": negatives}
+    return {"summary": summary, "per_query": per_query, "negative_controls": negatives,
+            **({"filters": filters} if filters else {})}
 
 
 def _print(report: dict, baseline: dict | None = None) -> None:
@@ -382,13 +387,17 @@ def main() -> int:
     ap.add_argument("--save", metavar="FILE", help="write this run as a baseline")
     ap.add_argument("--compare", metavar="FILE", help="print deltas against a saved baseline")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--golden", metavar="FILE", help="use another golden set, including its optional metadata filters")
     ap.add_argument("--no-floor", action="store_true",
                     help="measure retrieval with the relevance floor disabled")
     ap.add_argument("--multilingual", action="store_true",
                     help="also score the French and Mandarin golden queries, per language")
     args = ap.parse_args()
 
-    report = run(k=args.k, no_floor=args.no_floor, multilingual=args.multilingual)
+    if args.golden and args.multilingual:
+        ap.error("--multilingual uses the default golden set; omit --golden")
+    report = run(k=args.k, no_floor=args.no_floor, multilingual=args.multilingual,
+                 golden=json.loads(Path(args.golden).read_text()) if args.golden else None)
     baseline = json.loads(Path(args.compare).read_text()) if args.compare else None
 
     if args.json:

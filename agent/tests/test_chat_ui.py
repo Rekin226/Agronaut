@@ -53,9 +53,27 @@ def _open_chat(at):
     return at
 
 
+def _submit_chat(at, text):
+    """Submit the browser's combined-input message without disabling file support.
+
+    Some Streamlit AppTest versions still serialize text as string_trigger_value,
+    although the file-capable widget expects chat_input_value (with upload state).
+    Preserve every other widget state and supply the actual browser message shape.
+    """
+    widget = at.chat_input[0]
+    widget.set_value(text)
+    states = at._tree.get_widget_states()
+    for state in states.widgets:
+        if state.id == widget.id and getattr(widget.proto, "accept_file", 0):
+            state.ClearField("string_trigger_value")
+            state.chat_input_value.data = text
+            state.chat_input_value.file_uploader_state.SetInParent()
+    return at._run(states, timeout=60)
+
+
 def test_web_chat_routes_through_the_tool_calling_agent(fake_agent_backend):
     at = _open_chat(AppTest.from_file(_APP))
-    at.chat_input[0].set_value("size a 12 m2 tilapia + lettuce at 27C, 300 L/day").run(timeout=60)
+    _submit_chat(at, "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
 
     assert not at.exception
     blob = "\n".join(str(m.value) for m in at.chat_message[0].markdown) if at.chat_message else ""
@@ -74,9 +92,9 @@ def test_web_chat_routes_through_the_tool_calling_agent(fake_agent_backend):
 
 def test_two_web_sessions_are_independent(fake_agent_backend):
     at1 = _open_chat(AppTest.from_file(_APP))
-    at1.chat_input[0].set_value("size a 12 m2 tilapia + lettuce at 27C, 300 L/day").run(timeout=60)
+    _submit_chat(at1, "size a 12 m2 tilapia + lettuce at 27C, 300 L/day")
     at2 = _open_chat(AppTest.from_file(_APP))
-    at2.chat_input[0].set_value("hello, new user here").run(timeout=60)
+    _submit_chat(at2, "hello, new user here")
 
     assert not at1.exception and not at2.exception
     # two distinct per-session identities in the store — never one shared conversation

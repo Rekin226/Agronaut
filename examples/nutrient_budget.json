@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic nutrient accounting example",
+    "timezone": "UTC"
+  },
+  "area_m2": 5000,
+  "crop": {
+    "name": "tomato",
+    "stage": "illustrative planning phase"
+  },
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-07-31"
+  },
+  "target": {
+    "n_kg_ha": 60,
+    "p2o5_kg_ha": 20,
+    "k2o_kg_ha": 40,
+    "basis": "remaining_application",
+    "source": "Synthetic arithmetic targets, not a crop recommendation",
+    "scope_note": "No field/region calibration; illustrative net targets only"
+  },
+  "products": [
+    {
+      "id": "mineral-a",
+      "name": "Illustrative 10-10-20 product",
+      "kind": "mineral",
+      "quantity": 100,
+      "unit": "kg",
+      "analysis": {
+        "n_pct": 10,
+        "p2o5_pct": 10,
+        "k2o_pct": 20,
+        "basis": "mass_percent",
+        "source": "Synthetic product label"
+      }
+    },
+    {
+      "id": "liquid-b",
+      "name": "Illustrative 20-0-0 liquid",
+      "kind": "mineral",
+      "quantity": 100,
+      "unit": "L",
+      "density_kg_l": 1.25,
+      "density_source": "Synthetic density, not a commercial product",
+      "analysis": {
+        "n_pct": 20,
+        "p2o5_pct": 0,
+        "k2o_pct": 0,
+        "basis": "mass_percent",
+        "source": "Synthetic mass-percent label"
+      }
+    }
+  ]
+}

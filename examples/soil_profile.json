@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "site": {"name": "Synthetic layered field", "timezone": "UTC"},
+  "profile": {
+    "name": "Illustrative two-layer root zone",
+    "observed_at": "2026-07-06T18:00:00Z",
+    "kind": "scenario",
+    "root_depth_m": "0.6",
+    "representation_note": "Synthetic uniform values across each layer and the same field footprint at the stated time; no field measurements.",
+    "source": "Development arithmetic example, not a regional soil recommendation"
+  },
+  "layers": [
+    {"id": "upper", "top_m": "0", "bottom_m": "0.2", "field_capacity": "0.3", "wilting_point": "0.1",
+     "water_content": "0.2", "soil_source": "Synthetic bulk-volume fractions", "water_source": "Synthetic state",
+     "provenance": "estimated", "quality": "unverified"},
+    {"id": "lower", "top_m": "0.2", "bottom_m": "0.8", "field_capacity": "0.4", "wilting_point": "0.2",
+     "water_content": "0.35", "soil_source": "Synthetic bulk-volume fractions", "water_source": "Synthetic state",
+     "provenance": "estimated", "quality": "unverified"}
+  ]
+}

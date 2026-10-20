@@ -24,6 +24,12 @@ mixes for the ratio that grows the most food from the least water.
 The sizing method behind it is a granted Taiwan utility model patent (**TW M661364**).
 The code is MIT, runs on open weights, and needs no proprietary API.
 
+This development checkout also includes **experimental field agriculture**: crop-water
+calculations, drip and sprinkler hydraulics, surface-irrigation event analysis, and records
+from planting through season review. Start with the [field quick start](#try-the-field-tools)
+to inspect the supported tasks and run supplied examples offline. These capabilities have
+software checks; independent field validation remains open.
+
 ---
 
 ## Quick start
@@ -113,12 +119,56 @@ so they work even when the LLM is slow or unreachable.
 | You want | You need |
 |---|---|
 | `size`, `size-hydro`, `optimize`, `list`, the web calculator | **Nothing.** Pure `aqua_model`: deterministic, offline, cited. |
+| Field calculations, bundled field guides and the synthetic field-cycle rehearsal | Python 3.11+ and this checkout's supplied inputs; no model, API key or network for these examples |
 | Chat, the Telegram bot, photo understanding | A model — Ollama locally, or a hosted key |
 | `/log`, `/forecast`, `/advise`, `/approve` | A model for setup, then nothing: the twin commands never call one |
 
 On a phone, Telegram is the recommended channel; WhatsApp works too but takes more setup
 ([guide](docs/whatsapp_setup.md)). Trouble, or want Docker or a hosted demo? See
 [Install and run: all the options](#install-and-run-all-the-options).
+
+### Try the field tools
+
+These commands describe the development checkout; availability in published packages
+depends on the release. From the repository root, run with Python 3.11 or newer:
+
+```bash
+python -S -m agronaut_agent.cli capabilities --system soil
+python -S -m agronaut_agent.cli water-needs --input examples/field_water.json
+python -S -m agronaut_agent.cli design-irrigation --method drip --input examples/drip_design.json
+python -S -m agronaut_agent.cli field-guide --topic choose-method --language fr
+```
+
+The examples supply illustrative weather, soil and equipment inputs. Their reports keep
+sources, assumptions, missing inputs and feasibility limits attached to the result.
+They do not describe your farm. Guides are available in English, French and Traditional
+Chinese; the latter two are drafts awaiting local language review.
+
+| What to explore | Starting point |
+|---|---|
+| Crop demand, soil-water budgets, drip/sprinkler designs and surface-event analysis | [Field calculations and input contracts](docs/FIELD_CALCULATIONS.md) |
+| Planting, measurements, scouting, tasks, harvest and season review | [Crop records and guided commands](docs/CROP_RECORDS.md) |
+| Shared water, equipment time and other farm constraints | [Farm resource planning](docs/FARM_RESOURCES.md) |
+| One complete synthetic workflow, including corrected records | [Offline field-cycle rehearsal](docs/FIELD_CYCLE_REHEARSAL.md) |
+| What external measurements can and cannot establish | [Field evidence inventory](docs/dpg/field_evidence/README.md) |
+
+In an app or messaging installation, start `/newunit soil`, then select the resulting
+production unit before `/fieldplan`, `/plant`, `/measure`, `/waterlog`, `/scout`, `/task`
+or `/harvest`. `/overview` summarizes recorded work across your farms. These guided paths
+are deterministic; free-form conversation still requires a chat model and messaging
+transport requires connectivity. Each channel has its own account context.
+
+To inspect the complete software workflow in an isolated synthetic database, choose a
+new output directory whose parent already exists:
+
+```bash
+python -S -m scripts.rehearse_field_cycle --output-dir /tmp/agronaut-field-demo
+```
+
+The rehearsal refuses an existing directory and saves its command inputs, outputs and
+checks. It demonstrates software behavior, including an infeasible design and missing
+season records. A field-ready recommendation still needs appropriate local inputs and
+review; passing this example does not validate irrigation accuracy or crop outcomes.
 
 ---
 
@@ -151,7 +201,7 @@ from published sources, meant to be calibrated against a real running system.
 
 ## Features
 
-Three modes in the app (sidebar **Mode** switch):
+The app's sidebar **Mode** switch includes:
 
 - **Assistant (chat)** — troubleshoot a running system (low DO, yellow leaves, pump sizing…).
 - **Design Calculator** — fixed inputs → a fully sized system: tank/system volume, fish
@@ -160,8 +210,16 @@ Three modes in the app (sidebar **Mode** switch):
 - **Optimize Ratio** — search fish × crop-mix combinations for the best ratio under your
   binding constraint (e.g. a fixed water budget), maximizing food, protein, or water-use
   efficiency, and showing the gain over a naive even split.
+- **Farm overview** — see crop records, planned work and shared equipment reservations.
+- **My Twin** — inspect the selected aquatic system's recorded and modeled state.
+- **Field records** — save experimental field calculations, actual water and weather;
+  review corrections and comparisons against measurements.
+- **Crop records** — record planting, stages, scouting, measurements, tasks, harvest and costs.
+- **Farm resources** — inspect allocation, equipment scheduling and actual-use records.
 
-The design and optimizer modes are **fully deterministic and need no LLM at all.**
+With the application dependencies installed, these calculator and record views work
+without a running language model. The optional **Digital Twin Studio** view appears when its
+renderer is available. Assistant free-form chat needs a configured model.
 
 ### Send it a photo
 
@@ -610,6 +668,12 @@ agronaut size --fish tilapia --crop lettuce --area 12 --temp 27 --water 3000
 agronaut size-hydro --crop lettuce --area 10 --temp 22 --water 500
 agronaut optimize --area 10 --temp 28 --water 5000 --objective food
 agronaut list                    # supported species, crops, objectives
+agronaut capabilities --system soil  # field tasks, applicability and evidence levels
+agronaut field-guide --topic water-needs  # bundled guidance, offline
+agronaut farm --help              # production units and active-unit selection
+agronaut field --help             # calculations, weather, water records and comparisons
+agronaut crop --help              # crop records and guided intake
+agronaut resources --help         # shared farm resources and equipment
 agronaut web                     # the Streamlit app (trailing flags go to streamlit,
                                  #   e.g. agronaut web --server.port=9000)
 agronaut bot                     # the Telegram bot
@@ -812,6 +876,12 @@ aqua_model/            # TRUST ZONE — pure Python, no LLM, no network, no I/O,
   scene3d.py           #   the 3D scene, including the twin state the viewer renders
   logging_schema.py    #   versioned install-logging standard (the dataset moat)
 
+agro_model/            # deterministic experimental field models; no chat model or network
+  water.py radiation.py #   reference ET, crop demand and supplied-weather calculations
+  drip.py sprinkler.py surface.py # bounded irrigation calculations
+  soil_replay.py       #   layered soil-water replay with explicit inputs
+  resources.py         #   shared farm resource constraints
+
 agent/                 # LLM-facing layer (imports aqua_model, never the reverse)
   llm.py               #   pluggable chat backend (ollama | nvidia | hf | openai_compat)
   vision.py            #   pluggable VLM + the observation guard + EXIF stripping
@@ -825,6 +895,8 @@ agronaut_agent/        # the channel-agnostic brain
   core.py              #   handle_message / handle_image / handle_voice — the three seams
   tools.py             #   the LLM-callable tools (thin wrappers over the trust zone)
   store.py profile.py  #   SQLite memory: System Profile, notes, calibration, follow-ups
+  farm_store.py field_workflow.py # owned units, saved calculations and correction lineage
+  crop_records.py     #   planting, observations, tasks, harvest and season records
   rag.py semantic.py   #   citation-enforced retrieval (floor, hybrid, per-source cap) + recall
   channels/            #   telegram_adapter.py, whatsapp_adapter.py, base.py
 

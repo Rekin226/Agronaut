@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "layout": {
+    "row_count": 10, "emitters_per_row": 100, "rows_per_zone": 5,
+    "row_spacing_m": 1, "emitter_spacing_m": 0.5, "feed_length_m": 20,
+    "terrain": "flat", "source": "Synthetic flat 500 m2 demonstration; no surveyed field"
+  },
+  "emitter": {
+    "nominal_flow_lph": 2, "flow_tolerance_fraction": 0.05,
+    "min_head_m": 10, "max_head_m": 30, "max_filter_microns": 120,
+    "insertion_k": 0.1, "pressure_compensating": true,
+    "source": "Hypothetical PC emitter; replace all values with the exact equipment specification"
+  },
+  "main": {"internal_diameter_mm": 32, "roughness_mm": 0.0015, "max_head_m": 40,
+           "source": "Scenario pipe dimensions and rating, not a product recommendation"},
+  "manifold": {"internal_diameter_mm": 25, "roughness_mm": 0.0015, "max_head_m": 40,
+               "source": "Scenario pipe dimensions and rating, not a product recommendation"},
+  "lateral": {"internal_diameter_mm": 13.6, "roughness_mm": 0.0015, "max_head_m": 35,
+              "source": "Scenario pipe dimensions and rating, not a product recommendation"},
+  "supply": {
+    "min_running_head_m": 20, "max_running_head_m": 21, "max_static_head_m": 25,
+    "max_flow_lph": 2000, "daily_available_l": 1500, "available_hours": 3,
+    "source": "Hypothetical regulated source; bounds assumed across 0–2000 L/h, upstream of filter"
+  },
+  "headworks": {
+    "min_filter_loss_m": 0.5, "max_filter_loss_m": 2, "filter_microns": 100,
+    "filter_max_flow_lph": 2000, "max_head_m": 40,
+    "main_fittings_k": 3, "manifold_through_k": 0.2, "lateral_takeoff_k": 1,
+    "source": "Scenario clean-to-dirty filter loss envelope and total fitting K values"
+  },
+  "application": {
+    "gross_depth_mm": 2, "wetted_fraction": 0.4,
+    "max_local_depth_mm": 10, "max_local_rate_mm_h": 20,
+    "maintenance_water_l": 50, "maintenance_hours": 0.25,
+    "source": "Synthetic one-day application target and local limits; not crop demand or measured soil properties"
+  },
+  "limits": {
+    "viscosity_m2_s": 0.000001, "max_velocity_m_s": 1.5,
+    "source": "Scenario fluid property and designer velocity limit; no universal design limit implied"
+  }
+}

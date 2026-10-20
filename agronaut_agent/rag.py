@@ -113,6 +113,16 @@ def _get_index():
     return _INDEX
 
 
+def _passage_text(doc) -> str:
+    """Keep a guide's scope and primary links visible even for a middle chunk."""
+    context = []
+    for key, label in (("evidence_status", "Evidence"), ("applicability", "Applicability"),
+                       ("source_references", "References")):
+        if value := doc.metadata.get(key):
+            context.append(f"{label}: {value}")
+    return "\n".join([*context, doc.page_content.strip()])
+
+
 def _source_label(metadata: dict) -> str:
     """Human-citable label for a retrieved passage. Local files are shown repo-relative
     (knowledge/...), web docs prefer their curated label over the raw URL."""
@@ -398,7 +408,7 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
             continue
         key = (_source_label(doc.metadata), doc.page_content[:120])
         if key not in by_key:
-            by_key[key] = {"text": doc.page_content.strip(),
+            by_key[key] = {"text": _passage_text(doc),
                            "source": _source_label(doc.metadata), "score": float(score)}
             dense.append(key)
     if not dense:
@@ -427,7 +437,7 @@ def retrieve(query: str, k: int = 3, max_dist: float | None = None,
                 if key not in by_key:
                     # A keyword-only hit carries no L2 distance. Record it as exactly that
                     # rather than inventing a comparable number.
-                    by_key[key] = {"text": doc.page_content.strip(),
+                    by_key[key] = {"text": _passage_text(doc),
                                    "source": _source_label(doc.metadata), "score": None}
                 sparse.append(key)
         except Exception as exc:  # noqa: BLE001 — degrade to dense-only, never break the turn

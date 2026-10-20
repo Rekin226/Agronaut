@@ -1,0 +1,193 @@
+{
+  "summary": {
+    "queries": 7,
+    "k": 3,
+    "hit_rate": 1.0,
+    "precision@k": 0.3333333333333333,
+    "recall@k": 1.0,
+    "MRR": 1.0,
+    "MAP@k": 1.0,
+    "latency_ms_mean": 656.7142813333443,
+    "floor_silenced_on_topic": 0,
+    "floor_rejected_off_topic": 2,
+    "negative_controls": 2
+  },
+  "per_query": [
+    {
+      "retrieved": [
+        "knowledge/field_soil_sampling.md",
+        "knowledge/field_sprinkler.md",
+        "knowledge/field_surface.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-soil-sampling-1",
+      "query": "How should I prepare a soil sample for the laboratory and record the test report without losing its units and methods?",
+      "relevant": [
+        "knowledge/field_soil_sampling.md"
+      ],
+      "top_score": 0.7039358019828796,
+      "raw_top_score": 0.7039358019828796,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_water_needs.md",
+        "knowledge/field_drip.md",
+        "knowledge/field_choose_method.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-water-1",
+      "query": "The forecast says my crop uses 5 mm a day. Is that how much I should pump?",
+      "relevant": [
+        "knowledge/field_water_needs.md"
+      ],
+      "top_score": 0.7432140111923218,
+      "raw_top_score": 0.7432140111923218,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_choose_method.md",
+        "knowledge/field_drip.md",
+        "knowledge/field_sprinkler.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-method-1",
+      "query": "We have unreliable power and limited repair help. How do I compare ways to water this field?",
+      "relevant": [
+        "knowledge/field_choose_method.md"
+      ],
+      "top_score": 1.0121678113937378,
+      "raw_top_score": 1.0121678113937378,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_drip.md",
+        "knowledge/field_sprinkler.md",
+        "knowledge/field_choose_method.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-drip-1",
+      "query": "Some plants along the drip line stay dry. What measurements should I collect before deciding what is wrong?",
+      "relevant": [
+        "knowledge/field_drip.md"
+      ],
+      "top_score": 0.7144194841384888,
+      "raw_top_score": 0.7144194841384888,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_sprinkler.md",
+        "knowledge/field_drip.md",
+        "knowledge/field_choose_method.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-sprinkler-1",
+      "query": "The sprinklers leave dry patches when it is windy. How can I check the water distribution?",
+      "relevant": [
+        "knowledge/field_sprinkler.md"
+      ],
+      "top_score": 0.7966175675392151,
+      "raw_top_score": 0.7966175675392151,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_surface.md",
+        "knowledge/field_sprinkler.md",
+        "knowledge/field_choose_method.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-surface-1",
+      "query": "Water gets to the far end of the furrow much later. What times do I need to record to evaluate this irrigation?",
+      "relevant": [
+        "knowledge/field_surface.md"
+      ],
+      "top_score": 0.7989869117736816,
+      "raw_top_score": 0.7989869117736816,
+      "floor_returned_nothing": false
+    },
+    {
+      "retrieved": [
+        "knowledge/field_crop_scouting.md",
+        "knowledge/field_drip.md",
+        "knowledge/field_soil_sampling.md"
+      ],
+      "hit": true,
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "rr": 1.0,
+      "ap": 1.0,
+      "id": "field-scouting-1",
+      "query": "My plants have yellow leaves and wilting patches. What should I record before deciding whether this is a disease?",
+      "relevant": [
+        "knowledge/field_crop_scouting.md"
+      ],
+      "top_score": 0.6696573495864868,
+      "raw_top_score": 0.6696573495864868,
+      "floor_returned_nothing": false
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "field-off-1",
+      "query": "What is the best laptop for video editing?",
+      "top_score": 1.8667593002319336,
+      "returned": [],
+      "rejected_by_floor": true
+    },
+    {
+      "id": "field-off-2",
+      "query": "How do I bake a chocolate cake?",
+      "top_score": 1.6839570999145508,
+      "returned": [],
+      "rejected_by_floor": true
+    }
+  ],
+  "filters": {
+    "domain": [
+      "soil",
+      "irrigation"
+    ]
+  },
+  "corpus": {
+    "urls_sha256": "e9102cf5098855b05d12fa76845c8030fe499b1da9ba6c444892bb93b8ad47f1",
+    "knowledge_sha256": "b9cd28de783e47907601e665d1032bfaaf35844480f8216ce99322f11e198ae1",
+    "knowledge_files": 29,
+    "knowledge_bytes": 73272,
+    "scope": "Local English Markdown documents only; excludes remote books and web sources",
+    "documents": 29,
+    "chunks": 126,
+    "embedding_model": "sentence-transformers/all-mpnet-base-v2"
+  },
+  "limitations": [
+    "Development-authored smoke queries; not an independent grower benchmark.",
+    "This isolated local-only index does not remeasure the complete production corpus or multilingual semantic retrieval."
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic emitter test",
+    "timezone": "UTC"
+  },
+  "event": {
+    "zone_name": "Example surface-drip zone",
+    "started_at": "2026-07-07T09:00:00Z",
+    "ended_at": "2026-07-07T09:30:00Z",
+    "kind": "scenario",
+    "stable_operation": true,
+    "conditions_source": "Synthetic stable operation; not field evidence"
+  },
+  "sampling": {
+    "expected_count": 8,
+    "same_emitter_type": true,
+    "equal_representation": true,
+    "source": "Synthetic two-lateral sample; representativeness is not field validated"
+  },
+  "samples": [
+    {
+      "id": "emitter-1",
+      "lateral": "L1",
+      "position": "P1",
+      "volume_ml": 10,
+      "duration_seconds": 30,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-2",
+      "lateral": "L1",
+      "position": "P2",
+      "volume_ml": 20,
+      "duration_seconds": 60,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-3",
+      "lateral": "L1",
+      "position": "P3",
+      "volume_ml": 30,
+      "duration_seconds": 30,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-4",
+      "lateral": "L1",
+      "position": "P4",
+      "volume_ml": 40,
+      "duration_seconds": 60,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-5",
+      "lateral": "L2",
+      "position": "P1",
+      "volume_ml": 50,
+      "duration_seconds": 30,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-6",
+      "lateral": "L2",
+      "position": "P2",
+      "volume_ml": 60,
+      "duration_seconds": 60,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-7",
+      "lateral": "L2",
+      "position": "P3",
+      "volume_ml": 70,
+      "duration_seconds": 30,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    },
+    {
+      "id": "emitter-8",
+      "lateral": "L2",
+      "position": "P4",
+      "volume_ml": 80,
+      "duration_seconds": 60,
+      "pressure_kpa": 150,
+      "source": "Synthetic volume, timer and pressure readings"
+    }
+  ]
+}
