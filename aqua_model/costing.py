@@ -25,7 +25,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from .coefficients import SAFETY_FACTOR
+from .coefficients import DWC_STONE_SPACING_M2, SAFETY_FACTOR
 from .layout import Layout
 from .system_types import get_system_type
 from .types import DesignOutput
@@ -149,10 +149,14 @@ def takeoff(out: DesignOutput, layout: Layout, *, species_key: str = "tilapia",
     # instead of the old static guess. Layouts with no fish keep the old note.
     aer = layout.aeration
     if aer is not None:
+        note = (f"{aer.power_w:.0f} W for {aer.air_lpm:.0f} L/min — FAO 589 §7.3.3: "
+                f"5-8 L air/min per m³ water x{SAFETY_FACTOR.value} headroom")
+        if aer.canal_stones:
+            note += (f"; +{aer.canal_stones} §4.5.3 canal stones "
+                     f"(1 per {DWC_STONE_SPACING_M2.value} m² of raft canal)")
         lines.append(TakeoffLine(
             "air_pump", f"air blower + {aer.stones} air stones + tubing", 1, "unit",
-            f"{aer.power_w:.0f} W for {aer.air_lpm:.0f} L/min — FAO 589 §7.3.3: "
-            f"5-8 L air/min per m³ water x{SAFETY_FACTOR.value} headroom"))
+            note))
     else:
         lines.append(TakeoffLine("air_pump", "air pump/blower (incl. stones + tubing)", 1,
                                  "unit", "size for ~1 stone per 3 m² of raft area + 1 per tank"))

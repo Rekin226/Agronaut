@@ -22,7 +22,13 @@ import math
 from dataclasses import dataclass, field
 
 from . import hydraulics
-from .coefficients import AERATION_AIR_RATE_LPM_M3, AIR_PUMP_WATT_PER_LPM, SAFETY_FACTOR
+from .coefficients import (
+    AERATION_AIR_RATE_LPM_M3,
+    AIR_PUMP_WATT_PER_LPM,
+    DWC_STONE_FLOW_LPM,
+    DWC_STONE_SPACING_M2,
+    SAFETY_FACTOR,
+)
 from .system_types import SystemType, get_system_type
 from .types import DesignOutput
 
@@ -128,6 +134,7 @@ class Aeration:
     power_w: float            # blower electrical draw estimate (wire-to-air, not shaft)
     stones: int               # diffuser count across all aerated vessels
     aerated_m3: float         # water volume the rate was applied to
+    canal_stones: int = 0     # DWC canal diffusers (§4.5.3), already inside `stones`
 
 
 @dataclass(frozen=True)
@@ -284,11 +291,23 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             sum(v * 0.85 for v in tank_vols)                     # tanks: water_frac 0.85
             + sum((d / 2.0) ** 2 * math.pi * 1.0 * 0.8           # biofilter vessel: h 1.0, 0.8
                   for r, _i, d, _n in filters if r == "biofilter"))
-        air_lpm = aerated_m3 * AERATION_AIR_RATE_LPM_M3.value * SAFETY_FACTOR.value
+        # FAO 589 §4.5.3: a densely planted DWC canal pulls DO down on its own, so every
+        # raft canal carries its own diffusers — 1 per 2-4 m² of canal, ~4 L/min each —
+        # ON TOP of the fish-side rate, never instead of it. Media beds and NFT do not.
+        canal_stones = 0
+        if role == "dwc_bed":
+            canal_stones = n_units * math.ceil(bw * bl / DWC_STONE_SPACING_M2.value)
+            assumptions.append(
+                f"DWC canals carry their own air stones (FAO 589 §4.5.3: 1 per "
+                f"{DWC_STONE_SPACING_M2.value} m² of canal, ~"
+                f"{DWC_STONE_FLOW_LPM.value} L/min each) — canal demand joins the "
+                f"fish-side rate before headroom")
+        air_lpm = (aerated_m3 * AERATION_AIR_RATE_LPM_M3.value
+                   + canal_stones * DWC_STONE_FLOW_LPM.value) * SAFETY_FACTOR.value
         power_w = round(air_lpm * AIR_PUMP_WATT_PER_LPM.value, 1)
         fish_span += AISLE_M + 0.4           # the blower bay joins the tank row, aisle apart
         aeration = Aeration(blower_id="blower", air_lpm=air_lpm, power_w=power_w,
-                            stones=0, aerated_m3=aerated_m3)
+                            stones=0, aerated_m3=aerated_m3, canal_stones=canal_stones)
 
     width = max(fish_span, filter_span, beds_span_x) + 2 * MARGIN_M
     tank_zone_y = max(max(tank_ds, default=0.0), 0.0) + AISLE_M
@@ -342,7 +361,11 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             x=round(x0 + fish_span - 0.2, 2), y=round(y_t, 2), w=0.4, l=0.4, h=0.5,
             detail=f"{aeration.air_lpm:.0f} L/min for {aeration.aerated_m3:.1f} m³ "
                    f"aerated water (FAO 589 §7.3.3: 5-8 L air/min per m³, "
-                   f"x{SAFETY_FACTOR.value} headroom)"))
+                   f"x{SAFETY_FACTOR.value} headroom)"
+                   + (f" + {aeration.canal_stones} §4.5.3 canal stones "
+                      f"(1 per {DWC_STONE_SPACING_M2.value} m² of raft canal, "
+                      f"~{DWC_STONE_FLOW_LPM.value} L/min each)"
+                      if aeration.canal_stones else "")))
 
     # grow units, gridded
     z0 = {"nft_channel": NFT_BENCH_H_M, "media_bed": MEDIA_BED_STAND_H_M}.get(role, 0.0)
@@ -432,6 +455,19 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             stones.append(AirStone(
                 id=f"stone_{b.id}", anchor_id=b.id,
                 x=round(b.x, 2), y=b.y, z=round(b.z + 0.1, 2)))
+        # DWC canal stones (§4.5.3): each bed's own diffusers spread on a fractional grid
+        # across the canal, so no corner of the raft goes unaerated.
+        for bed in [c for c in comps if c.role == "dwc_bed"]:
+            per_bed = math.ceil(bed.w * bed.l / DWC_STONE_SPACING_M2.value)
+            cols = max(1, math.ceil(math.sqrt(per_bed)))
+            rows = max(1, math.ceil(per_bed / cols))
+            for i in range(per_bed):
+                r_i, c_i = divmod(i, cols)
+                stones.append(AirStone(
+                    id=f"stone_{bed.id}_{i + 1}", anchor_id=bed.id,
+                    x=round(bed.x - bed.w / 2.0 + bed.w * (c_i + 1) / (cols + 1), 2),
+                    y=round(bed.y - bed.l / 2.0 + bed.l * (r_i + 1) / (rows + 1), 2),
+                    z=round(bed.z + 0.1, 2)))
         air_lines = tuple(
             AirLine(
                 from_id=blower.id, to_id=s.anchor_id, stone_id=s.id,
@@ -446,7 +482,8 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             for s in stones)
         aeration = Aeration(blower_id=aeration.blower_id, air_lpm=aeration.air_lpm,
                             power_w=aeration.power_w, stones=len(stones),
-                            aerated_m3=aeration.aerated_m3)
+                            aerated_m3=aeration.aerated_m3,
+                            canal_stones=aeration.canal_stones)
     else:
         stones, air_lines = [], ()
 
@@ -462,7 +499,9 @@ def plan_layout(out: DesignOutput, *, crop_label: str = "", species_label: str =
             f"aeration: {aeration.air_lpm:.0f} L/min for {aeration.aerated_m3:.1f} m³ of "
             f"aerated water at {AERATION_AIR_RATE_LPM_M3.value} L air/min/m³ "
             f"x{SAFETY_FACTOR.value} headroom (FAO 589 §7.3.3) — a {aeration.power_w:.0f} W "
-            f"blower with {aeration.stones} air stones",
+            f"blower with {aeration.stones} air stones"
+            + (f", of which {aeration.canal_stones} sit in the raft canals (§4.5.3)"
+               if aeration.canal_stones else ""),
             "air stones sit off the tank centre so bubbles do not re-suspend settled "
             "solids (FAO 589 §4.2.5); the air main rides overhead, outside the water loop",
         ]

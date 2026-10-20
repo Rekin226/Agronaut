@@ -55,15 +55,17 @@ SAFETY_FACTOR = Coefficient(
 
 # Aeration — the air side of the fish zone (blower, main, diffusers). FAO 589 §7.3.3:
 # "The suggested rate is 5–8 litres of air per minute for each cubic metre of water, coming
-# from at least 2 air stones in different locations in the fish tank." §4.2.5 repeats the
-# band at unit scale (4–8 L/min combined for ~1,000 L units, one injector also into the
-# biofilter container) and warns that densely stocked units may require considerably more.
+# from at least 2 air stones in different locations in the fish tank."
+# Unit-scale aeration: FAO 589 §7.3.3 gives the 5–8 L/min per m³ band, wants at least
+# two stones per tank in different locations, and warns that densely stocked units may
+# require considerably more; §4.2.5 repeats the band at unit scale (4–8 L/min combined
+# for ~1,000 L units, one injector also into the biofilter container).
 AERATION_AIR_RATE_LPM_M3 = Coefficient(
     name="aeration_air_rate_lpm_m3",
     value=6.5, low=5.0, high=8.0, unit="L air / min / m3 aerated water", source="FAO589",
-    note="FAO 589 §7.3.3 (5-8 L air/min per m3 water, >=2 stones per tank in different "
-         "locations); §4.2.5 gives the same band at unit scale and warns densely stocked "
-         "units may require considerably more.",
+    note="FAO 589 §7.3.3: 5-8 L air/min per m3 water, >=2 stones per tank in different "
+         "locations, and densely stocked units may require considerably more; §4.2.5 "
+         "gives the same band at unit scale (one injector also into the biofilter).",
 )
 
 # Wire-to-air draw of the small linear-diaphragm / regenerative blowers this class of
@@ -72,8 +74,26 @@ AIR_PUMP_WATT_PER_LPM = Coefficient(
     name="air_pump_watt_per_lpm",
     value=0.9, low=0.6, high=1.2, unit="W / (L/min) delivered air", source="LIT",
     note="Hiblow HP-80 published spec: 80 L/min at 71 W = 0.89 W/(L/min). Larger "
-         "regenerative blowers trend toward ~0.7, small diaphragm units past 1.0. A "
-         "power ESTIMATE for budgeting — verify the pump curve before purchase.",
+         "regenerative blowers trend toward ~0.7, small diaphragm units past 1.0. The "
+         "0.6-1.2 band is reasoning around that ONE spec sheet, not a survey; a power "
+         "ESTIMATE for budgeting — verify the pump curve before purchase.",
+)
+
+# DWC rafts pull DO down on their own: a densely planted canal carries its own diffusers,
+# on top of the fish-side rate, never instead of it (FAO 589 §4.5.3).
+DWC_STONE_SPACING_M2 = Coefficient(
+    name="dwc_stone_spacing_m2",
+    value=3.0, low=2.0, high=4.0, unit="m2 of DWC canal per stone", source="FAO589",
+    note="FAO 589 §4.5.3: a densely planted canal needs its own stones, one every "
+         "2-4 m2 of canal; 3.0 is the band midpoint (the static BOM note this sizing "
+         "replaced used ~1 per 3 m2).",
+)
+
+DWC_STONE_FLOW_LPM = Coefficient(
+    name="dwc_stone_flow_lpm",
+    value=4.0, low=4.0, high=4.0, unit="L air / min per canal stone", source="FAO589",
+    note="FAO 589 §4.5.3: about 4 L/min per canal stone — the source gives a single "
+         "figure, so no band is invented.",
 )
 
 
@@ -252,6 +272,8 @@ def registry() -> dict[str, Coefficient]:
             SAFETY_FACTOR,
             AERATION_AIR_RATE_LPM_M3,
             AIR_PUMP_WATT_PER_LPM,
+            DWC_STONE_SPACING_M2,
+            DWC_STONE_FLOW_LPM,
             N_FRACTION_OF_PROTEIN,
             PLANT_N_UPTAKE_FRACTION,
             FRR_REFERENCE_FEED_PROTEIN_PCT,

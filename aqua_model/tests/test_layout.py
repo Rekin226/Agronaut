@@ -165,9 +165,10 @@ def test_a_blower_is_placed_and_sized_from_the_registry():
     assert len(blowers) == 1, f"expected one blower, drew {len(blowers)}"
     rate = coefficients.AERATION_AIR_RATE_LPM_M3
     sf = coefficients.SAFETY_FACTOR
+    canal = layout.aeration.canal_stones * coefficients.DWC_STONE_FLOW_LPM.value
     assert layout.aeration.air_lpm == pytest.approx(
-        layout.aeration.aerated_m3 * rate.value * sf.value), (
-        "air flow must equal aerated volume x FAO rate x headroom")
+        (layout.aeration.aerated_m3 * rate.value + canal) * sf.value), (
+        "air flow must equal (aerated volume x FAO rate + canal stones) x headroom")
     wpl = coefficients.AIR_PUMP_WATT_PER_LPM
     assert layout.aeration.power_w == pytest.approx(
         layout.aeration.air_lpm * wpl.value, abs=0.1), (
@@ -175,6 +176,65 @@ def test_a_blower_is_placed_and_sized_from_the_registry():
     assert layout.aeration.aerated_m3 >= out.rearing_tank_volume_l / 1000.0, (
         "the aerated water must at least cover the rearing tanks")
     assert layout.aeration.stones == len(layout.air_stones) >= 2
+
+
+def test_raft_canals_carry_their_own_stones():
+    """FAO 589 §4.5.3: a densely planted DWC canal pulls DO down on its own, so every
+    raft bed gets its own diffusers at the §4.5.3 spacing — the regression the static
+    BOM note used to cover and volume-based sizing silently dropped."""
+    from aqua_model import coefficients
+    layout = plan_layout(_design("raft"))
+    assert layout.aeration is not None, "a stocked design must size its air side"
+    beds = layout.by_role("dwc_bed")
+    assert beds, "the raft design must draw DWC beds"
+    spacing = coefficients.DWC_STONE_SPACING_M2
+    canal_stones = [s for s in layout.air_stones if s.anchor_id.startswith("bed")]
+    assert layout.aeration.canal_stones == len(canal_stones) > 0, (
+        "a raft design must carry canal stones")
+    for bed in beds:
+        expected = math.ceil(bed.w * bed.l / spacing.value)
+        got = [s for s in canal_stones if s.anchor_id == bed.id]
+        assert len(got) == expected, (
+            f"{bed.id} ({bed.w * bed.l:.1f} m²) wants {expected} stones, drew {len(got)}")
+        xs = {s.x for s in got}
+        ys = {s.y for s in got}
+        assert len(got) == 1 or len(xs) > 1 or len(ys) > 1, (
+            f"{bed.id}: canal stones must spread across the canal")
+        for s in got:
+            assert bed.x - bed.w / 2 <= s.x <= bed.x + bed.w / 2, (
+                f"{s.id} must sit inside {bed.id}")
+            assert s.z < bed.z + bed.water_frac * bed.h, (
+                f"{s.id} must sit submerged (world z vs waterline)")
+    canal_lpm = len(canal_stones) * coefficients.DWC_STONE_FLOW_LPM.value
+    tank_only = layout.aeration.aerated_m3 * coefficients.AERATION_AIR_RATE_LPM_M3.value
+    assert layout.aeration.air_lpm >= (tank_only + canal_lpm) * 0.99, (
+        "the blower must carry the canal demand, not just the fish-side volume")
+
+
+def test_media_and_nft_beds_get_no_canal_stones():
+    """§4.5.3 is a DWC rule: media beds and NFT channels are not canals and must not
+    grow stones just because they are grow beds."""
+    for system_type in ("media_bed", "nft"):
+        layout = plan_layout(_design(system_type))
+        assert layout.aeration is not None, "a stocked design must size its air side"
+        assert layout.aeration.canal_stones == 0, (
+            f"{system_type}: canal stones are a DWC rule")
+        assert not [s for s in layout.air_stones if s.anchor_id.startswith("bed")], (
+            f"{system_type}: no stones may anchor to grow beds")
+
+
+def test_dwc_canal_coefficients_are_registered_and_cited():
+    """The canal sizing traces to FAO 589 §4.5.3 through the registry, like every
+    other number the model uses."""
+    from aqua_model import coefficients
+    spacing = coefficients.registry()["dwc_stone_spacing_m2"]
+    flow = coefficients.registry()["dwc_stone_flow_lpm"]
+    assert spacing is coefficients.DWC_STONE_SPACING_M2
+    assert spacing.source == "FAO589" and "§4.5.3" in spacing.note
+    assert 2.0 <= spacing.low <= spacing.value <= spacing.high <= 4.0
+    assert flow is coefficients.DWC_STONE_FLOW_LPM
+    assert flow.source == "FAO589" and "§4.5.3" in flow.note
+    assert flow.value == 4.0
 
 
 def test_two_air_stones_per_tank_in_different_places():
