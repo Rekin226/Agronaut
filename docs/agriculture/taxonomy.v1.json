@@ -1,7 +1,7 @@
 {
   "schema": "agronaut.agriculture.taxonomy/1",
-  "version": "1.0.0",
-  "decided_on": "2026-10-19",
+  "version": "1.1.0",
+  "decided_on": "2026-10-20",
   "about": "The vocabulary half of #243. This file is normative: docs/agriculture/CAPABILITY_TAXONOMY.md explains it in prose, and agronaut_agent/tests/test_agriculture_capability_taxonomy.py fails if the two drift apart or if a row stops being justified. Two separate axes, because a production system and a water-delivery method answer different questions: 'where do the roots live and what feeds them' versus 'how does water reach the field'. Conflating them is the failure mode #243 was filed to prevent.",
   "axes": {
     "production_system": {
@@ -9,8 +9,10 @@
       "members": ["aquaponics", "hydroponics", "soil_cultivation"]
     },
     "irrigation_method": {
-      "question": "How is water delivered to the growing area?",
-      "members": ["drip", "sprinkler", "surface", "rainfed"]
+      "question": "How is water delivered to a soil-grown root zone?",
+      "members": ["drip", "sprinkler", "surface", "rainfed"],
+      "applies_to": "soil_cultivation",
+      "scope_note": "This axis describes field irrigation of a soil root zone. Soilless systems do not irrigate in this sense: their water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower), and a nutrient solution reaching a substrate or a bare-root channel is not an irrigation method. The one real exception is drip to a substrate, which is recorded as conditional on the aquaponics row."
     }
   },
   "vocabulary": [
@@ -70,56 +72,56 @@
       "irrigation_method": "drip",
       "status": "conditional",
       "basis": "support_decision",
-      "reason": "Supported for media beds only: the emitters deliver fish-culture water to a solid substrate, where the bed itself does the biofiltration. Not supported where the emitter would carry unsettled solids into a bare-root channel. The support decision is ours; no source in the registry covers aquaponic drip specifically, so nothing here may be presented as sourced guidance."
+      "reason": "Conditional, and only for a substrate: drip to a substrate is real in aquaponics as Dutch buckets for tomato and cucumber, fed after solids removal, so the emitters deliver fish-culture water to a solid bed where the bed does the biofiltration. The delivery system itself is the aquaponics system type (aqua_model/system_types.py), not a field irrigation method. Not supported where the emitter would carry unsettled solids into a bare-root channel. The support decision is ours; no source in the registry covers aquaponic drip delivery."
     },
     {
       "production_system": "aquaponics",
       "irrigation_method": "sprinkler",
-      "status": "incompatible",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Not supported. Foliar application of fish-culture water puts dissolved organics on edible leaves; the food-safety and biofilm questions are unresolved and no registry source answers them. Stated as a gap, not as a finding."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "aquaponics",
       "irrigation_method": "surface",
-      "status": "incompatible",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Not supported. A gravity-fed surface application is a flow-through loss from a recirculating loop whose water is the shared carrier of fish waste; the loop's mass balance assumes the water returns."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "aquaponics",
       "irrigation_method": "rainfed",
-      "status": "incompatible",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Not supported: the fish loop requires a controlled water volume, and open precipitation into it is neither controlled nor measurable with the instrumentation this project assumes."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "hydroponics",
       "irrigation_method": "drip",
-      "status": "supported",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Supported. Emitter delivery of a prepared nutrient solution to a substrate is the standard configuration the hydroponic sizing path already assumes."
+      "reason": "Not applicable: a soilless system does not irrigate in the field sense this axis describes. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower) and the nutrient-solution exchange the sizing path already assumes."
     },
     {
       "production_system": "hydroponics",
       "irrigation_method": "sprinkler",
-      "status": "conditional",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Supported only as aeroponic misting of roots inside a closed chamber, which is not the same act as spraying a field canopy. Recorded as conditional because the word 'sprinkler' covers both and the distinction is what keeps the guidance honest."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Aeroponic misting inside a closed chamber is the system type's own delivery, not a field method. The delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "hydroponics",
       "irrigation_method": "surface",
-      "status": "incompatible",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Not supported. A surface flood of nutrient solution in a soilless system is a deliberate drain-to-waste or flood-and-drain cycle with its own bookkeeping; treating it as field surface irrigation would lose the solution volume that the nutrient balance depends on."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Flood-and-drain is the system type's own bookkeeping, not a field surface method. The delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "hydroponics",
       "irrigation_method": "rainfed",
-      "status": "incompatible",
+      "status": "not_applicable",
       "basis": "support_decision",
-      "reason": "Not supported. A nutrient solution has a defined concentration; uncontrolled dilution by rain destroys it."
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
     },
     {
       "production_system": "soil_cultivation",

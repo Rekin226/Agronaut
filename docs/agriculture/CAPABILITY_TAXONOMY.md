@@ -40,23 +40,29 @@ they do not replace each other.
 asserts the two axes share no member, which is the mechanical form of "without conflating
 production and irrigation".
 
+The irrigation axis describes field irrigation of a **soil** root zone. A soilless system does
+not irrigate in that sense: its water delivery is the system type already modelled in
+`aqua_model/system_types.py` (raft, nft, media_bed, vertical_tower), and a nutrient solution
+reaching a substrate or a bare-root channel is not an irrigation method. That is why the
+soilless rows below are `not_applicable` rather than a verdict about a method nobody was using.
+
 ## The compatibility matrix, and what its rows are worth
 
-Twelve combinations, each with a status and a reason. The reason field distinguishes a
+Twelve combinations, each with a status and a reason. The irrigation axis answers *how water reaches a soil root zone*, so the soilless rows are `not_applicable`: their water delivery is the system type already modelled in `aqua_model/system_types.py` (raft, nft, media_bed, vertical_tower), not an irrigation method. Dutch-bucket drip to a substrate stays `conditional` because it is real in aquaponics. The reason field distinguishes a
 **support decision** (this project's scope choice, sourced from nothing) from a **sourced** row.
 Most rows here are decisions, and that is stated in the data rather than implied by a table that
 looks equally authoritative on every line.
 
 | Production system | Method | Status | Why |
 |---|---|---|---|
-| aquaponics | drip | conditional | Media beds only: the bed is the biofilter. Not where unsettled solids would reach a bare-root channel |
-| aquaponics | sprinkler | incompatible | Foliar fish-culture water on edible leaves; food-safety and biofilm questions unresolved, and no registry source answers them |
-| aquaponics | surface | incompatible | A flow-through loss from a loop whose mass balance assumes the water returns |
-| aquaponics | rainfed | incompatible | The loop needs a controlled, measurable volume |
-| hydroponics | drip | supported | Emitter delivery to a substrate is the configuration the hydroponic sizing path already assumes |
-| hydroponics | sprinkler | conditional | Aeroponic misting inside a closed chamber, which is not spraying a field canopy |
-| hydroponics | surface | incompatible | Flood-and-drain is its own bookkeeping; treating it as field surface irrigation loses the solution volume the nutrient balance needs |
-| hydroponics | rainfed | incompatible | Rain dilutes a defined concentration |
+| aquaponics | drip | conditional | Drip to a substrate is real here — Dutch buckets for tomato and cucumber, fed after solids removal, the bed doing the biofiltration. Not where unsettled solids would reach a bare-root channel |
+| aquaponics | sprinkler | not_applicable | A soilless system does not irrigate in the field sense this axis describes; its delivery is the system type |
+| aquaponics | surface | not_applicable | Same: the delivery is the system type, not a field surface method |
+| aquaponics | rainfed | not_applicable | Same: the delivery is the system type, not a field method |
+| hydroponics | drip | not_applicable | A soilless system does not irrigate in the field sense this axis describes; its delivery is the system type |
+| hydroponics | sprinkler | not_applicable | Same: aeroponic misting inside a closed chamber is the system type's own delivery, not a field method |
+| hydroponics | surface | not_applicable | Same: flood-and-drain is the system type's own bookkeeping, not a field surface method |
+| hydroponics | rainfed | not_applicable | Same: the delivery is the system type, not a field method |
 | soil_cultivation | drip | supported | The case the FAO-56 water balance fits most cleanly: localized wetted fraction, known application depth, schedule in mm |
 | soil_cultivation | sprinkler | supported | Same, with evaporation and foliar wetting carried explicitly rather than buried in an efficiency factor |
 | soil_cultivation | surface | supported | Same, with depth set by inflow and duration |
@@ -103,7 +109,7 @@ site cannot support a regional recommendation.
 
 - **No worked reference cases yet.** #243 also asks for independently calculated ETo,
   crop-demand and soil-water examples with expected values, tolerances and a missing-data case.
-  They are not in this change. They need locators that have not been read yet — Chapter 1 for
+  They are not in this change. They need locators that have not been read yet — Chapter 2 for
   Eq. 6's confirmed form, Chapter 6 for the crop coefficient tables, Chapter 8 for the water
   balance — and the `pending` list in `source_registry.v1.json` is that checklist. Writing the
   numbers first and finding the sources afterwards is the exact failure this registry prevents.

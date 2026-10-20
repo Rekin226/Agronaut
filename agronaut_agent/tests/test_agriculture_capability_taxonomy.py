@@ -40,7 +40,7 @@ REQUIRED_STATUSES = {
 }
 NUMERIC_PROVIDERS = {"numeric_coefficient", "numeric_procedure"}
 VALID_LOCATOR_KINDS = {"equation", "table", "section", "document"}
-VALID_COMPATIBILITY = {"supported", "conditional", "incompatible"}
+VALID_COMPATIBILITY = {"supported", "conditional", "incompatible", "not_applicable"}
 VALID_BASIS = {"support_decision", "source_pending", "sourced"}
 
 
@@ -279,3 +279,85 @@ def test_the_narrative_points_at_the_versioned_data_files():
     text = NARRATIVE.read_text()
     assert TAXONOMY.name in text, f"{NARRATIVE.name} does not reference {TAXONOMY.name}"
     assert REGISTRY.name in text, f"{NARRATIVE.name} does not reference {REGISTRY.name}"
+
+
+# --- the review's two corrections ------------------------------------------------------------
+
+
+def test_every_locator_names_the_chapter_it_was_read_in():
+    """A locator registry is only useful if the chapter is exact.
+
+    The FAO-56 chapter numbers were wrong once: the equations and the table sit
+    in Chapter 3 (Meteorological data) and the Penman-Monteith equation itself
+    in Chapter 2, not in Chapter 4. Every locator therefore carries the chapter
+    it was read in, and no locator may point at a chapter it was not read in.
+    """
+    fao56 = next(s for s in registry()["sources"] if s["id"] == "fao56")
+    for locator in fao56["locators"]:
+        chapter = locator.get("chapter")
+        assert chapter in {2, 3}, (
+            f"locator {locator['label']!r} names chapter {chapter!r}; FAO-56 carries the "
+            "Penman-Monteith equation in Chapter 2 and the meteorological data in Chapter 3"
+        )
+        assert locator.get("chapter_title"), (
+            f"locator {locator['label']!r} names a chapter but not its title"
+        )
+
+    chapters = {
+        locator["label"]: locator["chapter"]
+        for locator in fao56["locators"]
+        if locator.get("chapter")
+    }
+    assert chapters["Eq. 6, the FAO Penman-Monteith equation"] == 2, (
+        "Eq. 6 is printed in Chapter 2, the FAO Penman-Monteith equation"
+    )
+    for label, chapter in chapters.items():
+        if label.startswith("Eq. 6"):
+            continue
+        assert chapter == 3, (
+            f"{label!r} was read in Chapter 3 (Meteorological data), not Chapter {chapter}"
+        )
+
+
+def test_the_soilless_rows_are_not_applicable_and_point_at_the_system_types():
+    """A soilless system does not irrigate in the field sense this axis describes.
+
+    Its water delivery is the system type already modelled in
+    aqua_model/system_types.py, so the row must say so rather than leave the
+    reader with a flood-and-drain "incompatible" verdict that reads like a
+    finding about a method nobody was using.
+    """
+    rows = {
+        (row["production_system"], row["irrigation_method"]): row
+        for row in taxonomy()["compatibility"]
+    }
+    for system in ("aquaponics", "hydroponics"):
+        for method in ("drip", "sprinkler", "surface", "rainfed"):
+            row = rows[(system, method)]
+            if system == "aquaponics" and method == "drip":
+                continue  # drip to a substrate is real in aquaponics
+            assert row["status"] == "not_applicable", (
+                f"{system}/{method} is {row['status']!r}; a soilless system does not irrigate "
+                "in this sense, so the row is not_applicable"
+            )
+            assert "aqua_model/system_types.py" in row["reason"], (
+                f"{system}/{method} does not point at the system types that carry its delivery"
+            )
+
+    aquaponic_drip = rows[("aquaponics", "drip")]
+    assert aquaponic_drip["status"] == "conditional", (
+        "drip to a substrate is real in aquaponics as Dutch buckets, so the row stays conditional"
+    )
+    assert "Dutch bucket" in aquaponic_drip["reason"], (
+        "the aquaponics/drip row must name the Dutch-bucket case that keeps it conditional"
+    )
+
+
+def test_the_irrigation_axis_says_which_system_it_describes():
+    axis = taxonomy()["axes"]["irrigation_method"]
+    assert axis.get("applies_to") == "soil_cultivation", (
+        "the irrigation axis describes field irrigation of a soil root zone"
+    )
+    assert "aqua_model/system_types.py" in axis.get("scope_note", ""), (
+        "the axis must say where a soilless system's delivery is modelled instead"
+    )
