@@ -121,6 +121,23 @@ TGC = {
                "effective 21-22 C; the timelines bracket the trial from both sides. "
                "Low/high span the timelines plus the trial; the trial sits inside. Seeds "
                "at 0.7; calibrate against farm records"),
+    "freshwater_prawn": Coefficient(
+        name="freshwater_prawn.tgc", value=0.73, low=0.48, high=1.17,
+        unit="g^1/3/(C·d) x1000",
+        source="LIT: back-computed from the culture timelines the species row already cites "
+               "— D'Abramo & Brunson (1996), SRAC Publication 484 'Production of Freshwater "
+               "Prawns in Ponds' (Mississippi State University): 0.1-0.3 g juveniles stocked "
+               "to a 35-45 g table size over a 120-180 d grow-out season. At the 22-30 C "
+               "water temperature the FAO prawn manual reports for the tropical pond cycles "
+               "it summarizes (New (2002), FAO Fisheries Technical Paper 428, ch. 6), the "
+               "midpoint read (0.2 -> 40 g over 150 d at 26 C) gives base-0 TGC = "
+               "1000 x (40^(1/3) - 0.2^(1/3)) / (26 x 150) = 0.73; the receipt extremes "
+               "span 0.48-1.17. Prawn growth is molting-based, so the cube-root TGC form is "
+               "a fish regularity borrowed for degree-day pacing: a derived seed, not a "
+               "measured crustacean TGC. It sets the thermal ceiling; at the species row's "
+               "ration the feed chart still paces the plan (0.5 -> 45 g in ~171 d at 29 C, "
+               "inside the same 120-180 d season). Seeds at 0.73; calibrate against farm "
+               "records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",

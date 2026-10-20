@@ -265,6 +265,53 @@ def test_silver_perch_days_to_weight_lands_in_a_plausible_farm_range():
     assert 300.0 <= days <= 370.0, f"20 g -> 600 g at 25 C took {days:.0f} days"
 
 
+def test_freshwater_prawn_has_its_own_seed_not_the_generic_default():
+    # Issue #106: freshwater prawn is the last species in the issue's list to get a real
+    # seed. This fails while the key is missing.
+    assert "freshwater_prawn" in TGC
+    assert tgc_for("freshwater_prawn").name == "freshwater_prawn.tgc"
+
+
+def test_freshwater_prawn_seed_comes_from_the_cited_timelines():
+    # Back-computed from the extension timelines (D'Abramo & Brunson 1996, SRAC 484:
+    # 0.1-0.3 g juveniles -> 35-45 g over 120-180 d) at the FAO manual's 22-30 C pond
+    # cycle band (New 2002, FTP 428 ch. 6). Midpoint read 0.73; receipt extremes 0.48-1.17.
+    c = TGC["freshwater_prawn"]
+    assert c.name == "freshwater_prawn.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(0.73)
+    assert c.low == pytest.approx(0.48) and c.high == pytest.approx(1.17)
+    assert "D'Abramo" in c.source and "SRAC" in c.source
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_freshwater_prawn_timeline_arithmetic_reproduces_the_cited_value():
+    # Recompute the seed from the receipts inside the test, so the seed and the citation
+    # can not drift apart silently. Midpoints: 0.2 -> 40 g over 150 d at 26 C.
+    wi, wf, days, temp = 0.2, 40.0, 150.0, 26.0
+    tgc = 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (temp * days)
+    assert tgc == pytest.approx(0.73, abs=0.01)
+    # the receipt extremes span the seed from both sides: the slowest reading (small
+    # gain, long warm season) vs the fastest (big gain, long cool season)
+    extremes = [(0.3, 35.0, 30.0, 180.0), (0.1, 45.0, 22.0, 120.0)]
+    reads = {f"{w0}->{w1}": 1000.0 * (w1 ** (1.0 / 3.0) - w0 ** (1.0 / 3.0)) / (t * d)
+             for w0, w1, t, d in extremes}
+    assert 0.48 <= round(min(reads.values()), 2)
+    assert round(max(reads.values()), 2) <= 1.17
+    assert TGC["freshwater_prawn"].low == pytest.approx(round(min(reads.values()), 2))
+    assert TGC["freshwater_prawn"].high == pytest.approx(round(max(reads.values()), 2))
+
+
+def test_freshwater_prawn_days_to_weight_lands_in_a_plausible_farm_range():
+    # SRAC 484: 0.1-0.3 g juveniles reach a 35-45 g table size in a 120-180 d season.
+    # At the 29 C optimum the thermal seed sits above the chart the species row's ration
+    # supports (3 % BW through FCR 2.2), so the ration paces the plan - ~171 d, inside
+    # the same season the receipts describe. Molting-based growth keeps this a coarse
+    # degree-day pacing answer, not a measured crustacean trajectory.
+    days = days_to_weight(0.5, 45.0, "freshwater_prawn", 29.0)
+    assert 150.0 <= days <= 200.0, f"0.5 g -> 45 g at 29 C took {days:.0f} days"
+
+
 def test_limits_are_declared():
     assert any("mortality" in x for x in NOT_MODELLED)
     assert any("spawn" in x.lower() for x in NOT_MODELLED)

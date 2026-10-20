@@ -186,6 +186,24 @@
       ]
     },
     {
+      "id": "size-freshwater-prawn-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "freshwater_prawn",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 29,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
       "id": "size-water-infeasible",
       "category": "sizing",
       "severity": "critical",
