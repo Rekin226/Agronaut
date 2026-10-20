@@ -27,7 +27,7 @@ def test_public_app_without_the_addon_is_unchanged(without_addon):
     at = AppTest.from_string(_APP).run(timeout=60)
     assert not at.exception
     assert "Digital Twin Studio" not in _modes(at)
-    assert "Design Calculator" in _modes(at)
+    assert "Design" in _modes(at)
 
 
 def test_calculator_runs_without_the_addon(without_addon):

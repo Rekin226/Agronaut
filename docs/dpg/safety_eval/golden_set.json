@@ -114,6 +114,78 @@
       ]
     },
     {
+      "id": "size-pangasius-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "pangasius",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 28,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
+      "id": "size-barramundi-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "barramundi",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 28,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
+      "id": "size-tambaqui-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tambaqui",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 29,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
+      "id": "size-silver-perch-lettuce",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "silver_perch",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 25,
+        "water": 3000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "fish=",
+        "feed="
+      ]
+    },
+    {
       "id": "size-water-infeasible",
       "category": "sizing",
       "severity": "critical",
@@ -645,6 +717,51 @@
       "must_exclude": [
         "Magnesium"
       ]
+    },
+    {
+      "id": "sizing-high-protein-feed-nitrogen",
+      "category": "sizing",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "barramundi",
+        "crop": "lettuce",
+        "area": 6,
+        "temp": 27,
+        "water": 3000
+      },
+      "must_include": [
+        "agrees=True",
+        "frr_reference_feed_protein_pct",
+        "not 32% protein"
+      ],
+      "must_exclude": [
+        "FRR sizing and nitrogen balance disagree"
+      ],
+      "_note": "45%-protein feed sized with the 32%-protein feeding-rate ratio overfed the beds' nitrogen uptake by ~60% (2026-10-04). Sizing now scales the ratio by feed protein, cites the 32% reference, and says what that does not cover."
+    },
+    {
+      "id": "prov-moringa-migrated-row",
+      "category": "trust_gate",
+      "severity": "critical",
+      "tool": "size_aquaponics",
+      "args": {
+        "fish": "tilapia",
+        "crop": "moringa",
+        "area": 10,
+        "temp": 27,
+        "water": 1000000
+      },
+      "must_include": [
+        "FEASIBLE",
+        "source:",
+        "NOT modeled",
+        "agrees=True"
+      ],
+      "must_exclude": [
+        "VALIDATION_FAILED"
+      ],
+      "_note": "#214 per-field provenance: the moringa row is migrated to a full measured/placed/inherited map and the unsourced-constant guard exempts only provenance-complete rows; this gates that the migrated row still sizes cleanly end to end."
     }
   ]
 }

@@ -139,7 +139,8 @@ def test_cache_is_not_committed():
     assert "data/.index_cache/" in (root / ".gitignore").read_text()
 
 
-@pytest.mark.parametrize("var", ["AGRONAUT_MD_HEADERS", "AGRONAUT_MD_CRUMB", "AGRONAUT_PDF_CLEAN"])
+@pytest.mark.parametrize("var", ["AGRONAUT_MD_HEADERS", "AGRONAUT_MD_CRUMB", "AGRONAUT_PDF_CLEAN",
+                                 "AGRONAUT_SENTENCE_CHUNKS"])
 def test_chunking_flags_invalidate_the_cache(corpus, monkeypatch, var):
     """A chunking flag changes what text lands in each vector, so an index built under one setting
     is wrong under the other. Leaving these out of the fingerprint made an ablation appear to

@@ -1,5 +1,7 @@
 """Fish growth: warm water grows fish, starved fish don't, and the numbers stay physical."""
 
+import math
+
 import pytest
 
 from aqua_model.fishgrowth import (
@@ -81,6 +83,186 @@ def test_every_tgc_seed_carries_a_source_and_a_range():
 
 def test_an_unknown_species_gets_the_default_seed_not_a_crash():
     assert tgc_for("no_such_fish").name == "generic.tgc"
+
+
+def test_pangasius_has_its_own_seed_not_the_generic_default():
+    # Issue #106: five species silently fell back to the generic warm-water default;
+    # pangasius is the first to get a real seed. This fails while the key is missing.
+    assert "pangasius" in TGC
+    assert tgc_for("pangasius").name == "pangasius.tgc"
+
+
+def test_pangasius_seed_comes_from_the_cited_pond_trial():
+    # Da, Lundh, Lindberg & Berg (2016) Table 4: 16.1 -> 229.4 g in 112 d at 28.6 C avg.
+    # Reference diet computes to TGC 1.12; the seven diets span 0.80-1.20.
+    c = TGC["pangasius"]
+    assert c.name == "pangasius.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.1)
+    assert c.low == pytest.approx(0.8) and c.high == pytest.approx(1.2)
+    assert "Da" in c.source and "2016" in c.source
+    # sits inside the published juvenile envelope (Marquez et al. 2024)
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_pangasius_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute the reference-diet TGC from the paper's numbers inside the test, so the
+    # seed and the citation can not drift apart silently.
+    wi, wf, days, temp_c = 16.1, 229.4, 112.0, 28.6
+    tgc_ref = 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (temp_c * days)
+    assert tgc_ref == pytest.approx(1.12, abs=0.005)
+    assert TGC["pangasius"].low <= tgc_ref <= TGC["pangasius"].high
+
+
+def test_pangasius_days_to_weight_lands_in_a_plausible_farm_range():
+    # The issue's sanity anchor: a value implying harvest in weeks is wrong. Mekong pond
+    # culture runs a 20 g fingerling to ~1 kg in roughly 8 months at ~28 C; the seed must
+    # land in that neighbourhood, not in weeks and not in years.
+    days = days_to_weight(20.0, 1000.0, "pangasius", 28.0)
+    assert 150.0 <= days <= 330.0, f"20 g -> 1 kg at 28 C took {days:.0f} days"
+
+
+def test_barramundi_has_its_own_seed_not_the_generic_default():
+    # Issue #106: barramundi is the second of the four remaining species to get a real
+    # seed. This fails while the key is missing.
+    assert "barramundi" in TGC
+    assert tgc_for("barramundi").name == "barramundi.tgc"
+
+
+def test_barramundi_seed_comes_from_the_cited_ras_trial():
+    # Le Boucher, Chung, Ng, Tan & Lee (2024), Table 4: 71.1 -> 214.8-236.5 g over 51 d.
+    # The paper reports TGC in base-20 form; converted to this file's base-0 convention
+    # the four diets span 1.19-1.39 depending on which temperature the TGC arithmetic
+    # itself implies. Seed 1.3 sits inside that span.
+    c = TGC["barramundi"]
+    assert c.name == "barramundi.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.3)
+    assert c.low == pytest.approx(1.19) and c.high == pytest.approx(1.4)
+    assert "Le Boucher" in c.source and "2024" in c.source
+    # sits inside the published juvenile envelope (Marquez et al. 2024)
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_barramundi_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute both readings from the paper's numbers inside the test, so the seed and
+    # the citation can not drift apart silently.
+    wi, days = 71.1, 51.0
+    finals = {"SPC": 214.8, "Control": 217.3, "BSF": 222.2, "Com": 236.5}
+    # the paper's own base-20 TGCs imply sum(T-20) = 442 C.d over 51 d (~28.7 C effective)
+    for name, fbw in finals.items():
+        dw = fbw ** (1.0 / 3.0) - wi ** (1.0 / 3.0)
+        tgc_b0 = 1000.0 * dw / (442.0 + 20.0 * days)
+        assert 1.19 <= tgc_b0 <= 1.40, f"{name}: base-0 TGC {tgc_b0:.3f} outside the span"
+    # at the stated 30.3 C the same weights give the looser 1.19-1.32 reading
+    tgc_ctrl = 1000.0 * (217.3 ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (30.3 * days)
+    assert TGC["barramundi"].low <= tgc_ctrl <= TGC["barramundi"].high
+
+
+def test_barramundi_days_to_weight_lands_in_a_plausible_farm_range():
+    # FAO 589 grow-out figure: 20 g fingerling to plate size (~400-500 g) inside a year;
+    # the Lupatsch/Lupatsch energy model reaches 500 g in ~190 d at 27 C. For this species
+    # row the feed chart binds below the thermal ceiling, so the planning date rides the
+    # ration in the species table, not the TGC seed alone - the seed still sets the
+    # thermal headroom the chart is allowed to climb toward.
+    days = days_to_weight(20.0, 500.0, "barramundi", 28.0)
+    assert 150.0 <= days <= 300.0, f"20 g -> 500 g at 28 C took {days:.0f} days"
+
+
+def test_tambaqui_has_its_own_seed_not_the_generic_default():
+    # Issue #106: tambaqui is the third species to get a real seed. This fails while
+    # the key is missing.
+    assert "tambaqui" in TGC
+    assert tgc_for("tambaqui").name == "tambaqui.tgc"
+
+
+def test_tambaqui_seed_comes_from_the_cited_pond_trial():
+    # Rodrigues et al. (2024), Table 1: 94.5 -> 340.53-365.53 g over 84 d at 29.5 C.
+    # The four treatments span 0.98-1.05; eight independent pond timelines
+    # (Hilsdorf et al. 2022, Table 1) back-compute to 0.87-1.08. Seed 1.0 sits inside
+    # both, and inside the published juvenile envelope (Marquez et al. 2024).
+    c = TGC["tambaqui"]
+    assert c.name == "tambaqui.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(1.0)
+    assert c.low == pytest.approx(0.87) and c.high == pytest.approx(1.08)
+    assert "Rodrigues" in c.source and "2024" in c.source
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_tambaqui_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute the seed from the paper's numbers inside the test, so the seed and the
+    # citation can not drift apart silently.
+    wi, days, temp = 94.5, 84.0, 29.5
+    finals = {"3%2x": 340.53, "3%3x": 341.23, "4%2x": 353.82, "4%3x": 365.53}
+    for name, wf in finals.items():
+        tgc = 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (temp * days)
+        assert 0.97 <= tgc <= 1.06, f"{name}: base-0 TGC {tgc:.3f} outside the trial span"
+    # the eight pond timelines bracket the trial from both sides
+    timelines = [(90.4, 883.7, 170), (121.8, 664.7, 150), (115.8, 705.8, 150),
+                 (163.78, 1036.5, 149), (55.3, 979.0, 210), (70.24, 903.0, 180),
+                 (42.7, 1949.6, 356), (160.0, 2620.0, 300)]
+    for w0, w1, d in timelines:
+        tgc = 1000.0 * (w1 ** (1.0 / 3.0) - w0 ** (1.0 / 3.0)) / (29.0 * d)
+        assert 0.86 <= tgc <= 1.09, f"{w0}->{w1} g in {d} d: TGC {tgc:.3f} outside the band"
+    assert TGC["tambaqui"].low <= 0.98 and 1.05 <= TGC["tambaqui"].high
+
+
+def test_tambaqui_days_to_weight_lands_in_a_plausible_farm_range():
+    # Semi-intensive pond practice: 2-5 g stocking to 1-2.5 kg harvest with a cycle of
+    # roughly 10-14 months (Valenti et al. 2021 via Rodrigues et al. 2024 intro; the
+    # species row rides the feed chart below the thermal ceiling the seed sets).
+    days = days_to_weight(20.0, 1200.0, "tambaqui", 29.0)
+    assert 200.0 <= days <= 360.0, f"20 g -> 1.2 kg at 29 C took {days:.0f} days"
+
+
+def test_silver_perch_has_its_own_seed_not_the_generic_default():
+    # Issue #106: silver perch is the fourth species to get a real seed. This fails while
+    # the key is missing.
+    assert "silver_perch" in TGC
+    assert tgc_for("silver_perch").name == "silver_perch.tgc"
+
+
+def test_silver_perch_seed_comes_from_the_cited_ras_trial():
+    # Foley et al. (2010): 38 -> 146 g over 125 d at 19-25 C (the paper states the range,
+    # not the mean). Base-0 TGC spans 0.61-0.80 across the stated range; extension-guide
+    # timelines (Business Queensland, NSW DPI) back-compute to 0.51-0.74. Seed 0.7 sits
+    # inside both.
+    c = TGC["silver_perch"]
+    assert c.name == "silver_perch.tgc"
+    assert c.low <= c.value <= c.high
+    assert c.value == pytest.approx(0.7)
+    assert c.low == pytest.approx(0.51) and c.high == pytest.approx(0.80)
+    assert "Foley" in c.source and "2010" in c.source
+    assert 0.1 <= c.low and c.high <= 3.2
+
+
+def test_silver_perch_trial_arithmetic_reproduces_the_cited_value():
+    # Recompute the seed from the paper's numbers inside the test, so the seed and the
+    # citation can not drift apart silently. The abstract's own SGR is the arithmetic
+    # receipt: 100 x (ln 146 - ln 38) / 125 = 1.08 %/d against the reported 1.07.
+    wi, wf, days = 38.0, 146.0, 125.0
+    sgr = 100.0 * (math.log(wf) - math.log(wi)) / days
+    assert sgr == pytest.approx(1.07, abs=0.02)
+    reads = {t: 1000.0 * (wf ** (1.0 / 3.0) - wi ** (1.0 / 3.0)) / (t * days)
+             for t in (19.0, 22.0, 25.0)}
+    assert 0.60 <= min(reads.values()) and max(reads.values()) <= 0.81
+    # the extension timelines bracket the trial from both sides
+    timelines = [(20.0, 400.0, 300.0, 25.0), (20.0, 500.0, 330.0, 24.0),
+                 (20.0, 600.0, 335.0, 23.0), (30.0, 400.0, 300.0, 25.0),
+                 (30.0, 600.0, 335.0, 23.0), (20.0, 700.0, 540.0, 21.0),
+                 (30.0, 700.0, 540.0, 21.0), (30.0, 800.0, 540.0, 22.0)]
+    for w0, w1, d, t in timelines:
+        tgc = 1000.0 * (w1 ** (1.0 / 3.0) - w0 ** (1.0 / 3.0)) / (t * d)
+        assert 0.50 <= tgc <= 0.75, f"{w0}->{w1} g in {d} d at {t} C: TGC {tgc:.3f} outside"
+    assert TGC["silver_perch"].low <= 0.61 and 0.80 <= TGC["silver_perch"].high
+
+
+def test_silver_perch_days_to_weight_lands_in_a_plausible_farm_range():
+    # Business Queensland: marketable 400-600 g in 10-12 months. The thermal rate binds
+    # below the feed chart across the optimum band, so the seed sets the pace directly.
+    days = days_to_weight(20.0, 600.0, "silver_perch", 25.0)
+    assert 300.0 <= days <= 370.0, f"20 g -> 600 g at 25 C took {days:.0f} days"
 
 
 def test_limits_are_declared():

@@ -38,6 +38,21 @@ def corpus_root() -> Path:
     return Path(sys.prefix) / "share" / "agronaut"
 
 
+def eval_root() -> Path:
+    """Directory holding the golden sets and published eval reports (`docs/dpg`).
+
+    In a checkout that is the repo's own `docs/dpg`. A wheel ships the golden sets and the
+    published reports as data files, so `agronaut eval` measures a grower's own install
+    instead of failing to find its questions.
+    """
+    override = os.environ.get("AGRONAUT_EVAL_DIR")
+    if override:
+        return Path(override)
+    if (PROJECT_ROOT / "docs" / "dpg").is_dir():
+        return PROJECT_ROOT / "docs" / "dpg"
+    return Path(sys.prefix) / "share" / "agronaut" / "eval"
+
+
 def cache_dir() -> Path:
     """Directory for regenerable caches (the fetched-page sqlite).
 

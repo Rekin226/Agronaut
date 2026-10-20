@@ -53,7 +53,7 @@ def render_twin(brain=None, user: str | None = None, channel: str = "web") -> No
 
 
 def _greenhouse() -> str:
-    return st.sidebar.selectbox(
+    return st.selectbox(
         "Cover", ("shade", "poly", "heated"), index=0,
         key="twin_cover",
         help="The envelope you actually run. It changes water temperature, and "

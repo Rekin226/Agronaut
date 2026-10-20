@@ -187,6 +187,57 @@ def test_distributions_returns_every_visible_agronaut():
         assert (d.metadata.get("Name") or "").lower() == "agronaut"
 
 
+def test_check_provider_fails_with_pip_install_when_backend_library_is_missing(monkeypatch):
+    """Hiding langchain_openai makes doctor FAIL with the exact install command instead of OK."""
+    import sys
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
+    monkeypatch.setitem(sys.modules, "langchain_openai", None)
+    checks = D.check_provider()
+    assert checks[0].status == FAIL
+    assert "openai_compat" in checks[0].label
+    assert "pip install langchain-openai" in checks[0].fix
+
+
+def test_check_provider_fails_when_installed_backend_raises_on_import(monkeypatch):
+    """A library that is present on disk but fails to load (e.g. wrong-arch wheel) is a FAIL too."""
+    import importlib
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
+
+    def broken_import(name, *args, **kwargs):
+        if name == "langchain_openai":
+            raise OSError("wrong ELF class: ELFCLASS32")
+        return importlib.__import__(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", broken_import)
+    checks = D.check_provider()
+    assert checks[0].status == FAIL
+    assert "OSError" in checks[0].detail
+    assert "pip install --force-reinstall langchain-openai" in checks[0].fix
+
+
+def test_check_provider_passes_when_openai_compat_backend_is_importable(monkeypatch):
+    """When the provider module and class load cleanly, doctor reports OK without hitting network."""
+    import sys
+    import types
+
+    fake_mod = types.ModuleType("langchain_openai")
+    fake_mod.ChatOpenAI = object  # type: ignore[attr-defined]
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_mod)
+    checks = D.check_provider()
+    assert checks[0].status == OK
+    assert "provider openai_compat" in checks[0].label
+
+
+def test_doctor_provider_backends_match_agent_llm_supported():
+    """Keep the doctor provider table in step with agent/llm.py."""
+    from agent import llm
+
+    assert set(D._PROVIDER_BACKENDS) == set(llm.SUPPORTED)
+
+
 # --- what the model is entitled to claim ---------------------------------------------------
 
 def test_the_validation_line_is_printed_whole():
@@ -215,3 +266,84 @@ def test_the_default_context_window_passes(monkeypatch):
     monkeypatch.delenv("AGRONAUT_OLLAMA_NUM_CTX", raising=False)
     check = D._ollama_context_check()
     assert check.status == OK and "32768" in check.label
+
+
+# --- optional Phoenix tracing -----------------------------------------------------------------
+
+@pytest.fixture
+def phoenix_env(monkeypatch):
+    for key in ("AGRONAUT_PHOENIX", "AGRONAUT_PHOENIX_ENDPOINT", "AGRONAUT_PHOENIX_ALLOW_REMOTE"):
+        monkeypatch.delenv(key, raising=False)
+    return monkeypatch
+
+
+def _libs(monkeypatch, present: bool):
+    import importlib.util
+    real = importlib.util.find_spec
+
+    def spec(name, *a, **k):
+        if name.startswith(("phoenix", "openinference")):
+            if not present:
+                raise ModuleNotFoundError(name)
+            return object()
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(importlib.util, "find_spec", spec)
+
+
+def test_tracing_off_is_the_normal_state_and_passes(phoenix_env):
+    (c,) = D.check_tracing()
+    assert c.status == OK and "off" in c.label and "shapes only" in c.detail
+
+
+def test_tracing_to_another_host_is_a_failure(phoenix_env):
+    phoenix_env.setenv("AGRONAUT_PHOENIX", "on")
+    phoenix_env.setenv("AGRONAUT_PHOENIX_ENDPOINT", "https://phoenix.example.com/v1/traces")
+    (c,) = D.check_tracing()
+    assert c.status == FAIL and "not this machine" in c.label
+
+
+def test_tracing_on_without_the_libraries_is_a_failure_and_does_not_raise(phoenix_env):
+    phoenix_env.setenv("AGRONAUT_PHOENIX", "on")
+    _libs(phoenix_env, present=False)
+    (c,) = D.check_tracing()
+    assert c.status == FAIL and "agronaut[phoenix]" in c.fix
+
+
+def test_tracing_on_with_the_server_down_warns_that_traces_are_dropped(phoenix_env):
+    import urllib.request
+    phoenix_env.setenv("AGRONAUT_PHOENIX", "on")
+    _libs(phoenix_env, present=True)
+
+    def refuse(*a, **k):
+        raise OSError("connection refused")
+
+    phoenix_env.setattr(urllib.request, "urlopen", refuse)
+    (c,) = D.check_tracing()
+    assert c.status == WARN and "dropped" in c.detail
+
+
+def test_tracing_on_with_the_server_up_passes(phoenix_env):
+    import contextlib
+    import urllib.request
+    phoenix_env.setenv("AGRONAUT_PHOENIX", "on")
+    _libs(phoenix_env, present=True)
+    phoenix_env.setattr(urllib.request, "urlopen",
+                        lambda *a, **k: contextlib.nullcontext())
+    (c,) = D.check_tracing()
+    assert c.status == OK and "127.0.0.1:6006" in c.detail
+
+
+def test_a_stale_scripts_package_beside_an_editable_install_is_flagged(monkeypatch, tmp_path):
+    """The bug that hid the Quality page's answers report on 2026-10-04."""
+    import sysconfig
+
+    from agronaut_agent import version_info
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "__init__.py").write_text("")
+    monkeypatch.setattr(sysconfig, "get_paths", lambda *a, **k: {"purelib": str(tmp_path)})
+    monkeypatch.setattr(version_info, "current", lambda: _install())
+    monkeypatch.setattr(version_info, "distributions", lambda: [])
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    stale = [c for c in D.check_install() if "stale `scripts`" in c.label]
+    assert stale and stale[0].status == WARN and str(tmp_path / "scripts") in stale[0].fix

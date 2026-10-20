@@ -64,10 +64,11 @@ def test_amaranth_is_the_heat_tolerant_leafy_option():
 
     leafy_above_30 = [k for k, x in CROPS.items()
                       if x.category == "leafy" and x.temp_max_c > 30.0]
-    assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "water_spinach"], (
-        "amaranth, water_spinach and malabar_spinach (#125) are the leafy crops that "
-        f"carry hot climates; if another joins them, widen this assertion deliberately. "
-        f"Found: {leafy_above_30}"
+    assert sorted(leafy_above_30) == ["amaranth", "malabar_spinach", "moringa",
+                                      "roselle", "water_spinach"], (
+        "amaranth, water_spinach, malabar_spinach (#125) and moringa are the leafy "
+        f"crops that carry hot climates; if another joins them, widen this assertion "
+        f"deliberately. Found: {leafy_above_30}"
     )
 
 
@@ -134,6 +135,127 @@ def test_malabar_spinach_sizes_a_system_without_error():
     from aqua_model import size_system, validate_design_input
 
     out = size_system(validate_design_input("tilapia", "malabar_spinach", 12.0, 29.0, 3000.0))
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_moringa_is_heat_tolerant_and_drought_hardy():
+    """#125: moringa (Moringa oleifera), the seventh wanted heat-tolerant leafy.
+
+    Its identity in the database is the pairing of the 35 °C ceiling with the
+    warmest floor of the group (20 °C): a chilling-sensitive tropical species whose
+    cited optimum (25-35 °C, Trigo et al. 2021) sits entirely in the heat. It is
+    also the protein outlier — 9.4 g/100 g fresh against 1.4-2.6 for the rest of
+    the leafies — so an edit that quietly lowers either number breaks the reason
+    this crop was added.
+    """
+    mo = get_crop("moringa")
+    assert mo.category == "leafy"
+    assert mo.temp_max_c >= 35.0
+    assert mo.temp_min_c >= 20.0
+    assert "FRR placed" in mo.source, "FRR placement must be clearly stated"
+    assert mo.edible_protein_pct >= 9.0, (
+        "moringa is here for the protein too; 9.4 g/100 g fresh (USDA FDC) is the point"
+    )
+    assert mo.yield_kg_per_m2_year > 10.0
+    assert mo.yield_kg_per_m2_year < 25.0
+
+
+def test_moringa_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "moringa", 12.0, 29.0, 3000.0))
+
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_ethiopian_kale_is_the_heat_tolerant_brassica():
+    """#125: Ethiopian kale (Brassica carinata), a wanted heat-tolerant leafy.
+
+    Its identity in the database is the pairing of a 30 °C ceiling with a 15 °C
+    floor and no vernalization requirement: the leafy brassica slot (kale,
+    collards, mustard greens all stop at 24-27 °C) filled for warm climates.
+    The 30 ceiling is placed, not measured for the leafy use: ECHO's Mutarda
+    carinata sheet states "Temperature range: 15-20° C" and OMAFRA's Specialty
+    Cropportunities states "Optimal Temperature Range: 20-30˚C" — the 30 is the
+    species optimum, placed on the leafy use. If a future edit narrows the band,
+    the reason this crop was added reopens silently.
+    """
+    ek = get_crop("ethiopian_kale")
+    assert ek.category == "leafy"
+    assert ek.temp_max_c >= 30.0
+    assert ek.temp_min_c >= 15.0
+    assert ek.temp_max_c <= 32.0  # sourced ceiling, not a copy of amaranth's 35
+    assert "FRR placed" in ek.source, "FRR placement must be clearly stated"
+    assert "juncea" in ek.source, "protein figure must name its B. juncea inheritance"
+    assert "Mnzava & Schippers 2007" in ek.source, "PROTA citation must name its authors"
+    assert "3.5 kg/m2 (35 t/ha per crop) x 4x" in ek.source, (
+        "yield chain must state the unit conversion and the multiplier, "
+        "not skip the field-to-registered unit step")
+    assert ek.yield_kg_per_m2_year > 10.0
+    assert ek.yield_kg_per_m2_year < 25.0
+
+
+def test_ethiopian_kale_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "ethiopian_kale", 12.0, 29.0, 3000.0))
+
+    assert out.feed_g_per_day > 0
+    assert out.fish_count > 0
+    assert out.biofilter_media_m2 > 0
+
+
+def test_roselle_is_the_sahelian_hibiscus_leafy():
+    """#125: roselle (Hibiscus sabdariffa), the last wanted heat-tolerant leafy.
+
+    Its identity is a measured 18-35 °C band — the only PROTA endpoint pair on the
+    heat-tolerant list stated as a direct quote rather than assembled from other
+    sources' fragments — paired with leaf protein (3.3) above every heat-tolerant
+    leafy-green sibling; only moringa, in its own leafy-legume class, sits higher.
+    If a future edit moves an endpoint off the quoted band, the reason this crop was
+    added reopens silently.
+    """
+    rs = get_crop("roselle")
+    assert rs.category == "leafy"
+    assert rs.temp_min_c >= 18.0
+    assert rs.temp_max_c >= 35.0
+    assert rs.temp_max_c <= 36.0  # exact PROTA endpoint, no headroom added
+    assert rs.edible_protein_pct > 3.0
+    greens = ("amaranth", "water_spinach", "malabar_spinach", "ethiopian_kale")
+    assert all(rs.edible_protein_pct > get_crop(g).edible_protein_pct for g in greens), (
+        "protein 3.3 must stay above the leafy-green siblings (moringa excluded — "
+        "its 9.4 is a different class)")
+    assert "18°C and 35°C" in rs.source, "band endpoints must quote the PROTA sentence"
+    assert "20 t/ha" in rs.source, "yield base must cite the PROTA leafy-branch figure"
+    assert "2.0 kg/m2 (20 t/ha per cycle) x 1.5 cycles/yr x 4x" in rs.source, (
+        "yield chain must state the unit conversion, cycle count and multiplier, "
+        "not skip the field-to-registered unit step")
+    assert "Leung" in rs.source, "protein figure must name its composition-table source"
+    assert "13 hours/day" in rs.source, (
+        "daylength caveat must quote PROTA's vegetative-light requirement — it "
+        "constrains the leaf harvest, not just calyx production")
+    assert "does not account for photoperiod" in rs.source, (
+        "the 1.5 cycles/yr assumes the plant stays vegetative; the model's "
+        "photoperiod blind spot must be stated, not implied")
+    assert "calyx section" in rs.source, (
+        "PROTA's 'much lower and variable' averages are calyx figures; holding 12 "
+        "below the siblings must stand on the reported-maximum reason, not that clause")
+    assert "FRR placed" in rs.source, "FRR placement must be clearly stated"
+    assert 8.0 < rs.yield_kg_per_m2_year < 16.0  # held below the 14-16 siblings: reported max, not average
+
+
+def test_roselle_sizes_a_system_without_error():
+    """The acceptance criterion from #125: it has to actually run, not just parse."""
+    from aqua_model import size_system, validate_design_input
+
+    out = size_system(validate_design_input("tilapia", "roselle", 12.0, 30.0, 3000.0))
+
     assert out.feed_g_per_day > 0
     assert out.fish_count > 0
     assert out.biofilter_media_m2 > 0

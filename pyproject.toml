@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agronaut"
-version = "1.2.1"
+version = "1.4.0"
 description = "Cited aquatic design and experimental field irrigation tools with farm records and a conversational agent"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,6 +31,11 @@ classifiers = [
     "Environment :: Console",
 ]
 dynamic = ["dependencies"]
+
+[project.optional-dependencies]
+# Full-content tracing to a local Arize Phoenix (agronaut_agent/otel_phoenix.py). Client side
+# only: the Phoenix server is ~600 MB and is installed on its own (`uv tool install arize-phoenix`).
+phoenix = ["arize-phoenix-otel", "openinference-instrumentation-langchain"]
 
 [project.urls]
 Homepage = "https://github.com/Rekin226/Agronaut"
@@ -68,9 +73,28 @@ exclude = ["*.tests", "*.tests.*"]
 "share/agronaut/knowledge" = ["knowledge/*.md"]
 # Directly selected draft translations; kept outside the English retrieval index.
 "share/agronaut/field_guides" = ["field_guides/fr.json", "field_guides/zh-Hant.json", "field_guides/planning_questions.json"]
+"share/agronaut/examples" = ["examples/*.json"]
 # The reference tables aqua_model and the price tools read at runtime. Listed one by one on
 # purpose: data/ in a checkout also holds the memory database, the analytics log and the
 # fetched-page cache, and a glob would ship a developer's own state to strangers.
+# The golden sets and published eval reports `agronaut eval` reads (paths.eval_root). Without
+# them a pip install can run none of its own quality checks.
+"share/agronaut/eval/retrieval_eval" = [
+    "docs/dpg/retrieval_eval/golden_set.json",
+    "docs/dpg/retrieval_eval/golden_set_multilingual.json",
+    "docs/dpg/retrieval_eval/baseline_tuned_2026_09.json",
+    "docs/dpg/retrieval_eval/baseline_all_field_guides_2026_10.json",
+    "docs/dpg/retrieval_eval/golden_set_field_guidance.json",
+]
+"share/agronaut/eval/safety_eval" = [
+    "docs/dpg/safety_eval/golden_set.json",
+    "docs/dpg/safety_eval/field_set.json",
+]
+"share/agronaut/eval/faithfulness_eval" = [
+    "docs/dpg/faithfulness_eval/2026-09-30_baseline.json",
+    "docs/dpg/faithfulness_eval/2026-10-06_run.json",
+    "docs/dpg/faithfulness_eval/human_labels.json",
+]
 "share/agronaut/data" = [
     "data/coefficient_sources.json",
     "data/dataset_registry.json",

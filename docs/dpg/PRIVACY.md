@@ -68,6 +68,13 @@ Reachable directly from chat at any time:
   to follow you between turns.
 - A **thumbs up/down** (`/good`, `/bad`) is stored as a bare rating, 1 or -1. There is
   deliberately no comment field, so this signal cannot carry anything you wrote.
+- **Optional full traces (off by default).** An operator debugging their own bot can turn on
+  local tracing to Arize Phoenix (`AGRONAUT_PHOENIX=on`). Unlike the analytics above, these
+  traces DO contain message text: your messages, the replies, and what the tools and the
+  knowledge search returned. They are sent only to a Phoenix running on the operator's own
+  machine (Agronaut refuses another host unless the operator overrides it), Phoenix's own web
+  analytics are switched off when it is started with `agronaut phoenix`, and nothing is sent to
+  Arize. If you message someone else's Agronaut bot, ask them whether this is on.
 - Data is retained until you delete it. An operator deployment may set its own retention
   window; this reference build retains until erasure is requested.
 - Access control: on Telegram/WhatsApp an allowlist restricts who can use a given

@@ -55,6 +55,24 @@
       "measured_ph": null,
       "measured_nitrate_n_mg_l": null,
       "measured_makeup_water_lpd": null
+    },
+    {
+      "id": "alhafedh2008_saudi_lettuce",
+      "source": "Al-Hafedh, Alam & Beltagi (2008), 'Food Production and Water Conservation in a Recirculating Aquaponic System in Saudi Arabia at Different Ratios of Fish Feed to Plants', Journal of the World Aquaculture Society 39(4):510-520. DOI 10.1111/j.1749-7345.2008.00181.x",
+      "independent": true,
+      "note": "First independent (non-UVI) gate system. King Abdulaziz City for Science and Technology, Riyadh — a different lab on a different continent from the UVI entries; the design was UVI-inspired but operated and reported independently. 13-month indoor Nile-tilapia/leaf-lettuce raft system. The feeding-rate ratio is this paper's own experimental design variable, not a derived figure: at a fixed 42 plants/m2 the trial ran three deliberately chosen ratios over 213, 142 and 71 m2 planted — 56, 84 and 168 g/m2/d per the results section (the methods section once lists the middle ratio as 113; the paper's own constant ~12 kg/d system feed over 142 m2 gives 84, so 113 is an internal typo — the 56 endpoint used here is identical in both statements). The paper concludes 56 g/m2/d on 213 m2 was the sustainable long-run setting that controlled nutrient buildup; the abstract, results and conclusion all state it, and the paper adds that 56 g/m2/d matched the lettuce optimum Rakocy et al. (1997) reported — two labs arriving at the same number. measured_feed_g_per_day = 213 m2 x 56 g/m2/d = 11,928 g/d, cross-checked against the paper's stated system feed of about 12 kg/d (2% BW in tanks with fish over 100 g, 3% BW below). measured_fcr 1.4 is the paper's overall mean across eight harvests (mixed-sex population; all-male averaged 1.3). measured_ph 8.1 and measured_nitrate_n_mg_l 19.6 are 13-month means over the whole trial from Table 1 (fish rearing tanks, samples 2x/week, Dec 2001-Dec 2002), not the six-channel phase alone: the paper's pH table row is 8.0 +/- 0.2 (8.1 is its effluent text figure) and TAN averaged 0.8 mg/L in the six-channel (56 g/m2/d) effluent vs 1.3 +/- 0.3 as the whole-trial tank mean. They document the trial's water quality, not one phase's. Temperature 28 C sits above the lettuce band (10-26 C) and the model does not warn on it yet — the aquaponic sizing path checks only the fish's band (tracked upstream, #231); the paper reports lettuce grew year-round at 28 C with quality trade-offs (bolting/open heads at 42 plants/m2). water_budget_lpd is paper-derived, not nominal: the paper's makeup water is 1.4% of the TOTAL system water daily (abstract) — an earlier note misread that base as the fish-tank volume alone, giving ~420 L/d, which is not the paper's figure. Summing the paper's own component volumes — fish tanks 4 x 7.5 = 30 m3 water, clarifiers 2 x 4, filter tanks 4 x 0.85 plus degassing 0.85 and sump 1 m3, hydroponic channels 6 x 29.6 x 1.2 x 0.4 = ~85 m3 filled to the full 0.4 m — gives ~127 m3 of total system water, so ~1.8 m3/d (slightly less at the channels' 33 cm operating water line). Cross-check: the abstract's 320 L per kg of fish produced over the eight harvests (~2.0 t net at 33.5 kg/m3 per harvest on the tanks' 30 m3 of water) lands at ~1.6-2.0 m3/d. The model's own makeup for this system is ~1,029 L/d, below the paper's figure, and the gate stays feasible at 1,800. measured_makeup_water_lpd carries the same ~1,800 as a second number for later comparison.",
+      "fish_species": "tilapia",
+      "crop": "lettuce",
+      "grow_area_m2": 213.0,
+      "temperature_c": 28.0,
+      "water_budget_lpd": 1800.0,
+      "measured_feed_g_per_day": 11928.0,
+      "measured_frr_g_m2_day": 56.0,
+      "measured_fcr": 1.4,
+      "measured_yield_kg_m2_yr": null,
+      "measured_ph": 8.1,
+      "measured_nitrate_n_mg_l": 19.6,
+      "measured_makeup_water_lpd": 1800.0
     }
   ]
 }

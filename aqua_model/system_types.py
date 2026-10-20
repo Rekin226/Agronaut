@@ -34,6 +34,10 @@ class SystemType:
     lift_height_m: float = 0.5
     lift_low: float = 0.3
     lift_high: float = 0.8
+    # Per-field provenance (#214): {field: "measured:|placed:|inherited: <...>"}.
+    # Optional — rows without one still construct and keep the pre-#214 exemption
+    # exactly until they migrate (see aqua_model/tests/provenance_registry.py).
+    provenance: dict[str, str] | None = None
 
 
 RAFT = SystemType(
@@ -47,6 +51,26 @@ RAFT = SystemType(
     ],
     source="FAO589",
     lift_height_m=0.4, lift_low=0.3, lift_high=0.6,
+    # Per-field provenance (#214), first system row migrated. Labels follow the same
+    # rule as the crop and species tables: measured = a source states the number,
+    # placed = reasoning, inherited = a peer row's or class-level value.
+    provenance={
+        "water_depth_m":
+            "measured: FAO 589 / UVI DWC canal depth 30 cm (docs/twin_parameter_dossier.md "
+            "method table, verbatim)",
+        "water_depth_low":
+            "placed: 0.20 is the ±10 cm engineering spread around the cited 30 cm; no "
+            "source states a depth band",
+        "water_depth_high":
+            "placed: 0.40, the other side of the same ±10 cm spread",
+        "lift_height_m":
+            "placed: flat-bed drafting default — water lifts a little above the sump "
+            "surface; no citation, and nothing sizes against the low end",
+        "lift_low":
+            "inherited: tightened from the class-level 0.3-0.8 lift spread for flat beds",
+        "lift_high":
+            "inherited: tightened from the class-level 0.3-0.8 lift spread for flat beds",
+    },
 )
 
 NFT = SystemType(

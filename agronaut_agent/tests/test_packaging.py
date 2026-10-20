@@ -102,6 +102,13 @@ def test_wheel_ships_the_cited_knowledge_corpus(tmp_path):
     for language in ("fr", "zh-Hant"):
         assert any(n.endswith(f"field_guides/{language}.json") for n in names)
     assert any(n.endswith("field_guides/planning_questions.json") for n in names)
+    # The installed safety runner reads fixtures as well as the probe manifest.
+    field_set = next(n for n in names if n.endswith("eval/safety_eval/field_set.json"))
+    for probe in json.loads(wheel.read(field_set))["probes"]:
+        if fixture := probe.get("fixture"):
+            assert any(n.endswith(f"/examples/{fixture}") for n in names)
+    assert any(n.endswith("eval/retrieval_eval/baseline_all_field_guides_2026_10.json")
+               for n in names)
     assert not any(n.endswith(("VISION.md", "AGRICULTURE_PLATFORM_PLAN.md", "AGRICULTURE_CONTRIBUTING.md")) for n in names)
     # Exercise the wheel's modules and data fallback, not the checkout's copies.
     installed = tmp_path/"installed"

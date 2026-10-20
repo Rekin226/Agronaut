@@ -45,13 +45,11 @@ def _render_reality_check(operating_envelope: dict) -> None:
     from aqua_model import datasets
 
     reality = datasets.envelope_reality_check(operating_envelope)
+    if reality is None:
+        # The comparison needs an open dataset most installs never download. A panel that
+        # only says "run this script" is a developer note, not something a grower can use.
+        return
     with st.expander("Reality check — your envelope vs. real ponds"):
-        if reality is None:
-            st.caption(
-                "Open dataset not loaded. Run `python scripts/fetch_aquaponics_data.py` to "
-                "compare against ~233k readings from four real aquaponics ponds."
-            )
-            return
         n = reality.get("n_readings")
         scope = f"~{n:,} readings, " if n else ""
         st.caption(
@@ -64,33 +62,79 @@ def _render_reality_check(operating_envelope: dict) -> None:
             _render_channel_verdict(labels.get(channel, channel), c, reality["mode"])
 
 
-def _render_coefficient_sources(species: str, crop: str) -> None:
-    """Show the chosen species/crop sizing coefficients against published empirical ranges."""
+def _render_coefficients(out, species: str, crops: list[str]) -> None:
+    """Every coefficient the design used, then the seeds checked against published ranges.
+
+    One panel. These used to be a table plus a second panel per crop repeating the same
+    seed values, so a mixed bed showed the fish's coefficients three times.
+    """
     from aqua_model import calibration as cal
 
-    relevant = [c for c in cal.all_calibrations() if c.key.split(".")[0] in (species, crop)]
-    if not relevant:
-        return
+    relevant = [c for c in cal.all_calibrations()
+                if c.key.split(".")[0] in (species, *crops)]
     n_out = sum(not c.within for c in relevant)
-    title = "Sizing coefficients vs. published ranges"
-    if n_out:
-        title += f"  ⚠️ {n_out} outside range"
+    title = "Coefficients used (cited)" + (f"  ⚠️ {n_out} outside published range"
+                                         if n_out else "")
     with st.expander(title):
-        st.caption(
-            "Seed values pinned to peer-reviewed empirical ranges. ✅ in range · ⚠️ outside — "
-            "calibrate against your own system before building."
-        )
-        for c in relevant:
-            icon = "✅" if c.within else "⚠️"
-            st.markdown(
-                f"**{icon} {c.label}** — seed **{c.seed} {c.unit}**  ·  "
-                f"published **{c.emp_low}–{c.emp_high}**  ·  _{c.verdict}_"
-            )
-            st.caption(c.note + "  \nSources: " + "; ".join(c.sources))
+        st.table([
+            {"name": c.name, "value": c.value, "range": f"{c.low}–{c.high}", "unit": c.unit,
+             "source": c.source}
+            for c in out.coefficients_used
+        ])
+        if relevant:
+            st.caption("Seed values against peer-reviewed ranges. ✅ in range · ⚠️ outside: "
+                       "calibrate against your own system before building.")
+            for c in relevant:
+                icon = "✅" if c.within else "⚠️"
+                st.markdown(f"**{icon} {c.label}**: seed **{c.seed} {c.unit}**, published "
+                            f"**{c.emp_low}–{c.emp_high}** · _{c.verdict}_")
+                st.caption(c.note + "  \nSources: " + "; ".join(c.sources))
 
 
-def render_calculator() -> None:
-    st.subheader("Design Calculator")
+_ENVELOPE_LABELS = {
+    "ph_target": ("pH", "target"), "ph_do_not_exceed": ("pH", "never outside"),
+    "temperature_target_c": ("Water temperature (°C)", "target"),
+    "temperature_do_not_exceed_c": ("Water temperature (°C)", "never outside"),
+    "dissolved_oxygen_min_mg_l": ("Dissolved oxygen (mg/L)", "at least"),
+    "ammonia_nitrite_target": ("Ammonia and nitrite", "target"),
+}
+
+
+def envelope_rows(envelope: dict) -> list[dict]:
+    """The operating envelope as rows a grower can read, instead of a JSON dump."""
+    rows = []
+    for key, value in envelope.items():
+        what, kind = _ENVELOPE_LABELS.get(key, (key.replace("_", " "), ""))
+        if isinstance(value, (list, tuple)) and len(value) == 2:
+            value = f"{value[0]:g}–{value[1]:g}"
+        rows.append({"reading": what, "": kind, "value": value})
+    return rows
+
+
+def nitrogen_summary(check: dict) -> str:
+    """The nitrogen cross-check in one sentence: does the plant area the feed can support
+    agree with the area that was sized?"""
+    implied, sized = check.get("n_implied_area_m2"), check.get("frr_grow_area_m2")
+    if implied is None or sized is None:
+        return "Nitrogen cross-check unavailable for this design."
+    gap = abs(check.get("disagreement_fraction") or 0) * 100
+    verdict = ("agree" if check.get("agrees") else "DISAGREE")
+    line = (f"The nitrogen the fish excrete supports about **{implied:g} m²** of plants; the "
+            f"design sizes **{sized:g} m²**. The two methods {verdict} ({gap:.0f}% apart).")
+    if check.get("flag"):
+        line += f" {check['flag']}"
+    return line
+
+
+_N_FLOWS = {"n_fed_g_day": "fed", "n_retained_g_day": "kept in fish",
+            "n_plant_uptake_g_day": "taken up by plants", "n_solids_g_day": "lost to solids",
+            "n_water_exchange_g_day": "lost to water exchange",
+            "n_denitrification_g_day": "lost to denitrification"}
+
+
+def render_calculator(heading: bool = True) -> None:
+    if heading:
+        st.subheader("Design Calculator")
     st.caption(
         "Size one system from fixed inputs. Pure deterministic model — no AI guessing; "
         "every number is traceable to a cited coefficient."
@@ -113,7 +157,7 @@ def render_calculator() -> None:
                 "Growing method", facts.available_system_types(),
                 help="raft/DWC (forgiving, more water), NFT (light, low water, needs reliable "
                      "power), or media bed (robust, also biofilters).")
-        submitted = st.form_submit_button("Size system", use_container_width=True)
+        submitted = st.form_submit_button("Size system", width="stretch")
 
     if not submitted:
         st.info("Set your inputs and press **Size system**.")
@@ -184,21 +228,16 @@ def render_calculator() -> None:
     with st.expander("Bill of materials"):
         st.table(out.bill_of_materials)
     with st.expander("Operating envelope"):
-        st.json(out.operating_envelope)
+        st.table(envelope_rows(out.operating_envelope))
     _render_reality_check(out.operating_envelope)
     with st.expander("Nitrogen consistency check"):
-        st.json(out.nitrogen_check)
+        st.markdown(nitrogen_summary(out.nitrogen_check))
+        st.table([{"nitrogen": label, "g/day": f"{out.nitrogen_check[key]:g}"}
+                  for key, label in _N_FLOWS.items() if key in out.nitrogen_check])
     with st.expander("What is NOT modeled (read before building)"):
         for n in out.not_modeled:
             st.markdown(f"- {n}")
-    with st.expander("Coefficients used (auditable)"):
-        st.table([
-            {"name": c.name, "value": c.value, "range": f"{c.low}–{c.high}", "unit": c.unit, "source": c.source}
-            for c in out.coefficients_used
-        ])
-    # Coefficient-source panels for each crop in the design (one for a single crop).
-    for c in (crops or []):
-        _render_coefficient_sources(species, c)
+    _render_coefficients(out, species, crops or [])
 
     report_md = to_markdown(design, out, site=site or None)
     st.download_button(
@@ -206,7 +245,7 @@ def render_calculator() -> None:
         data=report_md,
         file_name=f"aquaponics-design-{(site or 'system').strip().replace(' ', '-').lower()}.md",
         mime="text/markdown",
-        use_container_width=True,
+        width="stretch",
     )
 
 

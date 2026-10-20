@@ -10,5 +10,10 @@ font = "sans serif"
 [server]
 headless = true
 
+[client]
+# Hide Streamlit's own developer toolbar (Deploy, Clear caches, Rerun): it means nothing
+# to a grower, and "Deploy" points at a hosted service this project does not use.
+toolbarMode = "minimal"
+
 [browser]
 gatherUsageStats = false

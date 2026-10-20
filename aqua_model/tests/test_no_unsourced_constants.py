@@ -11,12 +11,31 @@ unit conversions, sensor-QC policy and drawing constants are exempt with a reaso
 known debt is listed with the issue that tracks its migration. A new constant with
 no entry fails CI, so the rule no longer depends on a reviewer noticing.
 
+The scanner covers seven places a module-level number can live: bare assignments,
+numeric values in string-keyed dicts AND in name-keyed dicts, non-zero defaults on
+`@dataclass` fields (0/0.0 state initialisers are exempt, including the
+`field(default=...)` form), bare-numeric keyword arguments AND bare-numeric
+positional arguments in module-level calls. A `Coefficient(...)` call never trips
+it: the call itself carries value, range and source, wherever in the package it is
+defined. Since #214, an entity row (Crop/FishSpecies/SystemType) is exempt only
+when it is migrated to per-field provenance (or still listed as unmigrated in
+provenance_registry.py) — a bare `source=` string no longer covers a whole row.
+
 This guards the form, not the truth: a sourced number can still be the wrong
 number. The test makes the rule visible; a reviewer still reads the source.
 """
 
 import ast
 from pathlib import Path
+
+from aqua_model.tests.provenance_registry import (
+    MIGRATED_CROPS,
+    MIGRATED_SPECIES,
+    MIGRATED_SYSTEM_TYPES,
+    UNMIGRATED_CROPS,
+    UNMIGRATED_SPECIES,
+    UNMIGRATED_SYSTEM_TYPES,
+)
 
 AQUA_MODEL_DIR = Path(__file__).resolve().parent.parent
 
@@ -141,6 +160,74 @@ ALLOWLIST = {
     # scenario.py — reporting precision policy
     ("scenario", "_MATERIAL_MG_L"):
         "reporting floor below which relative change is meaningless; precision policy, not physics",
+    ("scenario", "THRESHOLDS_MG_L[tan_mg_l]"):
+        "alert threshold backed by the nitrogen-cycle knowledge base (THRESHOLD_SOURCE); the value "
+        "lives in a dict so scenarios can key on the channel name",
+    ("scenario", "THRESHOLDS_MG_L[no2_mg_l]"):
+        "alert threshold backed by the nitrogen-cycle knowledge base (THRESHOLD_SOURCE); the value "
+        "lives in a dict so scenarios can key on the channel name",
+    ("scenario", "THRESHOLDS_MG_L[no3_mg_l]"):
+        "alert threshold backed by the nitrogen-cycle knowledge base (THRESHOLD_SOURCE); the value "
+        "lives in a dict so scenarios can key on the channel name",
+    # mirror.py — operator-nudge trust weights, a policy the comments above them reason through
+    ("mirror", "NUDGE_WEIGHTS[water_temp_c]"):
+        "how far an operator reading overrides the model; data-trust policy reasoned in the comment above",
+    ("mirror", "NUDGE_WEIGHTS[tan_mg_l]"):
+        "how far an operator reading overrides the model; data-trust policy reasoned in the comment above",
+    ("mirror", "NUDGE_WEIGHTS[no2_mg_l]"):
+        "how far an operator reading overrides the model; data-trust policy reasoned in the comment above",
+    ("mirror", "NUDGE_WEIGHTS[no3_mg_l]"):
+        "how far an operator reading overrides the model; data-trust policy reasoned in the comment above",
+    ("mirror", "NUDGE_WEIGHTS[fish_avg_weight_g]"):
+        "how far an operator reading overrides the model; data-trust policy reasoned in the comment above",
+    ("mirror", "NUDGE_WEIGHTS[fish_count]"):
+        "a count is a count; mortality is not negotiable (comment above the dict)",
+    # validate.py — the trust boundary's own hard sanity bounds: refuse-outside ranges, not model inputs
+    ("validate", "_BOUNDS[grow_area_m2]"):
+        "hard refuse-outside sanity bound at the validation gate; order-of-magnitude guard, not a coefficient",
+    ("validate", "_BOUNDS[temperature_c]"):
+        "hard refuse-outside sanity bound at the validation gate; order-of-magnitude guard, not a coefficient",
+    ("validate", "_BOUNDS[water_budget_lpd]"):
+        "hard refuse-outside sanity bound at the validation gate; order-of-magnitude guard, not a coefficient",
+    # climate.py — the single-poly-tunnel envelope defaults moved to the registry
+    # (GREENHOUSE_* in coefficients.py, sourced/derived per #213); sourced is the
+    # default state, so no entries remain here. Add one back ONLY with a source
+    # or a stated derivation.
+    # advisory.py — evidence-class confidence ceilings. A confidence ceiling will
+    # never get a measured source: the ordering (measured > direction > level) is
+    # the claim, and it is policy, like NUDGE_WEIGHTS — reasoned in the comment
+    # above the dict, not physics to be cited.
+    ("advisory", "EVIDENCE_CONFIDENCE[MEASURED]"):
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
+    ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_DIRECTION]"):
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
+    ("advisory", "EVIDENCE_CONFIDENCE[MODELLED_LEVEL]"):
+        "confidence ceiling encoding the MIXED twin-validation verdict (comment above the dict); the ordering is the claim, policy not physics",
+    # system_types.py — per-system geometry defaults; each instance passes explicit, source-cited values
+    ("system_types", "SystemType.footprint_ratio"):
+        "class-level default; every SystemType instance sets its own value with a source",
+    ("system_types", "SystemType.lift_height_m"):
+        "class-level default; every SystemType instance sets its own lift with a source",
+    ("system_types", "SystemType.lift_low"):
+        "class-level default; every SystemType instance sets its own lift with a source",
+    ("system_types", "SystemType.lift_high"):
+        "class-level default; every SystemType instance sets its own lift with a source",
+    # layout.py — drafting defaults for the 3D proposal, which states positions are not a site plan
+    ("layout", "Placed.plant_spacing_m"):
+        "drafting default for the 3D proposal; a real plan overrides it, nothing computes physics from it",
+    ("layout", "PipeRun.diameter_m"):
+        "drafting default for the 3D proposal; layout re-pipes runs at the computed diameter",
+    ("layout", "PipeRun.flow_lpm"):
+        "drafting default for the 3D proposal; layout writes the routed flow before hydraulics runs",
+    # flowsheet.py / pilot.py — presentation and grant-template defaults
+    ("flowsheet", "Component.count"):
+        "default of one unit per flowsheet box; no construction site passes a count today, "
+        "so the default IS the value in every shipped flowsheet",
+    ("pilot", "PilotInfo.duration_months"):
+        "grant-template default duration; presentation default, nothing computes from it",
+    # twin.py — TwinState volume default; the flowsheet passes the real tank volume at run time
+    ("twin", "TwinState.volume_l"):
+        "standalone-twin convenience default (1 m3); the design path always passes the real volume",
     # scene3d.py — drawing conventions, nothing computes from them
     ("scene3d", "FISH_DRAWN_PER_TANK"):
         "3D rendering: fish drawn per tank (population scaled to the real count); nothing computes from it",
@@ -159,15 +246,44 @@ ALLOWLIST = {
         "triage priority band; only the ordering of the four bands is meaningful",
     ("triage", "_P_PATHOGEN"):
         "triage priority band; only the ordering of the four bands is meaningful",
-    # twin.py — transient-twin kinetics
+    # twin.py — transient-twin kinetics. These module-level seeds duplicate the
+    # TwinParams values the scenario spread varies; they carry the same KNOWN DEBT
+    # #211 label so both copies of each number point at the same tracking issue.
     ("twin", "_AOB_DOUBLING_DAYS"):
-        "nitrifier population kinetics for the transient twin (cycling/ammonia-peak timing); not a sizing input",
+        "KNOWN DEBT #211: nitrifier population kinetics for the transient twin (cycling/ammonia-peak timing); not a sizing input",
     ("twin", "_NOB_DOUBLING_DAYS"):
-        "nitrifier population kinetics for the transient twin (nitrite-peak timing); not a sizing input",
+        "KNOWN DEBT #211: nitrifier population kinetics for the transient twin (nitrite-peak timing); not a sizing input",
     ("twin", "_SEED_CAPACITY_G_DAY"):
         "trace nitrifier population at cycling start; transient-twin initialisation",
     ("twin", "_N_REMOVAL_PER_DAY"):
-        "first-order nitrate removal rate; ratio fixed by the steady-state split, magnitude sets equilibration speed",
+        "KNOWN DEBT #211: first-order nitrate removal rate; ratio fixed by the steady-state split, magnitude sets equilibration speed",
+    # twin.py — TwinParams defaults and the scenario spread. The docstring already states these
+    # are "literature-typical rather than fitted"; they are real model numbers with no source, so
+    # they are listed as known debt with the issue that tracks their migration (#211), not as
+    # conventions.
+    ("twin", "TwinParams.aob_doubling_days"):
+        "KNOWN DEBT #211: transient-twin kinetics, literature-typical, no citation yet",
+    ("twin", "TwinParams.nob_doubling_days"):
+        "KNOWN DEBT #211: transient-twin kinetics, literature-typical, no citation yet",
+    ("twin", "TwinParams.n_removal_per_day"):
+        "KNOWN DEBT #211: first-order nitrate removal; ratio fixed by the steady-state split, magnitude not sourced",
+    ("twin", "PARAMS_FAST(aob_doubling_days=...)"):
+        "KNOWN DEBT #211: fast end of the AOB doubling-time spread; not sourced yet",
+    ("twin", "PARAMS_FAST(nob_doubling_days=...)"):
+        "KNOWN DEBT #211: fast end of the NOB doubling-time spread; not sourced yet",
+    ("twin", "PARAMS_FAST(n_removal_per_day=...)"):
+        "KNOWN DEBT #211: fast end of the removal-rate spread; ratio fixed by the steady-state split",
+    ("twin", "PARAMS_SLOW(aob_doubling_days=...)"):
+        "KNOWN DEBT #211: slow end of the AOB doubling-time spread; not sourced yet",
+    ("twin", "PARAMS_SLOW(nob_doubling_days=...)"):
+        "KNOWN DEBT #211: slow end of the NOB doubling-time spread; not sourced yet",
+    ("twin", "PARAMS_SLOW(n_removal_per_day=...)"):
+        "KNOWN DEBT #211: slow end of the removal-rate spread; ratio fixed by the steady-state split",
+    # types.py — output-plumbing defaults; the sizing engine always writes explicit values
+    ("types", "HydroponicOutput.footprint_ratio"):
+        "default for the output container; every design path writes the engine-computed value",
+    ("types", "DesignOutput.footprint_ratio"):
+        "default for the output container; every design path writes the engine-computed value",
 }
 
 
@@ -197,32 +313,260 @@ def _bare_numbers(node):
 
 
 def _module_level_constants(source):
-    """{CONST_NAME: line_number} for module-level bare-numeric assignments."""
-    found = {}
+    """{(display_name, line_number)} for every module-level bare-numeric constant.
+
+    `display_name` is `"NAME"` for plain assignments, `"Name.field"` for a
+    non-zero `@dataclass` field default, `"NAME[key]"` for a numeric value in a
+    module-level dict (string- OR name-keyed), `"NAME(kw=...)"` for bare-numeric
+    keyword arguments and `"NAME(#i)"` for bare-numeric positional arguments in
+    a module-level call. The line number is the line of
+    the specific literal, so an allowlist lookup points at the number itself.
+    """
+    found = set()
     tree = ast.parse(source)
+    dataclass_names = set()
     for node in tree.body:
-        if isinstance(node, ast.Assign):
-            targets, value = node.targets, node.value
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets, value = [node.target], node.value
-        else:
-            continue
-        if _bare_numbers(value) is None:
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id == target.id.upper():
-                found[target.id] = node.lineno
+        if isinstance(node, ast.ClassDef) and any(
+            _is_dataclass_decorator(d) for d in node.decorator_list
+        ):
+            dataclass_names.add(node.name)
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            found |= _dataclass_defaults(node, dataclass_names)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets, value = _assignment_parts(node)
+            if value is None:
+                continue
+            # The registry shape: Coefficient(...) carries value, range and source in the call.
+            if isinstance(value, ast.Call) and _call_name(value.func) == "Coefficient":
+                continue
+            found |= _bare_value_names(value, targets, node.lineno)
+            found |= _dict_numeric_values(targets, value)
+            if isinstance(value, ast.Call):
+                for target in targets:
+                    prefix = target.id if isinstance(target, ast.Name) else None
+                    found |= _call_numeric_values(value, prefix=prefix, lineno=node.lineno)
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            found |= _call_numeric_values(node.value, prefix=None, lineno=node.lineno)
     return found
 
 
+def _is_dataclass_decorator(node):
+    """True for @dataclass or @dataclass(...) — the qualified form too."""
+    target = node.func if isinstance(node, ast.Call) else node
+    if isinstance(target, ast.Name):
+        return target.id == "dataclass"
+    if isinstance(target, ast.Attribute):
+        return target.attr == "dataclass"
+    return False
+
+
+def _assignment_parts(node):
+    """(targets, value) for an Assign or a valued AnnAssign, else ([], None)."""
+    if isinstance(node, ast.Assign):
+        return node.targets, node.value
+    if isinstance(node, ast.AnnAssign) and node.value is not None:
+        return [node.target], node.value
+    return [], None
+
+
+def _call_name(func):
+    """Dotted name of a call target ('Coefficient', 'dataclasses.replace'), else None."""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        base = _call_name(func.value)
+        return f"{base}.{func.attr}" if base else None
+    return None
+
+
+def _bare_value_names(value, targets, lineno):
+    """{(name, lineno)} for each target the value is a bare numeric for."""
+    if _bare_numbers(value) is None:
+        return set()
+    found = set()
+    for target in targets:
+        if isinstance(target, ast.Name) and target.id == target.id.upper():
+            found.add((target.id, lineno))
+    return found
+
+
+def _dict_numeric_values(targets, value):
+    """{(NAME[key], line)} for numeric literal values in a module-level dict.
+
+    Both string-keyed and name-keyed dicts are scanned: a name key
+    (EVIDENCE_CONFIDENCE[MEASURED]) is just a string key spelled through a
+    module constant, so it hides from a literal-only scan. An enum-style
+    numeric-keyed map is a lookup table (the numbers are the vocabulary, not
+    quantities), and naming a hit NAME[0] in the allowlist would be noise
+    either way.
+    """
+    if not isinstance(value, ast.Dict):
+        return set()
+    found = set()
+    for key_node, val_node in zip(value.keys, value.values):
+        if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+            key = key_node.value
+        elif isinstance(key_node, ast.Name):
+            key = key_node.id
+        else:
+            continue
+        nums = _bare_numbers(val_node)
+        if nums is None:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                found.add((f"{target.id}[{key}]", val_node.lineno))
+    return found
+
+
+def _dataclass_defaults(class_node, dataclass_names):
+    """{(Name.field, line)} for non-zero bare-numeric defaults on @dataclass fields.
+
+    Zero-initialised state (TwinState.tan_mg_l = 0.0) is exempt: 0 is "no
+    reading yet", not a quantity. The `field(default=...)` form is scanned
+    through to the inner default so a number cannot hide inside the call. A
+    field defaulting to a name (the shared _SEED_CAPACITY_G_DAY pattern) is a
+    reference, not a literal, so it stays out of scope; the name itself is
+    already scanned where it is defined. A `field(default_factory=...)` is a
+    constructor reference, likewise out of scope.
+    """
+    if class_node.name not in dataclass_names:
+        return set()
+    found = set()
+    for stmt in class_node.body:
+        if not (isinstance(stmt, ast.AnnAssign) and stmt.value is not None):
+            continue
+        value = stmt.value
+        if isinstance(value, ast.Call) and _call_name(value.func) == "field":
+            kwargs = [kw for kw in value.keywords if kw.arg == "default"]
+            if not kwargs:
+                continue
+            value = kwargs[0].value
+        nums = _bare_numbers(value)
+        if nums is None or (len(nums) == 1 and nums[0] == 0):
+            continue
+        if isinstance(stmt.target, ast.Name):
+            found.add((f"{class_node.name}.{stmt.target.id}", value.lineno))
+    return found
+
+
+def _call_numeric_values(call, prefix, lineno):
+    """{(NAME(...), line)} for bare-numeric arguments in a module-level call.
+
+    Covers both keyword (`NAME(kw=...)`) and positional (`NAME(#i)`) arguments;
+    a scanner that reads only `call.keywords` lets `TwinParams(0.7, 1.0, 0.15)`
+    through silently. `prefix` is the assignment's display prefix
+    ('PARAMS_FAST'); the call's own name is used when there is none. Two calls
+    are skipped, keyed on the CALL's class rather than the display name: a
+    Coefficient(...) (its arguments ARE the value/range/source triple) and a
+    sourced entity row — Crop(...), FishSpecies(...), SystemType(...) — whose
+    numbers the row-level `source=` string used to cover wholesale.
+
+    The entity-row exemption is #214-narrowed: a row whose class carries a
+    complete provenance map (MIGRATED_*, derived from provenance_registry.py)
+    is exempt outright — every number now names its own basis. A row still on
+    the shrink-only UNMIGRATED_* lists keeps the pre-#214 exemption until it
+    migrates (the provenance tests hold the lists to the real tables); a NEW
+    row with neither map nor listing, and an empty `source=''`, exempt
+    nothing.
+    """
+    cls = _call_name(call.func)
+    if cls == "Coefficient":
+        return set()
+    if cls in _SOURCED_ENTITY_CLASSES:
+        if cls == "Crop":
+            if _entity_row_exempt(call, MIGRATED_CROPS, UNMIGRATED_CROPS):
+                return set()
+        elif cls == "FishSpecies":
+            if _entity_row_exempt(call, MIGRATED_SPECIES, UNMIGRATED_SPECIES):
+                return set()
+        elif cls == "SystemType":
+            if _entity_row_exempt(call, MIGRATED_SYSTEM_TYPES, UNMIGRATED_SYSTEM_TYPES):
+                return set()
+        else:
+            # Component(...) — flowsheet rows are built at runtime from sourced
+            # coefficients, not a module-level table; keep the pre-#212 behaviour.
+            if _carries_sourced_string(call):
+                return set()
+    name = prefix if prefix is not None else cls
+    found = set()
+    for i, arg in enumerate(call.args):
+        nums = _bare_numbers(arg)
+        if nums is None:
+            continue
+        found.add((f"{name}(#{i})", arg.lineno))
+    for kw in call.keywords:
+        nums = _bare_numbers(kw.value)
+        if nums is None:
+            continue
+        label = f"{name}({kw.arg}=...)" if kw.arg else f"{name}(**{{...}})"
+        found.add((label, kw.value.lineno))
+    return found
+
+
+_SOURCED_ENTITY_CLASSES = {"Crop", "FishSpecies", "SystemType", "Component"}
+
+
+def _row_name(call):
+    """The row's own name ('lettuce', 'tilapia', 'raft'), when the call states it."""
+    for kw in call.keywords:
+        if kw.arg in ("name", "key") and isinstance(kw.value, ast.Constant) \
+                and isinstance(kw.value.value, str):
+            return kw.value.value
+    return None
+
+
+def _entity_row_exempt(call, migrated, unmigrated):
+    """#214 exemption for one entity-row call.
+
+    - the row is migrated (its name is in the MIGRATED_* set derived from
+      provenance_registry.py): exempt — every number names its own basis in the
+      row's provenance map, which test_row_provenance checks against the real
+      tables;
+    - the row is on the shrink-only UNMIGRATED_* list AND still carries a
+      non-empty `source=` string: exempt until it migrates. The source-string
+      requirement is kept from #212 so an empty `source=''` cannot borrow a
+      listed row's name;
+    - anything else — a new row with neither map nor listing, a nameless call:
+      not exempt, the call falls through to the generic numeric-argument scan.
+    """
+    name = _row_name(call)
+    if name is None:
+        return False
+    if name in migrated:
+        return True
+    return name in unmigrated and _carries_sourced_string(call)
+
+
+def _carries_sourced_string(call):
+    """True when the call passes a non-empty string (or name) as `source=`.
+
+    The entity tables pass their citation as a literal; a constant holding it
+    (THRESHOLD_SOURCE) is the same fact by reference. An empty string — a
+    placeholder someone added to slip past the old shape-only check — does not
+    count, and neither does any other type.
+    """
+    for kw in call.keywords:
+        if kw.arg != "source":
+            continue
+        v = kw.value
+        if isinstance(v, ast.Constant) and isinstance(v.value, str) and v.value.strip():
+            return True
+        if isinstance(v, ast.Name):
+            return True
+    return False
+
+
 def _scan_package():
-    """{(stem, name): line} for every module-level bare-numeric constant
+    """{(stem, display_name): line} for every module-level bare-numeric constant
     outside the coefficients registry."""
     findings = {}
     for py in sorted(AQUA_MODEL_DIR.glob("*.py")):
         if py.stem == REGISTRY_MODULE:
             continue
-        for name, lineno in _module_level_constants(py.read_text(encoding="utf-8")).items():
+        for name, lineno in _module_level_constants(py.read_text(encoding="utf-8")):
             findings[(py.stem, name)] = lineno
     return findings
 
@@ -250,7 +594,7 @@ def test_allowlist_entries_point_at_real_constants():
 def test_scanner_flags_a_new_unlisted_constant():
     src = "NEW_UNLISTED_LIMIT = 42\nALSO_BAD = (1.0, -2.0)\nok = 5\nALIAS = 'text'\n"
     found = _module_level_constants(src)
-    assert set(found) == {"NEW_UNLISTED_LIMIT", "ALSO_BAD"}, found
+    assert {name for name, _line in found} == {"NEW_UNLISTED_LIMIT", "ALSO_BAD"}, found
 
 
 def test_scanner_ignores_registered_coefficients_and_derived_values():
@@ -261,4 +605,87 @@ def test_scanner_ignores_registered_coefficients_and_derived_values():
         "DERIVED = 1.0 - OTHER_FRACTION\n"
         "FLAG = True\n"
     )
-    assert _module_level_constants(registered) == {}
+    assert _module_level_constants(registered) == set()
+
+
+def test_scanner_flags_numeric_dict_values():
+    src = (
+        "BANDS = {'low': 1.0, 'high': 9.0}\n"
+        "OK_MIXED = {'label': 'text', 'ratio': 0.5}\n"
+        "COMPUTED = {'x': 1.0 + 2.0}\n"
+        "LOOKUP = {0: 1.0, 1: 2.0}\n"
+        "MEASURED = 'measured'\n"
+        "CONF = {MEASURED: 0.9, 'open': 0.6}\n"
+    )
+    found = {name for name, _line in _module_level_constants(src)}
+    assert found == {
+        "BANDS[low]", "BANDS[high]", "OK_MIXED[ratio]",
+        "CONF[MEASURED]", "CONF[open]",
+    }, found
+
+
+def test_scanner_flags_nonzero_dataclass_defaults():
+    src = (
+        "from dataclasses import dataclass, field\n"
+        "@dataclass\n"
+        "class Params:\n"
+        "    rate: float = 1.5\n"
+        "    state: float = 0.0\n"
+        "    shared: float = _SEED\n"
+        "    wired: float = field(default=0.7)\n"
+        "    zeroed: float = field(default=0.0)\n"
+        "    made: 'Params' = field(default_factory=lambda: Params(1.0))\n"
+        "\n"
+        "class Plain:\n"
+        "    not_scanned: float = 3.0\n"
+    )
+    found = {name for name, _line in _module_level_constants(src)}
+    assert found == {"Params.rate", "Params.wired"}, found
+
+
+def test_scanner_flags_numeric_args_in_module_level_calls():
+    src = (
+        "PARAMS_FAST = TwinParams(aob_doubling_days=0.7, label='fast')\n"
+        "PARAMS_POS = TwinParams(0.7, 1.0, 0.15)\n"
+        "NAMED = TwinParams()\n"
+        "REG = Coefficient(name='r', value=0.4, low=0.2, high=0.6, unit='x', source='LIT')\n"
+        "BARE_SOURCE = Crop(name='lettuce', frr=60.0, source='')\n"
+        "NOT_ENTITY = Band(top=9.0, source='LIT')\n"
+        "get_system('raft')\n"
+    )
+    found = {name for name, _line in _module_level_constants(src)}
+    assert found == {
+        "PARAMS_FAST(aob_doubling_days=...)",
+        "PARAMS_POS(#0)", "PARAMS_POS(#1)", "PARAMS_POS(#2)",
+        "BARE_SOURCE(frr=...)",
+        "NOT_ENTITY(top=...)",
+    }, found
+
+
+def test_entity_row_exemption_is_narrowed_to_provenance_rows():
+    # The pre-#214 rule exempted ANY entity call with a non-empty source=; the
+    # narrowed rule exempts a migrated row outright, a listed-unmigrated row
+    # with a real source string, and nothing else.
+    exempt = (
+        # a real migrated row (moringa carries a provenance map since #175/#214)
+        "M1 = Crop(name='moringa', frr=65.0, source='Mabapa2017')\n"
+        "M2 = FishSpecies(name='tilapia', fcr=1.7, source='FAO589/UVI')\n"
+        "M3 = SystemType(key='raft', water_depth_m=0.30, source='FAO589')\n"
+        # a real listed-unmigrated row keeps the pre-#214 exemption
+        "U1 = Crop(name='lettuce', frr=60.0, source='FAO589/UVI')\n"
+        "U2 = FishSpecies(name='trout', fcr=1.2, source='LIT')\n"
+    )
+    assert _module_level_constants(exempt) == set()
+
+    flagged = (
+        # an empty source cannot borrow a listed row's name (kept from #212)
+        "B1 = Crop(name='lettuce', frr=60.0, source='')\n"
+        # a NEW row with neither map nor listing cannot borrow the exemption
+        "N1 = Crop(name='moonfruit', frr=60.0, source='LIT')\n"
+        "N2 = FishSpecies(name='moonfish', fcr=1.2, source='LIT')\n"
+        "N3 = SystemType(key='moon_pond', water_depth_m=0.3, source='LIT')\n"
+    )
+    found = {name for name, _line in _module_level_constants(flagged)}
+    assert found == {
+        "B1(frr=...)", "N1(frr=...)", "N2(fcr=...)", "N3(water_depth_m=...)",
+    }, found

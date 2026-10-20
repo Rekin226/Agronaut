@@ -19,8 +19,9 @@ _OBJECTIVE_LABELS = {
 }
 
 
-def render_optimizer() -> None:
-    st.subheader("Optimize Ratio")
+def render_optimizer(heading: bool = True) -> None:
+    if heading:
+        st.subheader("Optimize Ratio")
     st.caption(
         "Search fish × crop-mix combinations for the most efficient ratio under your "
         "constraint. Deterministic — no AI guessing; every result is reproducible."
@@ -39,7 +40,7 @@ def render_optimizer() -> None:
             )
             fish_palette = st.multiselect("Fish to consider", sorted(SPECIES), default=sorted(SPECIES))
             crop_palette = st.multiselect("Crops to consider", sorted(CROPS), default=sorted(CROPS))
-        submitted = st.form_submit_button("Optimize", use_container_width=True)
+        submitted = st.form_submit_button("Optimize", width="stretch")
 
     if not submitted:
         st.info("Set inputs and press **Optimize**.")

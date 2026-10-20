@@ -81,7 +81,10 @@ CREATE TABLE IF NOT EXISTS followups (
     attempts     INTEGER NOT NULL DEFAULT 0,
     outcome      TEXT,
     created_at   TEXT NOT NULL,
-    sent_at      TEXT
+    sent_at      TEXT,
+    wa_message_id TEXT            -- WhatsApp wamid of the sent question, so a later
+                                 -- delivery-status webhook (e.g. 131047, the 24-hour
+                                 -- window) can be matched back to this follow-up (#215)
 );
 CREATE INDEX IF NOT EXISTS idx_followups_channel ON followups(channel, status, due_at);
 CREATE INDEX IF NOT EXISTS idx_followups_user ON followups(user_id, status);
@@ -178,7 +181,7 @@ def _now() -> str:
 # this reason; the store deserves the same contract.
 #
 # Bump this whenever `_SCHEMA` changes shape, and add the matching step to `_migrate`.
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
 
 
 class SchemaTooNewError(RuntimeError):
@@ -201,7 +204,11 @@ def _migrate(conn: sqlite3.Connection, found: int) -> None:
             f"{SCHEMA_VERSION}. It was written by a newer version — upgrade Agronaut "
             f"(`pip install -U agronaut`) rather than letting an older build write to it."
         )
-    if found < 2:
+    # Public v2 added WhatsApp IDs; local field builds used v2 for farms.
+    # Reconcile both upgrade paths before the dependent field migrations.
+    if found < 2 or (found < 25 and not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='farms'"
+    ).fetchone()):
         from .farm_store import migrate_farms
 
         migrate_farms(conn)
@@ -288,6 +295,16 @@ def _migrate(conn: sqlite3.Connection, found: int) -> None:
         conn.execute(TASK_INTAKE_SCHEMA)
     # v24 adds task-trigger snapshots and review flags. Older readers must not
     # silently omit changed source evidence from calendar decisions.
+    if found < 25:
+        # v2: followups gained wa_message_id, so a delivery-status webhook can be
+        # matched back to the follow-up it belongs to (#215). Nullable, so existing
+        # rows (whose sends predate message-id capture) simply have none. The column
+        # check — not just the version — is what makes this safe: a fresh database
+        # has no table yet (`_SCHEMA` creates it with the column), and a pre-stamp
+        # 1.0.0 file already holds the v1 layout without the column.
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(followups)").fetchall()]
+        if cols and "wa_message_id" not in cols:
+            conn.execute("ALTER TABLE followups ADD COLUMN wa_message_id TEXT")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -539,6 +556,30 @@ class FollowupStore:
     def mark_sent(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='sent', sent_at=? WHERE id=?", (_now(), fid))
 
+    def requeue(self, fid: int) -> None:
+        """Put a sent follow-up back to pending so the next tick retries it (#215).
+
+        Only a sent row moves: anything already answered, failed, or cancelled
+        keeps its terminal state, and a pending row is already where it belongs.
+        """
+        self.db.execute("UPDATE followups SET status='pending' WHERE id=? AND status='sent'", (fid,))
+
+    def record_message_id(self, fid: int, wa_message_id: str | None) -> None:
+        """Remember the WhatsApp message id of the sent question, so a later
+        delivery-status webhook can be matched back to this follow-up (#215)."""
+        self.db.execute("UPDATE followups SET wa_message_id=? WHERE id=?",
+                        (wa_message_id, fid))
+
+    def by_message_id(self, wa_message_id: str) -> dict | None:
+        """The follow-up a delivery-status update belongs to, if any. Only a
+        follow-up still marked sent can match: one already answered, failed, or
+        cancelled must not be moved by a late status."""
+        rows = self.db.query(
+            "SELECT * FROM followups WHERE wa_message_id=? AND status='sent' LIMIT 1",
+            (wa_message_id,),
+        )
+        return dict(rows[0]) if rows else None
+
     def bump_attempt(self, fid: int) -> int:
         self.db.execute("UPDATE followups SET attempts=attempts+1 WHERE id=?", (fid,))
         rows = self.db.query("SELECT attempts FROM followups WHERE id=?", (fid,))
@@ -546,6 +587,62 @@ class FollowupStore:
 
     def mark_failed(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='failed' WHERE id=?", (fid,))
+
+    def fail_closed_window(self, wa_message_id: str) -> bool:
+        """Atomically mark a sent follow-up failed: 131047 means the 24-hour
+        re-engagement window closed, so retrying the same free-form text would
+        fail the same way (#215).
+
+        A single guarded UPDATE — no separate lookup: webhook handlers run on
+        separate threads, so a read-then-write could overwrite an answer that
+        landed between the two. Only a row still marked sent moves; a late
+        status for an answered, already-failed, or cancelled row is a no-op.
+        Returns True when the row actually moved.
+        """
+        cur = self.db.execute(
+            "UPDATE followups SET status='failed' WHERE wa_message_id=? AND status='sent'",
+            (wa_message_id,),
+        )
+        return cur.rowcount > 0
+
+    def consume_status_retry(self, wa_message_id: str) -> bool:
+        """Atomically consume one retry attempt for a delivery-status failure
+        other than 131047 (#215).
+
+        One guarded UPDATE combines the attempt bump with the pending/failed
+        decision: duplicate webhooks for the same failure all race while the
+        row is still sent, and only the first one's UPDATE matches — the rest
+        see pending and consume nothing, so one failed delivery costs exactly
+        one attempt. A status for a row that is no longer sent is a no-op.
+        Returns True when an attempt was consumed.
+        """
+        cur = self.db.execute(
+            """UPDATE followups
+               SET attempts = attempts + 1,
+                   status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END
+               WHERE wa_message_id=? AND status='sent'""",
+            (wa_message_id,),
+        )
+        return cur.rowcount > 0
+
+    def consume_send_failure(self, fid: int) -> bool:
+        """Atomically consume one retry attempt after a synchronous send
+        failure (the send itself raised, so the row never left pending, or a
+        status arrived while it was still sent) (#215).
+
+        One guarded UPDATE combines the attempt bump with the pending/failed
+        decision, so concurrent handlers cannot each consume an attempt for the
+        same failure. Only an open row moves. Returns True when an attempt was
+        consumed.
+        """
+        cur = self.db.execute(
+            """UPDATE followups
+               SET attempts = attempts + 1,
+                   status = CASE WHEN attempts + 1 >= 3 THEN 'failed' ELSE 'pending' END
+               WHERE id=? AND status IN ('pending','sent')""",
+            (fid,),
+        )
+        return cur.rowcount > 0
 
     def mark_answered(self, fid: int) -> None:
         self.db.execute("UPDATE followups SET status='answered' WHERE id=?", (fid,))

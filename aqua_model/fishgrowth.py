@@ -72,6 +72,55 @@ TGC = {
         source="ALkhafaji et al. (2023), Egypt. J. Aquat. Biol. Fish. 27(4): juvenile TGC "
                "0.37 at 20 C lab; upper range back-computed from FAO 589 pond timelines "
                "(600 g in 9-11 months at 25-30 C)"),
+    "pangasius": Coefficient(
+        name="pangasius.tgc", value=1.1, low=0.8, high=1.2, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Da, Lundh, Lindberg & Berg (2016), Int. Aquat. Res. 8:309-321 "
+               "(DOI 10.1007/s40071-016-0144-z), Table 4 — pond hapa-net-cage fingerlings, "
+               "16.1->229.4 g over 112 d (4 months) at 28.6 C avg: TGC = 1000 x "
+               "(229.4^(1/3) - 16.1^(1/3)) / (28.6 x 112) = 1.12 on the reference diet; the "
+               "trial's seven diets span 0.80 (soybean meal) to 1.20 (shrimp head meal), "
+               "cross-checked per diet against the paper's own DWG and SGR columns. Seeds at "
+               "1.1; consistent with ~1 kg in 8 months at 28 C from a 20 g fingerling "
+               "(back-computed 1.07). Low/high are the trial's diet-range, not a "
+               "population range; calibrate against farm records"),
+    "barramundi": Coefficient(
+        name="barramundi.tgc", value=1.3, low=1.19, high=1.4, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Le Boucher, Chung, Ng, Tan & Lee (2024), Aquac. Nutr. "
+               "2024:3237898 (DOI 10.1155/2024/3237898), Table 4 — satiation-fed juveniles "
+               "in seawater RAS, 71.1->214.8-236.5 g over 51 d. The paper reports base-20 "
+               "TGC 4.16-4.60, whose own arithmetic implies sum(T-20) = 442 C.d (~28.7 C "
+               "effective mean, not the stated 30.3 C); converted to this file's base-0 "
+               "convention that is 1.26-1.39 across the four diets, and 1.19-1.32 if read "
+               "at the stated 30.3 C. Low/high span both readings of the trial (its own "
+               "TGC arithmetic vs its stated temperature; the four diets agree within 9%). "
+               "Seeds at 1.3; calibrate against farm records"),
+    "tambaqui": Coefficient(
+        name="tambaqui.tgc", value=1.0, low=0.87, high=1.08, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Rodrigues, Freitas, Maciel-Honda, Lima, Lima & Lima "
+               "(2024), Aquac. Rep. 39:102000 (DOI 10.1016/j.aqrep.2024.102000), Table 1 — "
+               "94.5 g juveniles in earthen ponds (Palmas, Brazil), 340.53-365.53 g after "
+               "84 d at 29.5 C: TGC = 1000 x (340.53^(1/3) - 94.5^(1/3)) / (29.5 x 84) = "
+               "0.98 on the 3%BW/twice-daily diet, 1.05 at 4%BW/thrice-daily; the four "
+               "treatments span 0.98-1.05 and do not differ statistically. Cross-checked "
+               "against eight independent pond grow-out timelines (Hilsdorf et al. 2022, "
+               "Rev. Aquac. 14:993-1027, Table 1; ambient ~29 C), which back-compute to "
+               "0.87-1.08. Low/high span the timelines plus the trial; the trial sits "
+               "inside. Seeds at 1.0; calibrate against farm records"),
+    "silver_perch": Coefficient(
+        name="silver_perch.tgc", value=0.7, low=0.51, high=0.80, unit="g^1/3/(C·d) x1000",
+        source="TRIAL: computed from Foley, Rowland, Wilson, Winters, Nixon & Mifsud "
+               "(2010), Aquac. Res. 41:1574-1581 (DOI 10.1111/j.1365-2109.2009.02453.x) — "
+               "38 g fingerlings over-wintered in a tank RAS reached 146 g after 125 d at "
+               "19-25 C (the abstract reports SGR 1.07 %/d; 1000 x (146^(1/3) - 38^(1/3)) "
+               "reproduces it). The paper states the temperature range, not the mean: "
+               "base-0 TGC = 0.61-0.80 across the stated range, 0.69 at the 22 C midpoint "
+               "read. Cross-checked against grow-out timelines in the extension guides the "
+               "species row already cites — Business Queensland (400-600 g marketable in "
+               "10-12 months) back-computes to 0.57-0.74 at effective 23-25 C, NSW DPI "
+               "(600-800 g market size in ~18 months, a two-winter cycle) to 0.51-0.54 at "
+               "effective 21-22 C; the timelines bracket the trial from both sides. "
+               "Low/high span the timelines plus the trial; the trial sits inside. Seeds "
+               "at 0.7; calibrate against farm records"),
 }
 _TGC_DEFAULT = Coefficient(
     name="generic.tgc", value=1.0, low=0.5, high=1.8, unit="g^1/3/(C·d) x1000",
