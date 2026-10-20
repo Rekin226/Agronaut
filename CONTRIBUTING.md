@@ -1,7 +1,7 @@
 # Contributing to Agronaut
 
-Thanks for being here. Agronaut turns aquaponics from trial-and-error into a calculated,
-cited answer — and it gets better mainly through two things outsiders can give it:
+Thanks for being here. Agronaut combines cited aquatic design with farm records and
+experimental field irrigation tools. It gets better mainly through two things outsiders can give it:
 **real-world data** and **domain knowledge**. You do not need to be an ML engineer. Some of
 the most valuable contributions are a CSV, a photograph, or a paragraph with a citation.
 
@@ -37,6 +37,16 @@ Agronaut has a **trust zone** and everything else.
 
 The agent layer may import from `aqua_model`. **Never the reverse.**
 
+The same boundary applies to the field calculation package, `agro_model/`: keep its
+calculations independent of the language model, network, storage, and UI. Cite assumptions
+and report missing inputs and unsupported cases. Persistence and orchestration belong in
+`agronaut_agent/`; the web views belong in `agent/`.
+
+Field capabilities currently remain experimental. Reference arithmetic and synthetic
+workflow tests are useful engineering evidence, but cannot establish field validity.
+See [field calculations](docs/FIELD_CALCULATIONS.md) for supported methods and limits and
+[the field-cycle rehearsal](docs/FIELD_CYCLE_REHEARSAL.md) for a reproducible workflow.
+
 ### The other rule: nothing bypasses the gate
 
 Values proposed by a model — from chat, from a photo, from memory — reach `aqua_model` only
@@ -58,8 +68,9 @@ pip install -e .                         # deps + the `agronaut` command on your
 Run things:
 
 ```bash
-pytest                                   # the full suite (~1,170 tests)
+pytest                                   # the full suite
 pytest aqua_model/tests -q               # just the deterministic core (fast, no LLM needed)
+pytest agro_model/tests -q               # field calculations (no LLM needed)
 python -m scripts.safety_eval            # the advice-safety golden set; exits non-zero on a CRITICAL failure
 streamlit run app.py                     # the web UI (Calculator + Optimizer need no LLM at all)
 agronaut --help                          # the one command over all of the above

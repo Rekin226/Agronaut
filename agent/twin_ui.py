@@ -40,6 +40,9 @@ def render_twin(brain=None, user: str | None = None, channel: str = "web") -> No
     snap = brain.twin_snapshot(channel, user, days=7, greenhouse=_greenhouse())
 
     if not snap.ready:
+        if not snap.missing and snap.notes:
+            st.info(" ".join(snap.notes))
+            return
         _render_start_form(brain, user, channel, snap)
         return
 
@@ -52,6 +55,7 @@ def render_twin(brain=None, user: str | None = None, channel: str = "web") -> No
 def _greenhouse() -> str:
     return st.selectbox(
         "Cover", ("shade", "poly", "heated"), index=0,
+        key="twin_cover",
         help="The envelope you actually run. It changes water temperature, and "
              "temperature usually decides the harvest.",
     )
@@ -59,8 +63,7 @@ def _greenhouse() -> str:
 
 def _render_start_form(brain, user, channel, snap) -> None:
     """The bootstrap. Everything here writes straight to the profile — no model involved."""
-    uid = brain._conv.get_or_create_user(channel, user)
-    facts = brain._mem.get_facts(uid) or {}
+    facts = brain.profile_facts(channel, user)
     blocked = [m for m in snap.missing if not any(f in m for f in _START_FIELDS)]
 
     st.info(
@@ -88,11 +91,10 @@ def _render_start_form(brain, user, channel, snap) -> None:
         started = st.form_submit_button("Start my twin")
 
     if started:
-        brain._mem.set_facts(uid, {"tank_volume_l": float(tank),
-                                   "fish_count": int(count),
-                                   "fish_avg_weight_g": float(weight)},
-                             source="user_stated")
-        st.success("Saved. Your twin starts from these numbers.")
+        result = brain.update_profile_direct(channel, user, {
+            "tank_volume_l": float(tank), "fish_count": int(count),
+            "fish_avg_weight_g": float(weight)})
+        st.success(result)
         _rerun()
 
     if blocked:

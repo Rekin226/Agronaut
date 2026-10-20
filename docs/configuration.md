@@ -70,7 +70,7 @@ OpenAI-compatible server instead:
 
 ```bash
 # example: vLLM serving a tool-calling-capable open model
-python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-7B-Instruct
+vllm serve Qwen/Qwen2.5-7B-Instruct --enable-auto-tool-choice --tool-call-parser hermes
 # then:
 export LLM_PROVIDER=openai_compat
 export OPENAI_COMPAT_BASE_URL=http://localhost:8000/v1

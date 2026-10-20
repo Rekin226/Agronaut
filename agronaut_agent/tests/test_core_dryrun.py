@@ -633,3 +633,73 @@ def test_no_nudge_once_a_tool_has_run_this_turn(tmp_path):
     agent_ = AgronautAgent(db_path=str(tmp_path / "f.sqlite3"), chat_model=fake)
     reply = agent_.handle_message("cli", "u7", "which fish can I use?")
     assert fake.calls == 2 and reply == "Done. I'll check back tomorrow."
+
+
+def test_non_131047_status_requeues_a_sent_followup_for_retry(tmp_path):
+    # #215 review: a failed status other than 131047 must not leave the row
+    # marked sent forever — due() only picks up pending rows, so without a
+    # requeue the retry never happens and the record falsely says delivered.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("whatsapp:7", "whatsapp", "15551234567", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid = agent.due_followups("whatsapp")[0]["id"]
+    agent.mark_followup_sent(fid)
+    agent.record_followup_message_id(fid, "wamid.FU7")
+    assert agent.due_followups("whatsapp") == []          # sent -> not due
+
+    agent.followup_status_failed("wamid.FU7", [131000])   # not the 24h-window code
+
+    row = agent._followups.open_for("whatsapp:7")
+    assert row["status"] == "pending"                     # back in the retry queue
+    assert row["attempts"] == 1
+    assert [f["id"] for f in agent.due_followups("whatsapp")] == [fid]  # picked up again
+
+
+def test_131047_status_marks_sent_followup_failed_via_agent(tmp_path):
+    # #215 review round 3: the agent-level 131047 path must move a sent row to
+    # failed without a separate lookup-then-write.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("whatsapp:7", "whatsapp", "15551234567", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid = agent.due_followups("whatsapp")[0]["id"]
+    agent.mark_followup_sent(fid)
+    agent.record_followup_message_id(fid, "wamid.FU7")
+
+    agent.followup_status_failed("wamid.FU7", [131047])
+
+    assert agent._followups.open_for("whatsapp:7") is None   # failed is not open
+    rows = agent._followups.db.query("SELECT status FROM followups WHERE id=?", (fid,))
+    assert rows[0]["status"] == "failed"
+
+
+def test_131047_status_never_fails_an_answered_followup(tmp_path):
+    # A late 131047 for a row that was already answered must be a no-op.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("whatsapp:7", "whatsapp", "15551234567", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid = agent.due_followups("whatsapp")[0]["id"]
+    agent.mark_followup_sent(fid)
+    agent.record_followup_message_id(fid, "wamid.FU7")
+    agent._followups.mark_answered(fid)
+
+    agent.followup_status_failed("wamid.FU7", [131047])
+
+    rows = agent._followups.db.query("SELECT status FROM followups WHERE id=?", (fid,))
+    assert rows[0]["status"] == "answered"
+
+
+def test_status_for_unknown_message_id_is_a_noop(tmp_path):
+    # #215 review round 3: a status webhook for a message that was never a
+    # follow-up must change nothing, for either error path.
+    agent = AgronautAgent(db_path=tmp_path / "t.sqlite3", chat_model=_ChattyFake())
+    agent._followups.schedule("whatsapp:7", "whatsapp", "15551234567", "did it work?", "x",
+                              "2000-01-01T00:00:00+00:00")
+    fid = agent.due_followups("whatsapp")[0]["id"]
+    agent.mark_followup_sent(fid)
+    agent.record_followup_message_id(fid, "wamid.FU7")
+
+    agent.followup_status_failed("wamid.STRANGER", [131047])
+    agent.followup_status_failed("wamid.STRANGER", [131000])
+
+    row = agent._followups.open_for("whatsapp:7")
+    assert row["id"] == fid and row["status"] == "sent" and row["attempts"] == 0

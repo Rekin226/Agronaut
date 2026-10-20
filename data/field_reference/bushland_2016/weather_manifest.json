@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526433",
+  "dataset_version": 2,
+  "license": {
+    "value": 2,
+    "name": "CC0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "metadata_url": "https://api.figshare.com/v2/articles/25012460/versions/2",
+  "file": {
+    "name": "2016_15-min_weather_SWMRU_CPRL_1.xlsx",
+    "url": "https://ndownloader.figshare.com/files/44194481",
+    "bytes": 14868850,
+    "repository_md5": "6b4db619e17472bf28dabb0533038f46",
+    "sha256": "6b9707b3b10d9cc01472f63a604f6145bd18fa7edca255e487cd658a27254759"
+  }
+}

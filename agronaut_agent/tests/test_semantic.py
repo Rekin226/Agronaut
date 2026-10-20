@@ -34,6 +34,21 @@ def _bow_embed(texts):
     return out
 
 
+def test_delayed_embedding_does_not_recreate_data_after_erasure(tmp_path):
+    db = _Db(tmp_path / "memory.sqlite3")
+    mem = MemoryStore(db)
+    mem.add_memory("owner", "Private field observation")
+    memory_id = db.query("SELECT id FROM memories")[0][0]
+
+    def delayed_embed(texts):
+        mem.forget("owner")  # erasure while an embedding job is in flight
+        return _bow_embed(texts)
+
+    SemanticMemory(db, delayed_embed).index_memory(memory_id, "Private field observation")
+    assert db.query("SELECT * FROM memories") == []
+    assert db.query("SELECT * FROM memory_embeddings") == []
+
+
 def _fill_memories(mem, uid, n=19):
     for i in range(n):
         mem.add_memory(uid, f"harvested {i} kg of lettuce in week {i}", "event")

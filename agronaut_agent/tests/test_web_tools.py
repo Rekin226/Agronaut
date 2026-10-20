@@ -103,9 +103,13 @@ def test_the_claude_path_binds_the_web_tools_beside_agronauts_own(tmp_path, monk
     off = lambda *a, **k: None  # noqa: E731
     AgronautAgent(llm_provider="anthropic", db_path=str(tmp_path / "db.sqlite"),
                   embed_fn=off, describe_fn=off, transcribe_fn=off, classify_fn=off)
+    from agronaut_agent.domains import consultation
+
+    # the start-up set: field tools wait until a field is selected (consultation.tools_for_unit)
+    own = [t.name for t in consultation.tools_for_unit(None, AGRONAUT_TOOLS)]
     names = [getattr(t, "name", None) or t.get("name") for t in chat.bound]
-    assert names[:len(AGRONAUT_TOOLS)] == [t.name for t in AGRONAUT_TOOLS]
-    assert names[len(AGRONAUT_TOOLS):] == ["web_search", "web_fetch"]
+    assert names[:len(own)] == own
+    assert names[len(own):] == ["web_search", "web_fetch"]
 
 
 def test_the_claude_path_makes_the_priority_tools_strict_behind_a_guard(tmp_path, monkeypatch):
@@ -129,3 +133,31 @@ def test_the_claude_path_makes_the_priority_tools_strict_behind_a_guard(tmp_path
     assert isinstance(a._bound, StrictGuard) and a._strict_tools == STRICT_TOOL_PRIORITY
     strict_names = [t["name"] for t in binds[-1] if isinstance(t, dict) and t.get("strict")]
     assert sorted(strict_names) == sorted(STRICT_TOOL_PRIORITY)
+
+
+def test_a_units_own_tool_set_keeps_the_web_tools_and_strict_schemas(tmp_path, monkeypatch):
+    """The loop rebinds per production unit (consultation.tools_for_unit); that set must get the
+    same Claude extras as the start-up one, not a plain bind."""
+    from agent.llm import StrictGuard
+    from agronaut_agent import core
+    from agronaut_agent.domains import consultation
+    from agronaut_agent.tools import AGRONAUT_TOOLS
+
+    binds = []
+
+    class _Rec(_Chat):
+        def bind_tools(self, tools):
+            binds.append(list(tools))
+            return self
+
+    monkeypatch.setattr(core, "get_chat_model", lambda p=None, m=None: _Rec([]))
+    monkeypatch.setattr(core, "build_fallback_chat", lambda p=None, m=None: None)
+    off = lambda *a, **k: None  # noqa: E731
+    a = AgronautAgent(llm_provider="anthropic", db_path=str(tmp_path / "db.sqlite"),
+                      embed_fn=off, describe_fn=off, transcribe_fn=off, classify_fn=off)
+    unit = type("U", (), {"production_system": "aquaponics"})()
+    bound, strict = a._bind_tools(consultation.tools_for_unit(unit, AGRONAUT_TOOLS))
+    assert isinstance(bound, StrictGuard) and "size_aquaponics_system" in strict
+    assert "size_hydroponic_system_tool" not in strict          # not in the aquaponics set
+    names = [getattr(t, "name", None) or t.get("name") for t in binds[-1]]
+    assert names[-2:] == ["web_search", "web_fetch"]

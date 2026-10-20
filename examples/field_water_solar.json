@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic solar-radiation scenario",
+    "timezone": "Europe/Brussels"
+  },
+  "area_m2": 10000,
+  "crop": {
+    "name": "tomato",
+    "coefficient": {
+      "value": 1.15,
+      "source": "FAO-56 (1998), Table 12, tomato mid-season reference; illustrative unadjusted scenario",
+      "stage": "mid-season"
+    }
+  },
+  "weather": [
+    {
+      "day": "2026-07-06",
+      "t_min_c": 12.3,
+      "t_max_c": 21.5,
+      "rh_min_pct": 63,
+      "rh_max_pct": 84,
+      "wind_m_s": 2.7777777777777777,
+      "wind_height_m": 10,
+      "elevation_m": 100,
+      "rainfall_mm": 0,
+      "source": "Synthetic daily meteorology and site inputs; demonstration only, not a field measurement",
+      "kind": "scenario",
+      "input_type": "solar_radiation_fao56",
+      "latitude_deg": 50.8,
+      "solar_radiation_mj_m2": 22.0
+    }
+  ],
+  "soil": {
+    "field_capacity": 0.32,
+    "wilting_point": 0.15,
+    "root_depth_m": 0.8,
+    "depletion_fraction": 0.4,
+    "source": "FAO-56 Example 36, tomato and silt; illustrative soil, not a site measurement"
+  },
+  "initial_state": {
+    "as_of": "2026-07-05",
+    "depletion_mm": 60,
+    "source": "Hypothetical starting depletion for this demonstration"
+  },
+  "application_efficiency": {
+    "value": 0.8,
+    "source": "Hypothetical application efficiency for arithmetic demonstration, not a method default"
+  },
+  "events": [
+    {
+      "day": "2026-07-06",
+      "net_irrigation_mm": 0,
+      "runoff_mm": 0,
+      "source": "Scenario: no applied irrigation and no rainfall runoff"
+    }
+  ]
+}

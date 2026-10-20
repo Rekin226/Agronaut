@@ -6,9 +6,9 @@
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 [![good first issues](https://img.shields.io/github/issues/Rekin226/Agronaut/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/Rekin226/Agronaut/labels/good%20first%20issue)
 
-**An open-source aquaponics assistant you run on your own computer. It designs systems with
-a deterministic, source-cited engineering model, and talks to you in the terminal, the
-browser, Telegram or WhatsApp.**
+**An open-source agriculture assistant you run on your own computer. It combines cited
+aquaponics and hydroponics design with farm records and experimental field irrigation
+tools, in the terminal, browser, Telegram or WhatsApp.**
 
 Describe your water, space and species, and Agronaut returns a buildable design: tank and
 pump sizes, fish count, feed rate, a bill of materials, the operating range to keep, a source
@@ -82,7 +82,28 @@ the week ahead. Neither calls a model, so they work even when the model is slow 
 |---|---|
 | `size`, `size-hydro`, `optimize`, `list`, the Design page in the web app | **Nothing.** Deterministic, offline, cited. |
 | Chat, photos, voice notes | A model (local or your own key) |
-| `/log`, `/forecast` on Telegram or WhatsApp | A model for setup, then nothing |
+| Farm records, field calculations, `/log`, `/forecast`, `/plant`, `/waterlog`, `/measure`, `/task`, `/overview`, `/guide` | No model; messaging channels still need their channel configuration and connectivity |
+
+### 4. Explore field irrigation
+
+Version 1.4 adds crop-water and soil-water accounting, drip and sprinkler design checks,
+surface-irrigation event analysis, and records from planting through harvest. These
+calculations are **experimental, not field validated**. Surface cutoff recommendations
+remain unsupported; missing measurements stay unknown.
+
+From a source checkout (which includes the example inputs):
+
+```bash
+agronaut capabilities --system soil
+agronaut water-needs --input examples/field_water.json
+agronaut design-irrigation --method drip --input examples/drip_design.json
+agronaut field-guide --topic choose-method --language fr
+```
+
+In the web app, use **Farm overview**, **Field records**, **Crop records**, and
+**Farm resources**. The existing **Assistant**, **Design**, **My Twin**, and **Quality**
+pages remain available. French and Traditional Chinese field guidance is available;
+independent language and grower usability review remains outstanding.
 
 ---
 
@@ -131,7 +152,7 @@ assistant can only reach it through the validation gate. See
 agronaut eval        # every quality measurement, its last result and its age
 ```
 
-- **Advice safety:** 419 automated checks, enforced in CI on every change.
+- **Advice safety:** automated aquatic and field checks, enforced in CI on every change.
 - **The season simulator** was scored against 7 real ponds on held-out data. It got the
   **direction** of change right on 5 of 7, but did not beat a simple trend baseline on the
   **level** on any of them. Use it to compare options, not to predict a number.
@@ -187,6 +208,11 @@ docker compose --profile bot up    # web + the Telegram bot (needs a .env)
 | [Features](docs/features.md) | Photos, the 3D twin, voice, the consultation, honesty rules |
 | [Architecture](docs/architecture.md) | The trust zone, the engineering model, project layout, the agent skill |
 | [Evaluation](docs/evaluation.md) | Retrieval tuning, tracing, faithfulness, reply grounding |
+| [Field calculations](docs/FIELD_CALCULATIONS.md) | Water demand, soil accounting, irrigation methods, assumptions and limits |
+| [Crop records](docs/CROP_RECORDS.md) | Planting, scouting, work, harvest and season review |
+| [Farm resources](docs/FARM_RESOURCES.md) | Shared water, supplies, equipment and recorded use |
+| [Nutrient accounting](docs/NUTRIENT_ACCOUNTING.md) | Nutrient budgets and their limits |
+| [Field-cycle rehearsal](docs/FIELD_CYCLE_REHEARSAL.md) | Reproduce a synthetic workflow, including a clean installation |
 | [Privacy](docs/dpg/PRIVACY.md) | What is recorded, where, and how to delete it |
 
 ---

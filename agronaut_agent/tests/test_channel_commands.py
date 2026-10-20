@@ -43,6 +43,30 @@ class _FakeAgent:
         self.calls.append(("profile",))
         return "tilapia, 20 m2"
 
+    def units_text(self, channel, identity):
+        self.calls.append(("units",))
+        return "Field: field-1"
+
+    def farm_overview_text(self, channel, identity, language="en", page=1):
+        self.calls.append(("overview", language, page))
+        return "Farm overview"
+
+    def start_unit_setup(self, channel, identity, production_system=None):
+        self.calls.append(("newunit", production_system))
+        return "Setup started"
+
+    def back_unit_setup(self, channel, identity):
+        self.calls.append(("back",))
+        return "Previous question"
+
+    def cancel_unit_setup(self, channel, identity):
+        self.calls.append(("cancel",))
+        return "Setup cancelled"
+
+    def select_unit(self, channel, identity, unit_id, production_system=None):
+        self.calls.append(("unit", unit_id, production_system))
+        return "Selected"
+
     def set_goal(self, channel, identity, goal):
         self.calls.append(("goal", goal))
         return f"{goal} mode"

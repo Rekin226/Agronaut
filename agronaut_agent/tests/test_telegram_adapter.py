@@ -2,7 +2,22 @@
 
 import asyncio
 
+import pytest
+
 from agronaut_agent.channels.telegram_adapter import TelegramAdapter
+
+
+@pytest.fixture(autouse=True)
+def inline_stub_agent_calls(monkeypatch):
+    """These tests verify routing with instant stubs, not executor scheduling.
+
+    Avoid a worker-pool lifecycle for each fake update; some restricted test hosts
+    stall in asyncio.run's executor shutdown even after the stub has returned.
+    Production calls retain asyncio.to_thread so real agent work stays off the loop.
+    """
+    async def invoke(func, /, *args, **kwargs):
+        return func(*args, **kwargs)
+    monkeypatch.setattr(asyncio, "to_thread", invoke)
 
 
 def _adapter():

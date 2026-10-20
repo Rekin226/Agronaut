@@ -121,23 +121,32 @@ def test_whatsapp_deletes_file_even_when_send_fails(tmp_path):
     agent = _StubAgent({("whatsapp", "uid"): [png_path]})
     adapter = WhatsAppAdapter(agent=agent, token="x", phone_number_id="pn")
 
-    with unittest.mock.patch.object(adapter, "send_media", side_effect=OSError("network")):
+    with (
+        unittest.mock.patch.object(adapter, "send_media", side_effect=OSError("network")),
+        unittest.mock.patch.object(adapter, "send_text") as notify,
+    ):
         adapter._flush_attachments("sender", "uid")
 
     assert not os.path.exists(png_path), "media must be cleaned even on send failure"
+    notify.assert_called_once()
 
 
 def test_whatsapp_cleanup_on_runtime_error(tmp_path):
     """Verify cleanup even when send_media raises an exception."""
-    html_path = str(tmp_path / "scene.html")
-    with open(html_path, "w") as fh:
-        fh.write("<html>3D</html>")
-    assert os.path.exists(html_path)
+    png_path = str(tmp_path / "scene.png")
+    with open(png_path, "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+    assert os.path.exists(png_path)
 
-    agent = _StubAgent({("whatsapp", "uid"): [html_path]})
+    agent = _StubAgent({("whatsapp", "uid"): [png_path]})
     adapter = WhatsAppAdapter(agent=agent, token="x", phone_number_id="pn")
 
-    with unittest.mock.patch.object(adapter, "send_media", side_effect=RuntimeError("network")):
+    with (
+        unittest.mock.patch.object(adapter, "send_media", side_effect=RuntimeError("network")) as send,
+        unittest.mock.patch.object(adapter, "send_text") as notify,
+    ):
         adapter._flush_attachments("sender", "uid")
 
-    assert not os.path.exists(html_path), "file cleaned even when send_media raises"
+    assert not os.path.exists(png_path), "file cleaned even when send_media raises"
+    send.assert_called_once_with("sender", png_path, mime="image/png")
+    notify.assert_called_once()

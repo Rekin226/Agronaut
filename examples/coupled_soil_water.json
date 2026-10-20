@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic soil-water example",
+    "timezone": "UTC"
+  },
+  "area_m2": "100",
+  "crop": {
+    "name": "tomato",
+    "source": "Synthetic demonstration parameters; no field calibration"
+  },
+  "initial_state": {
+    "as_of": "2026-07-05",
+    "kind": "scenario",
+    "quality": "unverified",
+    "source": "Synthetic demonstration parameters; no field calibration",
+    "patches": [
+      {
+        "id": "plot",
+        "area_fraction": "1",
+        "layers": [
+          {
+            "id": "upper",
+            "top_m": "0",
+            "bottom_m": "0.1",
+            "field_capacity": "0.3",
+            "wilting_point": "0.2",
+            "saturation": "0.45",
+            "evaporation_floor": "0.1",
+            "water_content": "0.227",
+            "soil_source": "Synthetic demonstration parameters; no field calibration",
+            "drainage": {
+              "tau": "0.4",
+              "saturated_conductivity_mm_day": "20",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            }
+          },
+          {
+            "id": "middle",
+            "top_m": "0.1",
+            "bottom_m": "0.3",
+            "field_capacity": "0.3",
+            "wilting_point": "0.2",
+            "saturation": "0.45",
+            "evaporation_floor": "0.1",
+            "water_content": "0.227",
+            "soil_source": "Synthetic demonstration parameters; no field calibration",
+            "drainage": {
+              "tau": "0.4",
+              "saturated_conductivity_mm_day": "20",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            }
+          },
+          {
+            "id": "lower",
+            "top_m": "0.3",
+            "bottom_m": "1",
+            "field_capacity": "0.3",
+            "wilting_point": "0.2",
+            "saturation": "0.45",
+            "evaporation_floor": "0.1",
+            "water_content": "0.227",
+            "soil_source": "Synthetic demonstration parameters; no field calibration",
+            "drainage": {
+              "tau": "0.4",
+              "saturated_conductivity_mm_day": "20",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            }
+          }
+        ],
+        "surface_water": {
+          "stored_mm": "0",
+          "capacity_mm": "10",
+          "source": "Synthetic demonstration parameters; no field calibration"
+        },
+        "evaporation_parameters": {
+          "minimum_depth_m": "0.15",
+          "maximum_depth_m": "0.3",
+          "readily_evaporable_mm": "9",
+          "decline_factor": "4",
+          "source": "Synthetic demonstration parameters; no field calibration"
+        },
+        "evaporation_memory": {
+          "stage_one_remaining_mm": "9",
+          "active_depth_m": "0.15",
+          "stage_two_start_fraction": null,
+          "source": "Synthetic demonstration parameters; no field calibration"
+        }
+      }
+    ]
+  },
+  "conditions": {
+    "bulk_soil_properties": true,
+    "no_capillary_rise": true,
+    "no_frozen_soil": true,
+    "no_salinity_effects": true,
+    "source": "Synthetic demonstration parameters; no field calibration"
+  },
+  "weather": [
+    {
+      "day": "2026-07-06",
+      "input_type": "supplied_et0",
+      "et0_mm_day": 5,
+      "rainfall_mm": 0,
+      "source": "Synthetic demonstration parameters; no field calibration",
+      "kind": "scenario",
+      "timezone": "UTC",
+      "period_hours": 24,
+      "method": "Supplied synthetic ET0"
+    }
+  ],
+  "days": [
+    {
+      "day": "2026-07-06",
+      "patches": [
+        {
+          "id": "plot",
+          "water": {
+            "rainfall_mm": "0",
+            "rainfall_runoff_mm": "0",
+            "irrigation_at_surface_mm": "0",
+            "source": "Synthetic demonstration parameters; no field calibration"
+          },
+          "evaporation_coefficients": {
+            "wet_soil_coefficient": "0.4",
+            "ponded_water_coefficient": "0.4",
+            "source": "Synthetic demonstration parameters; no field calibration"
+          },
+          "root_parameters": {
+            "root_depth_m": "1",
+            "topsoil_depth_m": "1",
+            "stomatal_threshold": "0.5",
+            "local_shape_factor": "0",
+            "root_zone_aeration_factor": "1",
+            "source": "Synthetic demonstration parameters; no field calibration"
+          },
+          "root_activities": [
+            {
+              "id": "upper",
+              "maximum_rate_per_day": "0.03",
+              "aeration_factor": "1",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            },
+            {
+              "id": "middle",
+              "maximum_rate_per_day": "0.03",
+              "aeration_factor": "1",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            },
+            {
+              "id": "lower",
+              "maximum_rate_per_day": "0.03",
+              "aeration_factor": "1",
+              "source": "Synthetic demonstration parameters; no field calibration"
+            }
+          ],
+          "transpiration_coefficients": {
+            "transpiration_coefficient": "0.8",
+            "cold_stress_factor": "1",
+            "source": "Synthetic demonstration parameters; no field calibration"
+          }
+        }
+      ],
+      "source": "Synthetic demonstration parameters; no field calibration"
+    }
+  ]
+}

@@ -103,7 +103,7 @@ def main(tunnel: bool = False) -> int:
         log.info("starting WhatsApp webhook on port %d. Meta must reach it over HTTPS, so "
                  "point a tunnel or reverse proxy at it (or run `agronaut whatsapp "
                  "--tunnel` to start one here)", port)
-    WhatsAppAdapter(AgronautAgent(), port=port).run()
+    WhatsAppAdapter(AgronautAgent(require_tools=False), port=port).run()
     return 0
 
 
@@ -147,7 +147,7 @@ def _run_with_tunnel(port: int, log) -> int:
     # turned into an exit: that would leave cloudflared serving a dead address.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
-        WhatsAppAdapter(AgronautAgent(), port=port).run()
+        WhatsAppAdapter(AgronautAgent(require_tools=False), port=port).run()
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:

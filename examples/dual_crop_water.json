@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "site": {"name": "Synthetic drip field", "timezone": "UTC"},
+  "area_m2": 1000,
+  "crop": {"name": "tomato", "source": "Synthetic scenario; coefficients are not tomato recommendations"},
+  "surface_soil": {"field_capacity": 0.3, "wilting_point": 0.2, "depth_m": 0.1,
+    "readily_evaporable_mm": 9, "source": "Synthetic surface layer"},
+  "initial_state": {"as_of": "2026-07-05", "depletion_mm": 20, "source": "Synthetic fully depleted surface, not a root-zone state"},
+  "conditions": {"basal_unstressed": true, "surface_transpiration_negligible": true, "no_mulch_or_frozen_soil": true,
+    "source": "Explicit synthetic applicability assumptions, requiring field review before use"},
+  "weather": [
+    {"day": "2026-07-06", "input_type": "supplied_et0", "et0_mm_day": 7, "rainfall_mm": 0,
+     "source": "Synthetic grass-reference ET", "kind": "scenario", "timezone": "UTC", "period_hours": 24, "method": "Synthetic FAO grass-reference total"},
+    {"day": "2026-07-07", "input_type": "supplied_et0", "et0_mm_day": 7, "rainfall_mm": 0,
+     "source": "Synthetic grass-reference ET", "kind": "scenario", "timezone": "UTC", "period_hours": 24, "method": "Synthetic FAO grass-reference total"},
+    {"day": "2026-07-08", "input_type": "supplied_et0", "et0_mm_day": 7, "rainfall_mm": 0,
+     "source": "Synthetic grass-reference ET", "kind": "scenario", "timezone": "UTC", "period_hours": 24, "method": "Synthetic FAO grass-reference total"}
+  ],
+  "days": [
+    {"day": "2026-07-06", "kcb": 0.9, "kc_max": 1.3, "cover_fraction": 0.53, "wetted_fraction": 0.3,
+     "exposed_wetted_fraction": 0.19, "net_irrigation_mm": 10, "runoff_mm": 0,
+     "source": "Synthetic coefficients, physical wetting and shaded exposure; early irrigation"},
+    {"day": "2026-07-07", "kcb": 0.9, "kc_max": 1.3, "cover_fraction": 0.53, "wetted_fraction": 0.3,
+     "exposed_wetted_fraction": 0.19, "net_irrigation_mm": 0, "runoff_mm": 0,
+     "source": "Synthetic dry day; fractions retained explicitly"},
+    {"day": "2026-07-08", "kcb": 0.9, "kc_max": 1.3, "cover_fraction": 0.53, "wetted_fraction": 0.3,
+     "exposed_wetted_fraction": 0.19, "net_irrigation_mm": 0, "runoff_mm": 0,
+     "source": "Synthetic dry day; fractions retained explicitly"}
+  ]
+}

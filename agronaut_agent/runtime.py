@@ -29,11 +29,16 @@ _proposals = contextvars.ContextVar("agronaut_proposals", default=None)
 _attachments = contextvars.ContextVar("agronaut_attachments", default=None)
 _trace = contextvars.ContextVar("agronaut_trace", default=None)
 _metrics = contextvars.ContextVar("agronaut_metrics", default=None)
+_owner = contextvars.ContextVar("agronaut_owner", default=None)
+_unit = contextvars.ContextVar("agronaut_unit", default=None)
 
 
 def set_current(memory_store, user_id: str, followups=None, community=None,
-                calibration=None, readings=None, proposals=None) -> None:
+                calibration=None, readings=None, proposals=None, *, owner_id=None,
+                unit_context=None) -> None:
     _current.set((memory_store, user_id))
+    _owner.set(owner_id or user_id)
+    _unit.set(unit_context)
     _followups.set(followups)
     _community.set(community)
     _calibration.set(calibration)
@@ -44,6 +49,8 @@ def set_current(memory_store, user_id: str, followups=None, community=None,
 
 def clear_current() -> None:
     _current.set(None)
+    _owner.set(None)
+    _unit.set(None)
     _followups.set(None)
     _community.set(None)
     _calibration.set(None)
@@ -67,6 +74,15 @@ def get_attachments() -> list:
 def get_current():
     """Return (memory_store, user_id) for the in-flight message, or None outside a turn."""
     return _current.get()
+
+
+def get_owner_id():
+    """Channel identity, distinct from a unit's private persistence partition."""
+    return _owner.get()
+
+
+def get_unit_context():
+    return _unit.get()
 
 
 def get_followups():

@@ -1,0 +1,12 @@
+{
+  "data": {
+    "zone_key": "north-drip",
+    "name": "North drip zone",
+    "water_strategy": "supplemental",
+    "irrigation_method": "drip",
+    "ground_area_m2": "500.25",
+    "boundary_note": "Illustrative rows 1–10 along the north edge; replace with the actual boundary.",
+    "source": "Synthetic development example; no surveyed field or measured area."
+  },
+  "request_id": "synthetic-north-zone-v1"
+}

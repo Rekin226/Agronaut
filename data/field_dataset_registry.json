@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "audited_on": "2026-10-20",
+  "scope": "Research evidence screening, not model validation or pilot participation.",
+  "datasets": [
+    {
+      "id": "burkina_soil_2018",
+      "doi": "https://doi.org/10.23708/LZ8A5B",
+      "version": "1.0",
+      "citation": "Barro, Mariam; Wonni, Issa; Tollenaere, Charlotte (2021). Soil Physicochemical Properties in rice fields from six sites in western Burkina Faso, 2018. DataSuds, V1.",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_evidence": "https://dataverse.ird.fr/dataset.xhtml?persistentId=doi:10.23708/LZ8A5B",
+      "files": [
+        {
+          "path": "data/field_reference/burkina_soil_2018.tsv",
+          "url": "https://dataverse.ird.fr/api/access/datafile/8922?format=original",
+          "bytes": 3176,
+          "repository_md5": "de1ca731c10123561355638c382bded1",
+          "sha256": "bd766b8007f419a4c2767518e77075c73153b95bce80a9e95f1edd2e76249e52"
+        },
+        {
+          "path": "data/field_reference/burkina_soil_dictionary.tsv",
+          "url": "https://dataverse.ird.fr/api/access/datafile/8923?format=original",
+          "bytes": 1282,
+          "repository_md5": "b0e62c9e3c952e887842899f9c01d588",
+          "sha256": "b75cc6f16f701cdee77c3a30d0f5fac328d08716a0dbd2a73ecaff38f532985d"
+        },
+        {
+          "path": "data/field_reference/burkina_soil_methods.pdf",
+          "url": "https://dataverse.ird.fr/api/access/datafile/8919",
+          "bytes": 1115806,
+          "repository_md5": "987592a7853936fc6d6d470a55870dc4",
+          "sha256": "a3a553f1d8127dc5649da20b66c3c708e4cf775a07b621896f1bf35bca111297"
+        }
+      ],
+      "audit_role": "Laboratory transcription and source-definition review only.",
+      "limitations": [
+        "Rice-field chemistry is not an irrigation-event time series or validation of vegetable irrigation.",
+        "Per-sample collection/report dates, daily weather and applied irrigation are absent from the numeric table.",
+        "Dictionary contains inconsistent site-count and potassium-ion wording; retain original definitions for clarification.",
+        "No automatic soil-test interpretation, soil-water initialization or fertilizer targets are justified."
+      ]
+    },
+    {
+      "id": "irridrone_2026",
+      "doi": "https://doi.org/10.5281/zenodo.22017449",
+      "version": "1.0",
+      "citation": "Afshar, Somayeh; Ramezani, Mohsen; Mollazade, Kaveh; Moradiani, Atefe (2026). IrriDrone: Overhead Drone-Based Video Dataset for Precision Sprinkler Irrigation Assessment. Zenodo, version 1.0.",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_evidence": "data/field_reference/irridrone_README.txt",
+      "files": [
+        {
+          "path": "data/field_reference/irridrone_metadata.csv",
+          "url": "https://zenodo.org/api/records/22017449/files/metadata.csv/content",
+          "bytes": 73622,
+          "repository_md5": "5ae5ff5682b7abbaa3ff8fbcbd6c4d4a",
+          "sha256": "f1500eaa72b33bf41ceb34be40994bef5720aed1ce41b35fd075e136a32c4467"
+        },
+        {
+          "path": "data/field_reference/irridrone_README.txt",
+          "url": "https://zenodo.org/api/records/22017449/files/README.txt/content",
+          "bytes": 9288,
+          "repository_md5": "88a2a0c2a9b37e369c26a2bea7007a89",
+          "sha256": "883eb60d6bffc55514188b3609b6e5677438092516b45a8657c2728062e0931e"
+        }
+      ],
+      "audit_role": "Discharge metadata and evaluation-split preparation only; no videos downloaded.",
+      "limitations": [
+        "Iranian fields do not establish Burkina Faso or Taiwan performance.",
+        "Relative pressure categories cannot become measured pressure/head inputs.",
+        "Wind was not instrumentally measured; the numeric table lacks surveyed pipes, nozzle curves and collection-can distributions.",
+        "Paired recordings must stay together in any future evaluation split; no split or prediction test has been performed.",
+        "Dates and local times are retained as supplied; no timezone or date-order interpretation is inferred."
+      ]
+    },
+    {
+      "id": "taiwan_soybean_2024",
+      "doi": "https://doi.org/10.5061/dryad.0k6djhbgw",
+      "version": "3; metadata-only update over version 2 files",
+      "citation": "Yang, Dan-Hong; Chang, Jui-Tse; Yang, Kai-Wen et al. (2026). Soybean aphid population dynamics and soil moisture in soybean fields: data and code. Dryad.",
+      "license": "CC0 1.0",
+      "license_url": "https://spdx.org/licenses/CC0-1.0.html",
+      "license_evidence": "https://datadryad.org/api/v2/datasets/doi%3A10.5061%2Fdryad.0k6djhbgw",
+      "files": [],
+      "audit_role": "Candidate only; publication metadata and README inspected, numeric archive unavailable in this audit.",
+      "access_evidence": {
+        "metadata_curationStatus": "Published",
+        "metadata_visibility": "public",
+        "metadata_versionStatus": "submitted",
+        "api_download_http_status": 401,
+        "web_public_download_http_status": 403,
+        "archive_sha256_declared": "c287d3050a6f07eb8e6119c8df5ef84b6abe0882f43e724cdb99d33511da623e"
+      },
+      "limitations": [
+        "The README describes daily sensor summaries; these are not instantaneous end-of-day soil-state readings.",
+        "Actual CSV columns, missingness, sensor depth and units have not been inspected.",
+        "No timestamps, observation quality or irrigation validation metrics are fabricated."
+      ]
+    }
+  ]
+}

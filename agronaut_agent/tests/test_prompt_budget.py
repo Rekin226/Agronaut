@@ -11,21 +11,28 @@ was about 4 characters per token, so the estimate errs on the side of failing ea
 """
 
 import json
+from types import SimpleNamespace
 
+import pytest
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from agent.llm import DEFAULT_OLLAMA_NUM_CTX
 from agronaut_agent.core import SYSTEM_PROMPT
+from agronaut_agent.domains import consultation
 from agronaut_agent.tools import AGRONAUT_TOOLS
 
 
-def _fixed_prompt_tokens() -> int:
-    schemas = json.dumps([convert_to_openai_tool(t) for t in AGRONAUT_TOOLS])
-    return int((len(SYSTEM_PROMPT) + len(schemas)) / 3.5)
+def _fixed_prompt_tokens(domain) -> int:
+    unit = None if domain == "legacy" else SimpleNamespace(production_system=domain)
+    tools = consultation.tools_for_unit(unit, AGRONAUT_TOOLS)
+    schemas = json.dumps([convert_to_openai_tool(t) for t in tools])
+    prompt = SYSTEM_PROMPT if domain in ("legacy", "aquaponics") else consultation.prompt(domain)
+    return int((len(prompt) + len(schemas)) / 3.5)
 
 
-def test_the_fixed_prompt_leaves_half_the_default_window_for_the_conversation():
-    fixed = _fixed_prompt_tokens()
+@pytest.mark.parametrize("domain", ["legacy", "aquaponics", "hydroponics", "soil", None])
+def test_the_fixed_prompt_leaves_half_the_default_window_for_the_conversation(domain):
+    fixed = _fixed_prompt_tokens(domain)
     assert fixed <= DEFAULT_OLLAMA_NUM_CTX // 2, (
         f"The system prompt and tool schemas are now ~{fixed} tokens, more than half of the "
         f"{DEFAULT_OLLAMA_NUM_CTX}-token window Agronaut asks Ollama for. Real turns add "

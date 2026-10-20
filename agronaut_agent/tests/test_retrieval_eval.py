@@ -167,3 +167,22 @@ def test_golden_set_ids_are_unique():
     golden = json.loads((root / "docs/dpg/retrieval_eval/golden_set.json").read_text())
     ids = [q["id"] for q in golden["queries"]] + [q["id"] for q in golden["negative_controls"]]
     assert len(ids) == len(set(ids))
+# A scoped benchmark must exercise the same filters for kept and raw-distance queries.
+def test_custom_golden_filters_reach_both_retrieval_paths(monkeypatch):
+    from agronaut_agent import rag
+
+    calls = []
+
+    def retrieve(query, k, **kwargs):
+        calls.append(kwargs)
+        return [{"source": "knowledge/field_drip.md", "score": 0.4, "text": "guide"}]
+
+    monkeypatch.setattr(rag, "retrieve", retrieve)
+    filters = {"domain": ["soil", "irrigation"]}
+    golden = {"filters": filters, "queries": [{"id": "drip", "query": "uneven drip",
+               "relevant": ["knowledge/field_drip.md"]}], "negative_controls": []}
+    report = run(golden=golden)
+    assert report["filters"] == filters
+    assert report["summary"]["hit_rate"] == 1
+    assert calls and all(call["filters"] == filters for call in calls)
+    assert any(call.get("max_dist") == float("inf") for call in calls)
