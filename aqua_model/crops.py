@@ -658,6 +658,45 @@ SWEET_POTATO_LEAVES = Crop(
         "multiplier, not the trial, is the soft link. temp_min 18 is Ecocrop's "
         "optimal minimum (measured); temp_max 35 is "
         "PROSEA's growth-retardation point (measured endpoint)."),
+    provenance={
+        "frr_g_per_m2_day":
+            "placed: no sweet-potato-leaf FRR is published for aquaponics; set to 65 "
+            "in the FAO 589 / UVI leafy band (~40-100 g/m2/day) at the water-spinach "
+            "seed point — same genus, same cut-and-come-again vine-tip harvest",
+        "frr_low":
+            "inherited: the water-spinach band floor — same genus sibling, the same "
+            "45-90 band shape; band placement, not a measurement",
+        "frr_high":
+            "inherited: the water-spinach band ceiling — same genus sibling, the same "
+            "45-90 band shape",
+        "n_uptake_g_per_m2_day":
+            "inherited: water spinach, its genus sibling, carries 0.9 (the leafy "
+            "table clusters at 0.8-1.0); consistency-check input only, never a "
+            "sizing coefficient",
+        "yield_kg_per_m2_year":
+            "placed: Duke 1983 tops band (up to 10-32 t/ha across 3-4 cuttings/yr) "
+            "midpoint 21 t/ha = 2.1 kg/m2/yr field fresh tops x a ~5-6x "
+            "protected-culture multiplier lands at ~11-13, registered 12; the "
+            "multiplier — not the trial — is the soft link, and Duke's Energy-section "
+            "'tops' most likely means whole vines, so the 2.1 base, if anything, "
+            "runs high",
+        "edible_protein_pct":
+            "measured: USDA FoodData Central, 'Sweet potato leaves, raw' (FDC "
+            "169303) — 2.5 g protein per 100 g fresh",
+        "ph_min":
+            "measured: FAO Ecocrop record 1265 — optimal pH band 5-7 (absolute "
+            "4-8.7); the species-optimal floor replaces the leafy-band default",
+        "ph_max":
+            "measured: FAO Ecocrop record 1265 — optimal pH band 5-7 (absolute 4-8.7)",
+        "temp_min_c":
+            "measured: FAO Ecocrop record 1265 — optimal minimum 18 °C (the species "
+            "survives to 10 °C, but the optimal band is what a leaf-growth entry "
+            "models; chilling-sensitive tropical species)",
+        "temp_max_c":
+            "measured: PROSEA (Ipomoea batatas) — growth is retarded where "
+            "temperatures reach or exceed 35 °C; the sourced endpoint, one notch "
+            "above Ethiopian kale's placed 30",
+    },
 )
 
 CROPS: dict[str, Crop] = {
