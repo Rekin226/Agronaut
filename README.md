@@ -152,7 +152,7 @@ assistant can only reach it through the validation gate. See
 agronaut eval        # every quality measurement, its last result and its age
 ```
 
-- **Advice safety:** 419 automated checks, enforced in CI on every change.
+- **Advice safety:** automated aquatic and field checks, enforced in CI on every change.
 - **The season simulator** was scored against 7 real ponds on held-out data. It got the
   **direction** of change right on 5 of 7, but did not beat a simple trend baseline on the
   **level** on any of them. Use it to compare options, not to predict a number.

@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "Agronaut: a cited, deterministic engineering core for aquaponics design with a conversational agent"
+title: "Agronaut: cited aquatic design and experimental field agriculture workflows"
 message: "If you use Agronaut in research or programme work, please cite it."
 type: software
 authors:
@@ -17,7 +17,10 @@ abstract: >-
   does not model. The same discipline extends to photographs — a deterministic guard strips
   fabricated readings from a vision model's description, and a fixed, cited table maps visible
   symptoms to a ranked differential rather than a single diagnosis. Design and optimisation run
-  with no language model at all.
+  with no language model at all. Experimental field tools extend the platform to crop-water
+  demand, soil-water accounting, drip and sprinkler design checks, surface-irrigation event
+  analysis, and farm records from planting through harvest. These field calculations have
+  software and reference checks but are not field validated.
 keywords:
   - aquaponics
   - hydroponics
