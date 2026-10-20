@@ -93,7 +93,9 @@ def render_drip_diagnostics(call, saved, records, farm, cycle):
             reference = call("get", dict(calculation_id=identifier))
             st.caption(f"Recorded samples in {identifier}")
             st.dataframe(reference["result"]["result"]["samples"], hide_index=True)
-        with st.form(P+"form"):
+        # Edits must reach the server immediately to invalidate the displayed report.
+        # A form would retain the old report until submission.
+        with st.container():
             st.selectbox("Drip comparison dataset kind", ["synthetic", "field"], index=None, key=P+"kind")
             st.text_area("Test selection rationale", key=P+"note")
             for identifier in selected:
@@ -115,7 +117,7 @@ def render_drip_diagnostics(call, saved, records, farm, cycle):
                 st.number_input("Water density for pressure conversion (kg/m³; leave unknown blank)", min_value=500.0,
                                 max_value=2000.0, value=None, key=prefix+"water_density_kg_m3")
                 st.text_input("Density source or reason it is unknown", key=prefix+"density_source")
-            st.form_submit_button("Compare drip measurements without changing records", on_click=_compare,
+            st.button("Compare drip measurements without changing records", on_click=_compare,
                                   args=(call, saved["id"], saved["cycle_id"], selected, network), key=P+"run")
         cached = st.session_state.get(P+"report")
         if cached and cached["draft"] == _draft(saved["id"], selected, network):

@@ -191,7 +191,9 @@ def render_coupled_water_intake(active, farm, cycle):
                    "Use a decimal point; soil and crop quantities allow up to six decimal places. "
                    "Values require evidence for this crop and soil; this is an experimental calculation.")
         mode = st.radio("Weather for coupled soil water", ["Enter daily weather", "Import downloaded weather"], key=p+"weather_mode")
-        with st.form(p+"form"):
+        # Weather controls outside this section rerun the page. Persist edits as they
+        # happen so switching weather mode does not discard an unsubmitted soil draft.
+        with st.container():
             crop = st.text_input("Crop for coupled soil water", value=cycle["crop"] if cycle else "", key=p+"crop")
             crop_source = st.text_input("Crop and parameter context source", key=p+"crop_source")
             area = st.text_input("Total represented ground area (m²)", key=p+"area")
@@ -216,7 +218,7 @@ def render_coupled_water_intake(active, farm, cycle):
                 conditions[key] = st.checkbox(label, key=p+key)
             conditions["source"] = st.text_input("Evidence for these model conditions", key=p+"conditions_source")
             _daily_widgets(p, mode == "Import downloaded weather")
-            submit = st.form_submit_button("Calculate and save coupled soil water")
+            submit = st.button("Calculate and save coupled soil water")
         if submit:
             try:
                 initial = build_initial_rows(patches, layers, evap, as_of=as_of, kind=kind, quality=quality, source=source)
@@ -255,7 +257,7 @@ def render_coupled_continuation(saved, active, farm, cycle, save_revision):
             except (ValueError, TypeError, OverflowError, UnicodeError, csv.Error) as exc:
                 st.session_state.field_error = str(exc)
 
-        with st.form(p+"form"):
+        with st.container():
             st.text_input("Continuation purpose and evidence", key=p+"reason")
             _daily_widgets(p, mode == "Import downloaded weather")
-            st.form_submit_button("Continue and save coupled soil water", on_click=submit)
+            st.button("Continue and save coupled soil water", on_click=submit)

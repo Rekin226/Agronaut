@@ -57,7 +57,8 @@ def render_surface_diagnostics(call, saved, records, farm, cycle):
             st.session_state[_P+"events"] = [i for i in st.session_state[_P+"events"] if i in events]
         selected = st.multiselect("Surface events to compare", list(events), key=_P+"events",
             format_func=lambda i: f"Saved {events[i]['created_at']} · {i}")
-        with st.form(_P+"form"):
+        # Invalidate cached diagnostics as soon as their declarations change.
+        with st.container():
             st.selectbox("Advance comparison dataset kind", ["synthetic", "field"], index=None, key=_P+"kind")
             st.text_area("Event selection rationale", key=_P+"note")
             for identifier in selected:
@@ -65,7 +66,7 @@ def render_surface_diagnostics(call, saved, records, farm, cycle):
                 st.text_input("Evidence that the event represents this strip and modeled conditions", key=_P+identifier+"_representation")
                 st.selectbox("Use of these arrival measurements in model development", ["held_out", "used_for_calibration", "unknown"],
                              index=None, key=_P+identifier+"_independence")
-            st.form_submit_button("Compare advance times without changing records", on_click=_compare,
+            st.button("Compare advance times without changing records", on_click=_compare,
                                   args=(call, saved["id"], saved["cycle_id"], selected), key=_P+"run")
         cached = st.session_state.get(_P+"report")
         if cached and cached["request"] == _request(saved["id"], selected):

@@ -152,14 +152,14 @@ def render_resource_schedule(call, saved):
                 ("end", "Latest permitted finish (with farm UTC offset)", "text", None)])
         _dependency_editor("schedule_dependencies", "runs", "Run dependency")
         _equipment_editor(call, saved)
-        with st.form("timing_schedule_submit"):
+        with st.container():
             st.number_input("Start-time grid step (elapsed seconds)", min_value=1, max_value=1_000_000,
-                            step=1, value=None, key="timing_schedule_step_seconds")
+                            step=1, value=None, key="timing_schedule_step_seconds", on_change=_changed)
             st.number_input("Maximum attempted placements", min_value=1, max_value=10000,
-                            step=1, value=None, key="timing_schedule_search_limit")
-            st.text_input("Scheduling source and assumptions", key="timing_schedule_source")
-            st.form_submit_button("Propose start times", on_click=_submit, args=(call, saved, False))
-            st.form_submit_button("Save scheduling scenario", on_click=_submit, args=(call, saved, True))
+                            step=1, value=None, key="timing_schedule_search_limit", on_change=_changed)
+            st.text_input("Scheduling source and assumptions", key="timing_schedule_source", on_change=_changed)
+            st.button("Propose start times", on_click=_submit, args=(call, saved, False))
+            st.button("Save scheduling scenario", on_click=_submit, args=(call, saved, True))
         if result := st.session_state.get("timing_schedule_result"):
             st.subheader("Submitted scheduling outcome")
             st.caption("This result reflects the submitted inputs. Submit again after changing the grid or search limit.")

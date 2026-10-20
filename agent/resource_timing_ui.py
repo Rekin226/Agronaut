@@ -243,10 +243,10 @@ def render_resource_timing(call, saved):
             elif resource["kind"] in ("pump_time", "labor_time"):
                 _editor("availability:"+key, "Availability for "+key, [*intervals,
                     ("units", "Available pumps or workers", "integer", None), ("source", "Availability source, net of other commitments", "text", None)])
-        with st.form("timing_submit"):
-            st.text_input("Timing scenario source and assumptions", key="timing_source")
-            st.form_submit_button("Evaluate timing checks", on_click=_submit, args=(call, saved, False))
-            st.form_submit_button("Save timed scenario", on_click=_submit, args=(call, saved, True))
+        with st.container():
+            st.text_input("Timing scenario source and assumptions", key="timing_source", on_change=_changed)
+            st.button("Evaluate timing checks", on_click=_submit, args=(call, saved, False))
+            st.button("Save timed scenario", on_click=_submit, args=(call, saved, True))
         if result := st.session_state.get("timing_result"):
             st.subheader("Submitted timing result")
             render_timing_result(result["timing_result"])

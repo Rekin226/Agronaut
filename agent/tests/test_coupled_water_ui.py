@@ -14,6 +14,7 @@ from agent.coupled_water_ui import (
     build_weather,
     read_weather_snapshot,
 )
+from agent.tests import session_keys
 from agent.tests.test_field_ui import _SCRIPT, setup
 from agronaut_agent.coupled_water_io import evaluate_coupled_water_request
 from agronaut_agent.tests.test_coupled_water_workflow import example, next_day
@@ -172,7 +173,7 @@ def test_continuation_rejects_overlap_and_scope_switch_clears_initial_and_next_d
     assert at.text_area(key=NEW+"layer_rows").value == ""
     assert at.selectbox(key=NEW+"initial_kind").value is None
     assert not at.checkbox(key=NEW+"no_capillary_rise").value
-    assert not any(key.startswith(NEXT) for key in at.session_state.filtered_state)
+    assert not any(key.startswith(NEXT) for key in session_keys(at))
 
 
 def test_empty_cycle_selection_does_not_resurrect_a_previous_continuation_draft(tmp_path):

@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timezone
 
+from agent.tests import session_keys
 from agent.tests.test_resource_ledger_ui import fill_budget, ledger, select_commit, with_plan
 from agent.tests.test_resource_ui import click
 from agronaut_agent.tests.test_resource_ledger import clock as clock
@@ -80,7 +81,7 @@ def test_unknown_keeps_allowance_and_stale_form_cannot_overwrite_a_correction(tm
     at.run(timeout=15)
     at.selectbox(key="resource_farm").set_value(other["farm_id"]).run(timeout=15)
     assert not at.exception
-    assert not any(key.startswith("resource_settlement_") for key in at.session_state.filtered_state)
+    assert not any(key.startswith("resource_settlement_") for key in session_keys(at))
 
 
 def test_linked_outcome_selection_preserves_quality_changes_without_releasing_use(tmp_path, monkeypatch):

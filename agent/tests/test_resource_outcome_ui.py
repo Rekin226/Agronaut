@@ -2,6 +2,7 @@
 
 from datetime import date
 
+from agent.tests import session_keys
 from agent.tests.test_resource_design_ui import prepared
 from agent.tests.test_resource_ui import click, fill_period
 from agronaut_agent.observation_quality import ObservationReviews
@@ -80,4 +81,4 @@ def test_missing_attribution_is_rejected_and_farm_switch_clears_outcome_draft(tm
     at.run(timeout=15)
     at.selectbox(key="resource_farm").set_value(other["farm_id"]).run(timeout=15)
     assert not at.exception
-    assert not any(key.startswith("resource_outcome_") for key in at.session_state.filtered_state)
+    assert not any(key.startswith("resource_outcome_") for key in session_keys(at))

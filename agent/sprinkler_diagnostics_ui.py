@@ -76,7 +76,8 @@ def render_sprinkler_diagnostics(call,saved,farm,cycle):
                 st.session_state[key]=[i for i in st.session_state[key] if i in readings]
             selected.append(st.multiselect(f'Readings in event {index+1}',list(readings),key=key,
                 format_func=lambda i:f"{readings[i]['observed_at']} · {readings[i]['value']:g} {readings[i]['unit']} · {readings[i]['effective_quality']} · {i}"))
-        with st.form(P+'form'):
+        # Keep draft changes reactive so a report cannot outlive its input selection.
+        with st.container():
             st.selectbox('Sprinkler comparison dataset kind',['synthetic','field'],index=None,key=P+'kind')
             st.text_area('Reading selection rationale',key=P+'note')
             for index,identifiers in enumerate(selected):
@@ -102,7 +103,7 @@ def render_sprinkler_diagnostics(call,saved,farm,cycle):
                     st.text_input('Location mapping evidence or reason unmatched',key=p+'note')
                     if r['quantity']=='pressure':
                         st.selectbox('Pressure reference',['gauge_at_target','unknown'],index=None,key=p+'reference')
-            st.form_submit_button('Compare sprinkler readings without changing records',on_click=_compare,
+            st.button('Compare sprinkler readings without changing records',on_click=_compare,
                 args=(call,saved['id'],saved['cycle_id'],selected,{i:readings[i] for ids in selected for i in ids}),key=P+'run')
         request=_draft(saved['id'],selected,readings)
         cached=st.session_state.get(P+'report')
