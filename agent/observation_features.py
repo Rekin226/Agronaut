@@ -258,8 +258,9 @@ def _feature_kwargs(text: str) -> dict:
             if cue.search(pt):
                 colour.append(name)
 
-        if (_SEEDLING.search(pt) and _STEM_BASE.search(pt)
-                and (_STEM_LESION.search(pt) or _STEM_COLLAPSE.search(pt))):
+        if any(_SEEDLING.search(s) and _STEM_BASE.search(s)
+               and (_STEM_LESION.search(s) or _STEM_COLLAPSE.search(s))
+               for s in _sentences(pt)):
             stem_state = "pinched_base"
 
     root_state = "unknown"

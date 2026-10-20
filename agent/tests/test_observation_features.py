@@ -116,6 +116,15 @@ def test_a_seedling_pinch_without_a_base_or_line_cue_is_not_pinched_base():
     assert f.stem_state == "unknown"
 
 
+def test_seedling_and_lesion_cues_in_different_sentences_do_not_match():
+    """The cues must share one sentence: seedlings looking leggy in one sentence
+    and a pinch at the base of MATURE plants in the next is pruning beside a
+    watch, not one stem lesion on one plant."""
+    f = extract("My basil seedlings look leggy. "
+                "I pinched the tops off the mature plants at the base of the stem.")
+    assert f.stem_state == "unknown"
+
+
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
     assert f.water_state == "green"
