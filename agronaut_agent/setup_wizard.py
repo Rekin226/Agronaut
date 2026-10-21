@@ -484,12 +484,15 @@ def _setup_model(config: dict[str, str]) -> dict[str, str]:
     Claude to a local model and back later needs nothing re-typed: the key stays in .env."""
     updates: dict[str, str] = {}
     current = config.get("LLM_PROVIDER")
-    order = ["anthropic", "ollama", "nvidia"]
-    default = order.index(current) + 1 if current in order else 1
+    # NVIDIA is not offered: its catalogue models retire without notice (the old default
+    # was retired 2026-08-26), so a model the wizard picks today can be dead by the time a
+    # grower runs it. LLM_PROVIDER=nvidia with LLM_MODEL still works, set by hand, and an
+    # existing NVIDIA setup defaults to Skip here so pressing Enter keeps it.
+    order = ["anthropic", "ollama"]
+    default = order.index(current) + 1 if current in order else (3 if current else 1)
     choice = _ask("Which model should power the chat?", [
         ("Claude", "best tool calling; needs an API key from console.anthropic.com"),
         ("Local, via Ollama", "no key, no internet, runs on this machine"),
-        ("NVIDIA", "free key from build.nvidia.com"),
         ("Skip", "keep what you have" if current else "the calculator works with no model"),
     ], default=default, recommend=not current)
     if choice == 1:
@@ -519,14 +522,6 @@ def _setup_model(config: dict[str, str]) -> dict[str, str]:
         print(f"  {'OK' if ok else 'x'} {msg}")
         model = (config.get("LLM_MODEL") if current == "ollama" else None) or _ollama_default()
         updates.update(LLM_PROVIDER="ollama", LLM_MODEL=model)
-    elif choice == 3:
-        saved = config.get("NVIDIA_API_KEY")
-        key = getpass.getpass("  NVIDIA API key (hidden, "
-                              + _keep_hint(config, "NVIDIA_API_KEY") + "): ").strip()
-        if key or saved:
-            updates.update(LLM_PROVIDER="nvidia", LLM_MODEL="mistralai/mistral-nemotron")
-            if key:
-                updates["NVIDIA_API_KEY"] = key
     return updates
 
 
@@ -628,7 +623,7 @@ def _edit_menu(config: dict[str, str]) -> dict[str, str]:
         choice = _ask("What would you like to change?", [
             ("Done, save" if updates else "Nothing",
              "" if updates else "keep everything; `agronaut doctor` checks it all works"),
-            ("The model", "switch between Claude, a local model (Ollama) and NVIDIA; "
+            ("The model", "switch between Claude and a local model (Ollama); "
                           "saved keys are kept"),
             ("Telegram", ""),
             ("WhatsApp", ""),
