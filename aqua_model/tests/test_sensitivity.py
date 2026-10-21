@@ -109,11 +109,13 @@ def test_crop_mix_row_only_recommends_crops_in_temperature_band():
     di = _design(temp=33.0, fish="clarias", crop="amaranth")
     result = sensitivity_table(di)
     row = next(r for r in result.rows if r.change.startswith("crop mix"))
+    in_band = tuple(sorted(
+        k for k, c in CROPS.items() if c.temp_min_c <= 33.0 <= c.temp_max_c))
     assert row.feasible
     assert "amaranth 100%" in row.detail
     assert "cucumber" not in row.detail
     assert "lettuce" not in row.detail
-    assert "5 of 36 crops in band at 33 °C" in row.detail
+    assert f"{len(in_band)} of {len(CROPS)} crops in band at 33 °C" in row.detail
     assert row.food_delta_pct == 0.0
 
 
