@@ -48,7 +48,7 @@ soilless rows below are `not_applicable` rather than a verdict about a method no
 
 ## The compatibility matrix, and what its rows are worth
 
-Twelve combinations, each with a status and a reason. The irrigation axis answers *how water reaches a soil root zone*, so the soilless rows are `not_applicable`: their water delivery is the system type already modelled in `aqua_model/system_types.py` (raft, nft, media_bed, vertical_tower), not an irrigation method. Dutch-bucket drip to a substrate stays `conditional` because it is real in aquaponics. The reason field distinguishes a
+Twelve combinations, each with a status and a reason. The irrigation axis answers *how water reaches a soil root zone*, so the soilless rows are `not_applicable`: their water delivery is the system type already modelled in `aqua_model/system_types.py` (raft, nft, media_bed, vertical_tower), not an irrigation method. Drip to a substrate is the exception on both soilless rows: Dutch buckets in aquaponics, rockwool, coco or Dutch buckets in hydroponics, both `conditional` because substrate drip is real. The reason field distinguishes a
 **support decision** (this project's scope choice, sourced from nothing) from a **sourced** row.
 Most rows here are decisions, and that is stated in the data rather than implied by a table that
 looks equally authoritative on every line.
@@ -59,7 +59,7 @@ looks equally authoritative on every line.
 | aquaponics | sprinkler | not_applicable | A soilless system does not irrigate in the field sense this axis describes; its delivery is the system type |
 | aquaponics | surface | not_applicable | Same: the delivery is the system type, not a field surface method |
 | aquaponics | rainfed | not_applicable | Same: the delivery is the system type, not a field method |
-| hydroponics | drip | not_applicable | A soilless system does not irrigate in the field sense this axis describes; its delivery is the system type |
+| hydroponics | drip | conditional | Drip to a substrate is real here too — rockwool, coco or a Dutch bucket fed from the nutrient solution, with the bed holding the solution rather than a bare-root channel |
 | hydroponics | sprinkler | not_applicable | Same: aeroponic misting inside a closed chamber is the system type's own delivery, not a field method |
 | hydroponics | surface | not_applicable | Same: flood-and-drain is the system type's own bookkeeping, not a field surface method |
 | hydroponics | rainfed | not_applicable | Same: the delivery is the system type, not a field method |

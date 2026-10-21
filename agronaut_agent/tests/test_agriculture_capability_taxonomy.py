@@ -334,8 +334,8 @@ def test_the_soilless_rows_are_not_applicable_and_point_at_the_system_types():
     for system in ("aquaponics", "hydroponics"):
         for method in ("drip", "sprinkler", "surface", "rainfed"):
             row = rows[(system, method)]
-            if system == "aquaponics" and method == "drip":
-                continue  # drip to a substrate is real in aquaponics
+            if method == "drip":
+                continue  # drip to a substrate is real in both soilless systems
             assert row["status"] == "not_applicable", (
                 f"{system}/{method} is {row['status']!r}; a soilless system does not irrigate "
                 "in this sense, so the row is not_applicable"
@@ -344,13 +344,48 @@ def test_the_soilless_rows_are_not_applicable_and_point_at_the_system_types():
                 f"{system}/{method} does not point at the system types that carry its delivery"
             )
 
-    aquaponic_drip = rows[("aquaponics", "drip")]
-    assert aquaponic_drip["status"] == "conditional", (
-        "drip to a substrate is real in aquaponics as Dutch buckets, so the row stays conditional"
-    )
-    assert "Dutch bucket" in aquaponic_drip["reason"], (
-        "the aquaponics/drip row must name the Dutch-bucket case that keeps it conditional"
-    )
+    for system, substrate in (
+        ("aquaponics", "Dutch bucket"),
+        ("hydroponics", "Dutch bucket"),
+    ):
+        drip = rows[(system, "drip")]
+        assert drip["status"] == "conditional", (
+            f"drip to a substrate is real in {system}, so the row stays conditional"
+        )
+        assert substrate in drip["reason"], (
+            f"the {system}/drip row must name the substrate case that keeps it conditional"
+        )
+
+
+def test_a_pending_locator_is_not_recorded_as_fully_read():
+    """The verification level and the pending list have to tell the same story.
+
+    The Eq. 6 locator once said the equation's form was confirmed while the same
+    entry still listed Eq. 6 as pending and `verified.how` recorded that the
+    chapter was not read. A self-contradicting registry is worse than one that
+    admits the gap, so a locator is pending exactly when it is not at
+    `full_text`: nothing else may claim it was read.
+    """
+    pending = " ".join(
+        item["what"] + " " + item["why"] for item in registry()["pending"]
+    ).lower()
+    for entry in registry()["sources"]:
+        for locator in entry["locators"]:
+            level = locator.get("verified")
+            if level is None:
+                continue
+            key = locator["label"].split(",")[0].strip().lower()
+            still_pending = key in pending
+            if level == "full_text":
+                assert not still_pending, (
+                    f"{entry['id']}: {locator['label']!r} is recorded as read in full, but the "
+                    "pending list still asks for it"
+                )
+            else:
+                assert still_pending, (
+                    f"{entry['id']}: {locator['label']!r} is only {level!r}, so the pending list "
+                    "must still ask for it"
+                )
 
 
 def test_the_irrigation_axis_says_which_system_it_describes():

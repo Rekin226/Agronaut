@@ -41,41 +41,41 @@
         {
           "kind": "equation",
           "label": "Eq. 6, the FAO Penman-Monteith equation",
-        "chapter": 2,
-        "chapter_title": "FAO Penman-Monteith equation",
+          "chapter": 2,
+          "chapter_title": "FAO Penman-Monteith equation",
           "units": "ETo in mm/day; radiation in MJ/m2/day converted by 0.408",
-          "note": "Chapter 2 is titled 'FAO Penman-Monteith equation' and carries the equation; Chapter 4 refers to it by number as the ETo equation throughout. The equation itself was read in Chapter 2, so treat the form as confirmed.",
+          "note": "Located in Chapter 2 from the edition's table of contents, which names the chapter after the equation. The chapter's text was not read, so the form and numbering of Eq. 6 are not confirmed — see `pending`.",
           "verified": "snippet"
         },
         {
           "kind": "equation",
           "label": "Eq. 20, radiation to equivalent evaporation",
-        "chapter": 3,
-        "chapter_title": "Meteorological data",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
           "units": "mm/day = 0.408 x MJ/m2/day",
           "verified": "full_text"
         },
         {
           "kind": "equation",
           "label": "Eq. 39 and Eq. 40, net longwave and net radiation",
-        "chapter": 3,
-        "chapter_title": "Meteorological data",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
           "units": "MJ/m2/day",
           "verified": "full_text"
         },
         {
           "kind": "equation",
           "label": "Eq. 48 to Eq. 52, estimating missing radiation, vapour pressure and wind data, and the Hargreaves alternative",
-        "chapter": 3,
-        "chapter_title": "Meteorological data",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
           "units": "mixed; each equation states its own",
           "verified": "full_text"
         },
         {
           "kind": "table",
           "label": "Table 4, general classes of monthly wind speed",
-        "chapter": 3,
-        "chapter_title": "Meteorological data",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
           "units": "m/s at 2 m",
           "note": "Also the source of the 2 m/s temporary estimate when no wind data exist, and of the u2 >= 0.5 m/s floor applied inside the ETo equation.",
           "verified": "full_text"
@@ -83,15 +83,15 @@
         {
           "kind": "section",
           "label": "Minimum data requirements",
-        "chapter": 3,
-        "chapter_title": "Meteorological data",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
           "note": "States that there is no dependable way to estimate air temperature when it is missing, and that Tmax and Tmin are therefore the minimum data requirement for the FAO Penman-Monteith method. This is the basis for refusing to compute ETo from a temperature-less record.",
           "verified": "full_text"
         }
       ],
       "verified": {
         "on": "2026-10-19",
-        "how": "Chapters 2 and 3 and the volume's front matter read from the FAO-hosted HTML edition (fao.org/3/x0490e/). Chapter 2 carries the FAO Penman-Monteith equation; Chapter 3 carries the meteorological data the procedure consumes. Chapter 4 refers to the equation by number and was not read for this registry."
+        "how": "Chapter 3 and the volume's front matter read from the FAO-hosted HTML edition (fao.org/3/x0490e/); Chapter 3 carries the meteorological data the procedure consumes. Chapter 2 is known only from the same edition's table of contents, which names it 'FAO Penman-Monteith equation' and so locates Eq. 6 there; the chapter's text was not read, so Eq. 6 stays in `pending` until it is."
       }
     },
     {
@@ -130,7 +130,7 @@
   "pending": [
     {
       "what": "FAO-56 Chapter 2, the FAO Penman-Monteith equation",
-      "why": "Confirm the form and numbering of Eq. 6 before any worked ETo case quotes it as the governing equation. Chapter 2 is where the equation is printed; the registry records the chapter, but the worked reference case is not written yet."
+      "why": "Read Eq. 6 itself before any worked ETo case quotes it as the governing equation. The edition's table of contents places it in Chapter 2 and the registry records that chapter, but only the table of contents was read, so the locator is snippet-level and the form and numbering are unconfirmed."
     },
     {
       "what": "FAO-56 Chapter 6, single crop coefficient tables",

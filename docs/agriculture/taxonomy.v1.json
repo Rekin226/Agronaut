@@ -12,7 +12,7 @@
       "question": "How is water delivered to a soil-grown root zone?",
       "members": ["drip", "sprinkler", "surface", "rainfed"],
       "applies_to": "soil_cultivation",
-      "scope_note": "This axis describes field irrigation of a soil root zone. Soilless systems do not irrigate in this sense: their water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower), and a nutrient solution reaching a substrate or a bare-root channel is not an irrigation method. The one real exception is drip to a substrate, which is recorded as conditional on the aquaponics row."
+      "scope_note": "This axis describes field irrigation of a soil root zone. Soilless systems do not irrigate in this sense: their water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower), and a nutrient solution reaching a substrate or a bare-root channel is not an irrigation method. The one real exception is drip to a substrate, which is recorded as conditional on both soilless rows."
     }
   },
   "vocabulary": [
@@ -98,9 +98,9 @@
     {
       "production_system": "hydroponics",
       "irrigation_method": "drip",
-      "status": "not_applicable",
+      "status": "conditional",
       "basis": "support_decision",
-      "reason": "Not applicable: a soilless system does not irrigate in the field sense this axis describes. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower) and the nutrient-solution exchange the sizing path already assumes."
+      "reason": "Conditional, and only for a substrate: drip to rockwool, coco or a Dutch bucket is standard hydroponics, with the nutrient solution fed to a solid bed rather than to a bare-root channel. The delivery system itself is the hydroponics system type (aqua_model/system_types.py), not a field irrigation method. The support decision is ours; no source in the registry covers substrate drip."
     },
     {
       "production_system": "hydroponics",
