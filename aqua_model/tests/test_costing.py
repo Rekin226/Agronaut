@@ -58,6 +58,18 @@ def test_takeoff_follows_the_system_type():
     assert "biofilter_media_m3" not in keys, "media beds ARE the biofilter"
 
 
+def test_air_pump_line_carries_the_sized_power_figure():
+    """#113: the air_pump BOM line was a static guess ("size for ~1 stone per 3 m2 ...")
+    with no power figure. It must now name the draw the layout's own aeration sizing
+    produced, so the buyer can check it against a real blower's spec sheet."""
+    out, layout = _design()
+    line = next(t for t in takeoff(out, layout) if t.key == "air_pump")
+    assert layout.aeration is not None
+    assert f"{layout.aeration.power_w:.0f} W" in line.note, (
+        f"the note must carry the sized draw, got: {line.note}")
+    assert "L/min" in line.note, "the note must carry the demanded air flow"
+
+
 def test_a_complete_book_prices_everything():
     out, layout = _design()
     est = estimate_cost(out, layout, _BOOK, "testland")
