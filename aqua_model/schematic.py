@@ -174,6 +174,11 @@ def to_svg(out) -> str:
 
 
 # --- PNG renderer (Pillow) --------------------------------------------------
+# NOTE: `_font` and `_center_text` below are also imported by `aqua_model/scene_plan.py`,
+# which draws the top-down 3D layout plan. They are private to this module's style, but
+# not to this module: `scene_plan` binds both names at import time, so renaming or removing
+# either one fails loudly with an ImportError the moment that module loads -- not silently
+# at draw time. Give `scene_plan.py` the once-over before you rename them.
 def _font(size: int, bold: bool = False):
     from PIL import ImageFont
 
