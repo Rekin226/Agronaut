@@ -762,6 +762,49 @@
         "VALIDATION_FAILED"
       ],
       "_note": "#214 per-field provenance: the moringa row is migrated to a full measured/placed/inherited map and the unsourced-constant guard exempts only provenance-complete rows; this gates that the migrated row still sizes cleanly end to end."
-    }
+    },
+    {
+      "id": "sens-honesty-and-fixed-perturbation-set",
+      "category": "honesty",
+      "severity": "critical",
+      "tool": "sensitivity_report",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 27,
+        "water": 2000
+      },
+      "must_include": [
+        "Sensitivity (model response)",
+        "not how a real system would",
+        "Design as given",
+        "water budget +20%",
+        "water budget -20%",
+        "grow area +20%",
+        "grow area -20%",
+        "crop mix"
+      ],
+      "_note": "The sensitivity table must state that it shows how the model responds, not how a real system would, and always render the same fixed perturbation set (2026-10-17)."
+    },
+    {
+      "id": "sens-no-budget-omits-water-rows",
+      "category": "honesty",
+      "severity": "critical",
+      "tool": "sensitivity_report",
+      "args": {
+        "fish": "tilapia",
+        "crop": "lettuce",
+        "area": 12,
+        "temp": 27,
+        "water": 10000000
+      },
+      "must_include": [
+        "Water-budget rows are omitted"
+      ],
+      "must_exclude": [
+        "water budget +20%"
+      ],
+      "_note": "A design that gives no water budget (the gate's not-limiting sentinel) has nothing to perturb, so the table says so instead of moving a number that was never given (2026-10-17)."    }
   ]
 }

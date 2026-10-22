@@ -11,11 +11,15 @@
     `to_pilot_proposal`) + agent tool `render_pilot_proposal`. Deterministic, cited, honesty
     layer preserved. Built ahead of a partner conversation as evidence/outreach scaffolding
     (the go-to-market pivot), with the framing designed to be tuned once a partner engages.
-- [ ] **Report sensitivity table.** Show outcome deltas when water budget or crop mix vary
+- [x] **Report sensitivity table.** Show outcome deltas when water budget or crop mix vary
   (e.g. +20% water → +X kg/yr). Persuasive for funders.
   - **Why:** makes a design feel analyzed, not asserted.
   - **Context:** a slice of the M2 optimizer surfaced in the report. Build when M2 lands rather
     than hand-rolling in M1. Depends on: M2 optimizer. Priority P3.
+  - **DONE (2026-10-17):** `aqua_model/sensitivity.py` re-runs the optimizer on the design's
+    own inputs with one input moved at a time (water ±20%, area ±20%, crop mix at the
+    optimizer's allocation steps) — no second scoring path. Rendered in the design report
+    and, prominently, in the pilot proposal, with the honesty line up top.
 
 ## Cleanup
 - [ ] **Dedupe boilerplate-text filter.** `looks_like_boilerplate` (inside `build_vector_store`,
