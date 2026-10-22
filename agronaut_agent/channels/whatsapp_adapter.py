@@ -588,7 +588,7 @@ class WhatsAppAdapter(ChannelAdapter):
                                 )
                             except Exception:
                                 log.warning("whatsapp layout-plan note failed for %s",
-                                            sender, exc_info=True)
+                                            _masked_sender(sender), exc_info=True)
                     else:
                         self.send_text(
                             sender,
