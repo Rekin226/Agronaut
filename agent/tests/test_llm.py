@@ -15,10 +15,19 @@ def test_default_provider_and_model(monkeypatch):
 
 def test_env_selects_provider_and_model(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "NVIDIA")  # case-insensitive
-    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setenv("LLM_MODEL", "mistralai/mistral-nemotron")
     provider, model = L.resolve()
     assert provider == "nvidia"
-    assert model == L.DEFAULT_MODELS["nvidia"]
+    assert model == "mistralai/mistral-nemotron"
+
+
+def test_nvidia_without_a_model_says_so_instead_of_calling_a_dead_one(monkeypatch):
+    """The old default, meta/llama-3.1-8b-instruct, was retired 2026-08-26 and 404s. NVIDIA has
+    no default now, so a missing LLM_MODEL is an error that names the fix, not a failed call."""
+    monkeypatch.setenv("LLM_PROVIDER", "nvidia")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    with pytest.raises(ValueError, match="LLM_MODEL"):
+        L.resolve()
 
 
 def test_explicit_args_override_env(monkeypatch):
@@ -201,10 +210,12 @@ def test_the_anthropic_branch_never_sends_temperature(monkeypatch):
     assert seen["model"] == "claude-sonnet-5"
 
 
-def test_the_dead_nvidia_fallback_is_gone():
-    """meta/llama-3.1-8b-instruct returns 410 Gone (measured 2026-09-08), so the fallback
-    turned one failure into two. A fallback that cannot answer is worse than none."""
+def test_the_dead_nvidia_models_are_gone():
+    """meta/llama-3.1-8b-instruct returns 410 Gone (measured 2026-09-08) and was retired
+    2026-08-26. As a fallback it turned one failure into two; as the default it failed the
+    first message. Neither table may name it."""
     assert L.FALLBACK_MODELS.get("nvidia") != "meta/llama-3.1-8b-instruct"
+    assert L.DEFAULT_MODELS["nvidia"] is None
 
 
 class _Echo:

@@ -49,7 +49,12 @@ DEFAULT_MODELS = {
     # llama3 is still out: it predates Ollama's tool calling and cannot drive the agent.
     # Not yet run end to end against Agronaut's 30 tools; qwen2.5 still works via LLM_MODEL.
     "ollama": "qwen3.5:4b",
-    "nvidia": "meta/llama-3.1-8b-instruct",
+    # No NVIDIA default. NVIDIA retires catalogue models without notice: the old default,
+    # meta/llama-3.1-8b-instruct, was retired 2026-08-26 and now 404s, so anyone who picked
+    # NVIDIA and kept the defaults got an error on the first message. A default nobody
+    # re-checks is a trap, so LLM_PROVIDER=nvidia now needs LLM_MODEL set to a model your
+    # key can call, and resolve() says so instead of sending a request that cannot work.
+    "nvidia": None,
     "hf": "Qwen/Qwen2.5-7B-Instruct",
     # Local default kept small (~3 GB) so it downloads + runs on a laptop CPU/MPS.
     # Bump via LLM_MODEL (e.g. Qwen/Qwen2.5-7B-Instruct) for stronger output.
@@ -307,6 +312,11 @@ def resolve(provider: str | None = None, model: str | None = None) -> tuple[str,
             f"Unknown LLM_PROVIDER {provider!r}. Supported: {', '.join(SUPPORTED)}."
         )
     model = model or os.getenv("LLM_MODEL") or DEFAULT_MODELS[provider]
+    if not model:
+        raise ValueError(
+            f"LLM_PROVIDER={provider} has no default model. Set LLM_MODEL to a model your "
+            f"key can call (check it on build.nvidia.com), or use LLM_PROVIDER=ollama."
+        )
     return provider, model
 
 

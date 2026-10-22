@@ -128,7 +128,7 @@ def test_the_written_file_is_not_world_readable(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setattr("builtins.input", lambda *a: "")
-    calls = iter([4, 1])                                     # skip model, this terminal
+    calls = iter([3, 1])                                     # skip model, this terminal
     monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
     W.run()
     # nothing chosen -> nothing written; assert we did not create a stray file
@@ -202,7 +202,7 @@ def test_the_terminal_is_the_first_channel_offered(tmp_path, monkeypatch):
 
     def _spy(prompt, options, default=1, recommend=True):
         seen.append(options)
-        return 4 if "model" in prompt else 1
+        return 3 if "model" in prompt else 1
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
@@ -226,7 +226,7 @@ def test_a_run_that_configures_nothing_still_tells_you_what_works(tmp_path, monk
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setattr("builtins.input", lambda *a: "")
-    calls = iter([4, 1])                                     # skip model, this terminal
+    calls = iter([3, 1])                                     # skip model, this terminal
     monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
     W.run()
     out = capsys.readouterr().out
@@ -240,7 +240,7 @@ def test_option_two_really_reaches_the_telegram_branch(tmp_path, monkeypatch):
     on labels. This one drives the number and checks the token actually lands."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    calls = iter([4, 2])                                     # skip model, Telegram
+    calls = iter([3, 2])                                     # skip model, Telegram
     monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
     monkeypatch.setattr("builtins.input", lambda *a: "111:abc")
     monkeypatch.setattr(W, "check_telegram_token", lambda t: (True, "@AgronautBOT"))
@@ -254,7 +254,7 @@ def test_option_two_really_reaches_the_telegram_branch(tmp_path, monkeypatch):
 def test_option_three_really_reaches_the_whatsapp_branch(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    calls = iter([4, 3])                                     # skip model, WhatsApp
+    calls = iter([3, 3])                                     # skip model, WhatsApp
     monkeypatch.setattr(W, "_ask", lambda *a, **k: next(calls))
     monkeypatch.setattr("builtins.input", lambda *a: "")
     monkeypatch.setattr(W.getpass, "getpass", lambda *a: "")
@@ -275,3 +275,19 @@ def test_setup_points_at_the_same_ollama_model_the_agent_defaults_to(monkeypatch
                         lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
     ok, msg = W.check_ollama()
     assert not ok and DEFAULT_MODELS["ollama"] in msg
+
+
+def test_nvidia_is_not_offered_and_an_nvidia_setup_is_kept_by_default(monkeypatch):
+    """NVIDIA catalogue models retire without notice (the old default died 2026-08-26), so
+    the wizard no longer picks one. Someone already on NVIDIA pressing Enter keeps it."""
+    seen = {}
+
+    def _spy(prompt, options, default=1, recommend=True):
+        seen.update(labels=[label for label, _ in options], default=default)
+        return default
+
+    monkeypatch.setattr(W, "_ask", _spy)
+    updates = W._setup_model({"LLM_PROVIDER": "nvidia", "LLM_MODEL": "some/model"})
+    assert not any("nvidia" in label.lower() for label in seen["labels"]), seen["labels"]
+    assert seen["labels"][seen["default"] - 1] == "Skip"
+    assert updates == {}
