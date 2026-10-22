@@ -24,7 +24,7 @@ NVIDIA free tier (2026-08, this repo's own benchmark) decide the experience:
 |---|---|---|
 | `meta/llama-3.3-70b-instruct` (old default) | **~56 s** | correct |
 | `mistralai/mistral-nemotron` | **~2-3 s** | correct |
-| `meta/llama-3.1-8b-instruct` (the fallback) | ~1 s | shaky on complex flows |
+| `meta/llama-3.1-8b-instruct` (the fallback, later the default; retired 2026-08-26) | ~1 s | shaky on complex flows |
 
 A turn uses 2-6 round-trips, so the old default produced **3-5 minute replies**, and under
 free-tier congestion (503s are routine) every failed call silently fell back to the 8B
@@ -37,6 +37,9 @@ LLM_MODEL=mistralai/mistral-nemotron
 ```
 
 Set it in the server's `.env` (it is NOT in git — pulling does not change it) and restart.
+`LLM_MODEL` is required with `LLM_PROVIDER=nvidia`: there is no NVIDIA default any more,
+because the catalogue retires models without notice. These timings are from 2026-08;
+check the model still answers on your key before relying on it.
 
 **What five full validation runs taught about the free tier, so nobody relearns it:**
 model behavior is weather. The same model, same prompt, hours apart, produced: correct

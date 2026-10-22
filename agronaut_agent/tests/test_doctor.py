@@ -231,6 +231,21 @@ def test_check_provider_passes_when_openai_compat_backend_is_importable(monkeypa
     assert "provider openai_compat" in checks[0].label
 
 
+def test_check_provider_fails_when_nvidia_has_no_model(monkeypatch):
+    """NVIDIA has no default model any more, so doctor must say LLM_MODEL is missing rather
+    than report OK and let the first chat message fail."""
+    import sys
+    import types
+
+    fake_mod = types.ModuleType("langchain_nvidia_ai_endpoints")
+    fake_mod.ChatNVIDIA = object  # type: ignore[attr-defined]
+    monkeypatch.setenv("LLM_PROVIDER", "nvidia")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setitem(sys.modules, "langchain_nvidia_ai_endpoints", fake_mod)
+    checks = D.check_provider()
+    assert any(c.status == FAIL and "LLM_MODEL" in c.fix for c in checks)
+
+
 def test_doctor_provider_backends_match_agent_llm_supported():
     """Keep the doctor provider table in step with agent/llm.py."""
     from agent import llm

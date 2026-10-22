@@ -185,6 +185,10 @@ def check_provider() -> list[Check]:
             ok, msg = W.check_anthropic_key(key)
             out.append(Check(OK if ok else FAIL, f"anthropic: {msg}",
                              fix="" if ok else "run `agronaut setup` to re-enter the key"))
+    elif provider == "nvidia" and not model:
+        out.append(Check(FAIL, "LLM_PROVIDER=nvidia has no default model",
+                         "NVIDIA retires catalogue models without notice, so none is assumed",
+                         "set LLM_MODEL to a model your key can call, or run `agronaut setup`"))
     else:
         out.append(Check(SKIP, f"reachability of {provider} not checked",
                          "doctor only probes ollama and anthropic so far"))

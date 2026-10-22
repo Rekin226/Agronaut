@@ -62,7 +62,8 @@ agronaut web       # or in the browser at http://localhost:8501
 Choose any model you like:
 
 - **Local, free, no key:** install [Ollama](https://ollama.com), then `ollama pull qwen3.5:4b`.
-- **Your own API key:** Claude (Anthropic) or NVIDIA's free tier.
+- **Your own API key:** Claude (Anthropic).
+- **NVIDIA's hosted models** still work, set by hand: see [configuration](docs/configuration.md).
 
 Run `agronaut setup` again any time to switch models or add a channel. Your saved keys are kept.
 
