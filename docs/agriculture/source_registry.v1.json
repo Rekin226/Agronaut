@@ -1,0 +1,148 @@
+{
+  "schema": "agronaut.agriculture.source_registry/1",
+  "version": "1.1.0",
+  "decided_on": "2026-10-20",
+  "about": "The versioned source registry #243 asks for: exact edition, the equation/table a number comes from, its units, where it applies, and what may be done with the text. It is deliberately small. An entry exists only after someone read the locator and recorded how; the pending list at the end is the honest shape of what is still unread, and a follow-up PR adds entries rather than editing these in place. Bump `version` when an entry changes; never silently retarget a locator.",
+  "verification_levels": {
+    "full_text": "the named locator was read in the document itself",
+    "snippet": "the passage was read in an excerpt, and the page was not read in full",
+    "via_repo_document": "a document already in this repository records the quotation; this registry did not re-read the primary source",
+    "derived": "arithmetic on values from another entry, with the arithmetic stated"
+  },
+  "reuse_classes": {
+    "all_rights_reserved": "quotation with attribution for review and citation; no redistribution of the text, and no indexing of the full text into the knowledge corpus",
+    "fao_permissive_noncommercial": "FAO's pre-2019 grant: use, reproduction and dissemination for research, teaching or non-commercial products, with attribution; commercial redistribution is not permitted",
+    "cc_by_4": "reuse and redistribution with attribution"
+  },
+  "sources": [
+    {
+      "id": "fao56",
+      "citation": "Allen, R.G., Pereira, L.S., Raes, D. & Smith, M. (1998) Crop evapotranspiration: Guidelines for computing crop water requirements",
+      "edition": "FAO Irrigation and Drainage Paper 56, first edition, FAO, Rome, 1998",
+      "isbn": "92-5-104219-5",
+      "publisher": "Food and Agriculture Organization of the United Nations",
+      "licence": {
+        "holder": "FAO",
+        "year": 1998,
+        "class": "all_rights_reserved",
+        "statement": "\"All rights reserved. No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means, electronic, mechanical, photocopying or otherwise, without the prior permission of the copyright owner.\" (front matter of the 1998 edition)"
+      },
+      "reuse_permission": {
+        "cite_with_attribution": true,
+        "quote_short_passage_for_review": true,
+        "redistribute_text": false,
+        "index_full_text_in_knowledge_corpus": false,
+        "derive_values_with_citation": true,
+        "note": "Do not treat this like FAO 589. FAO 589 (2014) carries a permissive non-commercial grant; the 1998 edition of Paper 56 carries an all-rights-reserved notice instead, because it predates FAO's open-licence policy. Irrigation guidance may therefore cite and paraphrase Paper 56, and must not paste it into knowledge/."
+      },
+      "provides": "numeric_procedure",
+      "applicability": "Reference evapotranspiration, crop water demand through a crop coefficient, and the soil water balance for field and soil-grown crops. Not a source for aquaponic or hydroponic nutrient management.",
+      "locators": [
+        {
+          "kind": "equation",
+          "label": "Eq. 6, the FAO Penman-Monteith equation",
+          "chapter": 2,
+          "chapter_title": "FAO Penman-Monteith equation",
+          "units": "ETo in mm/day; radiation in MJ/m2/day converted by 0.408",
+          "note": "Located in Chapter 2 from the edition's table of contents, which names the chapter after the equation. The chapter's text was not read, so the form and numbering of Eq. 6 are not confirmed — see `pending`.",
+          "verified": "snippet"
+        },
+        {
+          "kind": "equation",
+          "label": "Eq. 20, radiation to equivalent evaporation",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
+          "units": "mm/day = 0.408 x MJ/m2/day",
+          "verified": "full_text"
+        },
+        {
+          "kind": "equation",
+          "label": "Eq. 39 and Eq. 40, net longwave and net radiation",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
+          "units": "MJ/m2/day",
+          "verified": "full_text"
+        },
+        {
+          "kind": "equation",
+          "label": "Eq. 48 to Eq. 52, estimating missing radiation, vapour pressure and wind data, and the Hargreaves alternative",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
+          "units": "mixed; each equation states its own",
+          "verified": "full_text"
+        },
+        {
+          "kind": "table",
+          "label": "Table 4, general classes of monthly wind speed",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
+          "units": "m/s at 2 m",
+          "note": "Also the source of the 2 m/s temporary estimate when no wind data exist, and of the u2 >= 0.5 m/s floor applied inside the ETo equation.",
+          "verified": "full_text"
+        },
+        {
+          "kind": "section",
+          "label": "Minimum data requirements",
+          "chapter": 3,
+          "chapter_title": "Meteorological data",
+          "note": "States that there is no dependable way to estimate air temperature when it is missing, and that Tmax and Tmin are therefore the minimum data requirement for the FAO Penman-Monteith method. This is the basis for refusing to compute ETo from a temperature-less record.",
+          "verified": "full_text"
+        }
+      ],
+      "verified": {
+        "on": "2026-10-19",
+        "how": "Chapter 3 and the volume's front matter read from the FAO-hosted HTML edition (fao.org/3/x0490e/); Chapter 3 carries the meteorological data the procedure consumes. Chapter 2 is known only from the same edition's table of contents, which names it 'FAO Penman-Monteith equation' and so locates Eq. 6 there; the chapter's text was not read, so Eq. 6 stays in `pending` until it is."
+      }
+    },
+    {
+      "id": "fao589",
+      "citation": "Somerville, C., Cohen, M., Pantanella, E., Stankus, A. & Lovatelli, A. (2014) Small-scale aquaponic food production: Integrated fish and plant farming",
+      "edition": "FAO Fisheries and Aquaculture Technical Paper No. 589, FAO, Rome, 2014",
+      "publisher": "Food and Agriculture Organization of the United Nations",
+      "licence": {
+        "holder": "FAO",
+        "year": 2014,
+        "class": "fao_permissive_noncommercial",
+        "statement": "FAO's pre-2019 permissive grant: use, reproduction and dissemination for private study, research and teaching, or for use in non-commercial products and services, with acknowledgement of FAO as source and copyright holder. Recorded verbatim, with the commercial-use consequence, in docs/dpg/CORPUS.md."
+      },
+      "reuse_permission": {
+        "cite_with_attribution": true,
+        "quote_short_passage_for_review": true,
+        "redistribute_text": false,
+        "index_full_text_in_knowledge_corpus": true,
+        "derive_values_with_citation": true,
+        "note": "Indexing is already in place and tagged with its licence; anyone running this commercially must drop the source and rebuild the index, per docs/dpg/CORPUS.md."
+      },
+      "provides": "definition",
+      "locators": [
+        {
+          "kind": "document",
+          "label": "whole document, definition level",
+          "note": "Used here for what aquaponics and hydroponics mean as production systems. No number is taken from this entry, so a document-level locator is sufficient; any coefficient drawn from it later needs a page or table locator first."
+        }
+      ],
+      "verified": {
+        "on": "2026-10-19",
+        "how": "via docs/dpg/CORPUS.md, which records the grant and the source's role; the PDF was not re-read for this registry."
+      }
+    }
+  ],
+  "pending": [
+    {
+      "what": "FAO-56 Chapter 2, the FAO Penman-Monteith equation",
+      "why": "Read Eq. 6 itself before any worked ETo case quotes it as the governing equation. The edition's table of contents places it in Chapter 2 and the registry records that chapter, but only the table of contents was read, so the locator is snippet-level and the form and numbering are unconfirmed."
+    },
+    {
+      "what": "FAO-56 Chapter 6, single crop coefficient tables",
+      "why": "Needed for the crop-demand reference case. Record the table number, the crop stage definitions and the units; do not carry a Kc value without them."
+    },
+    {
+      "what": "FAO-56 Chapter 8, soil water balance",
+      "why": "Needed for the soil-water reference case and for the missing-data case."
+    },
+    {
+      "what": "A region, season and weather record for the tomato case",
+      "why": "An independently calculated ETo needs real daily inputs. Until an operator or a public station record is chosen, the reference case has no inputs to be reproducible from."
+    }
+  ]
+}
