@@ -7,7 +7,7 @@ Both like warm water, both are sold in local markets, and fingerlings are usuall
 | | Tilapia | Clarias (African catfish) |
 |---|---|---|
 | Best water temperature | about 27 to 30 °C | warm, similar range |
-| Stops eating below | about 15 °C | tolerates cool nights better than it tolerates cold weeks |
+| Stops eating below | about 17 °C (dies below about 12 °C) | tolerates cool nights better than it tolerates cold weeks |
 | If the air pump stops | at risk within hours | breathes air at the surface, much safer |
 | Temperament | calm, easy to handle | strong, can jump; needs a lid or net |
 | Market | widely eaten | often sells well, smoked or fresh |
@@ -49,7 +49,7 @@ Both like warm water, both are sold in local markets, and fingerlings are usuall
 See also: `feed_and_feeding`, `fish_disease_and_treatment`, `temperature_and_climate_control`,
 `power_cuts_and_backup`.
 
-_Sources: Somerville et al. (2014), FAO 589, chapter 7 (fish species; catfish and unreliable power) and
-chapter 8 (stocking density of 20 kg per 1,000 litres, halved under 500 litres; 50 g fingerlings and 500 g
-harvest; feeding); general tilapia and clarias husbandry practice. Temperature thresholds are typical values,
-not guarantees for every strain._
+_Sources: Somerville et al. (2014), FAO 589, chapter 7 (fish species; tilapia stop feeding below 17 °C and die
+below 12 °C; catfish and unreliable power) and chapter 8 (stocking density of 20 kg per 1,000 litres, halved
+under 500 litres; 50 g fingerlings and 500 g harvest; feeding); general tilapia and clarias husbandry
+practice. Temperature thresholds are typical values, not guarantees for every strain._

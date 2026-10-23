@@ -44,6 +44,6 @@ cloudy days. The panels are not the expensive part; the **batteries** are, becau
 
 See also: `dissolved_oxygen_and_aeration`, `common_system_failures`, `pump_sizing_basics`.
 
-_Sources: Somerville et al. (2014), FAO 589, chapter 7 (catfish as air breathers; aeration, AC/DC backup air
-pumps), chapter 8 (stocking density where electricity is unreliable) and section 9.1.6 (alternative energy);
-general practice._
+_Sources: Somerville et al. (2014), FAO 589, section 4.2.5 (aeration, AC/DC backup air pumps), chapter 7
+(catfish as air breathers), chapter 8 (stocking density where electricity is unreliable) and section 9.1.6
+(alternative energy); general practice._
