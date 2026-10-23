@@ -32,7 +32,7 @@ Default to **physical and biological** control; treat any chemical as a last res
 - **Powdery mildew**, white powder on leaves; improve **airflow**, avoid wetting foliage, remove affected leaves.
 - **Pythium / root rot**, brown, slimy, foul-smelling roots; usually **low root-zone oxygen or warm water**. Raise DO,
   cool the water, remove affected plants.
-- **Damping-off**, seedlings collapse at the soil line; caused by wet, stagnant, over-warm starts.
+- **Damping-off**, seedlings collapse at the soil line; caused by wet, stagnant, over-warm starts. The stem shows a pinched, water-soaked constriction at the line, and seedlings are lost in patches overnight rather than across the whole tray.
 
 ## Golden rule
 If you wouldn't pour it in the fish tank, don't let it drip into the system. Physical + biological control keeps

@@ -122,6 +122,12 @@ _TOOL_PROFILE_ARGS: dict[str, tuple[str, ...]] = {
     "design_full_system": ("fish_species", "crop", "grow_area_m2", "temperature_c",
                            "water_budget_lpd", "system_type"),
 }
+# Optional private add-on (Agronaut Twin): its fact-carrying tools, when installed.
+try:
+    from agronaut_twin.agent_meta import PROFILE_ARGS as _TWIN_PROFILE_ARGS
+except ImportError:
+    _TWIN_PROFILE_ARGS = {}
+_TOOL_PROFILE_ARGS.update(_TWIN_PROFILE_ARGS)
 # Substrings that mark a tool result as a non-success — never persist args from these.
 _TOOL_FAILURE_MARKERS = ("VALIDATION_FAILED", "TOOL_ERROR", "Unknown objective", "Unknown tool",
                          "Unknown species", "No climate file", "Unknown region",

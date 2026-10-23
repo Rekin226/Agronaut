@@ -8,17 +8,56 @@ figure must come from a tool result, with its cited coefficients and caveats pas
 
 from __future__ import annotations
 
+import contextvars
+import functools
 import logging
+import os
 import re
 import threading
 import time
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.llm import ResilientChat, build_fallback_chat, get_chat_model, get_llm, resolve
+from agent.llm import (
+    ResilientChat,
+    StrictGuard,
+    build_fallback_chat,
+    claude_server_tools,
+    get_chat_model,
+    get_llm,
+    resolve,
+    strict_tools_enabled,
+    strict_where_possible,
+)
 from agent.vision import sanitize_observation
 
-from . import memory_extract, profile, runtime, semantic, style, twin_view
+from . import (
+    citations,
+    grounding,
+    memory_extract,
+    profile,
+    runtime,
+    semantic,
+    style,
+    twin_view,
+)
+from .domains import consultation
+from .field_consultation import FieldConsultation, render_intake
+from .harvest_consultation import HarvestConsultation, render_harvest_intake
+from .harvest_language import HarvestError
+from .harvest_language import error_text as harvest_error
+from .harvest_language import validate_language as validate_harvest_language
+from .harvest_language import words as harvest_text
+from .measurement_consultation import MeasurementConsultation, render_measurement_intake
+from .measurement_language import MeasurementError
+from .measurement_language import error_text as measurement_error
+from .measurement_language import validate_language as validate_measurement_language
+from .measurement_language import words as measurement_text
+from .planting_consultation import PlantingConsultation, render_planting_intake
+from .planting_language import PlantingError, planting_error, planting_text
+from .planting_language import validate_language as validate_planting_language
+from .scouting_consultation import ScoutingConsultation, render_scouting_intake
+from .scouting_language import scouting_error, scouting_text, scouting_token, validate_language
 from .store import (
     CalibrationStore,
     CommunityStore,
@@ -29,12 +68,25 @@ from .store import (
     ReadingStore,
     _Db,
     _now,
+    user_id_for,
 )
-from .tools import AGRONAUT_TOOLS
+from .task_consultation import TaskConsultation, render_task_intake
+from .task_language import validate_language as validate_task_language
+from .task_language import words as task_text
+from .tools import AGRONAUT_TOOLS, STRICT_TOOL_PRIORITY
+from .unit_context import UnitContexts
+from .unit_setup import UnitSetup, requests_soil_setup
+from .water_log_consultation import WaterLogConsultation, render_water_log
+from .water_log_language import WaterLogError
+from .water_log_language import error_text as water_log_error
+from .water_log_language import validate_language as validate_water_log_language
+from .water_log_language import words as water_log_text
 
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are Agronaut, a friendly aquaponics consultant who chats with farmers on their phone.
+SYSTEM_PROMPT = """You are Agronaut, an agriculture assistant with aquaponic and hydroponic calculators.
+For soil cultivation or another production unit, offer /newunit for guided setup or /units to select one.
+Keep field questions out of fish-system intake; field calculations need a selected soil unit.
 
 HOW YOU TALK:
 - Write like a person texting: short, warm, plain words. Reply in the user's language.
@@ -199,9 +251,9 @@ HARD RULES (these are your credibility):
 - If the trust gate rejects an input (VALIDATION_FAILED), ask the user for a corrected value.
   Never guess or work around it.
 - For qualitative troubleshooting, use the knowledge tool and your general knowledge; say when
-  you are reasoning from general knowledge. Knowledge passages arrive labeled "[source: ...]".
-  When your advice uses one, NAME that source in your reply (e.g. "per FAO 589..."). Never
-  strip the attribution.
+  you are reasoning from general knowledge. Knowledge passages arrive with their source, as a
+  "[source: ...]" label or as a search result. When your advice uses one, NAME that source in
+  your reply (e.g. "per FAO 589..."). Never strip the attribution.
 - JUDGE EACH RETRIEVED PASSAGE BEFORE YOU USE IT. Retrieval returns the closest passages it has,
   which is not the same as passages that answer the question. If a passage is not actually about
   what the user asked, IGNORE it: do not stretch it to fit, and do not cite it. If none of them
@@ -218,6 +270,15 @@ never reconstruct, paraphrase-from-memory, or imagine what a tool would have ret
 a fabricated tool result is the worst failure this assistant can produce, worse than no
 answer. To judge whether a value is safe (temperature, pH, DO), read the operating_envelope
 from the prior sizing result; if there is no prior sizing result, run the sizing tool."""
+
+# Optional private add-on (Agronaut Twin): its tool guidance joins the prompt only when
+# installed, so the public agent never mentions tools it does not have.
+try:
+    from agronaut_twin.agent_meta import PROMPT as _TWIN_PROMPT
+except ImportError:
+    _TWIN_PROMPT = ""
+if _TWIN_PROMPT:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + "\n" + _TWIN_PROMPT
 
 # Attached when the vision model names a condition. Its observation enters the turn as a
 # user-provided fact, which the agent has no reason to distrust — so the doubt has to be
@@ -270,14 +331,77 @@ def _text_of(content) -> str:
                 parts.append(block)
             elif isinstance(block, dict) and block.get("type") == "text":
                 parts.append(block.get("text") or "")
+            elif isinstance(block, dict) and block.get("type") == "search_result":
+                # A knowledge result sent to Claude as native search results: its passages
+                # are the text the grounding check must count as a source.
+                parts.append("\n".join(b.get("text") or "" for b in block.get("content") or []
+                                       if isinstance(b, dict)))
         return "".join(parts)
     return "" if content is None else str(content)
+
+
+# A PDF's values are read by a model and can be misread (a smudged scan, a unit in the next
+# column). They go to the grower before they go anywhere else.
+_DOCUMENT_INSTRUCTION = (
+    "[Operator note: the values above were read from a document by a model. Before logging "
+    "any reading, recording a measurement, or using a value in a sizing or design tool, list "
+    "the values you would use and ask the user to confirm them. Never pass a value the user "
+    "has not confirmed into a tool.]")
+
+
+# Only on Claude, and only when web search or fetch is bound: a model without the tools must not
+# be told it has them. Appended to SYSTEM_PROMPT (see _build_context).
+_WEB_RULES = """
+
+WEB SEARCH AND WEB FETCH (you have both):
+- Use web_search for what the curated knowledge cannot hold: current local prices (feed, fish,
+  fingerlings, equipment) in the grower's currency, suppliers near them, regulations, disease
+  outbreaks or weather news this season. Search in the local language too (French in Burkina
+  Faso, Chinese in Taiwan) and name the place.
+- Do NOT search for husbandry basics (search_knowledge_base first) or for sizing and design
+  numbers (those come only from the sizing and design tools, never from a web page).
+- A figure from the web is context for the grower, quoted with its source and its date when the
+  page gives one. Never pass a web figure into a sizing or design tool as an input; if it
+  matters for a design, tell the grower and let them confirm it as their own number.
+- Name a supplier, shop, market or company only when a search result in this turn shows it,
+  and cite it. Otherwise say "a local feed supplier" or "the fish market": an invented name
+  sends a grower across town for nothing.
+- Use web_fetch to read a page the grower sends you or that a search found.
+- Prices and offers change: say "as of <date>" or "the page I found says", never present a
+  web price as a guarantee."""
+
+
+_REQUEST_SCOPE = contextvars.ContextVar("agronaut_request_scope", default=None)
+
+
+def _serialized(method):
+    """Do not let a unit switch race a message, image interpretation or direct action."""
+    @functools.wraps(method)
+    def wrapped(self, channel, channel_user, *args, **kwargs):
+        key = (channel, str(channel_user))
+        lock = self._turn_locks.setdefault(key, threading.RLock())
+        with lock:
+            token = None
+            if method.__name__ in {"handle_message", "handle_image", "handle_voice",
+                                   "handle_document"}:
+                owner_id = user_id_for(channel, channel_user)
+                current = _REQUEST_SCOPE.get()
+                if current is None or current[0] != owner_id:
+                    # Also pin scope across processes: another CLI may switch the SQLite
+                    # selection while a remote vision/transcription request is in flight.
+                    token = _REQUEST_SCOPE.set((owner_id, self._contexts.active(owner_id)))
+            try:
+                return method(self, channel, channel_user, *args, **kwargs)
+            finally:
+                if token is not None:
+                    _REQUEST_SCOPE.reset(token)
+    return wrapped
 
 
 class AgronautAgent:
     def __init__(self, llm_provider=None, llm_model=None, db_path=None, chat_model=None,
                  fallback_model=None, embed_fn=None, describe_fn=None, transcribe_fn=None,
-                 classify_fn=None, require_tools: bool = True):
+                 classify_fn=None, require_tools: bool = True, read_pdf_fn=None):
         """`require_tools=False` builds an agent whose DETERMINISTIC surfaces work even when
         no tool-calling provider is configured — the live twin (/log, /forecast, the twin
         dashboard) reaches no model, so a missing NVIDIA_API_KEY must not deny an operator
@@ -303,7 +427,11 @@ class AgronautAgent:
             if fb is not None:
                 base = ResilientChat(base, fb)
             self._base = base                   # unbound: used to force a final text answer
-            self._bound = base.bind_tools(AGRONAUT_TOOLS)
+            # Claude also gets Anthropic-run web search and fetch (claude_server_tools) and strict
+            # schemas where they fit; _bind_tools applies both to whatever tool set is bound.
+            self._server_tools = claude_server_tools() if self._provider == "anthropic" else []
+            self._bound, self._strict_tools = self._bind_tools(
+                consultation.tools_for_unit(None, AGRONAUT_TOOLS))
         except Exception as exc:  # noqa: BLE001 — surfaced as chat_error, or re-raised
             if require_tools:
                 raise
@@ -318,6 +446,19 @@ class AgronautAgent:
         self._calibration = CalibrationStore(db)
         self._readings = ReadingStore(db)
         self._proposals = ProposalStore(db)
+        from .farm_store import FarmStore
+
+        self._farms = FarmStore(db)
+        self._unit_setup = UnitSetup(db)
+        self._field_intake = FieldConsultation(db)
+        self._scouting_intake = ScoutingConsultation(db)
+        self._planting_intake = PlantingConsultation(db)
+        self._water_log = WaterLogConsultation(db)
+        self._task_intake = TaskConsultation(db)
+        self._harvest_intake = HarvestConsultation(db)
+        self._measurement_intake = MeasurementConsultation(db)
+        self._contexts = UnitContexts(db)
+        self._turn_locks = {}
         # Semantic recall over memories — injectable for tests; lazily built for the real
         # path (model loads on first search). None -> recency fallback, the old behaviour.
         if embed_fn is None and chat_model is None:
@@ -342,18 +483,313 @@ class AgronautAgent:
             from agent import transcribe
             transcribe_fn = transcribe.default_transcriber()
         self._transcribe = transcribe_fn
+        # PDFs (a water-lab report, a feed label): Claude reads them natively; no other
+        # provider here can, so None declines them honestly. Injectable for tests.
+        if read_pdf_fn is None and chat_model is None and self._provider == "anthropic":
+            from agent import documents
+            read_pdf_fn = documents.read_pdf
+        self._read_pdf = read_pdf_fn
         # Privacy-preserving usage analytics (counts/funnels, no content). Local-only;
         # AGRONAUT_ANALYTICS=off disables. Injectable path for tests via env.
         from .analytics import Analytics
         self._analytics = Analytics()
+        # Full-content tracing to a LOCAL Phoenix, only when the operator asks for it
+        # (AGRONAUT_PHOENIX=on). Off, it imports nothing; see otel_phoenix.py.
+        from . import otel_phoenix
+        otel_phoenix.enable()
         # Per-user files a tool produced this turn (e.g. a rendered schematic), for the
         # channel adapter to deliver alongside the text reply. Keyed by user_id.
         self._pending_attachments: dict[str, list] = {}
 
+    def _context_id(self, owner_id):
+        unit = self._contexts.active(owner_id)
+        return unit.context_id if unit else owner_id
+
+    def _request_unit(self, owner_id):
+        pinned = _REQUEST_SCOPE.get()
+        return pinned[1] if pinned is not None and pinned[0] == owner_id else self._contexts.active(owner_id)
+
+    @_serialized
+    def select_unit(self, channel: str, channel_user: str, unit_id: str,
+                    production_system: str | None = None) -> str:
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        if production_system is not None:
+            self._farms.resolve_domain(owner_id, unit_id, production_system)
+        unit = self._contexts.select(owner_id, unit_id)
+        note = (f" Identify it with /unit {unit.unit_id} soil, hydroponics, or aquaponics."
+                if unit.production_system is None else "")
+        return f"Active unit: {unit.name} ({unit.production_system or 'production system unresolved'})." + note
+
+    def list_units(self, channel: str, channel_user: str):
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        active = self._contexts.active(owner_id)
+        return [dict(u, active=bool(active and active.unit_id == u["id"]))
+                for u in self._farms.list_units(owner_id)]
+
+    def list_farms(self, channel: str, channel_user: str):
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        return self._farms.list_farms(owner_id)
+
+    def farm_overview(self, channel: str, channel_user: str, farm_id: str | None = None):
+        from .farm_overview import FarmOverview
+
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        return FarmOverview(self._farms.db).get(owner, farm_id)
+
+    def farm_overview_text(self, channel: str, channel_user: str, language="en", page=1):
+        from .farm_overview_text import render_overview
+
+        return render_overview(self.farm_overview(channel, channel_user), language, page)
+
+    def list_cycles(self, channel: str, channel_user: str, unit_id: str):
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        return self._farms.list_cycles(owner_id, unit_id)
+
+    @_serialized
+    def farm_resources(self, channel: str, channel_user: str, farm_id: str, operation: str, data: dict) -> dict:
+        from .farm_resources import execute_farm_resources
+
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        return execute_farm_resources(self._farms.db, owner, farm_id, operation, data)
+
+    @_serialized
+    def crop_records(self, channel: str, channel_user: str, operation: str, data: dict,
+                     expected_unit_id: str | None = None) -> dict:
+        from .crop_records import execute_crop_records
+
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise ValueError("select a production unit first")
+        if expected_unit_id is not None and unit.unit_id != expected_unit_id:
+            raise ValueError("selected unit changed; refresh before saving crop records")
+        return execute_crop_records(self._farms.db, owner, unit.unit_id, operation, data)
+
+    @_serialized
+    def field_workflow(self, channel: str, channel_user: str, operation: str, data: dict,
+                       expected_unit_id: str | None = None) -> dict:
+        from .field_workflow import execute_field_workflow
+
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise ValueError("select a soil production unit first")
+        if expected_unit_id is not None and unit.unit_id != expected_unit_id:
+            raise ValueError("selected unit changed; refresh before saving field records")
+        return execute_field_workflow(self._farms.db, owner, unit.unit_id, operation, data)
+
+    @_serialized
+    def create_unit(self, channel: str, channel_user: str, request: dict) -> dict:
+        from .farm_setup import create_unit
+
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = create_unit(self._farms.db, owner_id, request)
+        self._contexts.select(owner_id, unit["id"])
+        return unit
+
+    def units_text(self, channel: str, channel_user: str) -> str:
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        active = self._contexts.active(owner_id)
+        units = self._farms.list_units(owner_id)
+        if not units:
+            return "No production units saved yet. Use /newunit for guided setup."
+        return "Production units — select one with /unit <id>:\n" + "\n".join(
+            f"{'* ' if active and active.unit_id == u['id'] else ''}{u['name']} "
+            f"{('· zone of '+u['parent_name']+' ') if u.get('parent_unit_id') else ''}"
+            f"({u['production_system'] or 'unresolved'}): {u['id']}" for u in units)
+
+    @_serialized
+    def create_zone(self, channel: str, channel_user: str, parent_unit_id: str, data: dict, request_id: str) -> dict:
+        from .irrigation_zones import IrrigationZones
+
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        with self._farms.db.transaction() as conn:
+            saved = IrrigationZones(self._farms.db).create(owner, parent_unit_id, data, request_id=request_id, connection=conn)
+            self._contexts.select(owner, saved["id"], connection=conn)
+            return saved
+
+    @_serialized
+    def start_unit_setup(self, channel: str, channel_user: str, production_system: str | None = None) -> str:
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        return self._unit_setup.start(owner, production_system)
+
+    @_serialized
+    def back_unit_setup(self, channel: str, channel_user: str) -> str:
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner)
+        if not self._unit_setup.active(owner) and unit and self._task_intake.active(owner, unit.unit_id):
+            view = self._task_intake.get(owner, unit.unit_id)
+            try:
+                return render_task_intake(self._task_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return str(exc)
+        if not self._unit_setup.active(owner) and unit and self._harvest_intake.active(owner, unit.unit_id):
+            view = self._harvest_intake.get(owner, unit.unit_id)
+            try:
+                return render_harvest_intake(self._harvest_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return harvest_error(view, exc)
+        if not self._unit_setup.active(owner) and unit and self._measurement_intake.active(owner, unit.unit_id):
+            view = self._measurement_intake.get(owner, unit.unit_id)
+            try:
+                return render_measurement_intake(self._measurement_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return measurement_error(view, exc)
+        if not self._unit_setup.active(owner) and unit and self._water_log.active(owner, unit.unit_id):
+            view = self._water_log.get(owner, unit.unit_id)
+            try:
+                return render_water_log(self._water_log.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return water_log_error(view, exc)
+        if not self._unit_setup.active(owner) and unit and self._planting_intake.active(owner, unit.unit_id):
+            view = self._planting_intake.get(owner, unit.unit_id)
+            try:
+                return render_planting_intake(self._planting_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return planting_error(view, exc)
+        if not self._unit_setup.active(owner) and unit and self._scouting_intake.active(owner, unit.unit_id):
+            view = self._scouting_intake.get(owner, unit.unit_id)
+            try:
+                return render_scouting_intake(self._scouting_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+            except ValueError as exc:
+                return scouting_error(view, exc)
+        if not self._unit_setup.active(owner) and unit and self._field_intake.active(owner, unit.unit_id):
+            view = self._field_intake.get(owner, unit.unit_id)
+            return render_intake(self._field_intake.answer(owner, unit.unit_id, "", view["revision"], back=True))
+        return self._unit_setup.respond(owner, "", back=True)
+
+    @_serialized
+    def cancel_unit_setup(self, channel: str, channel_user: str) -> str:
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner)
+        if not self._unit_setup.active(owner) and unit and self._task_intake.active(owner, unit.unit_id):
+            view = self._task_intake.get(owner, unit.unit_id)
+            self._task_intake.cancel(owner, unit.unit_id, view["revision"])
+            return task_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._harvest_intake.active(owner, unit.unit_id):
+            view = self._harvest_intake.get(owner, unit.unit_id)
+            self._harvest_intake.cancel(owner, unit.unit_id, view["revision"])
+            return harvest_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._measurement_intake.active(owner, unit.unit_id):
+            view = self._measurement_intake.get(owner, unit.unit_id)
+            self._measurement_intake.cancel(owner, unit.unit_id, view["revision"])
+            return measurement_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._water_log.active(owner, unit.unit_id):
+            view = self._water_log.get(owner, unit.unit_id)
+            self._water_log.cancel(owner, unit.unit_id, view["revision"])
+            return water_log_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._planting_intake.active(owner, unit.unit_id):
+            view = self._planting_intake.get(owner, unit.unit_id)
+            self._planting_intake.cancel(owner, unit.unit_id, view["revision"])
+            return planting_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._scouting_intake.active(owner, unit.unit_id):
+            view = self._scouting_intake.get(owner, unit.unit_id)
+            self._scouting_intake.cancel(owner, unit.unit_id, view["revision"])
+            return scouting_text(view, "cancelled")
+        if not self._unit_setup.active(owner) and unit and self._field_intake.active(owner, unit.unit_id):
+            view = self._field_intake.get(owner, unit.unit_id)
+            self._field_intake.cancel(owner, unit.unit_id, view["revision"])
+            if view.get("language", "en") != "en":
+                from .field_planning_language import words
+                return words(view["language"])["cancelled"]
+            label = "Irrigation-equipment" if view["answers"].get("task") in ("drip_design", "sprinkler_design") else "Field-water"
+            if view["answers"].get("task") == "surface_evaluation":
+                label = "Surface-event"
+            return f"{label} intake cancelled for this unit. Saved calculations and water logs are unchanged."
+        return self._unit_setup.cancel(owner)
+
+    @_serialized
+    def start_field_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        from .field_planning_language import validate_language, words
+        validate_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return words(language)["conflict"] if language and language != "en" else "Finish or cancel unit setup first, then use /fieldplan."
+        unit = self._request_unit(owner)
+        if unit is None or unit.production_system != "soil":
+            raise ValueError(words(language)["select"] if language and language != "en" else "Select a soil unit with /units or create one with /newunit soil before /fieldplan.")
+        return render_intake(self._field_intake.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_scouting_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return scouting_error({"language": language or "en"}, "Finish or cancel unit setup first, then use /scout.")
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise ValueError("Select a production unit with /units before /scout.")
+        return render_scouting_intake(self._scouting_intake.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_planting_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_planting_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return planting_text({"language": language or "en"}, "setup")
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise PlantingError("select")
+        return render_planting_intake(self._planting_intake.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_water_log(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_water_log_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return water_log_text({"language": language or "en"}, "conflict")
+        unit = self._request_unit(owner)
+        if unit is None or unit.production_system != "soil":
+            raise WaterLogError("select")
+        return render_water_log(self._water_log.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_task_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_task_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise ValueError("Select a production unit with /units before /task.")
+        return render_task_intake(self._task_intake.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_harvest_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_harvest_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return harvest_text({"language": language or "en"}, "conflict")
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise HarvestError("select")
+        return render_harvest_intake(self._harvest_intake.start(owner, unit.unit_id, language))
+
+    @_serialized
+    def start_measurement_intake(self, channel: str, channel_user: str, language: str | None = None) -> str:
+        if language is not None:
+            validate_measurement_language(language)
+        owner = self._conv.get_or_create_user(channel, channel_user)
+        if self._unit_setup.active(owner):
+            return measurement_text({"language": language or "en"}, "conflict")
+        unit = self._request_unit(owner)
+        if unit is None:
+            raise MeasurementError("select")
+        return render_measurement_intake(self._measurement_intake.start(owner, unit.unit_id, language))
+
     # --- context assembly -------------------------------------------------
     def _build_context(self, user_id: str, query: str | None = None,
                        channel: str | None = None) -> list:
-        messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
+        unit = self._contexts.for_context(user_id)
+        prompt = consultation.prompt(unit.production_system) if unit and unit.production_system != "aquaponics" else SYSTEM_PROMPT
+        web = any(t.get("name") in {"web_search", "web_fetch"}
+                  for t in getattr(self, "_server_tools", []))
+        # Appended to the fixed prompt, not sent as a block of its own, so the cached prefix
+        # stays one stable block; it is fixed per process, so the cache still hits.
+        messages: list = [SystemMessage(content=prompt + (_WEB_RULES if web else ""))]
 
         # Kept out of SYSTEM_PROMPT so the fixed prefix stays identical across channels.
         note = _CHANNEL_NOTES.get((channel or "").lower())
@@ -403,14 +839,26 @@ class AgronautAgent:
         parts: list[str] = []
         facts = self._mem.get_facts(user_id)
         goal = facts.get("goal")
-
-        rendered = profile.render_profile(facts, goal=goal)
+        unit = self._contexts.for_context(user_id)
+        if unit:
+            parts.append(f"ACTIVE UNIT: {unit.name} ({unit.production_system or 'unresolved'}). "
+                         "All facts and history below concern only this unit.")
+            if unit.parent_unit_id:
+                parts.append(f"This is an irrigation zone of field {unit.parent_unit_id}. Parent-field records are separate; use this zone's inputs.")
+        domain = unit.production_system if unit else None
+        rendered = consultation.render(facts, domain) if unit else profile.render_profile(facts, goal=goal)
         if rendered:
             parts.append(rendered)
-        missing = profile.missing_essentials(goal, facts)
+        missing = consultation.missing(goal, facts, domain) if unit else profile.missing_essentials(goal, facts)
+        if unit and domain is None:
+            missing = []
+            parts.append("Ask whether this unit is soil cultivation, hydroponics or aquaponics; do not assume.")
         if missing:
             parts.append(f"Still need for {goal}: " + ", ".join(missing))
-            ask = profile.next_question_note(goal, facts)
+            if unit and domain in ("soil", "hydroponics"):
+                ask = "ASK NEXT (one question): " + consultation.question(goal, facts, domain)
+            else:
+                ask = profile.next_question_note(goal, facts)
             if ask:
                 parts.append(ask)
 
@@ -499,6 +947,46 @@ class AgronautAgent:
                     tu.get("completion_tokens") or tu.get("output_tokens"))
         return None, None
 
+    @property
+    def _native_citations(self) -> bool:
+        """Knowledge results go to Claude as search_result blocks (see citations.py). Only on
+        Claude, the one provider with the block type; AGRONAUT_NATIVE_CITATIONS=off reverts
+        to the labeled text every provider gets."""
+        return self._provider == "anthropic" and (
+            os.getenv("AGRONAUT_NATIVE_CITATIONS") or "").strip().lower() not in {
+                "0", "off", "false", "no"}
+
+    @staticmethod
+    def _server_tool_usage(ai) -> dict:
+        """Web searches and fetches Anthropic ran inside this call. A search is billed on its
+        own ($10 per 1,000), so it is counted where the tokens are."""
+        usage = (getattr(ai, "response_metadata", None) or {}).get("usage") or {}
+        used = usage.get("server_tool_use") if isinstance(usage, dict) else None
+        if not isinstance(used, dict):
+            return {}
+        out = {}
+        if used.get("web_search_requests"):
+            out["web_searches"] = used["web_search_requests"]
+        if used.get("web_fetch_requests"):
+            out["web_fetches"] = used["web_fetch_requests"]
+        return out
+
+    @staticmethod
+    def _cache_usage(ai) -> dict:
+        """Prompt-cache reads and writes of a reply, as analytics fields; {} when the provider
+        reports none. Recorded so the saving the cache is meant to make can be checked rather
+        than assumed: a breakpoint that never hits costs a write on every call."""
+        meta = getattr(ai, "usage_metadata", None)
+        details = meta.get("input_token_details") if isinstance(meta, dict) else None
+        if not isinstance(details, dict):
+            return {}
+        out = {}
+        if details.get("cache_read") is not None:
+            out["cache_read_tokens"] = details["cache_read"]
+        if details.get("cache_creation") is not None:
+            out["cache_write_tokens"] = details["cache_creation"]
+        return out
+
     def _invoke_model(self, model, messages: list, stage: str):
         """Call a chat model, timing it and accumulating its cost into the turn.
 
@@ -514,7 +1002,7 @@ class AgronautAgent:
             elapsed = int((time.perf_counter() - t0) * 1000)
         tin, tout = self._usage(ai)
         runtime.record_llm_call(elapsed, tin, tout)
-        attribution = {}
+        attribution = {**self._cache_usage(ai), **self._server_tool_usage(ai)}
         if self._provider:
             attribution["provider"] = self._provider
         model_name = self._answering_model(ai) or self._configured_model
@@ -539,14 +1027,31 @@ class AgronautAgent:
         name = meta.get("model_name") or meta.get("model")
         return str(name)[:80] if name else None
 
+    def _bind_tools(self, tools) -> tuple:
+        """(bound model, names made strict) for `tools`. On Claude the web tools ride along and
+        strict schemas go on the priority tools in the set, behind StrictGuard; elsewhere it is
+        a plain bind. Used at start-up and for each unit's tool set in the loop."""
+        tools = list(tools)
+        server = getattr(self, "_server_tools", [])
+        bound = self._base.bind_tools(tools + server)
+        if self._provider == "anthropic" and strict_tools_enabled():
+            strict, names = strict_where_possible(tools, STRICT_TOOL_PRIORITY)
+            if names:
+                return StrictGuard(self._base.bind_tools(strict + server), bound), names
+        return bound, []
+
     # --- the tool-calling loop -------------------------------------------
     def _run_tool_loop(self, messages: list, user_id: str) -> str:
+        unit = runtime.get_unit_context()
+        tools = consultation.tools_for_unit(unit, list(self._tools_by_name.values()))
+        available = {t.name: t for t in tools}
+        bound = self._bind_tools(tools)[0] if unit else self._bound
         fabrication_nudged = False
         promise_nudged = False
         before_nudge = ""        # the user-facing reply the promise nudge interrupted
         ran_a_tool = False
         for _ in range(_MAX_ITERS):
-            ai = self._invoke_model(self._bound, messages, "agent")
+            ai = self._invoke_model(bound, messages, "agent")
             messages.append(ai)
             tool_calls = getattr(ai, "tool_calls", None)
             if not tool_calls:
@@ -562,6 +1067,11 @@ class AgronautAgent:
                     messages.pop()
                     messages.append(AIMessage(content="", tool_calls=[rescued]))
                     tool_calls = [rescued]
+            if not tool_calls and (getattr(ai, "response_metadata", None) or {}).get(
+                    "stop_reason") == "pause_turn":
+                # The API paused a long web-search turn; sending the paused message back
+                # unchanged (it is already appended) lets it continue where it stopped.
+                continue
             if not tool_calls:
                 text = _text_of(ai.content).strip()
                 # Tripwire: a reply that cites an "earlier result" is only honest if this
@@ -602,12 +1112,15 @@ class AgronautAgent:
                     # consultant eval (2026-09-30): natural phrasing like "I'll use your
                     # local weather" tripped the nudge, and the meta-reply was delivered.
                     return before_nudge
+                if text:
+                    # Citations ride in the content blocks; a chat message is plain text.
+                    text = citations.with_sources(text, citations.cited_sources(ai.content))
                 return text or "I'm not sure how to help with that yet."
             ran_a_tool = True
             for call in tool_calls:
-                tool = self._tools_by_name.get(call["name"])
+                tool = available.get(call["name"])
                 if tool is None:
-                    result = f"TOOL_ERROR: unknown tool {call['name']!r}"
+                    result = f"TOOL_ERROR: tool {call['name']!r} is unavailable for this production unit"
                 else:
                     try:
                         result = tool.invoke(call["args"])
@@ -618,9 +1131,14 @@ class AgronautAgent:
                                        ok=not str(result).startswith("TOOL_ERROR"))
                 self._conv.append_message(user_id, "tool", result, tool_name=call["name"])
                 captured = profile.profile_updates_from_tool(call["name"], call["args"], result)
+                if unit:
+                    captured = consultation.filter_facts(captured, unit.production_system)
                 if captured:
                     self._mem.set_facts(user_id, captured, source="tool_call")
-                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+                content = result
+                if call["name"] == "search_knowledge_base" and self._native_citations:
+                    content = citations.search_result_blocks(str(result)) or result
+                messages.append(ToolMessage(content=content, tool_call_id=call["id"]))
         # Hit the tool-call cap (e.g. the model kept calling tools without answering). Force a
         # final natural-language reply with tools disabled, so the user always gets a real answer.
         try:
@@ -634,7 +1152,25 @@ class AgronautAgent:
             log.debug("forced final answer failed", exc_info=True)
         return "Here's what I have so far. Could you tell me a bit more so I can pin it down?"
 
+    @_serialized
+    def tool_results(self, channel: str, channel_user: str, tool_name: str) -> list[str]:
+        """Results of `tool_name` in this user's latest turn, oldest first.
+
+        Lets a host interface react to what the agent did (for example, show a design to
+        confirm when a design tool ran) without parsing the reply text. Read from the
+        conversation store, so it is exactly what the model was given."""
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        user_id = self._context_id(user_id)
+        found = []
+        for m in reversed(self._conv.recent_messages(user_id, limit=60)):
+            if m["role"] == "user":
+                break
+            if m["role"] == "tool" and m["tool_name"] == tool_name:
+                found.append(m["content"])
+        return found[::-1]
+
     # --- the single public seam ------------------------------------------
+    @_serialized
     def handle_message(self, channel: str, channel_user: str, text: str,
                        display_name: str | None = None, fact_text: str | None = None) -> str:
         """`fact_text` overrides which text deterministic fact-extraction reads.
@@ -646,6 +1182,94 @@ class AgronautAgent:
         every later turn. Image turns therefore pass their caption (the only part the user
         actually wrote); voice turns pass nothing, because a transcript IS the user's words.
         """
+        owner = user_id_for(channel, channel_user)
+        if self._unit_setup.active(owner):
+            if fact_text is not None:
+                return "Unit setup needs a text reply to its current question. /newunit resumes it; /cancel stops it."
+            try:
+                return self._unit_setup.respond(owner, text)
+            except ValueError as exc:
+                return f"{exc}. Use /back to edit the setup or /cancel to start again."
+        unit = self._request_unit(owner)
+        if unit and self._task_intake.active(owner, unit.unit_id):
+            view = self._task_intake.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return task_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_task_intake(self._task_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_task_intake(self._task_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return str(exc)+"\n"+render_task_intake(self._task_intake.get(owner, unit.unit_id))
+        if unit and self._harvest_intake.active(owner, unit.unit_id):
+            view = self._harvest_intake.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return harvest_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_harvest_intake(self._harvest_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_harvest_intake(self._harvest_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return harvest_error(view, exc)+"\n"+render_harvest_intake(self._harvest_intake.get(owner, unit.unit_id))
+        if unit and self._measurement_intake.active(owner, unit.unit_id):
+            view = self._measurement_intake.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return measurement_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_measurement_intake(self._measurement_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_measurement_intake(self._measurement_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return measurement_error(view, exc)+"\n"+render_measurement_intake(self._measurement_intake.get(owner, unit.unit_id))
+        if unit and self._water_log.active(owner, unit.unit_id):
+            view = self._water_log.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return water_log_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_water_log(self._water_log.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_water_log(self._water_log.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return water_log_error(view, exc)+"\n"+render_water_log(self._water_log.get(owner, unit.unit_id))
+        if unit and self._planting_intake.active(owner, unit.unit_id):
+            view = self._planting_intake.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return planting_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_planting_intake(self._planting_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_planting_intake(self._planting_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return planting_error(view, exc)+"\n"+render_planting_intake(self._planting_intake.get(owner, unit.unit_id))
+        if unit and self._scouting_intake.active(owner, unit.unit_id):
+            view = self._scouting_intake.get(owner, unit.unit_id)
+            if fact_text is not None:
+                return scouting_text(view, "media")
+            try:
+                if view["status"] == "ready" and scouting_token(view, text, "save"):
+                    return render_scouting_intake(self._scouting_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_scouting_intake(self._scouting_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return scouting_error(view, exc)+"\n" + render_scouting_intake(self._scouting_intake.get(owner, unit.unit_id))
+        if unit and unit.production_system == "soil" and self._field_intake.active(owner, unit.unit_id):
+            try:
+                view = self._field_intake.get(owner, unit.unit_id)
+            except ValueError as exc:
+                return str(exc)
+            if fact_text is not None:
+                if view.get("language", "en") != "en":
+                    from .field_planning_language import words
+                    return words(view["language"])["media"]
+                return "Field-planning intake needs your text reply; image-generated observations cannot answer it. /fieldplan resumes the question."
+            try:
+                if scouting_token(view, text, "save") and view["status"] == "ready":
+                    return render_intake(self._field_intake.save(owner, unit.unit_id, view["draft_id"], view["revision"]))
+                return render_intake(self._field_intake.answer(owner, unit.unit_id, text, view["revision"]))
+            except (ValueError, TypeError) as exc:
+                return f"{exc}\n" + render_intake(self._field_intake.get(owner, unit.unit_id))
+        if self._request_unit(owner) is None and requests_soil_setup(text if fact_text is None else fact_text):
+            return ("For soil cultivation, use /newunit soil to create a field, or /units to select one. "
+                    "I'll keep its crop, soil and irrigation records separate.")
         if self._bound is None:
             # Refused BEFORE the trace opens, deliberately. A turn is a run through the
             # pipeline; this never reaches it, and recording it as one would drop a ~0 ms row
@@ -653,6 +1277,11 @@ class AgronautAgent:
             # event is still counted, so an operator can see a missing model rather than infer
             # it from an absence of turns.
             self._analytics.record("no_model", channel=channel)
+            current_unit = self._request_unit(owner)
+            if current_unit and current_unit.production_system == "soil":
+                return ("I can't hold a conversation right now: no tool-calling model is "
+                        f"configured ({self._chat_error}). You can still use /newunit and /units, "
+                        "/fieldplan for guided water, equipment and surface-event calculations, or the web Field records page.")
             return ("I can't hold a conversation right now: no tool-calling model is "
                     f"configured ({self._chat_error}). Your live twin still works: "
                     "/log and /forecast never touch a model.")
@@ -684,15 +1313,26 @@ class AgronautAgent:
         if m.get("usage_seen"):     # omit entirely when the provider reported no usage
             fields["tokens_in"] = m.get("tokens_in")
             fields["tokens_out"] = m.get("tokens_out")
+        if m.get("ungrounded_numbers") is not None:   # absent when no reply was checked
+            fields["ungrounded_numbers"] = m["ungrounded_numbers"]
         self._analytics.record("turn", **fields)
 
     def _handle_message_inner(self, channel: str, channel_user: str, text: str,
                               display_name: str | None = None,
                               fact_text: str | None = None) -> str:
-        user_id = self._conv.get_or_create_user(channel, channel_user, display_name)
-        self._analytics.record("message", user_id=user_id, channel=channel)
+        owner_id = self._conv.get_or_create_user(channel, channel_user, display_name)
+        unit = self._request_unit(owner_id)
+        if unit is not None and self._contexts.for_context(unit.context_id) is None:
+            return "This production unit was removed during the request. Please select a current unit."
+        user_id = unit.context_id if unit else owner_id
+        if unit is None and any(not u["legacy"] for u in self._farms.list_units(owner_id)):
+            return self.units_text(channel, channel_user)
+        self._analytics.record("message", user_id=owner_id, channel=channel)
         source_text = text if fact_text is None else fact_text
-        self._mem.set_facts(user_id, memory_extract.extract_facts(source_text), source="parsed")
+        extracted = memory_extract.extract_facts(source_text)
+        if unit:
+            extracted = consultation.filter_facts(extracted, unit.production_system)
+        self._mem.set_facts(user_id, extracted, source="parsed")
         self._conv.append_message(user_id, "user", text)
 
         # Outcome loop: a delivered follow-up is being answered now; a not-yet-sent one is
@@ -711,7 +1351,8 @@ class AgronautAgent:
             self._followups.cancel(open_fu["id"])
 
         runtime.set_current(self._mem, user_id, self._followups, self._community,
-                            self._calibration, self._readings, self._proposals)  # tools reach this user
+                            self._calibration, self._readings, self._proposals,
+                            owner_id=owner_id, unit_context=unit)
         try:
             messages = self._build_context(user_id, query=text, channel=channel)
             if capture_note:
@@ -726,9 +1367,38 @@ class AgronautAgent:
         # Polished BEFORE it is stored: history is replayed to the model every turn, and a
         # model copies the style of its own earlier replies.
         reply = style.polish_reply(reply, channel)
+        self._check_grounding(reply, messages)
         self._conv.append_message(user_id, "assistant", reply)
         self._schedule_summary(user_id)
         return reply
+
+    @staticmethod
+    def _check_grounding(reply: str, messages: list) -> None:
+        """Count the figures in the reply that nothing the model saw supports (#180).
+
+        Sources are everything in the turn's context except the system prompt and the
+        model's own words: tool results from this turn, earlier results replayed as
+        reference, recalled facts, and what the user said. The model's messages are left out
+        on purpose; the loop appends the final reply to this same list, and a first version
+        let every reply ground itself. Only the COUNT is recorded, with the turn; the figures
+        themselves stay in the local log, never in analytics. Never raises: a checker bug
+        must not cost a reply.
+        """
+        try:
+            sources = [_text_of(m.content) for m in messages[1:]
+                       if not isinstance(m, AIMessage)]
+            # What a web search returned reaches the model encrypted; the passages its reply
+            # cites are the readable part, and a figure quoted from one is sourced.
+            sources += [t for m in messages if isinstance(m, AIMessage)
+                        for t in citations.cited_texts(m.content)]
+            flagged = grounding.ungrounded(reply, sources)
+        except Exception:  # noqa: BLE001
+            log.debug("grounding check failed", exc_info=True)
+            return
+        runtime.record_grounding(len(flagged))
+        if flagged:
+            log.warning("reply quotes %d figure(s) no tool or user gave: %s",
+                        len(flagged), ", ".join(flagged))
 
     def record_feedback(self, channel: str, channel_user: str, positive: bool) -> str:
         """Record a thumbs up/down on the last reply and acknowledge it.
@@ -745,12 +1415,15 @@ class AgronautAgent:
                 if positive else
                 "Thanks for telling me. What was wrong with it? I'll use that to do better.")
 
+    @_serialized
     def take_attachments(self, channel: str, channel_user: str) -> list:
         """Files the last turn produced for this user, to be sent by the channel adapter.
         Draining is idempotent — returns [] once taken."""
         user_id = self._conv.get_or_create_user(channel, channel_user)
+        user_id = self._context_id(user_id)
         return self._pending_attachments.pop(user_id, [])
 
+    @_serialized
     def handle_image(self, channel: str, channel_user: str, image_bytes: bytes,
                      caption: str | None = None, display_name: str | None = None) -> str:
         """A photo arrives: the VLM produces a plain-language visual observation, which is
@@ -800,14 +1473,63 @@ class AgronautAgent:
         ask = (caption or "").strip() or "What's going on here?"
         note = ("\n\n" + _VERDICT_INSTRUCTION) if any(f.startswith("verdict:") for f in flags) else ""
         classifier_features, classifier_note = self._classify_image(image_bytes)
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._request_unit(owner_id)
+        aquatic = unit is None or unit.production_system == "aquaponics"
+        triage = self._visual_triage(observation, classifier_features) if aquatic else ""
         # Deterministic differential from the visible features. Attached rather than left to a
         # tool call so the cited candidates are ALWAYS present for a photo — the observation
         # itself is untrusted prose, but this part is auditable like the sizing path.
         composed = (f"[The user sent a photo. A vision model observed: {observation}]{note}"
                     f"{classifier_note}"
-                    f"{self._visual_triage(observation, classifier_features)}\n\n{ask}")
+                    f"{triage}\n\n{ask}")
         # Facts come from the CAPTION only — never from the model's observation. See
         # handle_message's fact_text docstring for why the guard alone is not enough.
+        return self.handle_message(channel, channel_user, composed, display_name,
+                                   fact_text=(caption or ""))
+
+    @_serialized
+    def handle_document(self, channel: str, channel_user: str, data: bytes,
+                        mime: str | None = None, caption: str | None = None,
+                        display_name: str | None = None) -> str:
+        """A file arrives. A PDF is read into plain text (agent/documents.py) and run through
+        the NORMAL text turn, its values passed on as unconfirmed; anything else is declined
+        with what Agronaut can read instead."""
+        owns_turn = runtime.start_turn()
+        t_turn = time.perf_counter()
+        try:
+            return self._handle_document_inner(channel, channel_user, data, mime, caption,
+                                               display_name)
+        finally:
+            if owns_turn:
+                self._record_turn(channel, t_turn)
+                runtime.end_turn()
+
+    def _handle_document_inner(self, channel, channel_user, data, mime, caption, display_name):
+        from agent import documents
+
+        user_id = self._conv.get_or_create_user(channel, channel_user)
+        self._analytics.record("document", user_id=user_id, channel=channel)
+        if not documents.is_pdf(data, mime):
+            return ("I can't read that kind of file. I read PDFs (a water test, a feed label), "
+                    "photos and voice notes, or just tell me what's going on.")
+        if self._read_pdf is None:
+            return ("I can't read PDFs on this setup. Send a photo of the page, or type the "
+                    "numbers you want me to look at.")
+        if len(data) > documents.MAX_PDF_BYTES:
+            return ("That PDF is too large for me to read. Send just the page with the results, "
+                    "or a photo of it.")
+        try:
+            reading = (self._read_pdf(data, caption) or "").strip()
+        except Exception:
+            log.warning("pdf read failed", exc_info=True)
+            return ("I couldn't read that PDF just now. Try again, or send a photo of the page.")
+        if not reading:
+            return "I couldn't find any text in that PDF. Send a photo of the page instead?"
+        ask = (caption or "").strip() or "What does this tell me about my system?"
+        composed = (f"[The user sent a PDF. Read by a model, NOT yet confirmed by the user:\n"
+                    f"{reading}]\n\n{_DOCUMENT_INSTRUCTION}\n\n{ask}")
+        # Facts come from the CAPTION only, never from the reading: the same rule as photos.
         return self.handle_message(channel, channel_user, composed, display_name,
                                    fact_text=(caption or ""))
 
@@ -843,6 +1565,7 @@ class AgronautAgent:
             log.debug("visual triage unavailable", exc_info=True)
             return ""
 
+    @_serialized
     def handle_voice(self, channel: str, channel_user: str, audio_bytes: bytes,
                      mime: str | None = None, display_name: str | None = None) -> str:
         """A voice note arrives: transcribe it, then run the transcript through the NORMAL
@@ -874,12 +1597,24 @@ class AgronautAgent:
             return "I didn't catch anything in that voice note. Try again, or type it out?"
         return self.handle_message(channel, channel_user, transcript, display_name)
 
+    @_serialized
     def profile_text(self, channel: str, channel_user: str) -> str:
         """Human-readable view of what the agent remembers — backs the /whoami command."""
         user_id = self._conv.get_or_create_user(channel, channel_user)
-        block = self._recall_block(user_id)
+        block = self._recall_block(self._context_id(user_id))
         return block or "I don't know anything about your system yet. Tell me about it!"
 
+    @_serialized
+    def profile_facts(self, channel: str, channel_user: str) -> dict:
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._contexts.active(owner_id)
+        facts = self._mem.get_facts(unit.context_id if unit else owner_id)
+        return consultation.filter_facts(facts, unit.production_system) if unit else facts
+
+    def update_profile_direct(self, channel: str, channel_user: str, updates: dict) -> str:
+        return self._run_tool_direct(channel, channel_user, "update_profile", {"updates": updates})
+
+    @_serialized
     def _run_tool_direct(self, channel: str, channel_user: str, tool_name: str,
                          args: dict) -> str:
         """Run one tool deterministically for a user, NO LLM in the path — backs the
@@ -887,10 +1622,18 @@ class AgronautAgent:
         (congestion, leaked tool calls, narration instead of action — all measured) must
         never stand between an operator and their own live twin. The result is recorded
         in the conversation like any tool turn, so the LLM sees it as context later."""
-        user_id = self._conv.get_or_create_user(channel, channel_user)
-        tool = {t.name: t for t in AGRONAUT_TOOLS}[tool_name]
+        owner_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._contexts.active(owner_id)
+        user_id = unit.context_id if unit else owner_id
+        if unit is None and any(not u["legacy"] for u in self._farms.list_units(owner_id)):
+            return self.units_text(channel, channel_user)
+        available = {t.name: t for t in consultation.tools_for_unit(unit, AGRONAUT_TOOLS)}
+        tool = available.get(tool_name)
+        if tool is None:
+            return f"This action is unavailable for {unit.name if unit else 'this production unit'}."
         runtime.set_current(self._mem, user_id, self._followups, self._community,
-                            self._calibration, self._readings, self._proposals)
+                            self._calibration, self._readings, self._proposals,
+                            owner_id=owner_id, unit_context=unit)
         try:
             result = tool.invoke(args)
         except Exception as exc:  # noqa: BLE001 — a command must answer, not stack-trace
@@ -929,11 +1672,19 @@ class AgronautAgent:
                                      {"approve": bool(approve), "numbers": list(numbers)})
 
     @property
+    def model_label(self) -> str | None:
+        """"provider · model" this agent was configured with (None for an injected model)."""
+        if not self._provider:
+            return None
+        return f"{self._provider} · {self._configured_model}"
+
+    @property
     def chat_error(self) -> str | None:
         """Why chat is unavailable, or None when a tool-calling model is bound. The
         deterministic twin surfaces work either way."""
         return self._chat_error
 
+    @_serialized
     def twin_snapshot(self, channel: str, channel_user: str, days: int = 7,
                       greenhouse: str = "poly"):
         """The live twin as STRUCTURE, for a dashboard — no LLM, no prose.
@@ -941,21 +1692,54 @@ class AgronautAgent:
         Backs the same computation `/forecast` renders as words, so the two surfaces can
         never disagree about the pond."""
         user_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._contexts.active(user_id)
+        if unit is None and any(not u["legacy"] for u in self._farms.list_units(user_id)):
+            return twin_view.TwinSnapshot(ready=False, notes=["Select a production unit first."])
+        if unit and unit.production_system != "aquaponics":
+            return twin_view.TwinSnapshot(ready=False, notes=["The aquatic twin is unavailable for this unit."])
+        user_id = unit.context_id if unit else user_id
         return twin_view.compute(self._mem, user_id, days=days, greenhouse=greenhouse,
                                  readings=self._readings)
 
+    @_serialized
     def reset(self, channel: str, channel_user: str) -> None:
         """Clear the conversation thread. Long-term memory (facts/memories) is kept."""
         user_id = self._conv.get_or_create_user(channel, channel_user)
-        self._conv.reset_conversation(user_id)
+        self._unit_setup.cancel(user_id)
+        unit = self._request_unit(user_id)
+        if unit and self._field_intake.active(user_id, unit.unit_id):
+            view = self._field_intake.get(user_id, unit.unit_id)
+            self._field_intake.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._scouting_intake.active(user_id, unit.unit_id):
+            view = self._scouting_intake.get(user_id, unit.unit_id)
+            self._scouting_intake.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._task_intake.active(user_id, unit.unit_id):
+            view = self._task_intake.get(user_id, unit.unit_id)
+            self._task_intake.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._harvest_intake.active(user_id, unit.unit_id):
+            view = self._harvest_intake.get(user_id, unit.unit_id)
+            self._harvest_intake.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._measurement_intake.active(user_id, unit.unit_id):
+            view = self._measurement_intake.get(user_id, unit.unit_id)
+            self._measurement_intake.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._water_log.active(user_id, unit.unit_id):
+            view = self._water_log.get(user_id, unit.unit_id)
+            self._water_log.cancel(user_id, unit.unit_id, view["revision"])
+        if unit and self._planting_intake.active(user_id, unit.unit_id):
+            view = self._planting_intake.get(user_id, unit.unit_id)
+            self._planting_intake.cancel(user_id, unit.unit_id, view["revision"])
+        self._conv.reset_conversation(self._context_id(user_id))
 
+    @_serialized
     def forget_everything(self, channel: str, channel_user: str) -> None:
         """Wipe conversation AND long-term memory for this user (the /forget command)."""
         user_id = self._conv.get_or_create_user(channel, channel_user)
         self._conv.reset_conversation(user_id)
         self._mem.forget(user_id)
+        self._farms.purge(user_id)
 
     # --- data rights (DPG indicators 6 & do-no-harm) ------------------------
+    @_serialized
     def export_user_data(self, channel: str, channel_user: str) -> dict:
         """Everything Agronaut holds about this user, as a portable JSON-serializable dict
         (the DPG non-proprietary-export requirement). Scoped strictly to this user."""
@@ -969,9 +1753,11 @@ class AgronautAgent:
             "measurements": self._calibration.export(user_id),
             "twin_readings": self._readings.history(user_id),
             "approved_actions": self._proposals.approved_history(user_id, limit=100000),
+            "farms": self._farms.export(user_id),
             "exported_at": _now(),
         }
 
+    @_serialized
     def delete_me(self, channel: str, channel_user: str) -> None:
         """Erase ALL of this user's data — conversation, profile, memories, summary, and
         calibration measurements. The chat-reachable right-to-erasure."""
@@ -981,24 +1767,66 @@ class AgronautAgent:
         self._calibration.purge(user_id)
         self._readings.purge(user_id)
         self._proposals.purge(user_id)
+        self._farms.purge(user_id)
 
     # --- follow-up delivery API (called by a channel poller) ----------------
     def due_followups(self, channel: str) -> list:
         """Follow-ups due for delivery on `channel` right now. The question was written by
         the model, so it gets the same house style as a live reply."""
         due = self._followups.due(channel, _now())
+        filtered = []
         for fu in due:
+            unit = self._contexts.for_context(fu["user_id"])
+            owner_id = unit.owner_id if unit else fu["user_id"]
+            selected = self._contexts.active(owner_id)
+            if (unit and (selected is None or selected.context_id != unit.context_id)) or (unit is None and selected):
+                continue
+            if unit:
+                fu["question"] = f"For {unit.name}: {fu['question']}"
             fu["question"] = style.polish_reply(fu["question"], channel)
-        return due
+            filtered.append(fu)
+        return filtered
 
     def mark_followup_sent(self, followup_id: int) -> None:
         self._followups.mark_sent(followup_id)
 
     def followup_send_failed(self, followup_id: int) -> None:
-        """A delivery attempt failed; retry next tick, but give up after 3."""
-        if self._followups.bump_attempt(followup_id) >= 3:
-            self._followups.mark_failed(followup_id)
+        """A delivery attempt failed synchronously (the send itself raised);
+        retry next tick, but give up after 3 (#215).
 
+        The transition is one guarded UPDATE in the store: due() only picks up
+        pending rows, so a sent row goes back to pending, and the attempt bump
+        and the pending/failed decision happen together so concurrent handlers
+        cannot each consume an attempt for the same failure.
+        """
+        self._followups.consume_send_failure(followup_id)
+
+    def record_followup_message_id(self, followup_id: int, wa_message_id: str | None) -> None:
+        """Remember the WhatsApp message id of a sent follow-up question, so a later
+        delivery-status webhook can be matched back to it (#215)."""
+        self._followups.record_message_id(followup_id, wa_message_id)
+
+    def followup_status_failed(self, wa_message_id: str, error_codes: list[int]) -> None:
+        """A delivery-status webhook said a send failed. If the message was a
+        follow-up, make the record true (#215): 131047 (the 24-hour re-engagement
+        window) is marked failed directly — retrying the same free-form text would
+        fail the same way — while any other error goes through the normal
+        retry-then-fail path. A status for a message that was not a follow-up
+        changes nothing.
+
+        Webhook handlers run on separate threads, so both transitions are
+        single guarded UPDATEs in the store — no lookup-then-write: an answer
+        arriving between the two must never be overwritten to failed, and
+        duplicate webhooks for one failure must consume exactly one attempt.
+        """
+        if 131047 in error_codes:
+            if self._followups.fail_closed_window(wa_message_id):
+                log.info("whatsapp follow-up failed: 131047 (outside the 24-hour "
+                         "window); marked failed without retry (message %s)", wa_message_id)
+        else:
+            self._followups.consume_status_retry(wa_message_id)
+
+    @_serialized
     def set_goal(self, channel: str, channel_user: str, goal: str) -> str:
         """Explicitly set the consultation goal (backs the /design, /optimize, /troubleshoot
         commands). Persists profile['goal'] and returns the user-facing confirmation. Does
@@ -1007,10 +1835,17 @@ class AgronautAgent:
         if g not in profile.GOALS:
             raise ValueError(f"unknown goal {goal!r}")
         user_id = self._conv.get_or_create_user(channel, channel_user)
+        unit = self._contexts.active(user_id)
+        if unit is None and any(not u["legacy"] for u in self._farms.list_units(user_id)):
+            return self.units_text(channel, channel_user)
+        if unit is not None and unit.production_system is None:
+            return "First identify this unit as soil cultivation, hydroponics or aquaponics using /unit."
+        user_id = unit.context_id if unit else user_id
         self._mem.set_fact(user_id, "goal", g, source="user_stated")
         self._analytics.record("goal_set", user_id=user_id, goal=g)
         facts = self._mem.get_facts(user_id)
-        return f"{profile.GOAL_HEADERS[g]}. {profile.essentials_hint(g, facts)}"
+        hint = consultation.start_goal(g, facts, unit.production_system) if unit else profile.essentials_hint(g, facts)
+        return f"{profile.GOAL_HEADERS[g]}. {hint}"
 
     # --- background cross-session summary (no user-facing latency) --------
     def _schedule_summary(self, user_id: str, every: int = 12) -> None:
@@ -1026,7 +1861,7 @@ class AgronautAgent:
                 f"{m['role']}: {m['content']}" for m in msgs if m["role"] in ("user", "assistant")
             )[:6000]
             prompt = (
-                "Summarise this user's aquaponics system and the key points of the conversation "
+                "Summarise this production unit and the key points of the conversation "
                 "in 2-4 sentences, for your own future recall. Focus on durable facts, decisions, "
                 "and open problems, not pleasantries.\n\n" + transcript
             )
@@ -1042,7 +1877,7 @@ def _repl() -> None:
     tool-calling provider (e.g. LLM_PROVIDER=nvidia NVIDIA_API_KEY=...)."""
 
     from .channels.repl import ReplChannel
-    ReplChannel(AgronautAgent()).run()
+    ReplChannel(AgronautAgent(require_tools=False)).run()
 
 
 if __name__ == "__main__":

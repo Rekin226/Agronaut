@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "site": {"name": "FAO-45 worked advance example, not a pilot farm", "timezone": "UTC"},
+  "geometry": {
+    "method": "furrow", "length_m": 200, "width_m": 1, "slope_m_m": 0.001,
+    "source": "FAO-45 section 5.3.1 worked example; 1 m represented spacing supplied for this scenario"
+  },
+  "hydraulics": {
+    "inflow_lps": 2.5, "manning_n": 0.04, "section_p1": 0.55,
+    "section_p2": 1.35, "surface_shape_factor": 0.77,
+    "source": "FAO-45 section 5.3.1 worked volume-balance example; assumed surface shape factor"
+  },
+  "infiltration": {
+    "k": 0.00324, "exponent": 0.568, "steady_rate": 0.000174,
+    "basis": "volume_per_length_m2", "min_opportunity_min": 0,
+    "max_opportunity_min": 1440,
+    "source": "FAO-45 section 5.3.1 worked example; 0–1440 min is a scenario envelope, not field calibration"
+  },
+  "limits": {
+    "max_advance_min": 120, "max_inlet_velocity_m_s": 0.25,
+    "max_inlet_flow_area_m2": 0.05,
+    "source": "Synthetic scenario constraints, not measured field operating limits"
+  },
+  "conditions": {
+    "uniform_sloping_field": true, "normal_inlet_flow": true, "initially_unponded": true,
+    "no_rain_or_runon": true, "constant_inflow": true, "no_downstream_backwater": true,
+    "source": "Assumptions for reproducing the published advance calculation only"
+  }
+}

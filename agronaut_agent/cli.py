@@ -13,11 +13,14 @@ owns it, so this module stays a dispatcher and only a dispatcher.
     agronaut doctor                                 # what is configured, and what is broken
     agronaut --version                              # which build is this, and from where
     agronaut update                                 # check PyPI and upgrade
+    agronaut eval                                   # how good is it: retrieval, answers, safety
+    agronaut phoenix                                # optional: full local traces in Phoenix
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,11 +40,58 @@ def _cmd_chat(args) -> int:
     return 0
 
 
+_WEB_PORT = 8501          # Streamlit's default, and the address the docs give
+
+
+def _port_free(port: int) -> bool:
+    """Nothing answers on localhost:port, and the port can be bound on every address.
+
+    Both, because binding alone is not enough on macOS: a program listening on 127.0.0.1:8501
+    (a VS Code extension host did, 2026-10-04) does not stop Streamlit binding 0.0.0.0:8501.
+    Streamlit then starts without a word, and the browser's localhost reaches the other
+    program, which never answers: a blank page.
+    """
+    import socket
+
+    with socket.socket() as probe:
+        probe.settimeout(0.3)
+        if probe.connect_ex(("127.0.0.1", port)) == 0:
+            return False
+    with socket.socket() as probe:
+        try:
+            probe.bind(("0.0.0.0", port))
+        except OSError:
+            return False
+    return True
+
+
+def _free_port(start: int = _WEB_PORT, tries: int = 20) -> int | None:
+    return next((p for p in range(start, start + tries) if _port_free(p)), None)
+
+
 def _cmd_web(args) -> int:
     # sys.executable, not a bare "streamlit": the console script is often invoked by
     # absolute path (systemd, cron, another venv's shell) with our bin/ not on PATH.
+    flags = list(args.streamlit_args)
+    # The default port only when it is really free; a port the user names always wins.
+    if not any(f.startswith("--server.port") for f in flags) and not os.getenv(
+            "STREAMLIT_SERVER_PORT"):
+        port = _free_port()
+        if port is None:
+            print(f"Ports {_WEB_PORT} to {_WEB_PORT + 19} are all taken. Pick one: "
+                  "agronaut web --server.port=9000")
+            return 2
+        if port != _WEB_PORT:
+            print(f"Port {_WEB_PORT} is already used by another program, so this starts on "
+                  f"{port}.\nOpen http://localhost:{port}\n", flush=True)
+            flags.insert(0, f"--server.port={port}")
+    # No file watcher unless asked for: it exists to reload on code edits, which a grower
+    # never makes, and walking `transformers` it printed a screenful of torchvision
+    # tracebacks on every start. `streamlit run app.py` (development) keeps it.
+    if not any(f.startswith("--server.fileWatcherType") for f in flags):
+        flags.insert(0, "--server.fileWatcherType=none")
     return subprocess.call([sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"),
-                            *args.streamlit_args])
+                            *flags])
 
 
 def _cmd_bot(args) -> int:
@@ -127,6 +177,19 @@ def _cmd_traces(args) -> int:
     return 0
 
 
+def _cmd_eval(args) -> int:
+    _root_importable()
+    from . import eval_cli
+
+    return eval_cli.main(args)
+
+
+def _cmd_phoenix(args) -> int:
+    from . import otel_phoenix
+
+    return otel_phoenix.serve()
+
+
 def _cmd_doctor(args) -> int:
     from . import doctor
 
@@ -166,7 +229,7 @@ class _ShowVersion(argparse.Action):
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agronaut",
-        description="Aquaponics assistant: chat, computed sizing, web app, bot.",
+        description="Agriculture assistant: chat, aquatic sizing, field water, web app, bot.",
         epilog="Run with no arguments to start chatting.",
     )
     p.add_argument("--version", "-V", action=_ShowVersion,
@@ -182,6 +245,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_sizing_subcommands(sub, aliases={"size-aquaponics": ["size", "design"],
                                          "size-hydroponics": ["size-hydro"]})
+
+    from .farm_cli import add_farm_commands
+    from .field_cli import add_field_commands
+
+    add_field_commands(sub)
+    add_farm_commands(sub)
+    from .field_guides import add_guide_command
+    add_guide_command(sub)
+    from .field_workflow_cli import add_workflow_commands
+    add_workflow_commands(sub)
+    from .crop_cli import add_crop_commands
+    add_crop_commands(sub)
+    from .resource_cli import add_resource_commands
+    add_resource_commands(sub)
 
     web = sub.add_parser("web", help="run the Streamlit web app "
                                      "(trailing flags are passed to streamlit)")
@@ -221,6 +298,12 @@ def _build_parser() -> argparse.ArgumentParser:
     tr = sub.add_parser("traces", help="show recent turns as pipeline traces")
     tr.add_argument("--limit", type=int, default=10, help="how many recent turns to show")
     tr.set_defaults(func=_cmd_traces)
+    from .eval_cli import add_parser as _add_eval
+    _add_eval(sub)
+    sub.choices["eval"].set_defaults(func=_cmd_eval)
+    sub.add_parser("phoenix", help="run a local Arize Phoenix to see full turn traces "
+                                    "(optional; then run the bot with AGRONAUT_PHOENIX=on)"
+                   ).set_defaults(func=_cmd_phoenix)
     return p
 
 

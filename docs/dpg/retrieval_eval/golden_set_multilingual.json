@@ -1,0 +1,529 @@
+{
+  "description": "French and Mandarin (Traditional, Taiwan) versions of every query and negative control in golden_set.json, for issue #199. The agent replies in the grower's language, and Agronaut's two deployments are Francophone (Burkina Faso) and Mandarin-speaking (Taiwan), but the English golden set cannot see what those growers get back. Each entry names its English original in `of`; `relevant` is NOT copied here but resolved from golden_set.json at load time, so relabelling ground truth in English (see its _ground_truth_note) carries over to every language instead of silently diverging.",
+  "_phrasing_note": "Written in operator voice, the way a grower would type, not as a textbook translation: 'happer l'air' rather than 'manque d'oxygène', 'forage' (the Burkinabè word for a borehole) for well water, 九層塔 for basil and 馬達 for the pump as Taiwanese growers say them. Translating a symptom into its diagnosis would hand the retriever the answer and measure nothing.",
+  "_review_note": "DRAFTED BY AN LLM (Claude), not yet reviewed by a native speaker. Issue #199's acceptance asks for queries written by someone who speaks the language; until a French and a Mandarin speaker have read these, treat the per-language numbers as provisional. Fix phrasing freely, keep `of` and `id`.",
+  "languages": [
+    "fr",
+    "zh"
+  ],
+  "queries": [
+    {
+      "id": "do-01-fr",
+      "of": "do-01",
+      "lang": "fr",
+      "query": "mes tilapias sont tous en train de happer l'air à la surface tôt le matin"
+    },
+    {
+      "id": "do-02-fr",
+      "of": "do-02",
+      "lang": "fr",
+      "query": "les poissons se regroupent près de l'arrivée d'eau et respirent vite"
+    },
+    {
+      "id": "stress-01-fr",
+      "of": "stress-01",
+      "lang": "fr",
+      "query": "les poissons bougent lentement et touchent à peine à leur nourriture"
+    },
+    {
+      "id": "n-01-fr",
+      "of": "n-01",
+      "lang": "fr",
+      "query": "l'ammoniac est monté à 4 ppm qu'est-ce que je fais tout de suite"
+    },
+    {
+      "id": "n-02-fr",
+      "of": "n-02",
+      "lang": "fr",
+      "query": "installation toute neuve depuis trois semaines et les nitrites n'arrêtent pas de monter"
+    },
+    {
+      "id": "n-03-fr",
+      "of": "n-03",
+      "lang": "fr",
+      "query": "combien de temps avant que les bactéries s'installent"
+    },
+    {
+      "id": "ph-01-fr",
+      "of": "ph-01",
+      "lang": "fr",
+      "query": "le pH baisse chaque semaine peu importe ce que j'ajoute"
+    },
+    {
+      "id": "ph-02-fr",
+      "of": "ph-02",
+      "lang": "fr",
+      "query": "comment augmenter le pouvoir tampon sans risque"
+    },
+    {
+      "id": "plant-01-fr",
+      "of": "plant-01",
+      "lang": "fr",
+      "query": "les feuilles de laitue jaunissent entre les nervures mais les nervures restent vertes"
+    },
+    {
+      "id": "plant-02-fr",
+      "of": "plant-02",
+      "lang": "fr",
+      "query": "ce sont les vieilles feuilles qui pâlissent en premier, les nouvelles pousses ont l'air bien"
+    },
+    {
+      "id": "algae-01-fr",
+      "of": "algae-01",
+      "lang": "fr",
+      "query": "mon eau est devenue vert vif et trouble"
+    },
+    {
+      "id": "algae-02-fr",
+      "of": "algae-02",
+      "lang": "fr",
+      "query": "des filaments verts bouchent les tuyaux et les grilles"
+    },
+    {
+      "id": "fail-01-fr",
+      "of": "fail-01",
+      "lang": "fr",
+      "query": "on a eu une coupure de courant de six heures cette nuit, je vérifie quoi en premier"
+    },
+    {
+      "id": "fail-02-fr",
+      "of": "fail-02",
+      "lang": "fr",
+      "query": "je crois que je leur donne trop à manger et maintenant l'eau est trouble"
+    },
+    {
+      "id": "disease-01-fr",
+      "of": "disease-01",
+      "lang": "fr",
+      "query": "des petits points blancs partout sur mes poissons comme des grains de sel"
+    },
+    {
+      "id": "disease-02-fr",
+      "of": "disease-02",
+      "lang": "fr",
+      "query": "est-ce que je peux utiliser un traitement à base de cuivre avec les plantes dans le circuit"
+    },
+    {
+      "id": "feed-01-fr",
+      "of": "feed-01",
+      "lang": "fr",
+      "query": "combien je dois leur donner par jour"
+    },
+    {
+      "id": "pump-01-fr",
+      "of": "pump-01",
+      "lang": "fr",
+      "query": "la pompe est largement assez puissante mais en haut de la tour ça coule à peine"
+    },
+    {
+      "id": "pump-02-fr",
+      "of": "pump-02",
+      "lang": "fr",
+      "query": "comment calculer le débit dont j'ai vraiment besoin"
+    },
+    {
+      "id": "type-01-fr",
+      "of": "type-01",
+      "lang": "fr",
+      "query": "je pars sur des radeaux flottants ou sur le système avec les petites gouttières"
+    },
+    {
+      "id": "type-02-fr",
+      "of": "type-02",
+      "lang": "fr",
+      "query": "j'ai presque pas de place au sol, quel montage marche"
+    },
+    {
+      "id": "water-01-fr",
+      "of": "water-01",
+      "lang": "fr",
+      "query": "l'eau du robinet sent fort le chlore, je peux faire l'appoint avec"
+    },
+    {
+      "id": "water-02-fr",
+      "of": "water-02",
+      "lang": "fr",
+      "query": "l'eau du forage ici est très dure"
+    },
+    {
+      "id": "solids-01-fr",
+      "of": "solids-01",
+      "lang": "fr",
+      "query": "de la boue noire qui s'accumule au fond du bac"
+    },
+    {
+      "id": "reg-01-fr",
+      "of": "reg-01",
+      "lang": "fr",
+      "query": "est-ce qu'il me faut une autorisation avant de vendre les poissons"
+    },
+    {
+      "id": "safety-01-fr",
+      "of": "safety-01",
+      "lang": "fr",
+      "query": "les légumes cultivés avec les déjections des poissons, c'est vraiment sans danger à manger"
+    },
+    {
+      "id": "pest-01-fr",
+      "of": "pest-01",
+      "lang": "fr",
+      "query": "des tout petits insectes verts partout sur mon basilic, je peux pulvériser quoi"
+    },
+    {
+      "id": "econ-01-fr",
+      "of": "econ-01",
+      "lang": "fr",
+      "query": "ça va coûter combien à faire tourner"
+    },
+    {
+      "id": "econ-02-fr",
+      "of": "econ-02",
+      "lang": "fr",
+      "query": "est-ce que ça va être rentable un jour"
+    },
+    {
+      "id": "econ-03-fr",
+      "of": "econ-03",
+      "lang": "fr",
+      "query": "je prépare une demande de financement, qu'est-ce qu'il faut mettre dedans"
+    },
+    {
+      "id": "temp-01-fr",
+      "of": "temp-01",
+      "lang": "fr",
+      "query": "l'eau monte à 34 degrés l'après-midi ici"
+    },
+    {
+      "id": "temp-02-fr",
+      "of": "temp-02",
+      "lang": "fr",
+      "query": "quelle espèce supporte un hiver froid"
+    },
+    {
+      "id": "range-01-fr",
+      "of": "range-01",
+      "lang": "fr",
+      "query": "quelles valeurs je dois viser en général"
+    },
+    {
+      "id": "do-01-zh",
+      "of": "do-01",
+      "lang": "zh",
+      "query": "我的吳郭魚一大早全部浮到水面在喘氣"
+    },
+    {
+      "id": "do-02-zh",
+      "of": "do-02",
+      "lang": "zh",
+      "query": "魚都擠在進水口附近，呼吸很快"
+    },
+    {
+      "id": "stress-01-zh",
+      "of": "stress-01",
+      "lang": "zh",
+      "query": "魚游得很慢，飼料幾乎都不吃"
+    },
+    {
+      "id": "n-01-zh",
+      "of": "n-01",
+      "lang": "zh",
+      "query": "氨突然飆到4 ppm，我現在該怎麼辦"
+    },
+    {
+      "id": "n-02-zh",
+      "of": "n-02",
+      "lang": "zh",
+      "query": "新系統才跑三個禮拜，亞硝酸一直往上升"
+    },
+    {
+      "id": "n-03-zh",
+      "of": "n-03",
+      "lang": "zh",
+      "query": "細菌要多久才會長起來"
+    },
+    {
+      "id": "ph-01-zh",
+      "of": "ph-01",
+      "lang": "zh",
+      "query": "pH每個禮拜都一直往下掉，加什麼都沒用"
+    },
+    {
+      "id": "ph-02-zh",
+      "of": "ph-02",
+      "lang": "zh",
+      "query": "要怎麼安全地提高緩衝能力"
+    },
+    {
+      "id": "plant-01-zh",
+      "of": "plant-01",
+      "lang": "zh",
+      "query": "萵苣葉子葉脈之間變黃，但葉脈還是綠的"
+    },
+    {
+      "id": "plant-02-zh",
+      "of": "plant-02",
+      "lang": "zh",
+      "query": "最老的葉子先變淡，新長的看起來沒問題"
+    },
+    {
+      "id": "algae-01-zh",
+      "of": "algae-01",
+      "lang": "zh",
+      "query": "我的水變成很亮的綠色，而且很混濁"
+    },
+    {
+      "id": "algae-02-zh",
+      "of": "algae-02",
+      "lang": "zh",
+      "query": "一條一條的綠色東西把水管跟濾網都塞住了"
+    },
+    {
+      "id": "fail-01-zh",
+      "of": "fail-01",
+      "lang": "zh",
+      "query": "昨晚停電六個小時，我應該先檢查什麼"
+    },
+    {
+      "id": "fail-02-zh",
+      "of": "fail-02",
+      "lang": "zh",
+      "query": "我好像餵太多了，現在水變得很濁"
+    },
+    {
+      "id": "disease-01-zh",
+      "of": "disease-01",
+      "lang": "zh",
+      "query": "魚身上到處都是小白點，像鹽巴一樣"
+    },
+    {
+      "id": "disease-02-zh",
+      "of": "disease-02",
+      "lang": "zh",
+      "query": "植物還接在系統裡，可以用含銅的藥嗎"
+    },
+    {
+      "id": "feed-01-zh",
+      "of": "feed-01",
+      "lang": "zh",
+      "query": "每天應該餵多少"
+    },
+    {
+      "id": "pump-01-zh",
+      "of": "pump-01",
+      "lang": "zh",
+      "query": "馬達規格明明很夠，打到塔頂卻只剩一點點水"
+    },
+    {
+      "id": "pump-02-zh",
+      "of": "pump-02",
+      "lang": "zh",
+      "query": "我實際需要多少流量要怎麼算"
+    },
+    {
+      "id": "type-01-zh",
+      "of": "type-01",
+      "lang": "zh",
+      "query": "要用浮筏還是細水道那種"
+    },
+    {
+      "id": "type-02-zh",
+      "of": "type-02",
+      "lang": "zh",
+      "query": "我幾乎沒有地面空間，哪種配置比較好"
+    },
+    {
+      "id": "water-01-zh",
+      "of": "water-01",
+      "lang": "zh",
+      "query": "自來水的氯味很重，可以直接拿來補水嗎"
+    },
+    {
+      "id": "water-02-zh",
+      "of": "water-02",
+      "lang": "zh",
+      "query": "這邊的井水非常硬"
+    },
+    {
+      "id": "solids-01-zh",
+      "of": "solids-01",
+      "lang": "zh",
+      "query": "魚缸底部一直堆積黑色的污泥"
+    },
+    {
+      "id": "reg-01-zh",
+      "of": "reg-01",
+      "lang": "zh",
+      "query": "賣魚之前需要申請什麼執照嗎"
+    },
+    {
+      "id": "safety-01-zh",
+      "of": "safety-01",
+      "lang": "zh",
+      "query": "用魚的排泄物種出來的菜，吃了真的安全嗎"
+    },
+    {
+      "id": "pest-01-zh",
+      "of": "pest-01",
+      "lang": "zh",
+      "query": "九層塔上面爬滿很小的綠色蟲，可以噴什麼"
+    },
+    {
+      "id": "econ-01-zh",
+      "of": "econ-01",
+      "lang": "zh",
+      "query": "運作成本大概會花多少"
+    },
+    {
+      "id": "econ-02-zh",
+      "of": "econ-02",
+      "lang": "zh",
+      "query": "這樣到底有沒有辦法回本"
+    },
+    {
+      "id": "econ-03-zh",
+      "of": "econ-03",
+      "lang": "zh",
+      "query": "我在寫申請補助的計畫書，應該包含哪些內容"
+    },
+    {
+      "id": "temp-01-zh",
+      "of": "temp-01",
+      "lang": "zh",
+      "query": "這邊下午水溫會到34度"
+    },
+    {
+      "id": "temp-02-zh",
+      "of": "temp-02",
+      "lang": "zh",
+      "query": "冬天很冷的話適合養什麼魚"
+    },
+    {
+      "id": "range-01-zh",
+      "of": "range-01",
+      "lang": "zh",
+      "query": "整體來說各項數值應該控制在多少"
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "neg-01-fr",
+      "of": "neg-01",
+      "lang": "fr",
+      "query": "comment réparer une chaîne de vélo qui saute"
+    },
+    {
+      "id": "neg-02-fr",
+      "of": "neg-02",
+      "lang": "fr",
+      "query": "quelle est la capitale du Canada"
+    },
+    {
+      "id": "neg-03-fr",
+      "of": "neg-03",
+      "lang": "fr",
+      "query": "écris-moi une fonction python pour inverser une liste chaînée"
+    },
+    {
+      "id": "neg-04-fr",
+      "of": "neg-04",
+      "lang": "fr",
+      "query": "à quelle heure ferme la pharmacie aujourd'hui"
+    },
+    {
+      "id": "neg-05-fr",
+      "of": "neg-05",
+      "lang": "fr",
+      "query": "conseille-moi un bon roman de science-fiction"
+    },
+    {
+      "id": "neg-06-fr",
+      "of": "neg-06",
+      "lang": "fr",
+      "query": "comment changer un pneu crevé"
+    },
+    {
+      "id": "neg-07-fr",
+      "of": "neg-07",
+      "lang": "fr",
+      "query": "explique-moi la règle du hors-jeu au foot"
+    },
+    {
+      "id": "neg-08-fr",
+      "of": "neg-08",
+      "lang": "fr",
+      "query": "comment enlever une tache de vin rouge sur un tapis"
+    },
+    {
+      "id": "neg-09-fr",
+      "of": "neg-09",
+      "lang": "fr",
+      "query": "convertir 500 euros en yens"
+    },
+    {
+      "id": "neg-10-fr",
+      "of": "neg-10",
+      "lang": "fr",
+      "query": "qui a gagné la coupe du monde en 1998"
+    },
+    {
+      "id": "neg-01-zh",
+      "of": "neg-01",
+      "lang": "zh",
+      "query": "腳踏車鏈條一直掉要怎麼修"
+    },
+    {
+      "id": "neg-02-zh",
+      "of": "neg-02",
+      "lang": "zh",
+      "query": "加拿大的首都是哪裡"
+    },
+    {
+      "id": "neg-03-zh",
+      "of": "neg-03",
+      "lang": "zh",
+      "query": "幫我寫一個反轉鏈結串列的python函式"
+    },
+    {
+      "id": "neg-04-zh",
+      "of": "neg-04",
+      "lang": "zh",
+      "query": "藥局今天幾點關門"
+    },
+    {
+      "id": "neg-05-zh",
+      "of": "neg-05",
+      "lang": "zh",
+      "query": "推薦一本好看的科幻小說"
+    },
+    {
+      "id": "neg-06-zh",
+      "of": "neg-06",
+      "lang": "zh",
+      "query": "汽車爆胎要怎麼換輪胎"
+    },
+    {
+      "id": "neg-07-zh",
+      "of": "neg-07",
+      "lang": "zh",
+      "query": "解釋一下足球的越位規則"
+    },
+    {
+      "id": "neg-08-zh",
+      "of": "neg-08",
+      "lang": "zh",
+      "query": "地毯上的紅酒漬要怎麼清"
+    },
+    {
+      "id": "neg-09-zh",
+      "of": "neg-09",
+      "lang": "zh",
+      "query": "500歐元換成日圓是多少"
+    },
+    {
+      "id": "neg-10-zh",
+      "of": "neg-10",
+      "lang": "zh",
+      "query": "1998年世界盃冠軍是誰"
+    }
+  ]
+}

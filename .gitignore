@@ -35,6 +35,8 @@ web_cache.sqlite
 data/*.sqlite3
 data/*.sqlite3-shm
 data/*.sqlite3-wal
+# Migration backups contain the same private records as the live database.
+data/*.sqlite3.pre-v*.bak
 
 # Local models
 bge-large-en/
@@ -61,3 +63,9 @@ data/*.jsonl
 
 # Built knowledge index — derived from knowledge/ + urls.txt, rebuilt on demand
 data/.index_cache/
+# Private add-on (Agronaut Twin) lives in its own private repository: never commit it here.
+agronaut_twin/
+# Locally held, non-redistributed downloads (e.g. Harvard Dataverse LSPNAO via guestbook).
+data/dataverse_files/
+# Local build outputs, downloads and renders: never committed.
+artifacts/

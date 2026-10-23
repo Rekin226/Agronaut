@@ -2,10 +2,13 @@
 
 Scores the deterministic advice surface Agronaut relays: trust-gate refusals, sizing sanity,
 the honesty layer (every design cites its coefficients and lists what it does NOT model), and the vision observation guard.
-Combines curated probes (docs/dpg/safety_eval/golden_set.json) with a generated matrix over
+Combines curated aquatic/vision and field-boundary probes with a generated matrix over
 every supported species x crop, so a regression in the engine or serializer shows up as a
 failed probe. This is the Gates/GIZ AIEP-recommended golden-set check, adapted to a
 deterministic core we can score in CI without a model server.
+
+Field probes call the shared calculation tool on synthetic fixtures. They check typed
+unknowns, refusals, evidence labels and withheld advice, not LLM behavior or field validity.
 
 Run standalone for a scorecard:
     python -m scripts.safety_eval          # exits non-zero if any CRITICAL probe fails
@@ -13,6 +16,7 @@ Run standalone for a scorecard:
 
 from __future__ import annotations
 
+import contextvars
 import json
 import sys
 from pathlib import Path
@@ -20,18 +24,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.vision import sanitize_observation  # noqa: E402
+from agronaut_agent.paths import corpus_root, eval_root  # noqa: E402
 from agronaut_agent.tools import (  # noqa: E402
+    calculate_agriculture,
     optimize_fish_crop_ratio,
     size_aquaponics_system,
     size_hydroponic_system_tool,
 )
 from aqua_model.crops import CROPS  # noqa: E402
 from aqua_model.species import SPECIES  # noqa: E402
+from aqua_model.validate import validate_design_input  # noqa: E402
 
-_GOLDEN = Path(__file__).resolve().parents[1] / "docs" / "dpg" / "safety_eval" / "golden_set.json"
+# docs/dpg in a checkout, the installed copy under a wheel (paths.eval_root).
+_GOLDEN = eval_root() / "safety_eval" / "golden_set.json"
+_FIELD_GOLDEN = _GOLDEN.with_name("field_set.json")
+_EXAMPLES = corpus_root() / "examples"
 
 
 def _invoke(tool: str, args: dict) -> str:
+    # The evaluator must not inherit any caller's stores, selected unit or trace,
+    # including when the aquatic tools normally capture supplied design facts.
+    return contextvars.Context().run(_invoke_isolated, tool, args)
+
+
+def _invoke_isolated(tool: str, args: dict) -> str:
+    if tool == "field_calculation":
+        # Exercise the real tool serializer without inheriting a caller's active
+        # unit or persistence context. No model, retrieval or farm writes occur.
+        return calculate_agriculture.invoke(args)
     if tool == "size_aquaponics":
         return size_aquaponics_system.invoke({
             "fish_species": args["fish"], "crop": args["crop"],
@@ -56,6 +76,16 @@ def _invoke(tool: str, args: dict) -> str:
         # here without breaking this module's hermetic charter.
         cleaned, flags = sanitize_observation(args["observation"])
         return cleaned + "\n[flags] " + " ".join(sorted(flags))
+    if tool == "sensitivity_report":
+        # The sensitivity table re-runs the optimizer on the design's own inputs; the probes
+        # pin its honesty line and its no-budget skip so the table can never quietly
+        # present model wiggle as field behavior.
+        from aqua_model.report import to_markdown
+        from aqua_model.sizing import size_system
+        di = validate_design_input(
+            fish_species=args["fish"], crop=args["crop"], grow_area_m2=args["area"],
+            temperature_c=args["temp"], water_budget_lpd=args["water"])
+        return to_markdown(di, size_system(di))
     raise ValueError(f"unknown probe tool {tool!r}")
 
 
@@ -67,7 +97,69 @@ def _check(probe: dict) -> tuple[bool, str]:
     for s in probe.get("must_exclude", []):
         if s in out:
             return False, f"unexpected {s!r}"
+    if probe.get("assertions"):
+        try:
+            structured = json.loads(out)
+        except (ValueError, TypeError):
+            return False, "response is not structured JSON"
+        for assertion in probe["assertions"]:
+            try:
+                actual = _path(structured, assertion["path"])
+            except (KeyError, IndexError, TypeError):
+                return False, f"missing result path {assertion['path']!r}"
+            if "equals" in assertion:
+                expected = assertion["equals"]
+                if type(actual) is not type(expected) or actual != expected:
+                    return False, f"unexpected value at {assertion['path']!r}"
+            elif "contains" in assertion:
+                if not isinstance(actual, (str, list)) or assertion["contains"] not in actual:
+                    return False, f"missing required item at {assertion['path']!r}"
+            elif assertion.get("nonempty") is True:
+                if not isinstance(actual, (str, list, dict)) or not actual:
+                    return False, f"empty evidence at {assertion['path']!r}"
+            else:
+                raise ValueError("field assertions require equals, contains or nonempty")
     return True, ""
+
+
+def _path(value, path):
+    """A missing key must fail an assertion, never masquerade as a JSON null."""
+    if not isinstance(path, list) or not path:
+        raise ValueError("probe paths must be nonempty key/index arrays")
+    for key in path:
+        value = value[key]
+    return value
+
+
+def _field_probes():
+    probes = json.loads(_FIELD_GOLDEN.read_text())["probes"]
+    ready = []
+    for probe in probes:
+        if fixture := probe.get("fixture"):
+            if Path(fixture).name != fixture or not fixture.endswith(".json"):
+                raise ValueError("field probe fixtures must be JSON basenames inside examples")
+            inputs = json.loads((_EXAMPLES/fixture).read_text())
+        else:
+            inputs = probe.get("inputs", {})
+        for edit in probe.get("edits", []):
+            path = edit["path"]
+            parent = _path(inputs, path[:-1]) if len(path) > 1 else inputs
+            # Resolve before replacing: a misspelled path must not append unused data.
+            parent[path[-1]]
+            if edit.get("delete") is True:
+                del parent[path[-1]]
+            else:
+                parent[path[-1]] = edit["value"]
+        assertions = list(probe["assertions"])
+        if status := probe.get("evidence_status"):
+            assertions += [{"path": ["evidence_status"], "equals": status},
+                           {"path": ["capability", "status"], "equals": status},
+                           {"path": ["sources"], "nonempty": True},
+                           {"path": ["limitations"], "nonempty": True}]
+        ready.append(dict(id=probe["id"], category="field_boundary", severity="critical", tool="field_calculation",
+            args=dict(production_system=probe.get("production_system", "soil"), task=probe["task"], inputs=inputs),
+            assertions=assertions))
+    return ready
 
 
 def _curated_probes() -> list[dict]:
@@ -97,7 +189,7 @@ def _generated_probes() -> list[dict]:
 
 
 def run() -> dict:
-    probes = _curated_probes() + _generated_probes()
+    probes = _curated_probes() + _generated_probes() + _field_probes()
     failures, by_cat = [], {}
     passed = 0
     for p in probes:

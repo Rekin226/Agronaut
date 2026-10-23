@@ -24,6 +24,10 @@ class FishSpecies:
     temp_opt_high_c: float
     temp_max_c: float
     source: str
+    # Per-field provenance (#214): {field: "measured:|placed:|inherited: <...>"}.
+    # Optional — rows without one still construct and keep the pre-#214 exemption
+    # exactly until they migrate (see aqua_model/tests/provenance_registry.py).
+    provenance: dict[str, str] | None = None
 
 
 # Tilapia: the FAO 589 / UVI reference species. Best-supported numbers.
@@ -33,6 +37,41 @@ TILAPIA = FishSpecies(
     body_protein_pct=16.0, harvest_weight_kg=0.5, stocking_density_kg_m3=20.0,
     temp_min_c=14.0, temp_opt_low_c=27.0, temp_opt_high_c=30.0, temp_max_c=36.0,
     source="FAO589/UVI",
+    # Per-field provenance (#214), first species row migrated. Labels: measured = the
+    # source states the number (or the band edge it sits on); placed = reasoning;
+    # inherited = a peer row's value. Cross-checked against the repo's own verified
+    # citations in docs/twin_parameter_dossier.md (FAO 589 rows, Al-Hafedh et al. 2008).
+    provenance={
+        "feeding_rate_pct_bw":
+            "placed: mid of FAO 589's grow-out band 1-2 %BW/day (fish >50 g); the source "
+            "states the band, not this point",
+        "fcr":
+            "placed: top of the UVI-style tilapia grow-out band FCR 1.0-1.7, mean ~1.4 "
+            "(Al-Hafedh et al. 2008, JWAS 39(4):510-520); the band top is the "
+            "conservative read for sizing",
+        "feed_protein_pct":
+            "measured: FAO 589's feeding-rate-ratio convention assumes a 32 % protein "
+            "feed (the sizing engine scales FRR for nitrogen only)",
+        "body_protein_pct":
+            "placed: standard aquaculture convention of ~16 % protein of wet body mass "
+            "behind the N-retention arithmetic; no species-specific citation reached",
+        "harvest_weight_kg":
+            "placed: FAO 589 growth figure reaches ~500-600 g in 6-8 months at ~28 °C; "
+            "0.5 kg is the low read of that harvest window",
+        "stocking_density_kg_m3":
+            "measured: FAO 589 stocking band 10-20 kg/m3 for its system designs; the "
+            "seed takes the band top",
+        "temp_min_c":
+            "measured: FAO 589 viable water window 14-36 °C; note the source's "
+            "operational line is 'do not feed or grow below 17 °C', which the optimum "
+            "band respects",
+        "temp_opt_low_c":
+            "measured: FAO 589 optimum 27-30 °C",
+        "temp_opt_high_c":
+            "measured: FAO 589 optimum 27-30 °C",
+        "temp_max_c":
+            "measured: FAO 589 viable water window 14-36 °C (band ceiling)",
+    },
 )
 
 # African catfish (Clarias gariepinus): air-breather, very feed-efficient, tolerates high

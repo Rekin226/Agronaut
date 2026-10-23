@@ -28,8 +28,8 @@ Community Cloud's free tier, because the demo installs the light **`requirements
    interactive; "Assistant (chat)" shows a friendly note that the optional chat stack
    isn't installed — expected and intentional for the demo.
 
-No secrets are required. (If you ever want chat in the hosted app, add an `NVIDIA_API_KEY`
-under the app's **Secrets** and switch the deploy to install `requirement.txt` — but that's
+No secrets are required. (If you ever want chat in the hosted app, add `LLM_PROVIDER=nvidia`,
+`LLM_MODEL` and an `NVIDIA_API_KEY` under the app's **Secrets** and switch the deploy to install `requirement.txt` — but that's
 heavier and not needed for the demo.)
 
 ## 2. Record the README GIF (15–20s)

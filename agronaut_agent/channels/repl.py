@@ -1,8 +1,8 @@
 """ReplChannel — a terminal channel, and the proof that ChannelAdapter isn't Telegram-shaped.
 
 A second, dependency-free implementation of the same contract the Telegram adapter uses:
-translate a platform's input into agent.handle_message and print the reply. Needs a
-configured tool-calling provider (e.g. LLM_PROVIDER=nvidia).
+translate a platform's input into agent.handle_message and print the reply. Conversation
+needs a tool-calling provider; deterministic setup and commands remain available without one.
 """
 
 from __future__ import annotations
@@ -81,7 +81,10 @@ class ReplChannel(ChannelAdapter):
                 # that `agronaut setup` ends by recommending this channel first: the most
                 # recommended path was the least robust one.
                 try:
-                    reply = self.agent.handle_message(self.channel_name, self.user, text)
+                    from .commands import dispatch
+
+                    command = dispatch(self.agent, self.channel_name, self.user, text)
+                    reply = command.text if command else self.agent.handle_message(self.channel_name, self.user, text)
                 except (EOFError, KeyboardInterrupt):
                     raise
                 except Exception as exc:  # noqa: BLE001 — explained, and the session lives

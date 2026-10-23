@@ -62,8 +62,10 @@ K_NITRATE = Coefficient(
            "NO3-N and sharp decline only under ~5; half-saturation placed accordingly")
 
 # Above-full-citation cap: better-than-reference conditions may beat the cited yield a
-# little (the citations are typical practice, not records), but not by much.
-_MAX_OVER_CITED = 1.15
+# little (the citations are typical practice, not records), but not by much. Public:
+# add-ons that cap yield the same way import it.
+MAX_OVER_CITED = 1.15
+_MAX_OVER_CITED = MAX_OVER_CITED  # former private name, kept for existing imports
 
 
 @dataclass(frozen=True)
@@ -76,7 +78,7 @@ class CropFactors:
     f_nitrogen: float
 
     def combined(self) -> float:
-        return min(_MAX_OVER_CITED, self.f_light * self.f_temp * self.f_nitrogen)
+        return min(MAX_OVER_CITED, self.f_light * self.f_temp * self.f_nitrogen)
 
 
 def f_light(dli_mol_m2: float, crop: Crop) -> float:

@@ -1,6 +1,6 @@
-"""Streamlit UI: deterministic Design Calculator / Optimizer + the consultative agent chat.
+"""Streamlit UI: Assistant, Design (size a system, find the best ratio), My Twin, Quality.
 
-The "Assistant (chat)" mode drives the same tool-calling brain as the Telegram bot
+The Assistant drives the same tool-calling brain as the Telegram bot
 (agronaut_agent) — per-browser-session identity, System Profile memory, calibration, and
 the validation-gated deterministic tools. The legacy srcs/chatbot state machine is no
 longer wired to the UI.
@@ -14,8 +14,17 @@ from uuid import uuid4
 import streamlit as st
 
 from agent.calculator_ui import render_calculator
+from agent.farm_ui import render_unit_controls
 from agent.optimizer_ui import render_optimizer
+from agent.quality_ui import render_quality
 from agent.twin_ui import render_twin
+
+# Optional private add-on (Agronaut Twin). Without it the app is unchanged.
+try:
+    from agronaut_twin.ui.studio import render_twin_studio
+except ImportError:
+    render_twin_studio = None
+TWIN_STUDIO = "Digital Twin Studio"
 
 APP_TITLE = "🌱 Agronaut"
 _PHOTO_TYPES = ["png", "jpg", "jpeg", "webp"]
@@ -29,10 +38,13 @@ _CHAT_INPUT_ACCEPTS_FILES = "accept_file" in inspect.signature(st.chat_input).pa
 def _agent_error() -> str | None:
     """Build the per-session agent if needed. Returns a user-facing reason when chat is
     unavailable (missing chat stack or no tool-calling LLM provider configured)."""
-    if "agent" in st.session_state:
-        return None
+    # The error first: with no tool-calling model the agent is still built (My Twin needs
+    # its stores), so "an agent exists" does not mean "chat works". Checked the other way
+    # round, every call after the first reported a broken Assistant as fine.
     if "agent_error" in st.session_state:
         return st.session_state.agent_error
+    if "agent" in st.session_state:
+        return None
     try:
         from agronaut_agent.core import AgronautAgent
         # require_tools=False: the agent still carries the stores and the deterministic
@@ -40,21 +52,20 @@ def _agent_error() -> str | None:
         agent = AgronautAgent(require_tools=False)
         st.session_state.agent = agent
         if agent.chat_error:
-            reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` "
-                      f"with `NVIDIA_API_KEY`) — couldn't start one: {agent.chat_error}. "
-                      "**My Twin**, **Design Calculator** and **Optimize Ratio** are fully "
-                      "deterministic and keep working.")
+            reason = ("The Assistant needs a tool-calling model provider; run `agronaut "
+                      f"setup` to pick one (couldn't start one: {agent.chat_error}). "
+                      "**Design**, **My Twin** and the farm record views work without a model.")
             st.session_state.agent_error = reason
             return reason
         return None
     except ModuleNotFoundError as exc:
         reason = (f"Chat mode needs the optional chat stack (`{exc.name}` isn't installed). "
-                  "The **Design Calculator** and **Optimize Ratio** modes work without it — "
+                  "**Design** and **My Twin** work without it — "
                   "to enable chat: `pip install -r requirement.txt`.")
     except Exception as exc:
-        reason = ("Chat needs a tool-calling LLM provider (e.g. `LLM_PROVIDER=nvidia` with "
-                  f"`NVIDIA_API_KEY`) — couldn't start one: {exc}. The **Design Calculator** "
-                  "and **Optimize Ratio** modes are fully deterministic and keep working.")
+        reason = ("The Assistant needs a tool-calling model provider; run `agronaut setup` "
+                  f"to pick one (couldn't start one: {exc}). **Design** and **My Twin** are "
+                  "fully deterministic and keep working.")
     st.session_state.agent_error = reason
     return reason
 
@@ -78,14 +89,8 @@ def _rerun() -> None:
         st.experimental_rerun()
 
 
-def _render_header() -> None:
-    st.title(APP_TITLE)
-    st.write("Your agronomy agent: design, optimize, and troubleshoot aquaponics systems.")
-
-
 def _render_chat_sidebar() -> None:
-    st.sidebar.header("Controls")
-    if st.sidebar.button("Reset conversation", use_container_width=True):
+    if st.sidebar.button("Reset conversation", width="stretch"):
         agent = st.session_state.get("agent")
         if agent is not None:
             agent.reset("web", _web_user())
@@ -120,6 +125,11 @@ def _route_turn(agent, user_id: str, text: str, image_bytes: bytes | None) -> st
     Streamlit script run."""
     if image_bytes:
         return agent.handle_image("web", user_id, image_bytes, caption=(text or None))
+    from agronaut_agent.channels import commands
+    if commands.looks_like_command(text) and commands._split(text)[0] in {
+        "newunit", "fieldplan", "scout", "plant", "harvest", "task", "waterlog", "measure", "overview", "guide", "back", "cancel", "unit", "units",
+    }:
+        return commands.dispatch(agent, "web", user_id, text).text
     return agent.handle_message("web", user_id, text)
 
 
@@ -146,6 +156,7 @@ def _read_chat_input() -> tuple[str, bytes | None]:
 def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     _add_message("user", user_text, image=image_bytes)
     agent = st.session_state.agent
+    before_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
     spinner = "Looking at your photo..." if image_bytes else "Thinking (running the numbers)..."
     try:
         with st.spinner(spinner):
@@ -153,49 +164,97 @@ def _handle_turn(user_text: str, image_bytes: bytes | None = None) -> None:
     except Exception:
         reply = ("Something went wrong talking to the model. Your message wasn't lost, "
                  "please try again.")
+    after_unit = next((u["id"] for u in agent.list_units("web", _web_user()) if u["active"]), None)
+    if after_unit != before_unit:
+        # Setup/select commands can change units without the sidebar callback.
+        st.session_state.messages = []
+        for key in list(st.session_state):
+            if key.startswith(("twin_", "log_", "field_", "crop_")) or key == "farm_unit_choice":
+                del st.session_state[key]
     _add_message("assistant", reply)
+
+
+MODES = ("Assistant", "Design", "My Twin", "Quality", "Farm overview",
+         "Field records", "Crop records", "Farm resources")
+_WIDE = (TWIN_STUDIO, "Quality")
+
+
+def _render_design() -> None:
+    """The two deterministic design tools, side by side as tabs: both answer "design my
+    system", one for a system you have chosen, one to choose it."""
+    st.subheader("Design")
+    size_tab, ratio_tab = st.tabs(["Size a system", "Find the best ratio"])
+    with size_tab:
+        render_calculator(heading=False)
+    with ratio_tab:
+        render_optimizer(heading=False)
 
 
 def main() -> None:
     st.set_page_config(
         page_title=APP_TITLE,
         page_icon="💧",
-        layout="centered",
+        layout="wide" if st.session_state.get("app_mode") in _WIDE else "centered",
         initial_sidebar_state="expanded",
     )
     _ensure_session_state()
-    _render_header()
 
-    # Design Calculator is the default: deterministic, no heavy deps, never crashes
-    # on a fresh install. Chat needs the agent stack + a tool-calling LLM provider.
+    # Open on the Assistant: the consultant is the front door, and it calls the same
+    # engine. Without a working model, open on Design instead, which never needs one.
+    if "app_mode" not in st.session_state:
+        st.session_state.app_mode = "Assistant" if _agent_error() is None else "Design"
+
+    st.sidebar.markdown(f"## {APP_TITLE}")
+    st.sidebar.caption("Aquatic design, farm records and experimental field irrigation.")
     mode = st.sidebar.radio(
         "Mode",
-        ("Design Calculator", "Optimize Ratio", "My Twin", "Assistant (chat)"),
-        help="Calculator sizes one system. Optimizer finds the best fish/crop ratio for "
-             "your constraint. My Twin mirrors the system you actually run (deterministic, "
-             "no LLM). Chat runs a consultation with the full agent (needs an LLM).",
+        MODES + ((TWIN_STUDIO,) if render_twin_studio else ()),
+        key="app_mode",
+        label_visibility="collapsed",
     )
+    if st.session_state.get("agent_error"):
+        st.sidebar.caption("Assistant is off: no working model. `agronaut setup` picks one.")
 
-    if mode == "Design Calculator":
-        render_calculator()
+    if mode == "Design":
+        _render_design()
         return
-    if mode == "Optimize Ratio":
-        render_optimizer()
+    if mode == TWIN_STUDIO and render_twin_studio:
+        render_twin_studio()
+        return
+    if mode == "Quality":
+        render_quality()
         return
 
     # My Twin is deterministic — it must render even when no LLM is configured, because
     # surviving model weather is the entire promise of the twin's command layer.
-    if mode == "My Twin":
+    if mode in ("Farm overview", "My Twin", "Field records", "Crop records", "Farm resources"):
         reason = _agent_error()
         if "agent" not in st.session_state:
             st.warning(reason or "The twin is unavailable in this install.")
             return
-        render_twin(brain=st.session_state.agent, user=_web_user())
+        render_unit_controls(st.session_state.agent, _web_user())
+        if mode == "Farm overview":
+            from agent.farm_overview_ui import render_farm_overview
+            render_farm_overview(st.session_state.agent, _web_user())
+        elif mode == "Field records":
+            from agent.field_ui import render_field_records
+            render_field_records(st.session_state.agent, _web_user())
+        elif mode == "Crop records":
+            from agent.crop_ui import render_crop_records
+            render_crop_records(st.session_state.agent, _web_user())
+        elif mode == "Farm resources":
+            from agent.resource_ui import render_farm_resources
+            render_farm_resources(st.session_state.agent, _web_user())
+        else:
+            render_twin(brain=st.session_state.agent, user=_web_user())
         return
 
-    # Assistant (chat) — the real consultative agent, degrading gracefully when the
-    # chat stack or an LLM provider is missing (never a traceback in the UI).
+    # Assistant — the real consultative agent, degrading gracefully when the chat stack
+    # or an LLM provider is missing (never a traceback in the UI).
+    st.subheader("Assistant")
     reason = _agent_error()
+    if "agent" in st.session_state:
+        render_unit_controls(st.session_state.agent, _web_user())
     if reason:
         st.warning(reason)
         return

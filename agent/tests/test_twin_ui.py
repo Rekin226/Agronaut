@@ -79,6 +79,37 @@ def test_incomplete_profile_offers_a_form_instead_of_a_robot_message(tmp_path, m
     assert not any("fetch_site_climate" in str(m.value) for m in at.markdown)
 
 
+def test_soil_unit_does_not_show_a_fish_tank_form(tmp_path):
+    brain = _brain(tmp_path)
+    brain.create_unit("web", "u1", {
+        "farm": {"name": "Home", "timezone": "UTC"},
+        "unit": {"name": "Field", "production_system": "soil", "medium": "soil",
+                 "environment": "open_field", "water_strategy": "rainfed"}})
+    at = _run(brain)
+    assert not at.exception
+    assert not at.number_input
+    assert any("unavailable" in item.value for item in at.info)
+
+
+def test_twin_start_form_reads_and_writes_the_selected_unit(tmp_path, monkeypatch):
+    _offline(monkeypatch)
+    brain = _brain(tmp_path)
+    owner = brain._conv.get_or_create_user("web", "u1")
+    brain._mem.set_fact(owner, "tank_volume_l", 500)
+    brain.create_unit("web", "u1", {
+        "farm": {"name": "Home", "timezone": "UTC"},
+        "unit": {"name": "Pond", "production_system": "aquaponics", "medium": "water",
+                 "environment": "greenhouse", "water_strategy": "fully_irrigated"}})
+    brain.update_profile_direct("web", "u1", {"tank_volume_l": 2000})
+    at = _run(brain)
+    assert at.number_input(key="twin_tank_l").value == 2000
+    at.number_input(key="twin_tank_l").set_value(2400.0)
+    at.button[0].click().run(timeout=30)
+    assert not at.exception
+    assert float(brain.profile_facts("web", "u1")["tank_volume_l"]) == 2400
+    assert brain._mem.get_facts(owner)["tank_volume_l"] == "500"
+
+
 def test_the_form_starts_the_twin_without_an_llm(tmp_path, monkeypatch):
     _offline(monkeypatch)
     brain = _brain(tmp_path)
@@ -110,8 +141,9 @@ def test_a_started_twin_shows_state_and_a_forecast_chart(tmp_path, monkeypatch):
     assert not at.exception
     metrics = {m.label: m.value for m in at.metric}
     assert "Fish" in metrics and "Water" in metrics
-    # st.line_chart surfaces as a vega-lite spec in AppTest
-    assert len(at.get("vega_lite_chart")) >= 2, "the forecast series are not charted"
+    # Streamlit versions expose the Arrow-backed chart under either element name.
+    charts = at.get("arrow_vega_lite_chart") + at.get("vega_lite_chart")
+    assert len(charts) >= 2, "the forecast series are not charted"
 
 
 def test_logged_readings_appear_as_drift(tmp_path, monkeypatch):

@@ -80,3 +80,40 @@ A fixed set of question/answer probes (`docs/dpg/safety_eval/`) exercises design
 troubleshooting, out-of-scope refusals, and trust-gate behavior. It is scored each release
 as a regression signal on advice quality (a report, not a hard gate), following the
 Gates/GIZ AIEP recommendation to hold LLM advisory tools to a golden-set safety check.
+
+## Generation-quality evaluation
+
+Retrieval being right does not make the answer right, so answers are also scored against the
+passages they were written from (`scripts/faithfulness_eval.py`). Each answer is split into
+claims, and a judge model from a different family rules on each one using the retrieved
+context alone. It must quote the supporting sentence, and code checks the quote is really
+there. Citations are checked by code, with no model.
+
+Measured on 2026-10-06 over 33 fresh golden-set answers (484 claims): **faithfulness 0.79**
+with the default judge (gpt-oss-20b, quote-first prompt); citation accuracy 1.00 with no
+fabricated sources. The 2026-09-30 answers scored 0.84 under the same judge, and 0.88 to 0.90
+under the other judges tried. The two runs differ topic by topic in both directions (up to
+0.25 either way on topics of 10 to 60 claims), which is what a fresh set of 33 answers moves
+by, so read the figure as about 0.8 rather than to two decimals.
+
+How far to trust that number: the judge was checked against one person's labels on 29
+claims. Agreement is fair, not strong (Cohen's kappa 0.24 on the blind labels, 0.39 after the
+person took a second look at the 13 disputed claims and changed 2). Both figures are kept
+because the second look was not blind. One judge we tried, Claude Sonnet 5, agreed with the
+person no better than chance and is not used. Claude Opus 5.5, run through Anthropic's Message
+Batches API on 2026-10-10 (479 claims in about 2.5 minutes, at half the standard price), was
+the strictest judge so far (faithfulness 0.78 on the 2026-09-30 answers) and agreed with the
+person less than gpt-oss-20b did (kappa 0.14 against 0.39 on the reviewed labels), so it is not
+the default either. A Claude judge rating Claude's answers is the same-family pairing the
+course warns about; the batch path stays for re-judging, not as the judge of record.
+
+On Claude, knowledge passages now reach the model as native search results, so the API ties
+each cited passage to the sentence that used it. Measured on 2026-10-10 (33 golden-set
+questions, Claude Sonnet 5.5 answering, Claude Opus 5.5 judging both arms through the Batch
+API because the free gpt-oss-20b endpoint did not respond): faithfulness 0.906 with native
+citations against 0.904 with "[source: ...]" labels, 12 questions better and 16 worse, no
+fabricated citation in either (2026-10-10_citations_*.json). It is no measured gain in
+grounding; it is kept for what it changes structurally, the API rather than the model
+recording which source backs which sentence, and the same path shows web sources to the user. More labels, ideally from a second person, are
+needed before the figure can be called validated. It is a report, never a gate, and it never
+runs in CI.

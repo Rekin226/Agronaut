@@ -1,0 +1,223 @@
+{
+  "schema": "agronaut.agriculture.taxonomy/1",
+  "version": "1.1.0",
+  "decided_on": "2026-10-20",
+  "about": "The vocabulary half of #243. This file is normative: docs/agriculture/CAPABILITY_TAXONOMY.md explains it in prose, and agronaut_agent/tests/test_agriculture_capability_taxonomy.py fails if the two drift apart or if a row stops being justified. Two separate axes, because a production system and a water-delivery method answer different questions: 'where do the roots live and what feeds them' versus 'how does water reach the field'. Conflating them is the failure mode #243 was filed to prevent.",
+  "axes": {
+    "production_system": {
+      "question": "Where do the roots live, and what supplies their nutrients?",
+      "members": ["aquaponics", "hydroponics", "soil_cultivation"]
+    },
+    "irrigation_method": {
+      "question": "How is water delivered to a soil-grown root zone?",
+      "members": ["drip", "sprinkler", "surface", "rainfed"],
+      "applies_to": "soil_cultivation",
+      "scope_note": "This axis describes field irrigation of a soil root zone. Soilless systems do not irrigate in this sense: their water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower), and a nutrient solution reaching a substrate or a bare-root channel is not an irrigation method. The one real exception is drip to a substrate, which is recorded as conditional on both soilless rows."
+    }
+  },
+  "vocabulary": [
+    {
+      "id": "aquaponics",
+      "axis": "production_system",
+      "definition": "Fish and plants in one recirculating loop: fish waste is the nutrient source, a biofilter converts ammonia to nitrate, and the plant bed is the nutrient sink. The water is shared, so fish-safe chemistry constrains every plant-side decision.",
+      "source": "fao589",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "hydroponics",
+      "axis": "production_system",
+      "definition": "Plants in a soilless medium or water culture fed from a prepared nutrient solution. No fish, so no fish-safe ceiling on nutrient concentration or on the additives that may be used.",
+      "source": "fao589",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "soil_cultivation",
+      "axis": "production_system",
+      "definition": "Plants rooted in field or potting soil. The soil is a nutrient and water store, so irrigation schedules interact with soil texture, depth and existing water content in a way that solution culture does not.",
+      "source": "fao56",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "drip",
+      "axis": "irrigation_method",
+      "definition": "Water applied at low pressure through emitters to a localized root zone. Wets part of the soil surface, not the canopy.",
+      "source": "fao56",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "sprinkler",
+      "axis": "irrigation_method",
+      "definition": "Water sprayed over the canopy and soil surface. Wets foliage, so application timing, evaporation loss and foliar disease pressure are part of the method, not an afterthought.",
+      "source": "fao56",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "surface",
+      "axis": "irrigation_method",
+      "definition": "Water delivered over the soil surface by gravity: furrows, basins or flooding. Application depth is set by inflow and time, not by an emitter or a spray pattern.",
+      "source": "fao56",
+      "source_locator": "document (definition level)"
+    },
+    {
+      "id": "rainfed",
+      "axis": "irrigation_method",
+      "definition": "No applied water: the crop is supplied by precipitation only, so a deficit is a scheduling option expressed as a risk rather than a valve setting.",
+      "source": "fao56",
+      "source_locator": "document (definition level)"
+    }
+  ],
+  "compatibility": [
+    {
+      "production_system": "aquaponics",
+      "irrigation_method": "drip",
+      "status": "conditional",
+      "basis": "support_decision",
+      "reason": "Conditional, and only for a substrate: drip to a substrate is real in aquaponics as Dutch buckets for tomato and cucumber, fed after solids removal, so the emitters deliver fish-culture water to a solid bed where the bed does the biofiltration. The delivery system itself is the aquaponics system type (aqua_model/system_types.py), not a field irrigation method. Not supported where the emitter would carry unsettled solids into a bare-root channel. The support decision is ours; no source in the registry covers aquaponic drip delivery."
+    },
+    {
+      "production_system": "aquaponics",
+      "irrigation_method": "sprinkler",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "aquaponics",
+      "irrigation_method": "surface",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "aquaponics",
+      "irrigation_method": "rainfed",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "hydroponics",
+      "irrigation_method": "drip",
+      "status": "conditional",
+      "basis": "support_decision",
+      "reason": "Conditional, and only for a substrate: drip to rockwool, coco or a Dutch bucket is standard hydroponics, with the nutrient solution fed to a solid bed rather than to a bare-root channel. The delivery system itself is the hydroponics system type (aqua_model/system_types.py), not a field irrigation method. The support decision is ours; no source in the registry covers substrate drip."
+    },
+    {
+      "production_system": "hydroponics",
+      "irrigation_method": "sprinkler",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Aeroponic misting inside a closed chamber is the system type's own delivery, not a field method. The delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "hydroponics",
+      "irrigation_method": "surface",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Flood-and-drain is the system type's own bookkeeping, not a field surface method. The delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "hydroponics",
+      "irrigation_method": "rainfed",
+      "status": "not_applicable",
+      "basis": "support_decision",
+      "reason": "Not applicable: this method describes field irrigation of a soil root zone, and a soilless system does not irrigate in that sense. Its water delivery is the system type already modelled in aqua_model/system_types.py (raft, nft, media_bed, vertical_tower)."
+    },
+    {
+      "production_system": "soil_cultivation",
+      "irrigation_method": "drip",
+      "status": "supported",
+      "basis": "source_pending",
+      "reason": "Supported as the method to model first, because it is the case FAO-56's water-balance procedure fits most cleanly: a localized wetted fraction, a known application depth, and a schedule expressed in mm. The procedure itself is registered; the worked reference case for it is not written yet (#243 item 3), so no number from it may be presented as verified."
+    },
+    {
+      "production_system": "soil_cultivation",
+      "irrigation_method": "sprinkler",
+      "status": "supported",
+      "basis": "source_pending",
+      "reason": "Supported, with the evaporation and foliar-wetting losses carried explicitly rather than buried in an efficiency factor. Awaiting the same reference case as the drip row."
+    },
+    {
+      "production_system": "soil_cultivation",
+      "irrigation_method": "surface",
+      "status": "supported",
+      "basis": "source_pending",
+      "reason": "Supported, with application depth set by inflow and duration. Awaiting the same reference case as the drip row."
+    },
+    {
+      "production_system": "soil_cultivation",
+      "irrigation_method": "rainfed",
+      "status": "supported",
+      "basis": "source_pending",
+      "reason": "Supported as the zero-applied-water baseline: the same water balance with irrigation set to zero, which makes a deficit a stated risk rather than a silent assumption. Awaiting the same reference case as the drip row."
+    }
+  ],
+  "capability_statuses": [
+    {
+      "id": "sourced_guidance",
+      "rank": 1,
+      "definition": "Advice that points at a named source passage. It says what the source says and nothing about this project's own arithmetic.",
+      "required_evidence": [
+        "a registry entry whose locator names a section, table or equation",
+        "a verification level recorded for that entry"
+      ],
+      "available_in_agronaut": true,
+      "available_scope": "the whole knowledge corpus, per docs/dpg/CORPUS.md",
+      "must_not_claim": "that the guidance was checked against a real system"
+    },
+    {
+      "id": "verified_calculation",
+      "rank": 2,
+      "definition": "A number this project computed and can reproduce: the inputs, the equation and the arithmetic are all on the record, and a reference case pins the expected value with a tolerance.",
+      "required_evidence": [
+        "a registry entry with an equation-level or table-level locator",
+        "a worked reference case with expected value and stated tolerance",
+        "a test that recomputes the case and fails outside the tolerance"
+      ],
+      "available_in_agronaut": true,
+      "available_scope": "aquaponic sizing only (aqua_model, cited coefficients). Nothing irrigation-side qualifies yet.",
+      "must_not_claim": "that the calculation matches any specific field"
+    },
+    {
+      "id": "experimental_simulation",
+      "rank": 3,
+      "definition": "A modelled scenario whose parameters are fitted or assumed rather than measured on the system in question. Useful for comparing options, not for predicting an outcome.",
+      "required_evidence": [
+        "every parameter traceable to a registry entry or an explicit assumption",
+        "a stated sensitivity to the assumed parameters"
+      ],
+      "available_in_agronaut": false,
+      "available_scope": "not available for irrigation",
+      "must_not_claim": "that the simulation was validated"
+    },
+    {
+      "id": "field_validated_operation",
+      "rank": 4,
+      "definition": "A recommendation shown to hold on a real system under recorded conditions, with the data to prove it.",
+      "required_evidence": [
+        "pilot data collected under the protocol below",
+        "the same reference case recomputed against the measured outcome",
+        "a named region, season and operator decision record"
+      ],
+      "available_in_agronaut": false,
+      "available_scope": "not available. Agronaut has no field trial, no partner system and no measured irrigation outcome, so this status must not be claimed anywhere in the product.",
+      "must_not_claim": "nothing — reaching this status is the claim"
+    }
+  ],
+  "pilot_data_protocol": {
+    "about": "What a pilot must record before any result may be described as field-validated. The point is that the quantities below are the minimum needed to recompute a reference case against reality; a pilot that records output only cannot settle anything.",
+    "required_fields": [
+      "site: latitude, longitude, altitude, and soil texture class",
+      "season: sowing or transplant date and the crop cycle covered",
+      "weather: daily Tmax, Tmin, relative humidity, wind speed at 2 m, and solar radiation or sunshine hours, with the instrument and its height",
+      "water applied: method, date, depth in mm, and the source of the water",
+      "crop: cultivar, and the measured yield in kg per unit area",
+      "operator decisions: every deviation from the schedule, with the reason given at the time"
+    ],
+    "must_record_when_missing": "a missing required field is recorded as missing with its cause, never back-filled from a default",
+    "excluded_claims": [
+      "no field-validation claim may be derived from data that omits any required field",
+      "no regional recommendation may be generalised from a single site"
+    ]
+  }
+}

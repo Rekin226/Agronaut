@@ -122,7 +122,7 @@ def test_setup_takes_a_section_shortcut(section):
 def test_a_fresh_install_still_gets_the_full_walkthrough(tmp_path, monkeypatch, capsys):
     f = tmp_path / ".env"
     monkeypatch.setattr(W, "env_path", lambda: f)
-    asked, answers = [], iter([4, 1])                    # skip model, this terminal
+    asked, answers = [], iter([3, 1])                    # skip model, this terminal
     monkeypatch.setattr(W, "_ask", lambda prompt, *a, **k: asked.append(prompt) or next(answers))
     W.run()
     assert "Your current setup" not in capsys.readouterr().out

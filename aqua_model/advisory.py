@@ -49,8 +49,10 @@ from .species import FishSpecies
 ADVISORY_SCHEMA_VERSION = "1.0.0"
 
 # --- evidence classes -------------------------------------------------------------------
-# The ceiling a rule's confidence may reach, by what produced it. These are not tuned; they
-# encode the validation verdict in `data/twin_validation.json` (MIXED: direction yes, level
+# The ceiling a rule's confidence may reach, by what produced it. These are policy, not
+# physics to be cited — a confidence ceiling will never get a measured source. The
+# ordering (measured > modelled direction > modelled level) is the claim: it encodes
+# the validation verdict in `data/twin_validation.json` (MIXED: direction yes, level
 # no) plus the plain fact that an operator's titration kit outranks an uncalibrated model.
 
 MEASURED = "measured"                        # the operator reported this channel recently

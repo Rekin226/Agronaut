@@ -67,10 +67,12 @@ def args_match(args: dict, expected: dict = EXPECTED_ARGS) -> dict[str, bool]:
 
 
 def verdict(truncations: list[str], calls: list[dict], reply: str,
-            error: str | None = None) -> dict:
-    """Pass only if the prompt arrived whole AND the model drove the sizing engine with the
-    grower's numbers. A fluent reply without a tool call is a fail: in this project an
-    uncomputed design is the failure that matters most."""
+            error: str | None = None, ungrounded: list[str] | None = None) -> dict:
+    """Pass only if the prompt arrived whole, the model drove the sizing engine with the
+    grower's numbers, AND the reply quoted the engine's figures faithfully. A fluent reply
+    without a tool call is a fail: in this project an uncomputed design is the failure that
+    matters most. The last condition was added after qwen3.5:2b passed with "6.7 L/h" for a
+    6,667 L/h pump (#180)."""
     sizing = [c for c in calls if c["name"] in SIZING_TOOLS]
     ok_calls = [c for c in sizing if c["ok"]]
     matched = args_match(ok_calls[0]["args"]) if ok_calls else {}
@@ -88,8 +90,10 @@ def verdict(truncations: list[str], calls: list[dict], reply: str,
         reasons.append(f"the sizing call got the wrong {', '.join(wrong)}")
     if not error and not (reply or "").strip():
         reasons.append("the reply was empty")
+    if ungrounded:
+        reasons.append(f"the reply quotes figures no tool or user gave: {', '.join(ungrounded)}")
     return {"passed": not reasons, "reasons": reasons, "args_match": matched,
-            "tools_called": [c["name"] for c in calls]}
+            "tools_called": [c["name"] for c in calls], "ungrounded": list(ungrounded or [])}
 
 
 # --- the live run --------------------------------------------------------------------------
@@ -133,6 +137,7 @@ class _Recorder:
         self._calls.append(entry)
         result = self._tool.invoke(args)
         entry["ok"] = not str(result).startswith("TOOL_ERROR")
+        entry["result"] = str(result)      # what the reply's figures are checked against
         return result
 
 
@@ -172,13 +177,16 @@ def run(model: str, ollama_log: Path | None) -> dict:
     llm_rows = [r for r in agent._analytics.rows() if r["event"] == "llm_call"]
     log_text = ollama_log.read_text(errors="replace") if ollama_log and ollama_log.exists() else ""
     from agent.llm import ollama_num_ctx
+    from agronaut_agent.grounding import ungrounded
+
+    figures = ungrounded(reply, [QUESTION] + [c.get("result", "") for c in calls]) if reply else []
     return {
         "model": model,
         "num_ctx_requested": ollama_num_ctx(),
-        "verdict": verdict(truncation_events(log_text), calls, reply, error),
+        "verdict": verdict(truncation_events(log_text), calls, reply, error, figures),
         "error": error,
         "truncation_lines": truncation_events(log_text),
-        "tool_calls": calls,
+        "tool_calls": [{k: v for k, v in c.items() if k != "result"} for c in calls],
         "llm_calls": [{k: r.get(k) for k in ("stage", "latency_ms", "tokens_in", "tokens_out",
                                              "model")} for r in llm_rows],
         "turn_seconds": round(seconds, 1),
@@ -207,6 +215,7 @@ def summary_markdown(report: dict) -> str:
         f"| input tokens per call | {[c['tokens_in'] for c in report['llm_calls']]} |",
         f"| tools called | {', '.join(v['tools_called']) or 'none'} |",
         f"| sizing arguments correct | {v['args_match'] or 'n/a'} |",
+        f"| figures no tool or user gave | {', '.join(v['ungrounded']) or 'none'} |",
         f"| turn time | {report['turn_seconds']} s |",
         f"| peak Ollama memory | {report['peak_ollama_memory_mb']} MB |",
         "",

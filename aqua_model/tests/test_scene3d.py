@@ -53,6 +53,22 @@ def test_a_design_with_no_state_renders_exactly_as_before():
     json.dumps(scene)          # must not raise
 
 
+def test_the_air_side_serializes_for_the_viewer():
+    """Blower, stones and air lines ride the scene JSON — the viewer may only draw what
+    the model says, so the air side must arrive in the same payload as the pipes (#113)."""
+    out = _design()
+    layout = plan_layout(out)
+    scene = to_scene(layout, out, name="t")
+    assert len(scene["air_stones"]) == len(layout.air_stones) > 0
+    assert len(scene["air_lines"]) == len(layout.air_lines) > 0
+    for a in scene["air_lines"]:
+        assert a["from"] == "blower" and a["to"], "an air line must name both ends"
+        assert all(len(q) == 3 for q in a["path"]), "path points are (x, y, z)"
+    for s in scene["air_stones"]:
+        assert s["anchor"] in {c.id for c in layout.components}
+    assert json.dumps(scene)  # the whole scene, air side included, must serialize
+
+
 def test_binding_a_state_does_not_move_a_single_dimension():
     """The twin changes what the water looks like, never where anything stands."""
     out = _design()

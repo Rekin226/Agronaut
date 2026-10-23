@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "site": {
+    "name": "Synthetic dated-coefficient arithmetic example",
+    "timezone": "Europe/Brussels"
+  },
+  "area_m2": 10000,
+  "crop": {
+    "name": "tomato",
+    "coefficient_schedule": [
+      {
+        "start": "2026-07-06",
+        "end": "2026-07-08",
+        "start_value": 0.5,
+        "end_value": 1.1,
+        "stage": "Synthetic transition",
+        "source": "Synthetic three-day arithmetic example, not actual growth-stage dates or crop-coefficient advice"
+      }
+    ]
+  },
+  "weather": [
+    {
+      "day": "2026-07-06",
+      "t_min_c": 12.3,
+      "t_max_c": 21.5,
+      "rh_min_pct": 63,
+      "rh_max_pct": 84,
+      "wind_m_s": 2.7777777777777777,
+      "wind_height_m": 10,
+      "elevation_m": 100,
+      "net_radiation_mj_m2": 13.28,
+      "rainfall_mm": 0,
+      "source": "FAO-56 Example 18 weather values placed on an illustrative date; zero rain is a scenario assumption",
+      "kind": "scenario"
+    },
+    {
+      "day": "2026-07-07",
+      "t_min_c": 12.3,
+      "t_max_c": 21.5,
+      "rh_min_pct": 63,
+      "rh_max_pct": 84,
+      "wind_m_s": 2.7777777777777777,
+      "wind_height_m": 10,
+      "elevation_m": 100,
+      "net_radiation_mj_m2": 13.28,
+      "rainfall_mm": 0,
+      "source": "FAO-56 Example 18 weather values placed on an illustrative date; zero rain is a scenario assumption",
+      "kind": "scenario"
+    },
+    {
+      "day": "2026-07-08",
+      "t_min_c": 12.3,
+      "t_max_c": 21.5,
+      "rh_min_pct": 63,
+      "rh_max_pct": 84,
+      "wind_m_s": 2.7777777777777777,
+      "wind_height_m": 10,
+      "elevation_m": 100,
+      "net_radiation_mj_m2": 13.28,
+      "rainfall_mm": 0,
+      "source": "FAO-56 Example 18 weather values placed on an illustrative date; zero rain is a scenario assumption",
+      "kind": "scenario"
+    }
+  ],
+  "soil": {
+    "field_capacity": 0.32,
+    "wilting_point": 0.15,
+    "root_depth_m": 0.8,
+    "depletion_fraction": 0.4,
+    "source": "FAO-56 Example 36, tomato and silt; illustrative soil, not a site measurement"
+  },
+  "initial_state": {
+    "as_of": "2026-07-05",
+    "depletion_mm": 60,
+    "source": "Hypothetical starting depletion for this demonstration"
+  },
+  "application_efficiency": {
+    "value": 0.8,
+    "source": "Hypothetical application efficiency for arithmetic demonstration, not a method default"
+  },
+  "events": [
+    {
+      "day": "2026-07-06",
+      "net_irrigation_mm": 0,
+      "runoff_mm": 0,
+      "source": "Scenario: no applied irrigation and no rainfall runoff"
+    },
+    {
+      "day": "2026-07-07",
+      "net_irrigation_mm": 0,
+      "runoff_mm": 0,
+      "source": "Scenario: no applied irrigation and no rainfall runoff"
+    },
+    {
+      "day": "2026-07-08",
+      "net_irrigation_mm": 0,
+      "runoff_mm": 0,
+      "source": "Scenario: no applied irrigation and no rainfall runoff"
+    }
+  ]
+}

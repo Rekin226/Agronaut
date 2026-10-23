@@ -44,6 +44,14 @@ def _digits(value) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
+def _masked_sender(sender) -> str:
+    """A sender safe to write to the log: only the last two digits, matching
+    the allowlist-drop convention. #215's acceptance criterion forbids full
+    phone numbers in logs, including reply-failure warnings."""
+    tail = _digits(sender)[-2:]
+    return f"ending {tail}" if tail else "unknown sender"
+
+
 def _same_but_trunk_zero(allowed: str, sender: str) -> bool:
     """True when `allowed` is `sender` with one extra 0 just after a 1-4 digit country code."""
     if len(allowed) != len(sender) + 1:
@@ -53,6 +61,17 @@ def _same_but_trunk_zero(allowed: str, sender: str) -> bool:
 
 GRAPH = "https://graph.facebook.com/v20.0"
 POLL_SECONDS = 60
+
+
+def _is_pdf_doc(doc: dict) -> bool:
+    return (str(doc.get("mime_type", "")).lower() == "application/pdf"
+            or str(doc.get("filename", "")).lower().endswith(".pdf"))
+
+
+class WhatsAppSendError(RuntimeError):
+    """The Graph API refused (or failed) a WhatsApp send. Raised by send_text on
+    HTTP 4xx/5xx so callers can tell 'never arrived' apart from 'sent' — silently
+    swallowing HTTP errors once marked follow-ups sent when they had not been (#215)."""
 
 
 class WhatsAppAdapter(ChannelAdapter):
@@ -220,6 +239,21 @@ class WhatsAppAdapter(ChannelAdapter):
                                     str(media.get("mime_type") or "audio/ogg")))
         return out
 
+    def parse_incoming_pdfs(self, payload: dict) -> list[tuple[str, str, str | None]]:
+        """Extract [(sender_wa_id, media_id, caption)] for inbound PDF documents: a water-lab
+        report or a feed label, read by agent.handle_document."""
+        out: list[tuple[str, str, str | None]] = []
+        for entry in (payload or {}).get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    doc = msg.get("document", {}) if msg.get("type") == "document" else {}
+                    if not _is_pdf_doc(doc):
+                        continue
+                    media_id, sender = doc.get("id"), msg.get("from")
+                    if media_id and sender:
+                        out.append((str(sender), str(media_id), doc.get("caption")))
+        return out
+
     def parse_unsupported_files(self, payload: dict) -> list[tuple[str, str]]:
         """[(sender, filename_or_type)] for inbound files we deliberately do NOT read —
         a PDF, a spreadsheet, a video. Surfaced so the user is told what we can read
@@ -233,11 +267,37 @@ class WhatsAppAdapter(ChannelAdapter):
                         continue          # all handled elsewhere
                     doc = msg.get(kind or "", {}) if isinstance(msg.get(kind or ""), dict) else {}
                     mime = str(doc.get("mime_type", ""))
-                    if kind == "document" and mime.startswith(("image/", "audio/")):
-                        continue          # those ARE readable — handled as photo / voice note
+                    if kind == "document" and (mime.startswith(("image/", "audio/"))
+                                                or _is_pdf_doc(doc)):
+                        continue          # those ARE readable: photo, voice note, PDF
                     sender = msg.get("from")
                     if sender and kind:
                         out.append((str(sender), str(doc.get("filename") or kind)))
+        return out
+
+    @staticmethod
+    def parse_status_updates(payload: dict) -> list[tuple[str, str, list[int]]]:
+        """[(message_id, status, error_codes)] for outbound delivery updates.
+
+        Pure and unit-tested. The message id is Meta's handle for a send this number
+        made — it is what links a later `failed` status back to the follow-up it
+        belongs to (#215). Error codes are Meta's numeric reasons (e.g. 131047, the
+        24-hour re-engagement window). Never the text, never a phone number."""
+        out: list[tuple[str, str, list[int]]] = []
+        for entry in (payload or {}).get("entry", []):
+            for change in entry.get("changes", []):
+                for st in change.get("value", {}).get("statuses", []):
+                    mid = st.get("id")
+                    status = st.get("status")
+                    if not mid or not status:
+                        continue
+                    codes = []
+                    for e in st.get("errors", []) or []:
+                        try:
+                            codes.append(int(e.get("code")))
+                        except (TypeError, ValueError):
+                            continue
+                    out.append((str(mid), str(status), codes))
         return out
 
     # --- inbound media ---------------------------------------------------
@@ -272,7 +332,12 @@ class WhatsAppAdapter(ChannelAdapter):
         for bubble in to_bubbles(text, self.channel_name):
             self.send_text(to, bubble)
 
-    def send_text(self, to: str, text: str) -> None:
+    def send_text(self, to: str, text: str) -> list[str]:
+        """Send plain text, chunked into bubbles. Returns the WhatsApp message id
+        of each sent bubble, in order (empty if a response carried none). Raises
+        WhatsAppSendError when the Graph API answers 4xx/5xx; network errors from
+        requests propagate as-is."""
+        ids: list[str] = []
         for part in chunk(text):
             resp = requests.post(
                 f"{GRAPH}/{self.phone_number_id}/messages",
@@ -284,6 +349,24 @@ class WhatsAppAdapter(ChannelAdapter):
             )
             if resp.status_code >= 400:
                 log.warning("whatsapp send failed (%s): %s", resp.status_code, resp.text[:200])
+                raise WhatsAppSendError(
+                    f"whatsapp send failed ({resp.status_code}): {resp.text[:200]}")
+            try:
+                mid = (resp.json().get("messages") or [{}])[0].get("id")
+            except (ValueError, AttributeError, IndexError, TypeError):
+                mid = None
+            # The id is Meta's handle for this exact send; without it a later
+            # delivery-status webhook (e.g. 131047) cannot be matched back (#215).
+            # Never the text, never the number — just the id.
+            if mid:
+                ids.append(str(mid))
+            else:
+                # A successful send response carries the recipient's number in
+                # contacts (input and wa_id): never log the body here, the
+                # status code alone says the send worked but left no handle (#215).
+                log.warning("whatsapp send response carried no message id (status %s)",
+                            resp.status_code)
+        return ids
 
     def send_media(self, to: str, path: str, mime: str = "image/png") -> bool:
         """Send a local file (e.g. a rendered schematic or a 3D scene). WhatsApp Cloud API
@@ -338,6 +421,17 @@ class WhatsAppAdapter(ChannelAdapter):
 
     # --- routing ---------------------------------------------------------
     def handle_payload(self, payload: dict) -> None:
+        # Delivery statuses first: a `failed` status for a message id this number sent
+        # may belong to a follow-up, and the record should say so (#215). A status for
+        # anything else changes nothing.
+        for wa_id, status, codes in self.parse_status_updates(payload):
+            if status != "failed":
+                continue
+            try:
+                self.agent.followup_status_failed(wa_id, codes)
+            except Exception:
+                log.warning("whatsapp follow-up status handling failed", exc_info=True)
+
         for sender, text in self.parse_incoming(payload):
             if not self._allowed(sender):
                 continue
@@ -353,17 +447,15 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("slash command failed (whatsapp)")
                 cmd = commands.Reply("That command didn't work just now. Try again?")
             if cmd is not None:
-                for part in chunk(cmd.text):
-                    self.send_text(sender, part)
+                try:
+                    for part in chunk(cmd.text):
+                        self.send_text(sender, part)
+                except WhatsAppSendError:
+                    log.warning("whatsapp command reply failed for %s", _masked_sender(sender), exc_info=True)
                 if cmd.document:
                     doc_mime = cmd.document_mime or mimetypes.guess_type(cmd.document)[0] or "application/octet-stream"
-                    ok = self.send_media(sender, cmd.document, doc_mime)
-                    if ok is False:
-                        filename = os.path.basename(cmd.document)
-                        self.send_text(
-                            sender,
-                            f"I couldn't send the attachment ({filename}), try asking again?",
-                        )
+                    if self.send_media(sender, cmd.document, doc_mime) is False:
+                        self._notify_send_failed(sender, cmd.document)
                 continue
 
             try:
@@ -371,8 +463,12 @@ class WhatsAppAdapter(ChannelAdapter):
             except Exception:
                 log.exception("agent.handle_message failed (whatsapp)")
                 reply = "Something went wrong on my side. Try again, or rephrase?"
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         # Photos: the same agent seam Telegram uses, so the observation guard, memory, and
         # cited tools all apply identically on this channel.
@@ -382,16 +478,49 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             image_bytes = self.download_media(media_id)
             if not image_bytes:
-                self.send_text(sender, "I couldn't download that photo. Could you send it "
-                                       "again, or describe what you see?")
+                try:
+                    self.send_text(sender, "I couldn't download that photo. Could you send it "
+                                           "again, or describe what you see?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", _masked_sender(sender), exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_image(self.channel_name, uid, image_bytes, caption)
             except Exception:
                 log.exception("agent.handle_image failed (whatsapp)")
                 reply = "Something went wrong reading that photo. Try again, or describe what you see?"
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
+
+        # PDFs: a lab report or a feed label, read then run as a normal turn.
+        for sender, media_id, caption in self.parse_incoming_pdfs(payload):
+            if not self._allowed(sender):
+                continue
+            uid = room_identity(sender, "private", sender)
+            data = self.download_media(media_id)
+            if not data:
+                try:
+                    self.send_text(sender, "I couldn't download that PDF. Could you send it "
+                                           "again, or a photo of the page?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", sender, exc_info=True)
+                continue
+            try:
+                reply = self.agent.handle_document(self.channel_name, uid, data,
+                                                   "application/pdf", caption)
+            except Exception:
+                log.exception("agent.handle_document failed (whatsapp)")
+                reply = "Something went wrong reading that PDF. Try again, or send a photo of the page?"
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", sender, exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         # Voice notes: the same agent seam Telegram uses, so the transcript runs through a
         # normal turn with memory, tools and cited knowledge intact.
@@ -401,8 +530,11 @@ class WhatsAppAdapter(ChannelAdapter):
             uid = room_identity(sender, "private", sender)
             audio_bytes = self.download_media(media_id)
             if not audio_bytes:
-                self.send_text(sender, "I couldn't download that voice note. Could you send "
-                                       "it again, or type your message?")
+                try:
+                    self.send_text(sender, "I couldn't download that voice note. Could you send "
+                                           "it again, or type your message?")
+                except WhatsAppSendError:
+                    log.warning("whatsapp download-failure notice failed for %s", _masked_sender(sender), exc_info=True)
                 continue
             try:
                 reply = self.agent.handle_voice(self.channel_name, uid, audio_bytes, mime)
@@ -410,16 +542,23 @@ class WhatsAppAdapter(ChannelAdapter):
                 log.exception("agent.handle_voice failed (whatsapp)")
                 reply = ("Something went wrong with that voice note. Try again, or type your "
                          "message?")
-            self.send_reply(sender, reply)
-            self._flush_attachments(sender, uid)
+            try:
+                self.send_reply(sender, reply)
+            except WhatsAppSendError:
+                log.warning("whatsapp reply failed for %s", _masked_sender(sender), exc_info=True)
+            finally:
+                self._flush_attachments(sender, uid)
 
         for sender, what in self.parse_unsupported_files(payload):
             if not self._allowed(sender):
                 continue
             log.info("whatsapp: declined unsupported inbound %r", what)
-            self.send_text(sender, "I can't read files like that yet. I work with text and "
-                                   "photos. Send a photo of the plants, fish, or water and "
-                                   "I'll take a look.")
+            try:
+                self.send_text(sender, "I can't read files like that yet. I read text, photos "
+                                       "and PDFs (a water test, a feed label). Send a photo of "
+                                       "the plants, fish, or water and I'll take a look.")
+            except WhatsAppSendError:
+                log.warning("whatsapp unsupported-file notice failed for %s", _masked_sender(sender), exc_info=True)
 
     def _flush_attachments(self, sender: str, uid: str) -> None:
         for path in self.agent.take_attachments(self.channel_name, uid):
@@ -431,25 +570,32 @@ class WhatsAppAdapter(ChannelAdapter):
                     )
                 else:
                     mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
-                    ok = self.send_media(sender, path, mime=mime)
-                    if ok is False:
-                        filename = os.path.basename(path)
-                        self.send_text(
-                            sender,
-                            f"I couldn't send the attachment ({filename}), try asking again?",
-                        )
+                    if self.send_media(sender, path, mime=mime) is False:
+                        self._notify_send_failed(sender, path)
             except Exception:
                 log.warning("whatsapp media send failed for %s", path, exc_info=True)
-                filename = os.path.basename(path)
-                self.send_text(
-                    sender,
-                    f"I couldn't send the attachment ({filename}), try asking again?",
-                )
+                self._notify_send_failed(sender, path)
             finally:
                 try:
                     os.unlink(path)
                 except OSError:
                     pass
+
+    def _notify_send_failed(self, sender: str, path: str) -> None:
+        """Tell the grower an attachment didn't arrive. Never raises.
+
+        It runs exactly when sending is already failing, often because the network is down,
+        and `send_text` does not catch its own errors. Left unguarded, the notice raised
+        out of `_flush_attachments`, so the attachments after it were never tried and
+        their temp files were never deleted: the leak #124 fixed, back by another door.
+        """
+        filename = os.path.basename(path)
+        try:
+            self.send_text(sender, f"I couldn't send the attachment ({filename}), "
+                                   "try asking again?")
+        except Exception:
+            log.warning("whatsapp could not send the failure notice for %s", filename,
+                        exc_info=True)
 
     def deliver_due_followups(self) -> None:
         try:
@@ -459,11 +605,24 @@ class WhatsAppAdapter(ChannelAdapter):
             return
         for fu in due:
             try:
-                self.send_text(str(fu["channel_user"]), fu["question"])
+                ids = self.send_text(str(fu["channel_user"]), fu["question"])
                 self.agent.mark_followup_sent(fu["id"])
             except Exception:
                 log.warning("whatsapp follow-up send failed for %s", fu["id"], exc_info=True)
                 self.agent.followup_send_failed(fu["id"])
+                continue
+            # Best-effort and separate from the send above: the id is the handle a
+            # later delivery-status webhook will carry, so without it a 131047
+            # (24-hour window) failure can never be matched back to this follow-up
+            # (#215). The first bubble's id: outside the window a 131047 fails all
+            # bubbles, so the first one sent is enough to match on. If recording
+            # fails, the send still counts — the follow-up just keeps the old
+            # behaviour of having no status linkage.
+            try:
+                self.agent.record_followup_message_id(fu["id"], ids[0] if ids else None)
+            except Exception:
+                log.warning("whatsapp could not record message id for follow-up %s",
+                            fu["id"], exc_info=True)
 
     # --- server ----------------------------------------------------------
     def run(self) -> None:  # pragma: no cover - exercised in a live deployment, not unit tests

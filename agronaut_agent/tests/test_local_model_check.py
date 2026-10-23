@@ -64,3 +64,10 @@ def test_a_turn_that_raised_is_a_fail_with_the_reason_not_a_crash():
     assert not v["passed"]
     assert v["reasons"][0].startswith("the turn failed: ResponseError")
     assert not any("empty" in r for r in v["reasons"])
+
+
+def test_a_reply_that_misquotes_the_engine_fails_even_with_a_correct_tool_call():
+    """qwen3.5:2b passed this check with "6.7 L/h" for a 6,667 L/h pump (#180)."""
+    v = verdict([], [GOOD_CALL], "Pump: ~6.7 L/h.", ungrounded=["6.7 L/h"])
+    assert not v["passed"] and "6.7 L/h" in v["reasons"][0]
+    assert v["ungrounded"] == ["6.7 L/h"]

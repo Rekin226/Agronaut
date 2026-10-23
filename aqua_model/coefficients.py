@@ -53,6 +53,50 @@ SAFETY_FACTOR = Coefficient(
     note="Headroom for losses, peaks, clogging, and coefficient uncertainty.",
 )
 
+# Aeration — the air side of the fish zone (blower, main, diffusers). FAO 589 §7.3.3:
+# "The suggested rate is 5–8 litres of air per minute for each cubic metre of water, coming
+# from at least 2 air stones in different locations in the fish tank."
+# Unit-scale aeration: FAO 589 §7.3.3 gives the 5–8 L/min per m³ band, wants at least
+# two stones per tank in different locations, and warns that densely stocked units may
+# require considerably more; §4.2.5 repeats the band at unit scale (4–8 L/min combined
+# for ~1,000 L units, one injector also into the biofilter container).
+AERATION_AIR_RATE_LPM_M3 = Coefficient(
+    name="aeration_air_rate_lpm_m3",
+    value=6.5, low=5.0, high=8.0, unit="L air / min / m3 aerated water", source="FAO589",
+    note="FAO 589 §7.3.3: 5-8 L air/min per m3 water, >=2 stones per tank in different "
+         "locations, and densely stocked units may require considerably more; §4.2.5 "
+         "gives the same band at unit scale (one injector also into the biofilter).",
+)
+
+# Wire-to-air draw of the small linear-diaphragm / regenerative blowers this class of
+# system actually buys, read off published spec sheets rather than modelled from fan laws.
+AIR_PUMP_WATT_PER_LPM = Coefficient(
+    name="air_pump_watt_per_lpm",
+    value=0.9, low=0.6, high=1.2, unit="W / (L/min) delivered air", source="LIT",
+    note="Hiblow HP-80 published spec: 80 L/min at 71 W = 0.89 W/(L/min). Larger "
+         "regenerative blowers trend toward ~0.7, small diaphragm units past 1.0. The "
+         "0.6-1.2 band is reasoning around that ONE spec sheet, not a survey; a power "
+         "ESTIMATE for budgeting — verify the pump curve before purchase.",
+)
+
+# DWC rafts pull DO down on their own: a densely planted canal carries its own diffusers,
+# on top of the fish-side rate, never instead of it (FAO 589 §4.5.3).
+DWC_STONE_SPACING_M2 = Coefficient(
+    name="dwc_stone_spacing_m2",
+    value=3.0, low=2.0, high=4.0, unit="m2 of DWC canal per stone", source="FAO589",
+    note="FAO 589 §4.5.3: a densely planted canal needs its own stones, one every "
+         "2-4 m2 of canal; 3.0 is the band midpoint (the static BOM note this sizing "
+         "replaced used ~1 per 3 m2).",
+)
+
+DWC_STONE_FLOW_LPM = Coefficient(
+    name="dwc_stone_flow_lpm",
+    value=4.0, low=4.0, high=4.0, unit="L air / min per canal stone", source="FAO589",
+    note="FAO 589 §4.5.3: about 4 L/min per canal stone — the source gives a single "
+         "figure, so no band is invented.",
+)
+
+
 # How far above saturation a dissolved-oxygen reading may sit before it is a broken probe rather
 # than a bloom. Photosynthesis genuinely supersaturates a densely planted system during the day —
 # 110-130% of saturation is routinely reported, and short excursions higher do occur. Sustained
@@ -67,12 +111,82 @@ DO_SUPERSATURATION_TOLERANCE = Coefficient(
 )
 
 
+# Greenhouse envelope defaults — the single-poly-tunnel numbers every season
+# forecast actually runs on (production.py builds ProductionParams from
+# C.GreenhouseParams() with no per-site override). Provenance for each value
+# lives in its note here and in the GreenhouseParams docstring; dossier §6
+# carries the full glazing table. The water-tau band is derived, not measured —
+# the note says so, and a measured settling time for a 1-10 m3 tank under
+# cover would replace the whole entry.
+GREENHOUSE_TRANSMISSIVITY = Coefficient(
+    name="greenhouse_transmissivity",
+    value=0.70, low=0.45, high=0.85, unit="fraction of outside PAR",
+    source="LIT (Roberts 1998 Rutgers CCEA; U. Arkansas glazing table)",
+    note="PLACED. New single polyethylene film transmits ~0.85-0.90 (Roberts 1998, "
+         "lab total transmittance; Arkansas table: single PE 85%). Roberts 1998 Table 1 "
+         "measured whole-house winter PAR over an entire winter on four institutional "
+         "houses - single glass, acrylic, double glass and double PE (at-glazing 0.58-0.67, "
+         "at-canopy 0.45-0.56); no single-poly house was measured, and the 0.45 at-canopy "
+         "value is the double-PE research house Roberts describes as heavily encumbered "
+         "with overhead equipment (movable irrigation, heating, thermal screen; Giacomelli "
+         "& Ting 1988). 0.70 is PLACED above every whole-house value in the table: it comes "
+         "from the ~0.90 new-film figure times a structure factor "
+         "(0.85-0.90 x 0.8-0.9 = 0.68-0.81), not from the table; a dirty or screened house "
+         "falls toward the measured band's bottom.",
+)
+GREENHOUSE_UNHEATED_LIFT_C = Coefficient(
+    name="greenhouse_unheated_lift_c",
+    value=3.0, low=1.7, high=4.7, unit="C on the daily mean",
+    source="LIT (McCarter & Ingwell 36-tunnel study; Penn State Extension)",
+    note="PLACED mid-band; the band's endpoints are two measured averages, not one "
+         "measured distribution. On-farm daily means across 36 US high tunnels averaged "
+         "+1.7 C over outside (+3 F, McCarter & Ingwell, via Vegetable Growers News); "
+         "Penn State Extension reports a yearly-average tunnel +8.4 F (+4.7 C) over "
+         "outdoors (Sanchez 2023). Midday gains run much higher on sun, "
+         "near zero at night; ventilation eats most of the midday gain.",
+)
+GREENHOUSE_WATER_TAU_DAYS = Coefficient(
+    name="greenhouse_water_tau_days",
+    value=2.0, low=0.6, high=3.8, unit="days",
+    source="PLACED (lumped-capacitance derivation; no measured source yet)",
+    note="PLACED. tau = rho*V*cp / (h*A): the 0.6-3.8 day band corresponds to a "
+         "water-mass shape factor V/A of 0.19-0.39 m at h = 5-15 W/m2K (free convection "
+         "+ radiation) - e.g. a ~1 m3 tank with 5 exposed faces (V/A = 0.20 m) sits near "
+         "the fast end; squat 10 m3 tanks (V/A ~ 0.4 m) sit past the slow end. No measured "
+         "settling time for a 1-10 m3 water mass under cover was found; a measured value "
+         "replaces this entry. Sun-exposed shallow beds settle faster than the band.",
+)
+
 # Nitrogen chemistry — well established.
 N_FRACTION_OF_PROTEIN = Coefficient(
     name="n_fraction_of_protein",
     value=0.16, low=0.16, high=0.16, unit="g N / g protein", source="LIT",
     note="Protein is ~16% nitrogen by mass (Kjeldahl factor 6.25). Effectively exact.",
 )
+
+# The feed the feeding-rate ratio was measured with. A feeding-rate ratio is a nitrogen-supply
+# rule in grams of feed: UVI derived it on tilapia eating 32%-protein feed, and FAO 589 states
+# its figures assume the same. Applied unchanged to barramundi on 45%-protein feed, the same
+# grams per m2 carried ~40% more nitrogen than the plants can take up, and the nitrogen check
+# flagged the design 62% off (2026-10-04). Sizing now scales the ratio by
+# reference / feed protein, which holds nitrogen per m2 at what the ratio was measured with.
+FRR_REFERENCE_FEED_PROTEIN_PCT = Coefficient(
+    name="frr_reference_feed_protein_pct",
+    value=32.0, low=32.0, high=32.0, unit="% protein", source="FAO589/UVI",
+    note="Feeding-rate ratios assume a standard 32%-protein feed (FAO 589; Rakocy & "
+         "Hargreaves 1993, via Goddek et al. 2019). Scaling the ratio by 32 / feed protein % "
+         "is a derived step that holds nitrogen constant, not a calibrated one; phosphorus "
+         "and potassium do not scale with protein.",
+)
+
+
+def frr_protein_factor(feed_protein_pct: float) -> float:
+    """Multiplier on a crop's feeding-rate ratio for feed of this protein content: 1.0 for
+    the 32% feed the ratio was measured with, below 1 for richer feed, above 1 for leaner."""
+    if feed_protein_pct <= 0:
+        raise ValueError(f"feed protein must be positive, got {feed_protein_pct}")
+    return FRR_REFERENCE_FEED_PROTEIN_PCT.value / feed_protein_pct
+
 
 # Plant uptake fraction: of the nitrogen a fish EXCRETES, what share do plants actually
 # take up (the rest leaves via solids removal, water exchange, denitrification)? Sizing
@@ -156,8 +270,13 @@ def registry() -> dict[str, Coefficient]:
         c.name: c
         for c in (
             SAFETY_FACTOR,
+            AERATION_AIR_RATE_LPM_M3,
+            AIR_PUMP_WATT_PER_LPM,
+            DWC_STONE_SPACING_M2,
+            DWC_STONE_FLOW_LPM,
             N_FRACTION_OF_PROTEIN,
             PLANT_N_UPTAKE_FRACTION,
+            FRR_REFERENCE_FEED_PROTEIN_PCT,
             EVAPOTRANSPIRATION_RATE,
             TANK_EVAPORATION_RATE,
             RAFT_WATER_DEPTH,
@@ -168,5 +287,8 @@ def registry() -> dict[str, Coefficient]:
             NITRIFICATION_RATE,
             EC_TARGET_LEAFY,
             EC_TARGET_FRUITING,
+            GREENHOUSE_TRANSMISSIVITY,
+            GREENHOUSE_UNHEATED_LIFT_C,
+            GREENHOUSE_WATER_TAU_DAYS,
         )
     }

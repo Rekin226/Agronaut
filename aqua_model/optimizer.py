@@ -17,9 +17,10 @@ local availability. Those are real for Shape-B quoting and are deferred (see not
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import combinations_with_replacement
 
+from . import coefficients as C
 from . import massbalance as mb
 from .crops import CROPS, get_crop
 from .overrides import apply_overrides, validate_overrides
@@ -100,8 +101,11 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
     crops = {c: apply_overrides(crop=get_crop(c), overrides=overrides)[1] for c in alloc}
     area = inp.grow_area_m2
 
-    # Feed from the area-weighted FRR of the mix (FRR is the sizing rule).
-    feed_g_day = sum(area * frac * crops[c].frr_g_per_m2_day for c, frac in alloc.items())
+    # Feed from the area-weighted FRR of the mix (FRR is the sizing rule), scaled to this
+    # species' feed protein exactly as size_system does, so the two never disagree.
+    protein_factor = C.frr_protein_factor(species.feed_protein_pct)
+    feed_g_day = sum(area * frac * crops[c].frr_g_per_m2_day * protein_factor
+                     for c, frac in alloc.items())
 
     temp_factor = temperature_feed_factor(species, inp.temperature_c)
     eff_pct = species.feeding_rate_pct_bw * temp_factor
@@ -134,7 +138,9 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
 
     return Candidate(
         fish_species=fish_name,
-        crop_allocation={c: round(f, 3) for c, f in alloc.items()},
+        # These fractions describe the area actually evaluated. Rounding each one
+        # independently loses area for even splits (e.g. three crops -> 0.999).
+        crop_allocation=dict(alloc),
         feasible=feasible,
         score=round(score, 3),
         food_kg_yr=round(food_kg_yr, 1),
@@ -146,16 +152,33 @@ def _evaluate(fish_name: str, alloc: dict[str, float], inp: OptimizeInput,
     )
 
 
+def _palette(values, name, catalog):
+    """Normalize names before enumeration; repeated crops can otherwise lose area."""
+    if not isinstance(values, (tuple, list)) or not values:
+        raise ValidationError([f"{name} must be a non-empty list or tuple of names"])
+    normalized, seen = [], set()
+    for value in values:
+        if not isinstance(value, str) or value.strip().lower() not in catalog:
+            raise ValidationError([f"unknown {name} entry {value!r}; known: {sorted(catalog)}"])
+        key = value.strip().lower()
+        if key in seen:
+            raise ValidationError([f"{name} contains duplicate {key!r}; list each choice once"])
+        seen.add(key)
+        normalized.append(key)
+    return tuple(normalized)
+
+
 def optimize(inp: OptimizeInput, overrides: dict | None = None) -> OptimizeResult:
     # The trust gate applies here too. This enumerates thousands of designs and names a
     # winner, so an unchecked number comes back as a confident, cited-looking "best ratio":
     # a negative area used to report negative yields, and a NaN temperature scored the same
     # as an optimal one. Reject first, enumerate second.
-    validate_optimize_input(inp.grow_area_m2, inp.temperature_c, inp.water_budget_lpd)
+    area, temperature, budget = validate_optimize_input(inp.grow_area_m2, inp.temperature_c, inp.water_budget_lpd)
     if inp.objective not in OBJECTIVES:
         raise ValidationError([f"unknown objective {inp.objective!r}; known: {list(OBJECTIVES)}"])
-    if not inp.fish_palette or not inp.crop_palette:
-        raise ValidationError(["fish_palette and crop_palette must be non-empty"])
+    inp = replace(inp, grow_area_m2=area, temperature_c=temperature, water_budget_lpd=budget,
+                  fish_palette=_palette(inp.fish_palette, "fish_palette", SPECIES),
+                  crop_palette=_palette(inp.crop_palette, "crop_palette", CROPS))
     if overrides:
         validate_overrides(overrides)
 

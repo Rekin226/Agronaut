@@ -31,6 +31,12 @@ from .production import (
 )
 from .scenario import Intervention, compare, format_comparison, run_scenario
 from .scene3d import to_scene
+from .sensitivity import (
+    SensitivityResult,
+    SensitivityRow,
+    render_sensitivity,
+    sensitivity_table,
+)
 from .sizing import size_system
 from .triage import (
     ObservationFeatures,
@@ -66,6 +72,11 @@ __all__ = [
     "OptimizeResult",
     "Candidate",
     "OBJECTIVES",
+    # sensitivity: how the model's answer moves when one input moves
+    "sensitivity_table",
+    "render_sensitivity",
+    "SensitivityResult",
+    "SensitivityRow",
     "validate_design_input",
     "validate_hydroponic_input",
     "validate_optimize_input",

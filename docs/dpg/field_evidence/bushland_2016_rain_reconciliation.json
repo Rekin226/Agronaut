@@ -1,0 +1,481 @@
+{
+  "schema_version": 1,
+  "source_weather": {
+    "schema_version": 1,
+    "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526433",
+    "dataset_version": 2,
+    "license": {
+      "value": 2,
+      "name": "CC0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "metadata_url": "https://api.figshare.com/v2/articles/25012460/versions/2",
+    "file": {
+      "name": "2016_15-min_weather_SWMRU_CPRL_1.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44194481",
+      "bytes": 14868850,
+      "repository_md5": "6b4db619e17472bf28dabb0533038f46",
+      "sha256": "6b9707b3b10d9cc01472f63a604f6145bd18fa7edca255e487cd658a27254759"
+    }
+  },
+  "source_balance_files": [
+    {
+      "name": "2016_Maize_water_balance.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44531636",
+      "bytes": 4963828,
+      "repository_md5": "45caa3c4dd3a2ddbfee05d12dbd47901",
+      "sha256": "c4c0cbc83802ac802e0c3649cf8a88aac9b4c30e10184f4a9c61dee4a4ec1fba",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526334",
+      "dataset_version": 1
+    },
+    {
+      "name": "Conventions for Bushland, TX, Weighing Lysimeter Datasets.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44751106",
+      "bytes": 16584,
+      "repository_md5": "603b5ae8b7da32515ffb1f1ee01aa407",
+      "sha256": "eb0ace111da3bb2bf7d8b43a5ebfacbf3f2a33beda463b14764ec4a08d498515",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526317",
+      "dataset_version": 1
+    },
+    {
+      "name": "Bushland_TX_soil_properties.xlsx",
+      "url": "https://ndownloader.figshare.com/files/44751118",
+      "bytes": 29451,
+      "repository_md5": "ce4c4e5707e7278084786c7ad5201884",
+      "sha256": "3770155f5ac604131b210c622b7bd8e3af72105526af3bfbb1ffa15bc076e34e",
+      "dataset_doi": "https://doi.org/10.15482/USDA.ADC/1526317",
+      "dataset_version": 1
+    }
+  ],
+  "tolerance_mm": 1e-08,
+  "interval_comparison": {
+    "intervals_per_location": 35136,
+    "counts": {
+      "NE": {
+        "numeric_equal": 34149,
+        "missing_marker_equal": 987,
+        "blank_equal": 0,
+        "differences": 0
+      },
+      "SE": {
+        "numeric_equal": 35114,
+        "missing_marker_equal": 22,
+        "blank_equal": 0,
+        "differences": 0
+      },
+      "NW": {
+        "numeric_equal": 33691,
+        "missing_marker_equal": 1445,
+        "blank_equal": 0,
+        "differences": 0
+      },
+      "SW": {
+        "numeric_equal": 33449,
+        "missing_marker_equal": 1687,
+        "blank_equal": 0,
+        "differences": 0
+      }
+    },
+    "differences": [],
+    "comparison": "Exact numeric equality; #N/A markers and blank cells remain separate categories.",
+    "time_alignment": "Both decimal-DOY sequences must match 15-minute endpoints from 1+1/96 through 367 within 1e-8 day. This accepts stored floating-point drift, not a clock offset."
+  },
+  "locations": {
+    "NE": {
+      "differing_days": 8,
+      "consecutive_groups": [
+        {
+          "days": [
+            {
+              "day": "2016-03-06",
+              "interval_sum_mm": 0.4849347294000381,
+              "published_balance_daily_mm": 0.5342157240000631,
+              "published_minus_interval_mm": 0.049280994600025
+            },
+            {
+              "day": "2016-03-07",
+              "interval_sum_mm": 0.049280994600025,
+              "published_balance_daily_mm": 0,
+              "published_minus_interval_mm": -0.049280994600025
+            }
+          ],
+          "start": "2016-03-06",
+          "end": "2016-03-07",
+          "day_count": 2,
+          "interval_sum_mm": 0.5342157240000631,
+          "published_balance_sum_mm": 0.5342157240000631,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-07-29",
+              "interval_sum_mm": 1.4541546857999776,
+              "published_balance_daily_mm": 1.9414438613999891,
+              "published_minus_interval_mm": 0.4872891756000115
+            },
+            {
+              "day": "2016-07-30",
+              "interval_sum_mm": 1.6598033831999999,
+              "published_balance_daily_mm": 1.1725142075999884,
+              "published_minus_interval_mm": -0.4872891756000115
+            }
+          ],
+          "start": "2016-07-29",
+          "end": "2016-07-30",
+          "day_count": 2,
+          "interval_sum_mm": 3.1139580689999775,
+          "published_balance_sum_mm": 3.1139580689999775,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-08",
+              "interval_sum_mm": 3.7936623306,
+              "published_balance_daily_mm": 3.9640755228000444,
+              "published_minus_interval_mm": 0.17041319220004425
+            },
+            {
+              "day": "2016-08-09",
+              "interval_sum_mm": 4.966907228400004,
+              "published_balance_daily_mm": 4.7964940361999595,
+              "published_minus_interval_mm": -0.17041319220004425
+            }
+          ],
+          "start": "2016-08-08",
+          "end": "2016-08-09",
+          "day_count": 2,
+          "interval_sum_mm": 8.760569559000004,
+          "published_balance_sum_mm": 8.760569559000004,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-29",
+              "interval_sum_mm": 9.87008203379989,
+              "published_balance_daily_mm": 10.019954712599883,
+              "published_minus_interval_mm": 0.14987267879999422
+            },
+            {
+              "day": "2016-08-30",
+              "interval_sum_mm": 31.7350120152,
+              "published_balance_daily_mm": 31.585139336400005,
+              "published_minus_interval_mm": -0.14987267879999422
+            }
+          ],
+          "start": "2016-08-29",
+          "end": "2016-08-30",
+          "day_count": 2,
+          "interval_sum_mm": 41.60509404899989,
+          "published_balance_sum_mm": 41.60509404899989,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        }
+      ],
+      "groups_with_agreeing_totals": 4,
+      "daily_dew_hypothesis": {
+        "available_pairs": 352,
+        "missing_pairs": 14,
+        "differences_without_dew": 111,
+        "differences_after_adding_dew": 264
+      }
+    },
+    "SE": {
+      "differing_days": 6,
+      "consecutive_groups": [
+        {
+          "days": [
+            {
+              "day": "2016-07-29",
+              "interval_sum_mm": 1.4950012459999868,
+              "published_balance_daily_mm": 1.8846791356000097,
+              "published_minus_interval_mm": 0.3896778896000228
+            },
+            {
+              "day": "2016-07-30",
+              "interval_sum_mm": 1.5401715204000084,
+              "published_balance_daily_mm": 1.1504936307999856,
+              "published_minus_interval_mm": -0.3896778896000228
+            }
+          ],
+          "start": "2016-07-29",
+          "end": "2016-07-30",
+          "day_count": 2,
+          "interval_sum_mm": 3.0351727663999952,
+          "published_balance_sum_mm": 3.0351727663999952,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-08",
+              "interval_sum_mm": 3.5662605821999875,
+              "published_balance_daily_mm": 3.6726972548999584,
+              "published_minus_interval_mm": 0.10643667269997081
+            },
+            {
+              "day": "2016-08-09",
+              "interval_sum_mm": 5.353014607999995,
+              "published_balance_daily_mm": 5.246577935300024,
+              "published_minus_interval_mm": -0.10643667269997081
+            }
+          ],
+          "start": "2016-08-08",
+          "end": "2016-08-09",
+          "day_count": 2,
+          "interval_sum_mm": 8.919275190199983,
+          "published_balance_sum_mm": 8.919275190199983,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-29",
+              "interval_sum_mm": 9.50665730320003,
+              "published_balance_daily_mm": 9.693068958000026,
+              "published_minus_interval_mm": 0.186411654799997
+            },
+            {
+              "day": "2016-08-30",
+              "interval_sum_mm": 31.59610130539997,
+              "published_balance_daily_mm": 31.409689650599972,
+              "published_minus_interval_mm": -0.186411654799997
+            }
+          ],
+          "start": "2016-08-29",
+          "end": "2016-08-30",
+          "day_count": 2,
+          "interval_sum_mm": 41.1027586086,
+          "published_balance_sum_mm": 41.1027586086,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        }
+      ],
+      "groups_with_agreeing_totals": 3,
+      "daily_dew_hypothesis": {
+        "available_pairs": 365,
+        "missing_pairs": 1,
+        "differences_without_dew": 109,
+        "differences_after_adding_dew": 269
+      }
+    },
+    "NW": {
+      "differing_days": 9,
+      "consecutive_groups": [
+        {
+          "days": [
+            {
+              "day": "2016-03-01",
+              "interval_sum_mm": 0.19522814000001176,
+              "published_balance_daily_mm": 0.28226152000002,
+              "published_minus_interval_mm": 0.08703338000000826
+            },
+            {
+              "day": "2016-03-02",
+              "interval_sum_mm": 1.0803831400000092,
+              "published_balance_daily_mm": 0.993349760000001,
+              "published_minus_interval_mm": -0.08703338000000826
+            }
+          ],
+          "start": "2016-03-01",
+          "end": "2016-03-02",
+          "day_count": 2,
+          "interval_sum_mm": 1.275611280000021,
+          "published_balance_sum_mm": 1.275611280000021,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-07-29",
+              "interval_sum_mm": 1.725270020000039,
+              "published_balance_daily_mm": 2.10699826000004,
+              "published_minus_interval_mm": 0.38172824000000105
+            },
+            {
+              "day": "2016-07-30",
+              "interval_sum_mm": 1.4594764999999654,
+              "published_balance_daily_mm": 1.0777482599999644,
+              "published_minus_interval_mm": -0.38172824000000105
+            }
+          ],
+          "start": "2016-07-29",
+          "end": "2016-07-30",
+          "day_count": 2,
+          "interval_sum_mm": 3.1847465200000045,
+          "published_balance_sum_mm": 3.1847465200000045,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-08",
+              "interval_sum_mm": 3.902174940000023,
+              "published_balance_daily_mm": 4.081099760000015,
+              "published_minus_interval_mm": 0.17892481999999177
+            },
+            {
+              "day": "2016-08-09",
+              "interval_sum_mm": 4.809561739999992,
+              "published_balance_daily_mm": 4.630636920000001,
+              "published_minus_interval_mm": -0.17892481999999177
+            }
+          ],
+          "start": "2016-08-08",
+          "end": "2016-08-09",
+          "day_count": 2,
+          "interval_sum_mm": 8.711736680000016,
+          "published_balance_sum_mm": 8.711736680000016,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-29",
+              "interval_sum_mm": 8.828083099999986,
+              "published_balance_daily_mm": 8.996386060000006,
+              "published_minus_interval_mm": 0.16830296000001965
+            },
+            {
+              "day": "2016-08-30",
+              "interval_sum_mm": 31.25576996000001,
+              "published_balance_daily_mm": 31.095783339999983,
+              "published_minus_interval_mm": -0.1599866200000264
+            },
+            {
+              "day": "2016-08-31",
+              "interval_sum_mm": 4.937518099999977,
+              "published_balance_daily_mm": 4.929201759999984,
+              "published_minus_interval_mm": -0.00831633999999326
+            }
+          ],
+          "start": "2016-08-29",
+          "end": "2016-08-31",
+          "day_count": 3,
+          "interval_sum_mm": 45.02137115999997,
+          "published_balance_sum_mm": 45.02137115999997,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        }
+      ],
+      "groups_with_agreeing_totals": 4,
+      "daily_dew_hypothesis": {
+        "available_pairs": 347,
+        "missing_pairs": 19,
+        "differences_without_dew": 117,
+        "differences_after_adding_dew": 299
+      }
+    },
+    "SW": {
+      "differing_days": 6,
+      "consecutive_groups": [
+        {
+          "days": [
+            {
+              "day": "2016-07-29",
+              "interval_sum_mm": 1.7241016500000512,
+              "published_balance_daily_mm": 2.035385640000044,
+              "published_minus_interval_mm": 0.3112839899999926
+            },
+            {
+              "day": "2016-07-30",
+              "interval_sum_mm": 1.4434136099999932,
+              "published_balance_daily_mm": 1.1321296200000006,
+              "published_minus_interval_mm": -0.3112839899999926
+            }
+          ],
+          "start": "2016-07-29",
+          "end": "2016-07-30",
+          "day_count": 2,
+          "interval_sum_mm": 3.1675152600000445,
+          "published_balance_sum_mm": 3.1675152600000445,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-08",
+              "interval_sum_mm": 3.970162259999938,
+              "published_balance_daily_mm": 4.0861089899999286,
+              "published_minus_interval_mm": 0.11594672999999034
+            },
+            {
+              "day": "2016-08-09",
+              "interval_sum_mm": 5.272278209999996,
+              "published_balance_daily_mm": 5.156331480000006,
+              "published_minus_interval_mm": -0.11594672999999034
+            }
+          ],
+          "start": "2016-08-08",
+          "end": "2016-08-09",
+          "day_count": 2,
+          "interval_sum_mm": 9.242440469999934,
+          "published_balance_sum_mm": 9.242440469999934,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        },
+        {
+          "days": [
+            {
+              "day": "2016-08-29",
+              "interval_sum_mm": 9.467896859999968,
+              "published_balance_daily_mm": 9.65790962999995,
+              "published_minus_interval_mm": 0.1900127699999814
+            },
+            {
+              "day": "2016-08-30",
+              "interval_sum_mm": 33.31596969,
+              "published_balance_daily_mm": 33.12595692000002,
+              "published_minus_interval_mm": -0.1900127699999814
+            }
+          ],
+          "start": "2016-08-29",
+          "end": "2016-08-30",
+          "day_count": 2,
+          "interval_sum_mm": 42.78386654999997,
+          "published_balance_sum_mm": 42.78386654999997,
+          "published_minus_interval_mm": 0.0,
+          "totals_agree_within_tolerance": true
+        }
+      ],
+      "groups_with_agreeing_totals": 3,
+      "daily_dew_hypothesis": {
+        "available_pairs": 345,
+        "missing_pairs": 21,
+        "differences_without_dew": 105,
+        "differences_after_adding_dew": 291
+      }
+    }
+  },
+  "weather_daily_comparison": {
+    "available_pairs": 1775,
+    "missing_pairs": 55,
+    "differences": 590
+  },
+  "model_input_ready": false,
+  "model_validation_performed": false,
+  "source_values_modified": false,
+  "interpretation": [
+    "Interval equality establishes consistency of these related published representations, not independent replication or observation quality.",
+    "Cancellation across consecutive differing days is consistent with different daily allocations. It does not prove the allocation rule, cause, or which daily series should drive a model.",
+    "A universal dew-addition hypothesis is checked as weather daily minus (balance daily plus daily dew). No dew correction is applied.",
+    "The separate weather daily table still differs from interval totals. No rainfall series is selected, shifted, filled or clipped.",
+    "Temperature/humidity aggregation, radiation estimation, crop calendar, initial soil state, evaluation split and acceptance criteria remain unresolved before model evaluation.",
+    "Texas source consistency does not establish performance in Burkina Faso or Taiwan."
+  ],
+  "method_context": {
+    "url": "https://acsess.onlinelibrary.wiley.com/doi/10.2134/age2018.09.0036",
+    "note": "The published weather-quality methods distinguish precipitation from irrigation and discuss separate processing of lysimeter catch. They do not explain the specific discrepancies identified here."
+  }
+}

@@ -375,9 +375,26 @@ class TelegramAdapter(ChannelAdapter):
                 reply = "Something went wrong reading that image. Try again, or describe what you see?"
             await self._deliver(update, chat_id, reply)
             return
+        if mime == "application/pdf" or (getattr(doc, "file_name", "") or "").lower().endswith(".pdf"):
+            # A lab report or a feed label: read on Claude, then a normal turn (handle_document).
+            chat_id = self._identity(update)
+            await ctx.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+            try:
+                tg_file = await doc.get_file()
+                data = bytes(await tg_file.download_as_bytearray())
+                reply = await asyncio.to_thread(
+                    self.agent.handle_document, self.channel_name, chat_id, data,
+                    "application/pdf", update.message.caption,
+                    update.effective_user.full_name if update.effective_user else None,
+                )
+            except Exception:
+                log.exception("agent.handle_document failed")
+                reply = "Something went wrong reading that PDF. Try again, or send a photo of the page?"
+            await self._deliver(update, chat_id, reply)
+            return
         await update.message.reply_text(
-            "I can't read files like that yet. I work with text and photos. Send a photo of "
-            "your fish, plants, or water, or just tell me what's going on."
+            "I can't read files like that yet. I read text, photos and PDFs (a water test, a "
+            "feed label). Send one of those, or just tell me what's going on."
         )
 
     async def _on_voice(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -428,8 +445,22 @@ class TelegramAdapter(ChannelAdapter):
         return [
             ("start", self._on_command, "What Agronaut is"),
             ("help", self._on_command, "Show help"),
+            ("units", self._on_command, "List your production units"),
+            ("overview", self._on_command, "View crop work across your farms"),
+            ("guide", self._on_command, "Read sourced field guides"),
+            ("newunit", self._on_command, "Create a production unit step by step"),
+            ("fieldplan", self._on_command, "Plan water or evaluate irrigation systems"),
+            ("scout", self._on_command, "Record a crop scouting observation"),
+            ("plant", self._on_command, "Record an actual planting"),
+            ("task", self._on_command, "Plan or update crop work"),
+            ("harvest", self._on_command, "Record an actual harvest batch"),
+            ("waterlog", self._on_command, "Record completed daily water totals"),
+            ("measure", self._on_command, "Record a raw field reading"),
+            ("back", self._on_command, "Edit the previous guided answer"),
+            ("cancel", self._on_command, "Cancel the active guided intake"),
+            ("unit", self._on_command, "Select a field or other production unit"),
             ("design", self._on_design, "Mode: size a new system"),
-            ("optimize", self._on_optimize, "Mode: best fish/crop ratio"),
+            ("optimize", self._on_optimize, "Mode: improve resource use"),
             ("troubleshoot", self._on_troubleshoot, "Mode: diagnose a problem"),
             ("log", self._on_command, "Log readings into your LIVE twin"),
             ("forecast", self._on_command, "Your live twin: now + the week ahead"),

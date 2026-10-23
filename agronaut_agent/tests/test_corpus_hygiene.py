@@ -237,3 +237,19 @@ def test_pdf_extraction_actually_works():
     for d in docs:
         assert d.metadata["source"] == "https://example.org/doc.pdf"
         assert isinstance(d.metadata["page"], int)
+def test_transient_probe_failure_retries_type_detection_before_loading(monkeypatch):
+    from srcs import chatbot
+
+    replies = iter([{"status": 0}, {"status": 200, "content": b"%PDF-synthetic", "is_pdf": True}])
+    monkeypatch.setattr(chatbot, "_probe_url", lambda url: next(replies))
+    monkeypatch.setattr(chatbot, "_pdf_documents", lambda content, url: [content])
+    monkeypatch.setattr(chatbot, "WebBaseLoader", lambda *args: pytest.fail("PDF reached HTML loader"))
+    assert chatbot.load_web_page("https://example.org/bitstream") == [b"%PDF-synthetic"]
+
+
+def test_repeated_transport_failure_cannot_index_unknown_bytes_as_html(monkeypatch):
+    from srcs import chatbot
+
+    monkeypatch.setattr(chatbot, "_probe_url", lambda url: {"status": 0})
+    monkeypatch.setattr(chatbot, "WebBaseLoader", lambda *args: pytest.fail("untyped bytes reached HTML loader"))
+    assert chatbot.load_web_page("https://example.org/bitstream") == []

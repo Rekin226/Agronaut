@@ -1,0 +1,52 @@
+{
+  "request_id": "synthetic-soil-report-1",
+  "cycle_id": null,
+  "data": {
+    "entry": "synthetic-sample-A",
+    "sampled_on": "2026-06-20",
+    "reported_on": "2026-06-25",
+    "lab_name": "Synthetic example lab",
+    "lab_report_id": "EXAMPLE-R1",
+    "sample_id": "EXAMPLE-A1",
+    "location": "Example north field composite",
+    "depth_top_cm": 0,
+    "depth_bottom_cm": 15,
+    "subsample_count": null,
+    "sampling_source": "Synthetic sampling notebook; not field evidence",
+    "report_source": "Synthetic report fixture; not an actual lab report",
+    "results": [
+      {
+        "id": "ph",
+        "analyte": "pH",
+        "value": "6.20",
+        "qualifier": "eq",
+        "unit": "pH",
+        "method": "Example water suspension method"
+      },
+      {
+        "id": "p",
+        "analyte": "Extractable phosphorus",
+        "value": "0.010",
+        "qualifier": "lt",
+        "unit": "mg/kg P",
+        "method": "Example lab extraction method"
+      },
+      {
+        "id": "n",
+        "analyte": "Nitrogen",
+        "value": null,
+        "qualifier": "not_reported",
+        "unit": null,
+        "method": null
+      },
+      {
+        "id": "texture",
+        "analyte": "Texture class",
+        "value": "Sandy loam",
+        "qualifier": "text",
+        "unit": null,
+        "method": "As described by example laboratory"
+      }
+    ]
+  }
+}

@@ -15,10 +15,19 @@ def test_default_provider_and_model(monkeypatch):
 
 def test_env_selects_provider_and_model(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "NVIDIA")  # case-insensitive
-    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setenv("LLM_MODEL", "mistralai/mistral-nemotron")
     provider, model = L.resolve()
     assert provider == "nvidia"
-    assert model == L.DEFAULT_MODELS["nvidia"]
+    assert model == "mistralai/mistral-nemotron"
+
+
+def test_nvidia_without_a_model_says_so_instead_of_calling_a_dead_one(monkeypatch):
+    """The old default, meta/llama-3.1-8b-instruct, was retired 2026-08-26 and 404s. NVIDIA has
+    no default now, so a missing LLM_MODEL is an error that names the fix, not a failed call."""
+    monkeypatch.setenv("LLM_PROVIDER", "nvidia")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    with pytest.raises(ValueError, match="LLM_MODEL"):
+        L.resolve()
 
 
 def test_explicit_args_override_env(monkeypatch):
@@ -201,10 +210,12 @@ def test_the_anthropic_branch_never_sends_temperature(monkeypatch):
     assert seen["model"] == "claude-sonnet-5"
 
 
-def test_the_dead_nvidia_fallback_is_gone():
-    """meta/llama-3.1-8b-instruct returns 410 Gone (measured 2026-09-08), so the fallback
-    turned one failure into two. A fallback that cannot answer is worse than none."""
+def test_the_dead_nvidia_models_are_gone():
+    """meta/llama-3.1-8b-instruct returns 410 Gone (measured 2026-09-08) and was retired
+    2026-08-26. As a fallback it turned one failure into two; as the default it failed the
+    first message. Neither table may name it."""
     assert L.FALLBACK_MODELS.get("nvidia") != "meta/llama-3.1-8b-instruct"
+    assert L.DEFAULT_MODELS["nvidia"] is None
 
 
 class _Echo:
@@ -216,8 +227,9 @@ class _Echo:
     def bind_tools(self, tools):
         return self
 
-    def invoke(self, messages):
+    def invoke(self, messages, **kwargs):
         self.got = messages
+        self.kwargs = kwargs
         return "ok"
 
 
@@ -250,3 +262,99 @@ def test_the_adapter_survives_bind_tools_and_delegates_everything_else():
     assert isinstance(bound, L._AnthropicSystemAdapter)
     bound.invoke([])
     assert inner.got == []
+
+
+def test_a_string_prompt_reaches_anthropic_as_one_whole_message():
+    """get_llm() passes a plain string. The adapter used to iterate it, so "Shade cloth" went
+    out as eleven one-letter messages, the spaces were lost, and the model wrote back
+    "Shadecloth". Every string-prompt caller on Anthropic was affected: the faithfulness and
+    consult evals, and the live agent's background session summary."""
+    from langchain_core.messages import HumanMessage
+
+    inner = _Echo()
+    L._AnthropicSystemAdapter(inner).invoke("Shade cloth, tarps or plastic lids")
+    assert len(inner.got) == 1
+    assert isinstance(inner.got[0], HumanMessage)
+    assert inner.got[0].content == "Shade cloth, tarps or plastic lids"
+
+
+def test_normalize_returns_only_the_text_of_a_reply_that_thought_first():
+    """A Claude reply that thinks first is a LIST of blocks. normalize() used to return the repr
+    of the whole message, so a parser read the signature and the thinking, and the escaped
+    newlines broke "QUOTE: ...\\nVERDICT: ..." into one unmatchable quote."""
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(content=[
+        {"type": "thinking", "thinking": "the context says so", "signature": "abc"},
+        {"type": "text", "text": "QUOTE: shade cloth covers tanks\nVERDICT: SUPPORTED"},
+    ])
+    assert L.normalize(msg) == "QUOTE: shade cloth covers tanks\nVERDICT: SUPPORTED"
+
+
+def test_normalize_drops_non_text_blocks():
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(content=[{"type": "text", "text": "Check the pump. "},
+                             {"type": "tool_use", "id": "t1", "name": "x", "input": {}},
+                             "Then the aerator."])
+    assert L.normalize(msg) == "Check the pump. Then the aerator."
+
+
+def test_the_fixed_prompt_is_cached_for_an_hour_and_the_turn_automatically(monkeypatch):
+    """SYSTEM_PROMPT and the 30 tool schemas are the same ~11K tokens on every call. The first
+    system block gets a 1-hour breakpoint (it caches the tools with it); the API's automatic
+    breakpoint covers the rest of the turn so the tool loop's later calls reuse it."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    monkeypatch.delenv("AGRONAUT_PROMPT_CACHE", raising=False)
+    inner = _Echo()
+    msgs = [SystemMessage(content="PROMPT"), SystemMessage(content="RECALL"),
+            HumanMessage(content="hello")]
+    L._AnthropicSystemAdapter(inner).invoke(msgs)
+    assert inner.got[0].content == [{"type": "text", "text": "PROMPT",
+                                     "cache_control": {"type": "ephemeral", "ttl": "1h"}}]
+    assert inner.got[1].content == "RECALL"          # per-user recall: never cached
+    assert inner.kwargs == {"cache_control": {"type": "ephemeral"}}
+    assert msgs[0].content == "PROMPT"               # the caller's messages are untouched
+
+
+def test_one_off_prompts_and_the_off_switch_carry_no_cache(monkeypatch):
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    inner = _Echo()
+    L._AnthropicSystemAdapter(inner).invoke("judge this claim")
+    assert inner.kwargs == {}
+    monkeypatch.setenv("AGRONAUT_PROMPT_CACHE", "off")
+    L._AnthropicSystemAdapter(inner).invoke([SystemMessage(content="P"),
+                                             HumanMessage(content="hi")])
+    assert inner.kwargs == {} and inner.got[0].content == "P"
+
+
+
+def test_effort_is_sent_only_to_models_that_take_it(monkeypatch):
+    """Haiku 4.5 rejects output_config.effort; the Sonnet 5 line and newer Opus take it.
+    The default is the measured one, and a typo falls back to it rather than failing."""
+    monkeypatch.delenv("AGRONAUT_CLAUDE_EFFORT", raising=False)
+    assert L.claude_effort("claude-sonnet-5-5") == L.DEFAULT_CLAUDE_EFFORT == "low"
+    assert L.claude_effort("claude-opus-5-5") == "low"
+    assert L.claude_effort("claude-haiku-4-5") is None
+    monkeypatch.setenv("AGRONAUT_CLAUDE_EFFORT", "HIGH")
+    assert L.claude_effort("claude-sonnet-5") == "high"
+    monkeypatch.setenv("AGRONAUT_CLAUDE_EFFORT", "hgih")
+    assert L.claude_effort("claude-sonnet-5-5") == "low"
+
+
+def test_the_claude_backend_carries_the_effort_and_room_to_think(monkeypatch):
+    seen = {}
+
+    class _FakeChat:
+        def __init__(self, **kw):
+            seen.update(kw)
+
+    import langchain_anthropic
+    monkeypatch.setattr(langchain_anthropic, "ChatAnthropic", _FakeChat)
+    monkeypatch.delenv("AGRONAUT_CLAUDE_EFFORT", raising=False)
+    L._build_backend("anthropic", "claude-sonnet-5-5", 0.0)
+    assert seen == {"model": "claude-sonnet-5-5", "max_tokens": 8192, "effort": "low"}
+    assert L.DEFAULT_MODELS["anthropic"] == "claude-sonnet-5-5"
+    assert L.FALLBACK_MODELS["anthropic"] == "claude-sonnet-5"

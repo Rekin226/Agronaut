@@ -1,6 +1,6 @@
 # Agronaut — Privacy & Data Policy
 
-_Last updated: 2026-07-24_
+_Last updated: 2026-10-10_
 
 Agronaut is a personal agronomy assistant. This policy describes exactly what it collects,
 why, how long it keeps it, and how you control it. It is written to satisfy the
@@ -27,6 +27,25 @@ EXIF GPS above all — is stripped before an image is sent to a vision model, so
 geotagged camera file does not leak a location you did not type.
 Stripping is best-effort: an image the software cannot decode is sent as received rather
 than discarded, so an unusual or malformed file may still carry its metadata.
+
+## When the operator runs Agronaut on Claude
+
+Running on a local model keeps every message on the operator's machine. An operator who
+chooses Claude (`LLM_PROVIDER=anthropic`) sends the conversation to Anthropic to be answered,
+and on that provider two more things can leave the machine:
+
+- **Web search and web fetch.** To answer what the curated knowledge cannot (today's prices,
+  suppliers, regulations), Claude may run a web search, which sends a short search query
+  through Anthropic to a search provider, or read a public web page. Queries are written by
+  the model from your question, for example "prix aliment tilapia Ouagadougou"; they are not
+  your messages. The operator can switch either off (`AGRONAUT_WEB_SEARCH=off`,
+  `AGRONAUT_WEB_FETCH=off`).
+- Sources found on the web are shown with the reply, and a figure from a web page is never
+  used as an input to a sizing or design calculation.
+- **PDFs.** A PDF you send (a water test, a feed label) is read by Claude into plain text and
+  then handled like a message; the file itself is not kept. Values read from it are shown back
+  to you to confirm before anything is logged, and nothing from it is saved to your profile.
+  On a local model PDFs are declined, and a photo of the page works instead.
 
 ## How it is used
 
@@ -68,6 +87,13 @@ Reachable directly from chat at any time:
   to follow you between turns.
 - A **thumbs up/down** (`/good`, `/bad`) is stored as a bare rating, 1 or -1. There is
   deliberately no comment field, so this signal cannot carry anything you wrote.
+- **Optional full traces (off by default).** An operator debugging their own bot can turn on
+  local tracing to Arize Phoenix (`AGRONAUT_PHOENIX=on`). Unlike the analytics above, these
+  traces DO contain message text: your messages, the replies, and what the tools and the
+  knowledge search returned. They are sent only to a Phoenix running on the operator's own
+  machine (Agronaut refuses another host unless the operator overrides it), Phoenix's own web
+  analytics are switched off when it is started with `agronaut phoenix`, and nothing is sent to
+  Arize. If you message someone else's Agronaut bot, ask them whether this is on.
 - Data is retained until you delete it. An operator deployment may set its own retention
   window; this reference build retains until erasure is requested.
 - Access control: on Telegram/WhatsApp an allowlist restricts who can use a given

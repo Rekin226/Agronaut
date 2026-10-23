@@ -145,6 +145,156 @@ def test_bump_attempt_and_fail():
     assert fs.open_for("telegram:1") is None          # failed is not "open"
 
 
+def test_message_id_links_a_status_back_to_its_followup():
+    # The 131047 half of #215: a delivery-status webhook carries only the WhatsApp
+    # message id, so the follow-up row must remember it.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.by_message_id("wamid.FU1") is None      # nothing recorded yet
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+    assert fs.by_message_id("wamid.FU1")["id"] == fid
+    assert fs.by_message_id("wamid.OTHER") is None    # unknown message: nothing
+
+
+def test_message_id_lookup_ignores_followups_no_longer_sent():
+    # A late status must not move a follow-up that was already answered, failed,
+    # or cancelled — only one still marked sent can match.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+    fs.mark_answered(fid)
+    assert fs.by_message_id("wamid.FU1") is None
+
+
+def test_fail_closed_window_is_a_guarded_atomic_transition():
+    # #215 review round 3: the 131047 transition must be one guarded UPDATE —
+    # a row that is no longer sent must never move to failed.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.fail_closed_window("wamid.NONE") is False   # unknown id: no-op
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+    assert fs.fail_closed_window("wamid.FU1") is True
+    assert fs.open_for("telegram:1") is None               # failed is not open
+    assert fs.fail_closed_window("wamid.FU1") is False     # already failed: no-op
+
+    fs.schedule("telegram:2", "telegram", "2", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid2 = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid2)
+    fs.record_message_id(fid2, "wamid.FU2")
+    fs.mark_answered(fid2)
+    assert fs.fail_closed_window("wamid.FU2") is False     # answered: never fails
+
+
+def test_concurrent_duplicate_status_failures_consume_one_attempt():
+    # #215 review round 3: three concurrent copies of the same non-131047
+    # failure must cost exactly one attempt — the guarded UPDATE only matches
+    # while the row is still sent.
+    import threading
+
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+
+    barrier = threading.Barrier(3)
+    results = []
+
+    def worker():
+        barrier.wait()
+        results.append(fs.consume_status_retry("wamid.FU1"))
+
+    threads = [threading.Thread(target=worker) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sum(results) == 1                              # exactly one winner
+    row = fs.open_for("telegram:1")
+    assert row["attempts"] == 1 and row["status"] == "pending"
+
+
+def test_concurrent_131047_marks_failed_exactly_once():
+    # Same race for the 131047 path: duplicates must not resurrect or double-move.
+    import threading
+
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+
+    barrier = threading.Barrier(4)
+    results = []
+
+    def worker():
+        barrier.wait()
+        results.append(fs.fail_closed_window("wamid.FU1"))
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sum(results) == 1
+    assert fs.open_for("telegram:1") is None               # failed is not open
+
+
+def test_answer_winning_the_race_is_never_overwritten_to_failed():
+    # #215 review round 3: an inbound answer landing between a status lookup
+    # and the 131047 write must survive — whichever order the threads run, the
+    # final state is answered, never failed.
+    import threading
+
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    fs.mark_sent(fid)
+    fs.record_message_id(fid, "wamid.FU1")
+
+    barrier = threading.Barrier(2)
+
+    def answer():
+        barrier.wait()
+        fs.mark_answered(fid)
+
+    def status():
+        barrier.wait()
+        fs.fail_closed_window("wamid.FU1")
+
+    threads = [threading.Thread(target=answer), threading.Thread(target=status)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    rows = fs.db.query("SELECT status FROM followups WHERE id=?", (fid,))
+    assert rows[0]["status"] == "answered"
+
+
+def test_consume_send_failure_keeps_sync_retry_semantics():
+    # The synchronous path (send raised before mark_sent, row still pending)
+    # still retries twice and fails on the third.
+    fs = _fs()
+    fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
+    fid = fs.due("telegram", _now())[0]["id"]
+    assert fs.consume_send_failure(fid) is True
+    assert fs.consume_send_failure(fid) is True
+    row = fs.open_for("telegram:1")
+    assert row["attempts"] == 2 and row["status"] == "pending"
+    assert fs.consume_send_failure(fid) is True
+    assert fs.open_for("telegram:1") is None              # terminal after 3
+    assert fs.consume_send_failure(fid) is False           # failed row: no-op
+
+
 def test_answer_and_cancel_free_the_slot():
     fs = _fs()
     fs.schedule("telegram:1", "telegram", "1", "q", "a", "2000-01-01T00:00:00+00:00")
