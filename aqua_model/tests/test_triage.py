@@ -128,6 +128,27 @@ def test_gasping_fish_leads_with_dissolved_oxygen():
     assert "oxygen" in result.candidates[0].cause.lower()
 
 
+def test_swollen_fish_leads_with_water_quality():
+    """knowledge/fish_disease_and_treatment.md describes pop-eye and swelling as pictures to
+    work the water first on — the water-quality candidate must rank above the systemic one."""
+    result = triage_symptoms(_f(subject=["fish"], fish_body=["swollen"]))
+    causes = [c.cause for c in result.candidates]
+    water = next(i for i, c in enumerate(causes) if "water quality" in c.lower())
+    dropsy = next(i for i, c in enumerate(causes) if "Dropsy" in c)
+    assert water < dropsy
+
+
+def test_dropsy_checks_name_the_pinecone_and_eye_discriminators():
+    """A photo CAN separate the candidates: raised scales versus simple bloat in the
+    systemic check, one protruding eye versus both in the water-quality check. The checks
+    must say so instead of asking for a lab."""
+    result = triage_symptoms(_f(subject=["fish"], fish_body=["swollen"]))
+    water = next(c for c in result.candidates if "water quality" in c.cause.lower())
+    dropsy = next(c for c in result.candidates if "Dropsy" in c.cause)
+    assert "pinecone" in " ".join(dropsy.checks)
+    assert "one protruding eye versus both" in " ".join(water.checks)
+
+
 def test_seedling_collapse_offers_conditions_before_the_disease():
     """knowledge/plant_pests_and_ipm.md describes damping-off in one line that names both the
     disease and its trigger ("seedlings collapse at the soil line; caused by wet, stagnant,
@@ -209,6 +230,8 @@ def test_triage_never_raises_on_any_valid_feature_combination():
             triage_symptoms(_f(water_state=water, root_state=root))
     for stem in sorted(triage_mod.STEM_STATES):
         triage_symptoms(_f(subject=["plant"], stem_state=stem))
+    for body in sorted(triage_mod.FISH_BODY):
+        triage_symptoms(_f(subject=["fish"], fish_body=[body]))
 
 
 def test_sources_lists_distinct_documents_in_order():

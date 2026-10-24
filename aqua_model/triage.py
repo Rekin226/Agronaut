@@ -446,6 +446,35 @@ _RULES: tuple[_Rule, ...] = (
             priority=_P_ENVIRONMENT,
         ),
     ),
+    # -- fish: the swollen presentation ---------------------------------------------------
+    # knowledge/fish_disease_and_treatment.md describes the picture: one or both protruding
+    # eyes, or a swollen body with pinecone-raised scales. The KB's own opening rule — most
+    # fish disease is a water-quality problem first — is the differential's spine: the water
+    # tests are the cheap, safe check, and one protruding eye versus both separates injury
+    # from a systemic cause.
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Poor water quality",
+            because="a protruding eye or a swollen body is the described picture, and the "
+                    "knowledge base names water quality as the first suspect to rule out "
+                    "before any pathogen",
+            checks=("ammonia and nitrite with a test kit, plus dissolved oxygen and "
+                    "temperature — the things the knowledge base says to rule out first",
+                    "one protruding eye versus both: a single eye points at injury, both "
+                    "eyes or a swollen body point at a systemic cause",
+                    "anything that changed recently: a missed water change, a pump "
+                    "failure, a power cut, new stock"),
+            safe_actions=("fix the water first: raise dissolved oxygen, correct ammonia and "
+                          "pH, stabilise temperature — improving the environment alone "
+                          "resolves many cases",
+                          "pause feeding while the fish are stressed",
+                          "do not medicate the main system while the water is still the "
+                          "suspect"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_ENVIRONMENT,
+        ),
+    ),
     # -- fish: pathogen candidates, deliberately BELOW the environment ones --------------
     _Rule(
         matches=lambda f: "white_spots" in f.fish_body or "flashing" in f.fish_behaviour,
@@ -502,6 +531,25 @@ _RULES: tuple[_Rule, ...] = (
                     "secondary",),
             safe_actions=("quarantine tank for any treatment",
                           "remove the underlying stressor"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_PATHOGEN,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Dropsy-like presentation (possible systemic bacterial infection)",
+            because="a swollen body with pinecone-raised scales is the described serious "
+                    "systemic picture, and the knowledge base treats bacterial disease as "
+                    "the category that follows an environment problem",
+            checks=("scales standing off the body in a pinecone pattern when viewed from "
+                    "above — raised scales separate dropsy from simple bloat",
+                    "lethargy and refusal to feed alongside the swelling",
+                    "the water tests: a systemic cause is likelier when the environment "
+                    "already checks out"),
+            safe_actions=("move the fish to a separate quarantine tank before any treatment "
+                          "— the main system's biofilter and plants never carry medication",
+                          "keep the water pristine and remove the underlying stressor"),
             source=_KB_FISH_DISEASE,
             priority=_P_PATHOGEN,
         ),

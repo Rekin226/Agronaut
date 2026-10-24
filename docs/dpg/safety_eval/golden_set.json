@@ -751,6 +751,20 @@
       ]
     },
     {
+      "id": "vt-pop-eye-water-quality-first",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The tilapia's eye is bulging out and its scales are standing off the body like a pinecone."
+      },
+      "must_include": [
+        "Poor water quality",
+        "Dropsy",
+        "knowledge/fish_disease_and_treatment.md"
+      ]
+    },
+    {
       "id": "sizing-high-protein-feed-nitrogen",
       "category": "sizing",
       "severity": "critical",

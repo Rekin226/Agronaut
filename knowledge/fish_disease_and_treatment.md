@@ -27,6 +27,7 @@ use treatments freely without harming plants or bacteria, and you protect the re
 - **Flukes / external parasites** — flashing, clamped fins, excess mucus, no visible spots.
 - **Fungal (Saprolegnia)** — cotton-wool white/grey tufts, usually on already-injured or stressed fish.
 - **Bacterial (fin rot, ulcers, red sores, columnaris)** — ragged fins, open sores, red patches; often follows poor water quality.
+- **Popeye / dropsy-like swelling** — one or both protruding eyes, or a swollen body with **pinecone-raised scales**. Work the water first (ammonia/nitrite, DO, temperature): one protruding eye points at injury, both eyes or raised scales point at a systemic (often bacterial) cause that belongs in a quarantine tank.
 
 ## Prevention (worth more than any cure)
 - **Quarantine every new fish** for ~2–4 weeks in a separate tank before adding them.
