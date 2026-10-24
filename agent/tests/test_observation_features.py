@@ -43,6 +43,24 @@ def test_fish_white_spots_and_flashing():
     assert "flashing" in f.fish_behaviour
 
 
+def test_pop_eye_and_bulging_eye_read_as_swollen():
+    """The words a grower reaches for on the swollen presentation — pop-eye, a bulging or
+    protruding eye — must reach the triage table, which no rule could read before."""
+    f = extract("The tilapia has pop eye on one side.")
+    assert "swollen" in f.fish_body
+    f = extract("One of the trout's eyes is bulging out.")
+    assert "swollen" in f.fish_body
+
+
+def test_swollen_fish_drives_the_water_quality_differential():
+    f = extract("The tilapia's eye is bulging out and its scales are standing off the body.")
+    result = triage_symptoms(f)
+    assert not result.is_empty()
+    causes = [c.cause for c in result.candidates]
+    assert any("water quality" in c.lower() for c in causes)
+    assert all(c.source.startswith("knowledge/") for c in result.candidates)
+
+
 def test_leaf_spots_are_not_read_as_a_fish_symptom():
     """Scoping matters: 'white spots' on a leaf must not become a fish disease feature."""
     f = extract("There are small white spots scattered across the lettuce leaves.")

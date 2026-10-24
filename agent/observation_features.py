@@ -127,7 +127,8 @@ _LESION = _rx(r"\blesion", r"\bsores?\b", r"\bulcer", r"\bwound", r"\bred patch"
               r"\bopen (?:sore|wound)")
 _FRAYED = _rx(r"\bfray", r"\bragged fins?\b", r"\btorn fins?\b", r"\bfin rot\b",
               r"\beroded fins?\b")
-_SWOLLEN = _rx(r"\bswollen\b", r"\bbloat", r"\bdistended\b", r"\bpop.?eye\b", r"\bdropsy\b")
+_SWOLLEN = _rx(r"\bswollen\b", r"\bbloat", r"\bdistended\b", r"\bpop.?eye\b", r"\bdropsy\b",
+               r"\bbulg", r"\bprotrud")
 _COTTON = _rx(r"\bcotton", r"\btufts?\b", r"\bfluffy white\b", r"\bsaprolegnia\b")
 
 # --- pests ------------------------------------------------------------------------------
