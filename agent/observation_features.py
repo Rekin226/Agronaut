@@ -37,7 +37,9 @@ def _rx(*alternatives: str) -> re.Pattern:
 # --- subject detection ------------------------------------------------------------------
 _PLANT_CUE = _rx(r"\bleaf\b", r"\bleaves\b", r"\bplant", r"\bfoliage\b", r"\bseedlings?\b",
                  r"\bcrop\b", r"\blettuce\b", r"\bbasil\b", r"\bkale\b", r"\bspinach\b",
-                 r"\btomato", r"\bchard\b", r"\bherbs?\b", r"\bstems?\b", r"\bcanopy\b")
+                 r"\btomato", r"\bchard\b", r"\bherbs?\b", r"\bstems?\b", r"\bcanopy\b",
+                 r"\bfruits?\b", r"\bpeppers?\b", r"\bzucchinis?\b", r"\bsquash\b",
+                 r"\bcucumbers?\b", r"\beggplants?\b", r"\bmelons?\b", r"\bstrawberr")
 _FISH_CUE = _rx(r"\bfish\b", r"\btilapia\b", r"\bcatfish\b", r"\bclarias\b", r"\btrout\b",
                 r"\bcarp\b", r"\bkoi\b", r"\bperch\b", r"\bgill", r"\bfins?\b", r"\bscale")
 _WATER_CUE = _rx(r"\bwater\b", r"\btank\b", r"\bsump\b", r"\bpond\b")
@@ -97,6 +99,19 @@ _STEM_BASE = _rx(r"\b(?:soil|media|grow(?:ing)?|stem|compost) line\b", r"\bstem 
                  r"\bbase of the (?:stem|plant)s?\b", r"\bat the base\b")
 _STEM_LESION = _rx(r"\bpinch(?:ed|ing)?\b", r"\bwater.?soaked\b", r"\bconstrict",
                    r"\bbrown at the base\b", r"\bnarrow(?:ed|ing)? at the base\b")
+
+# --- fruit (blossom-end lesions) ---------------------------------------------------------
+# knowledge/plant_nutrient_deficiencies.md names blossom-end rot among calcium's pictures
+# in fruiting crops; issue #70's checklist describes it as "sunken necrotic spots on
+# fruit". Same guard discipline as the stem block: the lesion word needs a fruit cue in
+# the SAME sentence, and a leaf word in that sentence suppresses the reading — the same
+# words on a leaf are a leaf disease, not a fruit lesion.
+_FRUIT_CUE = _rx(r"\bfruits?\b", r"\btomato", r"\bpeppers?\b", r"\bzucchinis?\b",
+                 r"\bsquash\b", r"\bcucumbers?\b", r"\beggplants?\b", r"\bmelons?\b",
+                 r"\bstrawberr")
+_FRUIT_LESION = _rx(r"\bsunken\b", r"\bleathery\b", r"\bblossom.?end\b",
+                    r"\bbottom of the fruits?\b")
+_LEAFISH = _rx(r"\bleaves?\b", r"\bfoliage\b")
 
 # --- water ------------------------------------------------------------------------------
 _WATER_GREEN = _rx(r"\bgreen water\b", r"\bpea.?soup\b", r"\bwater (?:is |looks |appears )?"
@@ -165,7 +180,7 @@ def _scope(text: str, cue: re.Pattern) -> str:
     return " ".join(s for s in _sentences(text) if cue.search(s))
 
 
-_SCALAR_FIELDS = ("leaf_age", "root_state", "stem_state", "water_state")
+_SCALAR_FIELDS = ("leaf_age", "root_state", "stem_state", "fruit_state", "water_state")
 
 
 def merge_feature_kwargs(primary: dict, secondary: dict) -> dict:
@@ -228,6 +243,7 @@ def _feature_kwargs(text: str) -> dict:
     leaf_pattern: list[str] = []
     colour: list[str] = []
     stem_state = "unknown"
+    fruit_state = "unknown"
     if "plant" in subject:
         pt = _scope(text, _PLANT_CUE)          # only the sentences about plants
         old, new = bool(_OLD_LEAF.search(pt)), bool(_NEW_LEAF.search(pt))
@@ -262,6 +278,10 @@ def _feature_kwargs(text: str) -> dict:
                and (_STEM_LESION.search(s) or _STEM_COLLAPSE.search(s))
                for s in _sentences(pt)):
             stem_state = "pinched_base"
+
+        if any(_FRUIT_LESION.search(s) and _FRUIT_CUE.search(s) and not _LEAFISH.search(s)
+               for s in _sentences(pt)):
+            fruit_state = "sunken_spots"
 
     root_state = "unknown"
     if "roots" in subject:
@@ -311,6 +331,7 @@ def _feature_kwargs(text: str) -> dict:
 
     return dict(
         subject=subject, leaf_age=leaf_age, leaf_pattern=leaf_pattern, colour=colour,
-        root_state=root_state, stem_state=stem_state, water_state=water_state,
+        root_state=root_state, stem_state=stem_state, fruit_state=fruit_state,
+        water_state=water_state,
         fish_behaviour=fish_behaviour, fish_body=fish_body, pests_visible=pests,
     )

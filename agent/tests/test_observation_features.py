@@ -125,6 +125,23 @@ def test_seedling_and_lesion_cues_in_different_sentences_do_not_match():
     assert f.stem_state == "unknown"
 
 
+def test_sunken_lesion_on_a_fruit_sets_fruit_state():
+    f = extract("A sunken, leathery dark patch at the blossom end of the tomatoes.")
+    assert f.fruit_state == "sunken_spots"
+
+
+def test_sunken_leaf_spots_do_not_read_as_a_fruit_lesion():
+    """The same words on a leaf are a leaf disease; the leaf word in the sentence
+    suppresses the fruit reading the way the stem guard suppresses pruning pinches."""
+    f = extract("The tomato leaves have small sunken spots.")
+    assert f.fruit_state == "unknown"
+
+
+def test_fruit_and_leaf_cues_in_different_sentences_do_not_cross():
+    f = extract("The tomato leaves look pale. A sunken dark spot marks the fruit's bottom.")
+    assert f.fruit_state == "sunken_spots"
+
+
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
     assert f.water_state == "green"
