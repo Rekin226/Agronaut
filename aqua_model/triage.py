@@ -263,26 +263,24 @@ _RULES: tuple[_Rule, ...] = (
     ),
     # -- plant: fruit, sunken blossom-end lesions ----------------------------------------
     # knowledge/plant_nutrient_deficiencies.md names blossom-end rot among calcium's
-    # pictures in fruiting crops and calls calcium "often an uptake/transpiration issue as
-    # much as a supply one". That single line is a two-candidate differential: the
-    # moisture/transpiration reading (environment band) first, the actual supply shortfall
-    # second — the same ordering the tip-burn checks ask for on new growth.
+    # pictures in fruiting crops and calls calcium in fruiting crops as much an
+    # uptake/transpiration matter as a supply one. That single line is a two-candidate
+    # differential: the moisture/transpiration reading (environment band) first, the
+    # actual supply shortfall second — the calcium-bearing pH base is the record that
+    # separates supply from uptake.
     _Rule(
         matches=lambda f: f.fruit_state == "sunken_spots",
         candidate=TriageCandidate(
             cause="Inconsistent moisture / low transpiration limiting calcium uptake",
             because="a sunken, leathery lesion on the fruit is the described calcium "
-                    "picture, and the document calls calcium in fruiting crops 'often an "
-                    "uptake/transpiration issue as much as a supply one'",
+                    "picture, and the document names calcium in fruiting crops as much "
+                    "an uptake/transpiration matter as a supply one",
             checks=("moisture steadiness: swings between soggy and dry disrupt the "
                     "transpiration stream calcium travels in",
-                    "airflow and canopy humidity around the fruiting plants",
-                    "new growth: clean tips point at a local uptake problem; burnt or "
-                    "distorted tips point at a whole-plant calcium shortage"),
+                    "airflow and canopy humidity around the fruiting plants"),
             safe_actions=("even out the moisture pattern so the media does not swing "
                           "between soggy and dry",
-                          "improve airflow around fruiting plants; nothing that reaches "
-                          "the water — no foliar calcium spray in a coupled system"),
+                          "improve airflow around fruiting plants"),
             source=_KB_DEFICIENCY,
             priority=_P_ENVIRONMENT,
         ),
@@ -293,9 +291,7 @@ _RULES: tuple[_Rule, ...] = (
             cause="Calcium (Ca) shortfall in fruiting crops",
             because="blossom-end rot on fruit is the described calcium-deficiency picture",
             checks=("whether a calcium-bearing pH base (calcium carbonate or hydroxide) "
-                    "is in use",
-                    "tip burn or distortion on new growth elsewhere — a whole-plant "
-                    "shortage points at supply rather than uptake"),
+                    "is in use",),
             safe_actions=("calcium carbonate or hydroxide used as the pH base supplies "
                           "calcium",
                           "ensure airflow/transpiration for fruiting plants"),

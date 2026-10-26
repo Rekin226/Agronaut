@@ -142,6 +142,24 @@ def test_fruit_and_leaf_cues_in_different_sentences_do_not_cross():
     assert f.fruit_state == "sunken_spots"
 
 
+def test_named_blossom_end_rot_reads_through_a_leaf_word():
+    """The named disorder is already the fruit reading: 'The lettuce leaves show tip burn
+    and the tomatoes have blossom-end rot.' must reach the calcium differential, leaf
+    word or not."""
+    f = extract("The lettuce leaves show tip burn and the tomatoes have blossom-end rot.")
+    assert f.fruit_state == "sunken_spots"
+
+
+def test_strawberry_and_cucumber_sunken_spots_do_not_return_the_calcium_rule():
+    """Sunken spots on strawberries and cucumbers are usually fungal, not blossom-end
+    rot — the fruit cue list keeps to the crops where the sunken picture is the
+    described one."""
+    f = extract("The strawberries have sunken spots.")
+    assert f.fruit_state == "unknown"
+    f = extract("The cucumbers have sunken spots on the bottom.")
+    assert f.fruit_state == "unknown"
+
+
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
     assert f.water_state == "green"

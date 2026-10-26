@@ -780,6 +780,21 @@
       ]
     },
     {
+      "id": "vt-blossom-end-rot-named-through-leaf-guard",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The lettuce leaves show tip burn and the tomatoes have blossom-end rot."
+      },
+      "must_include": [
+        "DIFFERENTIAL",
+        "NOT a diagnosis",
+        "transpiration",
+        "Calcium"
+      ]
+    },
+    {
       "id": "sizing-high-protein-feed-nitrogen",
       "category": "sizing",
       "severity": "critical",

@@ -105,12 +105,15 @@ _STEM_LESION = _rx(r"\bpinch(?:ed|ing)?\b", r"\bwater.?soaked\b", r"\bconstrict"
 # in fruiting crops; issue #70's checklist describes it as "sunken necrotic spots on
 # fruit". Same guard discipline as the stem block: the lesion word needs a fruit cue in
 # the SAME sentence, and a leaf word in that sentence suppresses the reading — the same
-# words on a leaf are a leaf disease, not a fruit lesion.
+# words on a leaf are a leaf disease, not a fruit lesion — unless the disorder is named
+# outright: "blossom-end rot" is already the fruit reading, so the named term bypasses
+# the leaf guard. The cue list keeps to the crops where the sunken picture is the
+# described one (tomato, pepper, squash/zucchini, eggplant, melon); on strawberries and
+# cucumbers sunken spots are usually fungal, not blossom-end rot.
 _FRUIT_CUE = _rx(r"\bfruits?\b", r"\btomato", r"\bpeppers?\b", r"\bzucchinis?\b",
-                 r"\bsquash\b", r"\bcucumbers?\b", r"\beggplants?\b", r"\bmelons?\b",
-                 r"\bstrawberr")
-_FRUIT_LESION = _rx(r"\bsunken\b", r"\bleathery\b", r"\bblossom.?end\b",
-                    r"\bbottom of the fruits?\b")
+                 r"\bsquash\b", r"\beggplants?\b", r"\bmelons?\b")
+_FRUIT_LESION = _rx(r"\bsunken\b", r"\bleathery\b", r"\bbottom of the fruits?\b")
+_BER_NAMED = _rx(r"\bblossom.?end\b")
 _LEAFISH = _rx(r"\bleaves?\b", r"\bfoliage\b")
 
 # --- water ------------------------------------------------------------------------------
@@ -279,7 +282,9 @@ def _feature_kwargs(text: str) -> dict:
                for s in _sentences(pt)):
             stem_state = "pinched_base"
 
-        if any(_FRUIT_LESION.search(s) and _FRUIT_CUE.search(s) and not _LEAFISH.search(s)
+        if any((_BER_NAMED.search(s) and _FRUIT_CUE.search(s))
+               or (_FRUIT_LESION.search(s) and _FRUIT_CUE.search(s)
+                   and not _LEAFISH.search(s))
                for s in _sentences(pt)):
             fruit_state = "sunken_spots"
 
