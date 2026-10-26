@@ -461,8 +461,9 @@ _RULES: tuple[_Rule, ...] = (
                     "before any pathogen",
             checks=("ammonia and nitrite with a test kit, plus dissolved oxygen and "
                     "temperature — the things the knowledge base says to rule out first",
-                    "one protruding eye versus both: a single eye points at injury, both "
-                    "eyes or a swollen body point at a systemic cause",
+                    "one protruding eye versus both: a single eye with flat scales fits "
+                    "the eye-injury candidate below, both eyes or a swollen body fit the "
+                    "systemic one — either way the water tests decide what to fix first",
                     "anything that changed recently: a missed water change, a pump "
                     "failure, a power cut, new stock"),
             safe_actions=("fix the water first: raise dissolved oxygen, correct ammonia and "
@@ -550,6 +551,25 @@ _RULES: tuple[_Rule, ...] = (
             safe_actions=("move the fish to a separate quarantine tank before any treatment "
                           "— the main system's biofilter and plants never carry medication",
                           "keep the water pristine and remove the underlying stressor"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_PATHOGEN,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Eye injury (local trauma to one eye)",
+            because="a single protruding eye on an otherwise normal body is the trauma "
+                    "picture, and the veterinary reference the knowledge base cites names "
+                    "trauma as the most common cause of a protruding eye",
+            checks=("only one eye affected — both eyes protruding points back at the "
+                    "systemic candidates above",
+                    "a clouded or blood-flecked eye, or something recent the fish could "
+                    "have hit: a decoration, a net, a tankmate",
+                    "scales lying flat and behaviour otherwise normal"),
+            safe_actions=("remove whatever the fish could have hit and keep the water "
+                          "pristine — clean water is the treatment while an eye heals",
+                          "do not medicate the main system for a local injury"),
             source=_KB_FISH_DISEASE,
             priority=_P_PATHOGEN,
         ),

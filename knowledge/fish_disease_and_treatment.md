@@ -27,7 +27,7 @@ use treatments freely without harming plants or bacteria, and you protect the re
 - **Flukes / external parasites** — flashing, clamped fins, excess mucus, no visible spots.
 - **Fungal (Saprolegnia)** — cotton-wool white/grey tufts, usually on already-injured or stressed fish.
 - **Bacterial (fin rot, ulcers, red sores, columnaris)** — ragged fins, open sores, red patches; often follows poor water quality.
-- **Popeye / dropsy-like swelling** — one or both protruding eyes, or a swollen body with **pinecone-raised scales**. Work the water first (ammonia/nitrite, DO, temperature): one protruding eye points at injury, both eyes or raised scales point at a systemic (often bacterial) cause that belongs in a quarantine tank.
+- **Popeye / dropsy-like swelling** — one or both protruding eyes, or a swollen body with **pinecone-raised scales**. Work the water first (ammonia/nitrite, DO, temperature). The two usual causes of a protruding eye: trauma — an impact that damages the eye itself — and internal swelling, where failing kidneys or gills let fluid build up behind the eye; raised scales alongside the swelling point at the systemic picture that belongs in a quarantine tank. (Causes of popeye per Dr. Jessie Sanders, DVM, DABVP (Fish Practice), "Fish Popeye", cafishvet.com/fish-health-disease/fish-popeye.)
 
 ## Prevention (worth more than any cure)
 - **Quarantine every new fish** for ~2–4 weeks in a separate tank before adding them.

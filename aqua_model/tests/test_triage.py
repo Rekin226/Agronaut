@@ -149,6 +149,14 @@ def test_dropsy_checks_name_the_pinecone_and_eye_discriminators():
     assert "one protruding eye versus both" in " ".join(water.checks)
 
 
+def test_swollen_differential_offers_the_injury_candidate():
+    """The water-quality check's one-eye-versus-both discriminator reads toward injury;
+    the differential must offer it, or the check points at a cause it never shows."""
+    result = triage_symptoms(_f(subject=["fish"], fish_body=["swollen"]))
+    causes = [c.cause for c in result.candidates]
+    assert any("injury" in c.lower() for c in causes)
+
+
 def test_seedling_collapse_offers_conditions_before_the_disease():
     """knowledge/plant_pests_and_ipm.md describes damping-off in one line that names both the
     disease and its trigger ("seedlings collapse at the soil line; caused by wet, stagnant,
