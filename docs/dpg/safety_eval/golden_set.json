@@ -751,6 +751,50 @@
       ]
     },
     {
+      "id": "vt-blossom-end-rot-uptake-first",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "A sunken, leathery dark patch at the blossom end of the tomatoes."
+      },
+      "must_include": [
+        "DIFFERENTIAL",
+        "NOT a diagnosis",
+        "transpiration",
+        "Calcium"
+      ]
+    },
+    {
+      "id": "vt-blossom-end-rot-is-cited",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "Small sunken spots on the bottom of the peppers."
+      },
+      "must_include": [
+        "source: knowledge/",
+        "Calcium",
+        "airflow"
+      ]
+    },
+    {
+      "id": "vt-blossom-end-rot-named-through-leaf-guard",
+      "category": "visual_triage",
+      "severity": "critical",
+      "tool": "visual_triage",
+      "args": {
+        "description": "The lettuce leaves show tip burn and the tomatoes have blossom-end rot."
+      },
+      "must_include": [
+        "DIFFERENTIAL",
+        "NOT a diagnosis",
+        "transpiration",
+        "Calcium"
+      ]
+    },
+    {
       "id": "sizing-high-protein-feed-nitrogen",
       "category": "sizing",
       "severity": "critical",

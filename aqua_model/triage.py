@@ -63,6 +63,10 @@ STEM_STATES = frozenset({
     "pinched_base",  # a pinched, water-soaked constriction right at the media line
     "unknown",
 })
+FRUIT_STATES = frozenset({
+    "sunken_spots",  # a sunken, dark/leathery lesion on a fruit — blossom-end rot's picture
+    "unknown",
+})
 WATER_STATES = frozenset({"clear", "green", "cloudy", "brown", "unknown"})
 FISH_BEHAVIOURS = frozenset({
     "gasping_surface", "lethargic", "not_eating", "flashing", "clamped_fins",
@@ -99,6 +103,7 @@ class ObservationFeatures:
     colour: tuple[str, ...] = ()
     root_state: str = "unknown"
     stem_state: str = "unknown"
+    fruit_state: str = "unknown"
     water_state: str = "unknown"
     fish_behaviour: tuple[str, ...] = ()
     fish_body: tuple[str, ...] = ()
@@ -110,7 +115,7 @@ class ObservationFeatures:
         return not any((self.subject, self.leaf_pattern, self.colour, self.fish_behaviour,
                         self.fish_body, self.pests_visible)) and \
             self.root_state == "unknown" and self.stem_state == "unknown" and \
-            self.water_state == "unknown"
+            self.water_state == "unknown" and self.fruit_state == "unknown"
 
 
 @dataclass(frozen=True)
@@ -252,6 +257,44 @@ _RULES: tuple[_Rule, ...] = (
                     "whether a calcium-bearing pH base is in use"),
             safe_actions=("calcium carbonate or hydroxide used as the pH base supplies calcium",
                           "improve airflow around fruiting plants"),
+            source=_KB_DEFICIENCY,
+            priority=_P_SUPPLY,
+        ),
+    ),
+    # -- plant: fruit, sunken blossom-end lesions ----------------------------------------
+    # knowledge/plant_nutrient_deficiencies.md names blossom-end rot among calcium's
+    # pictures in fruiting crops and calls calcium in fruiting crops as much an
+    # uptake/transpiration matter as a supply one. That single line is a two-candidate
+    # differential: the moisture/transpiration reading (environment band) first, the
+    # actual supply shortfall second — the calcium-bearing pH base is the record that
+    # separates supply from uptake.
+    _Rule(
+        matches=lambda f: f.fruit_state == "sunken_spots",
+        candidate=TriageCandidate(
+            cause="Inconsistent moisture / low transpiration limiting calcium uptake",
+            because="a sunken, leathery lesion on the fruit is the described calcium "
+                    "picture, and the document names calcium in fruiting crops as much "
+                    "an uptake/transpiration matter as a supply one",
+            checks=("moisture steadiness: swings between soggy and dry disrupt the "
+                    "transpiration stream calcium travels in",
+                    "airflow and canopy humidity around the fruiting plants"),
+            safe_actions=("even out the moisture pattern so the media does not swing "
+                          "between soggy and dry",
+                          "improve airflow around fruiting plants"),
+            source=_KB_DEFICIENCY,
+            priority=_P_ENVIRONMENT,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: f.fruit_state == "sunken_spots",
+        candidate=TriageCandidate(
+            cause="Calcium (Ca) shortfall in fruiting crops",
+            because="blossom-end rot on fruit is the described calcium-deficiency picture",
+            checks=("whether a calcium-bearing pH base (calcium carbonate or hydroxide) "
+                    "is in use",),
+            safe_actions=("calcium carbonate or hydroxide used as the pH base supplies "
+                          "calcium",
+                          "ensure airflow/transpiration for fruiting plants"),
             source=_KB_DEFICIENCY,
             priority=_P_SUPPLY,
         ),
@@ -556,8 +599,8 @@ _NOT_MODELED: tuple[str, ...] = (
 
 def validate_observation_features(
     subject=(), leaf_age="unknown", leaf_pattern=(), colour=(), root_state="unknown",
-    stem_state="unknown", water_state="unknown", fish_behaviour=(), fish_body=(),
-    pests_visible=(),
+    stem_state="unknown", fruit_state="unknown", water_state="unknown",
+    fish_behaviour=(), fish_body=(), pests_visible=(),
 ) -> ObservationFeatures:
     """The trust gate for triage input.
 
@@ -601,6 +644,7 @@ def validate_observation_features(
         colour=_seq("colour", colour, COLOURS),
         root_state=_one("root_state", root_state, ROOT_STATES),
         stem_state=_one("stem_state", stem_state, STEM_STATES),
+        fruit_state=_one("fruit_state", fruit_state, FRUIT_STATES),
         water_state=_one("water_state", water_state, WATER_STATES),
         fish_behaviour=_seq("fish_behaviour", fish_behaviour, FISH_BEHAVIOURS),
         fish_body=_seq("fish_body", fish_body, FISH_BODY),

@@ -125,6 +125,41 @@ def test_seedling_and_lesion_cues_in_different_sentences_do_not_match():
     assert f.stem_state == "unknown"
 
 
+def test_sunken_lesion_on_a_fruit_sets_fruit_state():
+    f = extract("A sunken, leathery dark patch at the blossom end of the tomatoes.")
+    assert f.fruit_state == "sunken_spots"
+
+
+def test_sunken_leaf_spots_do_not_read_as_a_fruit_lesion():
+    """The same words on a leaf are a leaf disease; the leaf word in the sentence
+    suppresses the fruit reading the way the stem guard suppresses pruning pinches."""
+    f = extract("The tomato leaves have small sunken spots.")
+    assert f.fruit_state == "unknown"
+
+
+def test_fruit_and_leaf_cues_in_different_sentences_do_not_cross():
+    f = extract("The tomato leaves look pale. A sunken dark spot marks the fruit's bottom.")
+    assert f.fruit_state == "sunken_spots"
+
+
+def test_named_blossom_end_rot_reads_through_a_leaf_word():
+    """The named disorder is already the fruit reading: 'The lettuce leaves show tip burn
+    and the tomatoes have blossom-end rot.' must reach the calcium differential, leaf
+    word or not."""
+    f = extract("The lettuce leaves show tip burn and the tomatoes have blossom-end rot.")
+    assert f.fruit_state == "sunken_spots"
+
+
+def test_strawberry_and_cucumber_sunken_spots_do_not_return_the_calcium_rule():
+    """Sunken spots on strawberries and cucumbers are usually fungal, not blossom-end
+    rot — the fruit cue list keeps to the crops where the sunken picture is the
+    described one."""
+    f = extract("The strawberries have sunken spots.")
+    assert f.fruit_state == "unknown"
+    f = extract("The cucumbers have sunken spots on the bottom.")
+    assert f.fruit_state == "unknown"
+
+
 def test_green_water():
     f = extract("The water in the tank has turned pea-soup green.")
     assert f.water_state == "green"

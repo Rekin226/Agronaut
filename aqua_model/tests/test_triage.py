@@ -155,6 +155,29 @@ def test_stem_observation_alone_is_not_empty():
     assert not validate_observation_features(stem_state="pinched_base").is_empty()
 
 
+def test_fruit_observation_alone_is_not_empty():
+    assert not validate_observation_features(fruit_state="sunken_spots").is_empty()
+
+
+def test_blossom_end_lesion_offers_uptake_before_supply():
+    """The calcium line's own two readings: 'often an uptake/transpiration issue as much
+    as a supply one'. The environment-banded moisture reading must lead the supply one."""
+    result = triage_symptoms(_f(subject=["plant"], fruit_state="sunken_spots"))
+    causes = [c.cause for c in result.candidates]
+    uptake = next(i for i, c in enumerate(causes) if "transpiration" in c)
+    supply = next(i for i, c in enumerate(causes) if "Calcium" in c)
+    assert uptake < supply
+
+
+def test_blossom_end_supply_check_names_the_calcium_base():
+    """A record can answer the supply reading's discriminating question directly: whether
+    a calcium-bearing pH base is in use. The check must say so explicitly."""
+    result = triage_symptoms(_f(subject=["plant"], fruit_state="sunken_spots"))
+    supply = next(c for c in result.candidates if "Calcium" in c.cause)
+    blob = " ".join(supply.checks)
+    assert "calcium carbonate" in blob and "hydroxide" in blob
+
+
 def test_green_water_points_at_an_algae_bloom_and_warns_about_dawn_oxygen():
     result = triage_symptoms(_f(subject=["water"], water_state="green"))
     algae = next(c for c in result.candidates if "algae" in c.cause.lower())
