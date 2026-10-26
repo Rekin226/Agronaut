@@ -6,7 +6,7 @@ still be *economically* or *operationally* infeasible. Run all three checks befo
 ## 1. Resource feasibility
 
 - **Water budget.** Recirculating systems use little water, but evapotranspiration + evaporation
-  set a daily makeup requirement. If it exceeds the available budget the design is not feasible —
+  set a daily makeup requirement. If it exceeds the available budget the design is not feasible:
   shrink the grow area to the nearest-feasible size (Agronaut computes this).
 - **Energy.** Continuous pumping and aeration, plus heating/cooling to hold the temperature band,
   are the binding constraint in most real deployments. Confirm a reliable power source (grid,
@@ -33,14 +33,14 @@ still be *economically* or *operationally* infeasible. Run all three checks befo
   freshness premium, are where the case closes.
 - **Scale.** Small systems carry the same fixed costs (your time, a controller, a structure) as
   larger ones but spread them over less output. Many pilots are feasible only as demonstrations,
-  not businesses — that is a legitimate goal, but name it.
+  not businesses, that is a legitimate goal, but name it.
 
 ## For grants and pilots (funder-facing)
 
 Programs (FAO, WFP, GIZ, CGIAR) fund pilots that show: a named local partner, a realistic
 outcome estimate (food/water/income), a cost that includes energy and labour, and a plan for who
 operates and maintains it after the grant. A cited, honest design that lists what it does *not*
-model is more fundable than an optimistic one — funders scrutinise over-claims closely.
+model is more fundable than an optimistic one, funders scrutinise over-claims closely.
 
 _Sources: FAO Technical Paper 589; Gates/GIZ AIEP advisory-tool lessons (2025); WFP H2Grow
 hydroponics deployment reports; practitioner feasibility guidance._

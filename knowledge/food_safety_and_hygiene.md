@@ -1,12 +1,12 @@
 # Food Safety and Hygiene
 
 Aquaponic and hydroponic produce is food. Because fish, water, and edible plants share one
-system, a few hazards need active management — most are avoidable with basic hygiene.
+system, a few hazards need active management, most are avoidable with basic hygiene.
 
 ## The main hazards
 
 - **Faecal pathogens (E. coli, Salmonella).** The fish and their waste are the source. Risk is
-  highest where **edible parts contact system water** — leafy greens in raft/DWC, and any
+  highest where **edible parts contact system water**, leafy greens in raft/DWC, and any
   splashing onto the crop.
 - **Listeria** can persist in cool, wet surfaces (channels, sumps, packing areas).
 - **Physical/chemical:** anything you add to the water reaches the food. Only use inputs approved
@@ -19,10 +19,10 @@ system, a few hazards need active management — most are avoidable with basic h
 - **Never handle fish and then harvest produce** without washing hands and changing gloves. Keep
   separate tools for fish work and plant harvest.
 - **Wash produce in clean (potable) water at harvest**, not system water.
-- **Cool the harvest promptly** — the cold chain limits pathogen growth after picking.
+- **Cool the harvest promptly**, the cold chain limits pathogen growth after picking.
 - **No raw manure, ever.** Do not add manure or untreated organic matter to a system growing food;
   the fish waste is the nutrient source and it is processed by the biofilter.
-- **Handle mortalities fast.** Remove dead fish immediately — decomposition spikes ammonia (a fish
+- **Handle mortalities fast.** Remove dead fish immediately, decomposition spikes ammonia (a fish
   hazard) and raises the pathogen load.
 
 ## System hygiene
@@ -42,7 +42,7 @@ practice and follow your jurisdiction's rules (see `regulations_and_permits`).
 
 If you sell produce, expect to follow a food-safety scheme (e.g. GAP-style Good Agricultural
 Practices, or your national equivalent): documented water testing, worker hygiene, traceability,
-and harvest/handling records. Build the record-keeping in from day one — it is far easier than
+and harvest/handling records. Build the record-keeping in from day one, it is far easier than
 retrofitting it.
 
 _Sources: FAO/WHO produce-safety guidance; FAO Technical Paper 589 (food-safety section);
