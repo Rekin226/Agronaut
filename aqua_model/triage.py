@@ -446,6 +446,36 @@ _RULES: tuple[_Rule, ...] = (
             priority=_P_ENVIRONMENT,
         ),
     ),
+    # -- fish: the swollen presentation ---------------------------------------------------
+    # knowledge/fish_disease_and_treatment.md describes the picture: one or both protruding
+    # eyes, or a swollen body with pinecone-raised scales. The KB's own opening rule — most
+    # fish disease is a water-quality problem first — is the differential's spine: the water
+    # tests are the cheap, safe check, and one protruding eye versus both separates injury
+    # from a systemic cause.
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Poor water quality",
+            because="a protruding eye or a swollen body is the described picture, and the "
+                    "knowledge base names water quality as the first suspect to rule out "
+                    "before any pathogen",
+            checks=("ammonia and nitrite with a test kit, plus dissolved oxygen and "
+                    "temperature — the things the knowledge base says to rule out first",
+                    "one protruding eye versus both: a single eye with flat scales fits "
+                    "the eye-injury candidate below, both eyes or a swollen body fit the "
+                    "systemic one — either way the water tests decide what to fix first",
+                    "anything that changed recently: a missed water change, a pump "
+                    "failure, a power cut, new stock"),
+            safe_actions=("fix the water first: raise dissolved oxygen, correct ammonia and "
+                          "pH, stabilise temperature — improving the environment alone "
+                          "resolves many cases",
+                          "pause feeding while the fish are stressed",
+                          "do not medicate the main system while the water is still the "
+                          "suspect"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_ENVIRONMENT,
+        ),
+    ),
     # -- fish: pathogen candidates, deliberately BELOW the environment ones --------------
     _Rule(
         matches=lambda f: "white_spots" in f.fish_body or "flashing" in f.fish_behaviour,
@@ -502,6 +532,44 @@ _RULES: tuple[_Rule, ...] = (
                     "secondary",),
             safe_actions=("quarantine tank for any treatment",
                           "remove the underlying stressor"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_PATHOGEN,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Dropsy-like presentation (possible systemic bacterial infection)",
+            because="a swollen body with pinecone-raised scales is the described serious "
+                    "systemic picture, and the knowledge base treats bacterial disease as "
+                    "the category that follows an environment problem",
+            checks=("scales standing off the body in a pinecone pattern when viewed from "
+                    "above — raised scales separate dropsy from simple bloat",
+                    "lethargy and refusal to feed alongside the swelling",
+                    "the water tests: a systemic cause is likelier when the environment "
+                    "already checks out"),
+            safe_actions=("move the fish to a separate quarantine tank before any treatment "
+                          "— the main system's biofilter and plants never carry medication",
+                          "keep the water pristine and remove the underlying stressor"),
+            source=_KB_FISH_DISEASE,
+            priority=_P_PATHOGEN,
+        ),
+    ),
+    _Rule(
+        matches=lambda f: "swollen" in f.fish_body,
+        candidate=TriageCandidate(
+            cause="Eye injury (local trauma to one eye)",
+            because="a single protruding eye on an otherwise normal body is the trauma "
+                    "picture, and the veterinary reference the knowledge base cites names "
+                    "trauma as the most common cause of a protruding eye",
+            checks=("only one eye affected — both eyes protruding points back at the "
+                    "systemic candidates above",
+                    "a clouded or blood-flecked eye, or something recent the fish could "
+                    "have hit: a decoration, a net, a tankmate",
+                    "scales lying flat and behaviour otherwise normal"),
+            safe_actions=("remove whatever the fish could have hit and keep the water "
+                          "pristine — clean water is the treatment while an eye heals",
+                          "do not medicate the main system for a local injury"),
             source=_KB_FISH_DISEASE,
             priority=_P_PATHOGEN,
         ),
