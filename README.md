@@ -233,6 +233,36 @@ Start with [issue #27](https://github.com/Rekin226/Agronaut/issues/27), the
 [CONTRIBUTING.md](CONTRIBUTING.md). One rule before you write code: `aqua_model/` stays pure,
 and every number in it needs a published source.
 
+## Contributors
+
+Agronaut is better because of the people who added a crop, a species, a source or a fix.
+Thank you:
+
+- [@blut-agent](https://github.com/blut-agent): eight heat-tolerant leafy crops, cited TGC
+  seeds for five fish species, the unsourced-constant guard in CI, the first independent
+  reference system, the aeration layout, sensitivity tables and symptom-triage differentials
+- [@yuyuxx113-coder](https://github.com/yuyuxx113-coder): the early knowledge chatbot, its
+  FAISS retrieval, known-fact handling and dialogue mode
+- [@akshatshahh](https://github.com/akshatshahh): WhatsApp follow-up delivery tracking
+- [@DYNOSuprovo](https://github.com/DYNOSuprovo): WhatsApp attachment handling and `doctor`
+  checks
+- [@Yoliani](https://github.com/Yoliani): attachment cleanup and the no-credentials first-run
+  CI job
+- [@adnandispatch9-jpg](https://github.com/adnandispatch9-jpg): WhatsApp token verification in
+  `doctor`
+- [@HarshRajSinghania](https://github.com/HarshRajSinghania): `--json` output for the sizing CLI
+- [@jordansilly77-stack](https://github.com/jordansilly77-stack): boilerplate text filter
+  refactor
+- [@kr1xh](https://github.com/kr1xh): the headless Design and Optimize CLI
+- [@kragent66-glitch](https://github.com/kragent66-glitch): the top-down layout plan over
+  WhatsApp
+- [@Mr-Neutr0n](https://github.com/Mr-Neutr0n): the expanded cited fish-species database
+- [@sOuL2000s](https://github.com/sOuL2000s): water spinach (kangkong)
+- [@tnalbant](https://github.com/tnalbant): the agriculture capability taxonomy and source
+  registry
+- [@TrueFurina](https://github.com/TrueFurina): the cold-season operation knowledge document
+- [@visheshbpatel](https://github.com/visheshbpatel): the India price book
+
 ## Citing Agronaut
 
 If you use Agronaut in research or programme work, see [CITATION.cff](CITATION.cff).
